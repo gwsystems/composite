@@ -42,9 +42,9 @@ loader:
     /* repare to enter long(64-bit) mode */
 
     /* close paging first */
-    mov %cr0, %eax                                   
-    and $(~(1<<31)), %eax   
-    mov %eax, %cr0                                
+    mov %cr0, %eax
+    and $(~(1<<31)), %eax
+    mov %eax, %cr0
 
     /* test if 1G huge page is supported */
     /* some cpus don't support 1G huge page, we enable this by set qemu -cpu max */
@@ -125,8 +125,10 @@ entry_64:
     jmp .
 
 .align 8
+.global multiboot_magic
 multiboot_magic:
     .fill 1, 4, 0
+.global multiboot_tags
 multiboot_tags:
     .fill 1, 4, 0
 
@@ -138,7 +140,8 @@ gdt_table:
     .quad	0x0000920000000000	// kernel data descriptor
 gdt_end:
 
-gdt_ptr:	
+.global gdt_ptr
+gdt_ptr:
     .word	gdt_end - gdt_table - 1
     .quad	gdt_table
 
@@ -146,9 +149,11 @@ gdt_ptr:
 /* need to be 4k aligned */
 .align 4096
 /* P0 is PGD */
+.global p0_pgt
 p0_pgt:
     .fill 512, 8, 0
 
+.global p1_pgt
 p1_pgt:
     .fill 512, 8, 0
 
@@ -238,7 +243,7 @@ smploader:
 	orl     $CR0_PE, %eax
 	movl    %eax, %cr0
 
-	/* ljmpl    $(SEL_KCSEG), $RELOCATE_ADDR(smpstart32) */
+	ljmpl    $(SEL_KCSEG), $RELOCATE_ADDR(smpstart32)
 
 .align 0x10
 .code32
@@ -251,29 +256,78 @@ smpstart32:
 	movw    %ax, %fs
 	movw    %ax, %gs
 
-	/* Turn on page size extension for 4Mbyte pages */
-	movl    %cr4, %eax
-	orl     $((1<<4) | (1<<7)), %eax
-	movl    %eax, %cr4
+	mov %cr0, %eax
+	and $0xFFFB, %ax	
+	or $0x2, %ax	
+	mov %eax, %cr0
+	mov %cr4, %eax
+	or $(3 << 9), %ax	
+	mov %eax, %cr4
 
-	movl    $(boot_ap_pgd - COS_MEM_KERN_START_VA), %eax
+	mov %cr0, %eax
+	and $(~(1<<31)), %eax
+	mov %eax, %cr0
+
+	/* test if 1G huge page is supported */
+	mov $0x80000001, %eax
+	cpuid
+	bt $26, %edx
+	jc smp_huge_page_enabled
+	/* TODO: support for cpus which don't have 1G paging scheme here */
+	jmp .
+
+smp_huge_page_enabled:
+	movl    $p0_pgt, %eax
 	movl    %eax, %cr3
 
-	/* Turn on paging. */
-	movl    %cr0, %eax
-	orl     $(CR0_PE|CR0_PG|CR0_WP), %eax
-	movl    %eax, %cr0
+	/* enable PAE-paging by setting the PAE-bit in %cr4 */
+	mov %cr4, %eax
+	or $(1 << 5), %eax
+	mov %eax, %cr4
 
-	/* Switch to the stack allocated by startothers() */
-	movl    $RELOCATE_ADDR(smpstack), %esp
-	movl    (%esp), %esp
-	/* X86_64-FIXME: commented temparaily */
-	/* pushl   $spin */
-	/* X86_64-FIXME: commented temparaily */
-	/* mov     $smp_kmain, %eax */
-	jmp     *%eax
-spin:
-	jmp     spin
+	/* set the long mode bit in the EFER MSR */
+	mov $0xC0000080, %ecx
+	rdmsr
+	or $(1 << 8), %eax
+	wrmsr
+
+	/* enable paging and protected mode in cr0 */
+	mov %cr0, %eax
+	or $(1 << 31), %eax
+	mov %eax, %cr0
+
+	/* load GDT so we can use selectors within them */
+	mov $gdt_ptr, %eax
+	lgdt (%eax)
+
+.code64
+	mov $RELOCATE_ADDR(smpstack_end) ,%rsp 
+	mov $RELOCATE_ADDR(smp_entry_64), %rax
+	pushq $0x08
+	pushq %rax
+	lretq
+
+smp_entry_64:
+	/* flush data selectors */
+	mov $0x10, %rax	
+	mov %rax, %ds
+	mov %rax, %es
+	mov %rax, %fs
+	mov %rax, %gs
+	mov %rax, %ss
+
+	xor %rsi, %rsi
+	xor %rdi, %rdi
+	movl multiboot_magic, %esi
+	movl multiboot_tags, %edi
+	movabs $COS_MEM_KERN_START_VA, %rax
+	add %rax, %rdi
+
+	movabs $kmain, %rax
+	pushq $0x08
+	pushq %rax
+	lretq
+	jmp .
 
 # setup an initial gdt that will be overridden in C code
 .p2align 2
@@ -286,9 +340,12 @@ smpgdtdesc:
   .word   (smpgdtdesc - smpgdt - 1)
   .long   RELOCATE_ADDR(smpgdt)
 
+.align 8
 .global smpstack
 smpstack:
-.long 0xDEADBEEF
+.quad 0xDEADBEEF
+.fill 9, 8 ,0
+smpstack_end:
 
 .globl smppatchend
 smppatchend:
