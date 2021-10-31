@@ -98,7 +98,12 @@ compose()
 
 run()
 {
-    local dir="./system_binaries/cos_build-${name}"  
+    local dir="./system_binaries/cos_build-${name}"
+    local num_sockets=1
+    local num_cores=1
+    local num_threads=1
+    local vcpus=$[${num_sockets}*${num_cores}*${num_threads}]
+
     if [ ! -f ${dir}/${name}.iso ]
     then
         echo "Cannot find ${name}.iso, please do compose first and check its name"
@@ -114,10 +119,10 @@ run()
 
     if [ "${elf_type}" == "ELF64" ]
     then
-        qemu-system-x86_64 ${kvm_flag} -cpu max -m 1024 -cdrom ${dir}/${name}.iso -no-reboot -nographic -s
+        qemu-system-x86_64 ${kvm_flag} -cpu max -smp ${vcpus},cores=${num_cores},threads=${num_threads},sockets=${num_sockets} -m 1024 -cdrom ${dir}/${name}.iso -no-reboot -nographic -s
     elif [ "${elf_type}" == "ELF32" ]
     then
-        qemu-system-i386 ${kvm_flag} -cpu max -m 1024 -cdrom ${dir}/${name}.iso -no-reboot -nographic -s
+        qemu-system-i386 ${kvm_flag} -cpu max -smp ${vcpus},cores=${num_cores},threads=${num_threads},sockets=${num_sockets} -m 1024 -cdrom ${dir}/${name}.iso -no-reboot -nographic -s
     else
         echo "Unsupported image type!"
     fi
@@ -127,6 +132,10 @@ debug_run()
 {
     local dir="system_binaries/cos_build-${name}"
     local gdbinit="system_binaries/gdbinit"
+    local num_sockets=1
+    local num_cores=1
+    local num_threads=1
+    local vcpus=$[${num_sockets}*${num_cores}*${num_threads}]
 
     if [ ! -f ${dir}/${name}.iso ]
     then
@@ -146,10 +155,10 @@ debug_run()
 
     if [ "${elf_type}" == "ELF64" ]
     then
-        qemu-system-x86_64 -cpu max -m 1024 -cdrom ${dir}/${name}.iso -no-reboot -nographic -s -S
+        qemu-system-x86_64 -cpu max -smp ${vcpus},cores=${num_cores},threads=${num_threads},sockets=${num_sockets} -m 1024 -cdrom ${dir}/${name}.iso -no-reboot -nographic -s -S
     elif [ "${elf_type}" == "ELF32" ]
     then
-        qemu-system-i386 -cpu max -m 1024 -cdrom ${dir}/${name}.iso -no-reboot -nographic -s -S
+        qemu-system-i386 -cpu max -smp ${vcpus},cores=${num_cores},threads=${num_threads},sockets=${num_sockets} -m 1024 -cdrom ${dir}/${name}.iso -no-reboot -nographic -s -S
     else
         echo "Unsupported image type!"
     fi

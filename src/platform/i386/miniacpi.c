@@ -95,6 +95,30 @@ acpi_chk_header(void *ptr, const char *sig)
 	return 0;
 }
 
+void
+acpi_iterate_tbs(void)
+{
+	size_t  i;
+	size_t entries = (rsdt->head.len - sizeof(struct rsdt)) / 4;
+
+	#define SDT_NAME_SZ 5
+	char name[SDT_NAME_SZ];
+
+	memset(name, 0, SDT_NAME_SZ);
+
+	printk("Supported System Description Tables\n");
+	for (i = 0; i < entries; i++) {
+		struct rsdt *e = (struct rsdt *)device_pa2va(rsdt->entry[i]);
+
+		if (!e) {
+			e = device_map_mem((u32_t)rsdt->entry[i], 0);
+			assert(e);
+		}
+		
+		memcpy(name, e->head.sig, SDT_NAME_SZ - 1);
+		printk("\t%s\n", name);
+	}
+}
 
 static void *
 acpi_find_resource_flags(const char *res_name, pgtbl_flags_t flags)
@@ -328,6 +352,8 @@ acpi_init(void)
 	}
 
 	printk("\tRSDT vaddr is @ %p\n", rsdt);
+	acpi_iterate_tbs();
+
 	timer = acpi_find_timer();
 	if (timer) {
 		hpet = timer_initialize_hpet(timer);
