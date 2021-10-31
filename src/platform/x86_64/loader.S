@@ -5,17 +5,16 @@
 /* multiboot2 header must be contained completely within the first 32768 bytes of the OS image, and must be 64-bit aligned */
 .section .text
 multiboot_start:
+	/* must have multiboot2 header field */
+	.long MULTIBOOT2_HEADER_MAGIC
+	.long MULTIBOOT_ARCHITECTURE_I386
+	.long multiboot_end - multiboot_start
+	.long -(MULTIBOOT2_HEADER_MAGIC + MULTIBOOT_ARCHITECTURE_I386 + (multiboot_end - multiboot_start))
 
-    /* must have multiboot2 header field */
-    .long MULTIBOOT2_HEADER_MAGIC
-    .long MULTIBOOT_ARCHITECTURE_I386
-    .long multiboot_end - multiboot_start
-    .long -(MULTIBOOT2_HEADER_MAGIC + MULTIBOOT_ARCHITECTURE_I386 + (multiboot_end - multiboot_start))
-
-    /* end tag of multiboot2 */
-    .short MULTIBOOT_HEADER_TAG_END
-    .short 0
-    .long 8
+	/* end tag of multiboot2 */
+	.short MULTIBOOT_HEADER_TAG_END
+	.short 0
+	.long 8
 
 multiboot_end:
 
@@ -26,124 +25,124 @@ multiboot_end:
 .code32
 .global loader 
 loader:
-    /* save multiboot2 args first */
-    mov %eax, multiboot_magic
-    mov %ebx, multiboot_tags
+	/* save multiboot2 args first */
+	mov %eax, multiboot_magic
+	mov %ebx, multiboot_tags
 
-    /* now enable SSE */
-    mov %cr0, %eax
-    and $0xFFFB, %ax	
-    or $0x2, %ax	
-    mov %eax, %cr0
-    mov %cr4, %eax
-    or $(3 << 9), %ax	
-    mov %eax, %cr4
-    
-    /* repare to enter long(64-bit) mode */
+	/* now enable SSE */
+	mov %cr0, %eax
+	and $0xFFFB, %ax
+	or $0x2, %ax
+	mov %eax, %cr0
+	mov %cr4, %eax
+	or $(3 << 9), %ax
+	mov %eax, %cr4
+	
+	/* repare to enter long(64-bit) mode */
 
-    /* close paging first */
-    mov %cr0, %eax
-    and $(~(1<<31)), %eax
-    mov %eax, %cr0
+	/* close paging first */
+	mov %cr0, %eax
+	and $(~(1<<31)), %eax
+	mov %eax, %cr0
 
-    /* test if 1G huge page is supported */
-    /* some cpus don't support 1G huge page, we enable this by set qemu -cpu max */
-    mov $0x80000001, %eax
-    cpuid
-    bt $26, %edx
-    jc huge_page_enabled
-    /* TODO: support for cpus which don't have 1G paging scheme here */
-    jmp .
+	/* test if 1G huge page is supported */
+	/* some cpus don't support 1G huge page, we enable this by set qemu -cpu max */
+	mov $0x80000001, %eax
+	cpuid
+	bt $26, %edx
+	jc huge_page_enabled
+	/* TODO: support for cpus which don't have 1G paging scheme here */
+	jmp .
 
 huge_page_enabled:
-    /* we have to set up a temparaily page scheme to before enter long mode */
-    /* we use 1G paging scheme, so only to set p0_pgt, p1_pgt */
-    mov $p1_pgt, %eax
-    or $0x01, %eax
-    mov %eax, p0_pgt
-    mov %eax, (p0_pgt+0x08*256)
-    
-    /* set kernel paging space */
-    movl  $0x00000083, p1_pgt /* 0-1 GB vm -> 0-1 GB pm */
+	/* we have to set up a temparaily page scheme to before enter long mode */
+	/* we use 1G paging scheme, so only to set p0_pgt, p1_pgt */
+	mov $p1_pgt, %eax
+	or $0x01, %eax
+	mov %eax, p0_pgt
+	mov %eax, (p0_pgt+0x08*256)
+	
+	/* set kernel paging space */
+	movl  $0x00000083, p1_pgt /* 0-1 GB vm -> 0-1 GB pm */
 
-    /* set %cr3 to the physical address of p0_pgt */
-    mov $p0_pgt, %eax
-    mov %eax, %cr3
+	/* set %cr3 to the physical address of p0_pgt */
+	mov $p0_pgt, %eax
+	mov %eax, %cr3
 
-    /* enable PAE-paging by setting the PAE-bit in %cr4 */
-    mov %cr4, %eax
-    or $(1 << 5), %eax
-    mov %eax, %cr4
+	/* enable PAE-paging by setting the PAE-bit in %cr4 */
+	mov %cr4, %eax
+	or $(1 << 5), %eax
+	mov %eax, %cr4
 
-    /* set the long mode bit in the EFER MSR */
-    mov $0xC0000080, %ecx
-    rdmsr
-    or $(1 << 8), %eax
-    wrmsr
+	/* set the long mode bit in the EFER MSR */
+	mov $0xC0000080, %ecx
+	rdmsr
+	or $(1 << 8), %eax
+	wrmsr
 
-    /* enable paging and protected mode in cr0 */
-    mov %cr0, %eax
-    or $(1 << 31), %eax
-    mov %eax, %cr0
+	/* enable paging and protected mode in cr0 */
+	mov %cr0, %eax
+	or $(1 << 31), %eax
+	mov %eax, %cr0
 
-    /* load GDT so we can use selectors within them */
-    mov $gdt_ptr, %eax
-    lgdt (%eax)
+	/* load GDT so we can use selectors within them */
+	mov $gdt_ptr, %eax
+	lgdt (%eax)
 
-    /* need a jump to flush cs selector */
+	/* need a jump to flush cs selector */
 .code64
-    mov $entry_64, %rax
-    pushq $0x08
-    pushq %rax
-    lretq
+	mov $entry_64, %rax
+	pushq $0x08
+	pushq %rax
+	lretq
 
 
 entry_64:
-    
-    cli
-    /* flush data selectors */
-    mov $0x10, %rax	
-    mov %rax, %ds
-    mov %rax, %es
-    mov %rax, %fs
-    mov %rax, %gs
-    mov %rax, %ss
+	cli
 
-    /* set up a kernel stack for kmain */
-    movabs $(stack + STACKSIZE - STK_INFO_OFF), %rsp
-    xor %rsi, %rsi
-    xor %rdi, %rdi
-    movl multiboot_magic, %esi
-    movl multiboot_tags, %edi
-    movabs $COS_MEM_KERN_START_VA, %rax
-    add %rax, %rdi
+	/* flush data selectors */
+	mov $0x10, %rax
+	mov %rax, %ds
+	mov %rax, %es
+	mov %rax, %fs
+	mov %rax, %gs
+	mov %rax, %ss
 
-    movabs $kmain, %rax
-    pushq $0x08
-    pushq %rax
-    lretq
-    jmp .
+	/* set up a kernel stack for kmain */
+	movabs $(stack + STACKSIZE - STK_INFO_OFF), %rsp
+	xor %rsi, %rsi
+	xor %rdi, %rdi
+	movl multiboot_magic, %esi
+	movl multiboot_tags, %edi
+	movabs $COS_MEM_KERN_START_VA, %rax
+	add %rax, %rdi
+
+	movabs $kmain, %rax
+	pushq $0x08
+	pushq %rax
+	lretq
+	jmp .
 
 .align 8
 .global multiboot_magic
 multiboot_magic:
-    .fill 1, 4, 0
+	.fill 1, 4, 0
 .global multiboot_tags
 multiboot_tags:
-    .fill 1, 4, 0
+	.fill 1, 4, 0
 
 /* a simple temporary GDT */
 .align 8
 gdt_table:
-    .quad	0x0000000000000000	// null descriptor
-    .quad	0x0020980000000000	// kernel code descriptor
-    .quad	0x0000920000000000	// kernel data descriptor
+	.quad	0x0000000000000000	// null descriptor
+	.quad	0x0020980000000000	// kernel code descriptor
+	.quad	0x0000920000000000	// kernel data descriptor
 gdt_end:
 
 .global gdt_ptr
 gdt_ptr:
-    .word	gdt_end - gdt_table - 1
-    .quad	gdt_table
+	.word	gdt_end - gdt_table - 1
+	.quad	gdt_table
 
 /* temporary page directory/tables */
 /* need to be 4k aligned */
@@ -151,11 +150,11 @@ gdt_ptr:
 /* P0 is PGD */
 .global p0_pgt
 p0_pgt:
-    .fill 512, 8, 0
+	.fill 512, 8, 0
 
 .global p1_pgt
 p1_pgt:
-    .fill 512, 8, 0
+	.fill 512, 8, 0
 
 .section .data
 .set STACKSIZE, 0x1000
