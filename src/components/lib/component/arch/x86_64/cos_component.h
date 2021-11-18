@@ -109,7 +109,7 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	                     "popq %%rbp\n\t"		\
 	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2)
 	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
-	                     : "memory", "cc", "r8","r9","r11", "r12");
+	                     : "memory", "cc", "r8","r9","r10", "r11", "r12");
 
 	return ret;
 }

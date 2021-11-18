@@ -529,13 +529,22 @@ error:
 static void
 __cos_meminfo_populate(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz)
 {
-	vaddr_t              addr, start_addr, retaddr;
+	vaddr_t		addr, start_addr, retaddr;
+	size_t		pgtbl_lvl;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 
 	assert(untyped_ptr == round_up_to_pgd_page(untyped_ptr));
-	assert(untyped_sz == round_up_to_pgd_page(untyped_sz));
 
+#if defined(__x86_64__)
+	for(pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
+		retaddr = __bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz, pgtbl_lvl);
+		assert(retaddr);
+	}
+#else
+
+	assert(untyped_sz == round_up_to_pgd_page(untyped_sz));
 	retaddr = __bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz, 0);
+#endif
 	assert(retaddr == untyped_ptr);
 
 	ps_lock_take(&ci->mem_lock);

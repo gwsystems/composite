@@ -314,11 +314,19 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, c
 		if (unlikely(!ctto)) return -ENOENT;
 		if (unlikely(ctto->type != cap_type)) return -EINVAL;
 		if (unlikely(((struct cap_pgtbl *)ctto)->refcnt_flags & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
+	#if defined(__x86_64__)
+		f = pgtbl_lkup_lvl(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags, 0, PGTBL_DEPTH);
+	#elif defined(__i386__)
 		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+	#endif
 		if (!f) return -ENOENT;
 		old_v = *f;
 
+	#if defined(__x86_64__)
+		moveto = pgtbl_lkup_lvl(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, &flags, 0, PGTBL_DEPTH);
+	#elif defined(__i386__)
 		moveto = pgtbl_lkup_pte(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, &flags);
+	#endif
 		if (!moveto) return -ENOENT;
 		old_v_to = *moveto;
 

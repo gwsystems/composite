@@ -51,6 +51,7 @@ __cosrt_s_##name:				\
 .align 16 ;					\
 __cosrt_s_##name:				\
         COS_ASM_GET_STACK_INVTOKEN              \
+	and $~0xf, %rsp;			\
 	push $0;				\
 	mov %rsp, %r8;			\
 	push $0;				\

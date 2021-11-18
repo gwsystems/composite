@@ -562,7 +562,7 @@ void
 sl_init_cpubmp(microsec_t period, u32_t *cpubmp)
 {
 	int i;
-	static volatile int first    = 1, init_done = 0;
+	static volatile long long int first    = 1, init_done = 0;
 	struct cos_defcompinfo *dci  = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci   = cos_compinfo_get(dci);
 	struct sl_global_cpu   *g    = sl__globals_cpu();
