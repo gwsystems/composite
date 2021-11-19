@@ -1,5 +1,5 @@
-#ifndef COS_SERIAL_X86_H
-#define COS_SERIAL_X86_H
+#ifndef COS_SERIAL_X86_64_H
+#define COS_SERIAL_X86_64_H
 
 #include <cos_io.h>
 

@@ -93,7 +93,7 @@ compose()
     #clean files
     rm -rf iso grub.cfg
 
-    echo "Successfully generate ISO image: ${dir}/${name}.iso"
+    echo "Successfully generated ISO image: ${dir}/${name}.iso"
 }
 
 run()

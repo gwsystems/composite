@@ -1,5 +1,5 @@
-#ifndef COS_ASM_SIMPLE_STACKS_X86_H
-#define COS_ASM_SIMPLE_STACKS_X86_H
+#ifndef COS_ASM_SIMPLE_STACKS_X86_64_H
+#define COS_ASM_SIMPLE_STACKS_X86_64_H
 
 /* clang-format off */
 #define COS_ASM_GET_STACK_BASIC             \

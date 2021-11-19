@@ -280,8 +280,6 @@ err:
 	return ret;
 }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wreturn-local-addr"
 void *
 chal_pgtbl_lkup_lvl(pgtbl_t pt, vaddr_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
 {
@@ -307,7 +305,6 @@ chal_pgtbl_lkup_lvl(pgtbl_t pt, vaddr_t addr, u32_t *flags, u32_t start_lvl, u32
 							end_lvl, flags);
 #endif
 }
-#pragma GCC diagnostic pop
 
 int
 chal_pgtbl_mapping_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32_t order)
@@ -646,20 +643,13 @@ chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid
 
 		new_pt = pgtbl_create((void *)kmem_addr, curr_pt);
 		ret    = pgtbl_activate(ct, cap, pt_entry, new_pt, 0);
-	} else if (pgtbl_lvl == 1) {
-		/* PTE */
-		pgtbl_init_pte((void *)kmem_addr);
-		ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, 1);
-	} else if (pgtbl_lvl == 2) {
-		pgtbl_init_pte((void *)kmem_addr);
-		ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, 2);
-	} else if (pgtbl_lvl == 3) {
-		pgtbl_init_pte((void *)kmem_addr);
-		ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, 3);
-	} else {
+	} else if (pgtbl_lvl < 0 || pgtbl_lvl > 3 ) {
 		/* Not supported yet. */
 		printk("cos: warning - PGTBL level greater than 4 not supported yet. \n");
 		ret = -1;
+	} else {
+		pgtbl_init_pte((void *)kmem_addr);
+		ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, pgtbl_lvl);
 	}
 
 	if (ret) kmem_unalloc(pte);

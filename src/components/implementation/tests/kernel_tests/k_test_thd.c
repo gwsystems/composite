@@ -42,7 +42,7 @@ thd_fn_mthds_ring(void *d)
 {
         int ret;
 
-        if (count != (word_t) d) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
+        if (count != (word_t)d) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 
         int next = (++count) % TEST_NTHDS;
         if (!next) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
@@ -66,10 +66,10 @@ thd_fn_mthds_ring(void *d)
 static void
 test_mthds_ring(void)
 {
-        word_t i;
-        int   ret;
+        word_t	i;
+        int	ret;
 
-        count = 0;
+        count	= 0;
 
         for (i = 0; i < TEST_NTHDS; i++) {
                 thd_test[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_mthds_ring, (void *)i);

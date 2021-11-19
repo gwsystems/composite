@@ -1,5 +1,5 @@
-#ifndef COS_STUB_X86_H
-#define COS_STUB_X86_H
+#ifndef COS_STUB_X86_64_H
+#define COS_STUB_X86_64_H
 
 /*
  * Macros for defining C stubs for the client and server. These

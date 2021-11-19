@@ -15,7 +15,8 @@ captbl_activate_boot(struct captbl *t, unsigned long cap)
 	int                ret;
 
 	ctc = (struct cap_captbl *)captbl_add(t, cap, CAP_CAPTBL, &ret);
-	if (!ctc) { return ret; }
+	if (!ctc) return ret;
+
 	ctc->captbl       = t; /* reference ourself! */
 	ctc->lvl          = 0;
 	ctc->h.type       = CAP_CAPTBL;

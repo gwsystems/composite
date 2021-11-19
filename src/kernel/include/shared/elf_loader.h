@@ -13,6 +13,13 @@
 
 #include <cos_types.h>
 
+
+enum ELF_HDR_TYPE {
+	ELF_HDR_ERR 	= -1,
+	ELF_HDR_32	= 32,
+	ELF_HDR_64	= 64,
+};
+
 /* ELF File Header */
 struct elf_hdr {
 	unsigned char e_ident[16];       /* Magic number and other info */
@@ -64,11 +71,10 @@ elf_chk_format(struct elf_hdr *hdr)
 {
 	unsigned char *s = hdr->e_ident;
 
-	/* Format:  "0x7fELF1" where the 1 is for 32 bit */
-	if (s[0] == 0x7f && s[1] == 'E' && s[2] == 'L' && s[3] == 'F' && s[4] == 1) return 1;
-	if (s[0] == 0x7f && s[1] == 'E' && s[2] == 'L' && s[3] == 'F' && s[4] == 2) return 2;
+	if (s[0] == 0x7f && s[1] == 'E' && s[2] == 'L' && s[3] == 'F' && s[4] == 1) return ELF_HDR_32;
+	if (s[0] == 0x7f && s[1] == 'E' && s[2] == 'L' && s[3] == 'F' && s[4] == 2) return ELF_HDR_64;
 
-	return -1;
+	return ELF_HDR_ERR;
 }
 
 
@@ -84,7 +90,7 @@ elf32_contig_mem(struct elf_hdr *hdr, unsigned int nmem, struct elf_contig_mem *
 	u32_t off;
 	unsigned int i, cntmem;
 
-	if (elf_chk_format(hdr) != 1 ||
+	if (elf_chk_format(hdr) != ELF_HDR_32 ||
 	    hdr->e_phentsize != sizeof(struct elf32_proghdr)) return -1;
 
 	proghdr = (struct elf32_proghdr *)((char *)hdr + hdr->e_phoff);
@@ -150,7 +156,7 @@ elf64_contig_mem(struct elf64_hdr *hdr, unsigned int nmem, struct elf_contig_mem
 	u32_t off;
 	unsigned int i, cntmem;
 
-	if (elf_chk_format((struct elf_hdr *)hdr) != 2 ||
+	if (elf_chk_format((struct elf_hdr *)hdr) != ELF_HDR_64 ||
 	    hdr->e_phentsize != sizeof(struct elf64_proghdr)) return -1;
 
 	proghdr = (struct elf64_proghdr *)((char *)hdr + hdr->e_phoff);
@@ -183,9 +189,9 @@ static inline vaddr_t
 elf_entry_addr(struct elf_hdr *hdr)
 {
 	int ret = elf_chk_format(hdr);
-	if (ret == 1) {
+	if (ret == ELF_HDR_32) {
 		return (vaddr_t)hdr->e_entry;
-	} else if (ret == 2) {
+	} else if (ret == ELF_HDR_64) {
 		return (vaddr_t)(((struct elf64_hdr* )hdr)->e_entry);
 	}
 
@@ -201,9 +207,9 @@ static inline int
 elf_contig_mem(struct elf_hdr *hdr, unsigned int nmem, struct elf_contig_mem *mem)
 {
 	int ret = elf_chk_format(hdr);
-	if (ret == 1) {
+	if (ret == ELF_HDR_32) {
 		return elf32_contig_mem(hdr, nmem, mem);
-	} else if (ret == 2) {
+	} else if (ret == ELF_HDR_64) {
 		return elf64_contig_mem((struct elf64_hdr *)hdr, nmem, mem);
 	}
 
