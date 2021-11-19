@@ -22,13 +22,13 @@ __inv_test_serverfn:				\
 .globl __inv_test_serverfn;			\
 .type __inv_test_serverfn, @function;		\
 __inv_test_serverfn:				\
-		mov %rdx, %rsp;		\
+		mov %rdx, %rsp;			\
 		xor %rbp, %rbp;			\
 		mov %rdi, %rax;			\
 		mov %rbx, %rdi;			\
 		mov %rax, %rdx;			\
 		call test_serverfn;		\
-		mov %rax, %r8;		\
+		mov %rax, %r8;			\
 		mov $RET_CAP, %rax;		\
 		syscall;
 
