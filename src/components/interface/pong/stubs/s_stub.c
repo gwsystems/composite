@@ -32,7 +32,7 @@ COS_SERVER_3RET_STUB(thdid_t, pong_ids)
 
 COS_SERVER_STUB(int, pong_wideargs)
 {
-#if defined(__x86_64__)
+#if defined(__WORD_SIZE_64__)
 	return pong_wideargs(p0, p1);
 #else
 	long long p0d, p1d;

@@ -24,7 +24,7 @@
 
 #define CAPTBL_DEPTH 2
 #define CAPTBL_INTERNSZ (sizeof(int *))
-#if defined(__x86_64__)
+#if defined(__WORD_SIZE_64__)
 	#define CAPTBL_INTERN_ORD 8 /* log(PAGE_SIZE/(2*(CAPTBL_DEPTH-1)*CAPTBL_INTERNSZ)) */
 #else
 	#define CAPTBL_INTERN_ORD 9
