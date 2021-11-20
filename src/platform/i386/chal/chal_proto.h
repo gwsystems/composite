@@ -13,6 +13,7 @@
 #define PGTBL_DEPTH 4
 #define PGTBL_ENTRY_ORDER 9
 #elif defined(__i386__)
+#define PGTBL_ENTRY_ADDR_MASK 0xfffff000
 #define PGTBL_DEPTH 2
 #define PGTBL_ENTRY_ORDER 10
 #endif
