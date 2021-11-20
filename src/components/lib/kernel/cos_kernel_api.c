@@ -470,13 +470,14 @@ static vaddr_t
 __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz, int pgtbl_lvl)
 {
 	vaddr_t addr, range;
-	vaddr_t tmp_frontier;
 	assert(pgtbl_lvl >=0 && pgtbl_lvl < COS_PGTBL_DEPTH - 1);
 
+
+#if defined(__x86_64__)
+	vaddr_t tmp_frontier;
 	range		= cos_pgtbl_get_range(pgtbl_lvl);;
 	tmp_frontier	= cos_pgtbl_round_up_to_page(pgtbl_lvl, mem_ptr + mem_sz);
 
-#if defined(__x86_64__)
 	for (addr = mem_ptr; addr < tmp_frontier; addr += range) {
 		if (__bump_mem_expand_intern(ci, cipgtbl, addr, 0, pgtbl_lvl) == 0) return 0;
 	}
@@ -503,7 +504,9 @@ cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int lvl)
 {
 	pgtblcap_t cap;
 
+#if defined(__x86_64__)
 	assert(lvl > 0);
+#endif
 
 	ps_lock_take(&ci->va_lock);
 	if (ci->vasrange_frontier[lvl] != round_to_pgd_page(mem_ptr)) goto error;
@@ -645,7 +648,7 @@ __page_bump_valloc(struct cos_compinfo *ci, size_t sz)
 	vaddr_t ret_addr = 0;
 
 	ps_lock_take(&ci->va_lock);
-	ret_addr = __page_bump_mem_alloc(ci, &ci->vas_frontier, &ci->vasrange_frontier, sz);
+	ret_addr = __page_bump_mem_alloc(ci, &ci->vas_frontier, &ci->vasrange_frontier[0], sz);
 	ps_lock_release(&ci->va_lock);
 
 	return ret_addr;
