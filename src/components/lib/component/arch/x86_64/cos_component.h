@@ -5,8 +5,8 @@
  * Public License v2.
  */
 
-#ifndef COS_COMPONENT_X86_H
-#define COS_COMPONENT_X86_H
+#ifndef COS_COMPONENT_X86_64_H
+#define COS_COMPONENT_X86_64_H
 
 #include <consts.h>
 #include <cos_types.h>

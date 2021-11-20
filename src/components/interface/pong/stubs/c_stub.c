@@ -4,7 +4,7 @@
 COS_CLIENT_STUB(int, pong_wideargs, long long p0, long long p1)
 {
 	COS_CLIENT_INVCAP;
-#if defined(__x86_64__)
+#if defined(__WORD_SIZE_64__)
 	return cos_sinv(uc->cap_no, p0, p1, 0, 0);
 #else
 	long p0h, p0l, p1h, p1l;

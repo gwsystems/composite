@@ -86,9 +86,11 @@ install:
 	cp lib/libck.a .
 
 i386_config:
+	$(info Configuring the ck library)
 	cd ck; ./configure --platform=i586 --disable-double --without-pic --cores=$(NCORES) --prefix=$(LIBWD); cd ..
 
 armv7a_config:
+	$(info Configuring the ck library)
 	cd ck; ./configure --profile=arm --platform=arm --disable-option-checking --disable-double --without-pic --cores=$(NCORES) --prefix=$(LIBWD); cd ..
 
 x86_64_config:

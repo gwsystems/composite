@@ -24,7 +24,7 @@ struct chan_test
 	struct chan_rcv r;
 };
 
-volatile struct chan_test test[SEND_THD_NUM];
+struct chan_test test[SEND_THD_NUM];
 thdid_t init_thd;
 thdid_t r_id;
 struct evt e;
@@ -42,7 +42,7 @@ sender(void *d)
 		assert(tid == test[idx].s_id);
 
 		/* Send to our TID to our own respective channels */
-		if (chan_send((struct chan_snd *)&(test[idx].s), &tid, 0)) {
+		if (chan_send(&(test[idx].s), &tid, 0)) {
 			printc("chan_send error\n");
 			assert(0);
 		}
@@ -98,17 +98,17 @@ main(void)
 	for (int i = 0; i < SEND_THD_NUM; i++) {
 		test[i].idx = i;
 		
-		if (chan_init((struct chan *)&(test[i].c), sizeof(thdid_t), 16, CHAN_DEFAULT)) {
+		if (chan_init(&(test[i].c), sizeof(thdid_t), 16, CHAN_DEFAULT)) {
 			printc("chan_init failure %d.\n", i);
 			assert(0);
 		}
 
-		if (chan_snd_init((struct chan_snd *)&(test[i].s), (struct chan *)&(test[i].c))) {
+		if (chan_snd_init(&(test[i].s), (struct chan *)&(test[i].c))) {
 			printc("chan_snd_init failure %d.\n", i);
 			assert(0);
 		}
 
-		if (chan_rcv_init((struct chan_rcv *)&(test[i].r), (struct chan *)&(test[i].c))) {
+		if (chan_rcv_init(&(test[i].r), (struct chan *)&(test[i].c))) {
 			printc("chan_rcv_init failure %d.\n", i);
 			assert(0);
 		}
@@ -152,7 +152,7 @@ main(void)
 	for (int i = 0; i < SEND_THD_NUM; i++) {
 		test[i].evt_id = evt_add(&e, i, (evt_res_data_t)&(test[i].r));
 		assert(test[i].evt_id != 0);
-		assert(chan_evt_associate((struct chan *)&(test[i].c), test[i].evt_id) == 0);
+		assert(chan_evt_associate(&(test[i].c), test[i].evt_id) == 0);
 	}
 	
 	printc("Chan tests: created child threads. Proceeding with tests.\n");

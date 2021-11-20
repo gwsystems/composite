@@ -23,9 +23,6 @@ struct pgtbl_lvl_info {
 	vaddr_t (* round_up_to_pg)(vaddr_t );
 };
 
-/* mapping of pgtbl_lvl to its info */
-static struct pgtbl_lvl_info __pgtbl_lvl_info[COS_PGTBL_DEPTH - 1];
-
 vaddr_t __round_to_pgt0_page(vaddr_t vaddr) { return round_to_pgt0_page(vaddr); }
 vaddr_t __round_up_to_pgt0_page(vaddr_t vaddr) { return round_up_to_pgt0_page(vaddr); }
 
@@ -35,31 +32,58 @@ vaddr_t __round_up_to_pgt1_page(vaddr_t vaddr) { return round_up_to_pgt1_page(va
 vaddr_t __round_to_pgt2_page(vaddr_t vaddr) { return round_to_pgt2_page(vaddr); }
 vaddr_t __round_up_to_pgt2_page(vaddr_t vaddr) { return round_up_to_pgt2_page(vaddr); }
 
-void __pgtbl_lvl_info_init()
+unsigned long
+cos_pgtbl_get_range(int pgtbl_lvl)
 {
-	int pgtbl_lvl;
-	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
-		switch (pgtbl_lvl)
-		{
-		case 0:
-			__pgtbl_lvl_info[0].range = PGD_RANGE;
-			__pgtbl_lvl_info[0].round_to_pg = __round_to_pgt0_page;
-			__pgtbl_lvl_info[0].round_up_to_pg = __round_up_to_pgt0_page;
-			break;
-		case 1:
-			__pgtbl_lvl_info[1].range = PGT1_RANGE;
-			__pgtbl_lvl_info[1].round_to_pg = __round_to_pgt1_page;
-			__pgtbl_lvl_info[1].round_up_to_pg = __round_up_to_pgt1_page;
-			break;
-		case 2:
-			__pgtbl_lvl_info[2].range = PGT2_RANGE;
-			__pgtbl_lvl_info[2].round_to_pg = __round_to_pgt2_page;
-			__pgtbl_lvl_info[2].round_up_to_pg = __round_up_to_pgt2_page;
-			break;
-		default:
-			break;
-		}
+	switch (pgtbl_lvl)
+	{
+	case 0:
+		return PGD_RANGE;
+	case 1:
+		return PGT1_RANGE;
+	case 2:
+		return PGT2_RANGE;
+	default:
+		break;
 	}
+
+	return 0;
+}
+
+vaddr_t
+cos_pgtbl_round_to_page(int pgtbl_lvl, vaddr_t vaddr)
+{
+	switch (pgtbl_lvl)
+	{
+	case 0:
+		return round_to_pgt0_page(vaddr);
+	case 1:
+		return round_to_pgt1_page(vaddr);
+	case 2:
+		return round_to_pgt2_page(vaddr);
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+vaddr_t
+cos_pgtbl_round_up_to_page(int pgtbl_lvl, vaddr_t vaddr)
+{
+	switch (pgtbl_lvl)
+	{
+	case 0:
+		return round_up_to_pgt0_page(vaddr);
+	case 1:
+		return round_up_to_pgt1_page(vaddr);
+	case 2:
+		return round_up_to_pgt2_page(vaddr);
+	default:
+		break;
+	}
+
+	return 0;
 }
 
 void
@@ -80,7 +104,6 @@ static inline void
 cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
 {
 	int pgtbl_lvl;
-	__pgtbl_lvl_info_init();
 	ci->vas_frontier = heap_ptr;
 
 #if defined(__x86_64__)
@@ -94,7 +117,7 @@ cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
 	vaddr_t last_page = round_to_page(heap_ptr - 1);	
 
 	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
-		ci->vasrange_frontier[pgtbl_lvl] = __pgtbl_lvl_info[pgtbl_lvl].round_up_to_pg(last_page);
+		ci->vasrange_frontier[pgtbl_lvl] = cos_pgtbl_round_up_to_page(pgtbl_lvl, last_page);
 	}
 
 #else
@@ -108,7 +131,7 @@ cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
 	 *        a new PGD range, which means first allocation would trigger PTE allocation?
 	 */
 	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
-		ci->vasrange_frontier[pgtbl_lvl] = __pgtbl_lvl_info[pgtbl_lvl].round_up_to_pg(heap_ptr);
+		ci->vasrange_frontier[pgtbl_lvl] = cos_pgtbl_round_up_to_page(pgtbl_lvl, heap_ptr);
 		assert(ci->vasrange_frontier[pgtbl_lvl] == round_to_pgd_page(ci->vasrange_frontier[pgtbl_lvl]));
 	}
 #endif
@@ -447,13 +470,14 @@ static vaddr_t
 __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz, int pgtbl_lvl)
 {
 	vaddr_t addr, range;
-	vaddr_t tmp_frontier;
 	assert(pgtbl_lvl >=0 && pgtbl_lvl < COS_PGTBL_DEPTH - 1);
 
-	range = __pgtbl_lvl_info[pgtbl_lvl].range;
-	tmp_frontier = __pgtbl_lvl_info[pgtbl_lvl].round_up_to_pg(mem_ptr + mem_sz);
 
 #if defined(__x86_64__)
+	vaddr_t tmp_frontier;
+	range		= cos_pgtbl_get_range(pgtbl_lvl);;
+	tmp_frontier	= cos_pgtbl_round_up_to_page(pgtbl_lvl, mem_ptr + mem_sz);
+
 	for (addr = mem_ptr; addr < tmp_frontier; addr += range) {
 		if (__bump_mem_expand_intern(ci, cipgtbl, addr, 0, pgtbl_lvl) == 0) return 0;
 	}
@@ -480,20 +504,22 @@ cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int lvl)
 {
 	pgtblcap_t cap;
 
+#if defined(__x86_64__)
 	assert(lvl > 0);
+#endif
 
 	ps_lock_take(&ci->va_lock);
-	if (ci->vasrange_frontier[0] != round_to_pgd_page(mem_ptr)) goto error;
+	if (ci->vasrange_frontier[lvl] != round_to_pgd_page(mem_ptr)) goto error;
 
 	cap = __bump_mem_expand_intern(ci, ci->pgtbl_cap, mem_ptr, 0, 0);
 	if (!cap) goto error;
 
 	while (1) {
-		vaddr_t tmp = ps_load(&ci->vasrange_frontier[0]);
+		vaddr_t tmp = ps_load(&ci->vasrange_frontier[lvl]);
 
 		if (tmp >= mem_ptr + PGD_RANGE) break;
 		/* If someone else beats us to this, then the range has been extended anyway */
-		ps_cas(&ci->vasrange_frontier[0], tmp, tmp + PGD_RANGE);
+		ps_cas(&ci->vasrange_frontier[lvl], tmp, tmp + PGD_RANGE);
 	}
 
 	ps_lock_release(&ci->va_lock);
@@ -592,7 +618,7 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 				vaddr_t tmp = ps_load(&ci->vasrange_frontier[pgtbl_lvl]);
 				vaddr_t tmp_frontier;
 
-				tmp_frontier = __pgtbl_lvl_info[pgtbl_lvl].round_up_to_pg(heap_vaddr + sz);
+				tmp_frontier = cos_pgtbl_round_up_to_page(pgtbl_lvl, heap_vaddr + sz);;
 
 				/* perhaps another thread already advanced the frontier? */
 				if (tmp >= heap_vaddr + sz) break;
@@ -631,7 +657,7 @@ __page_bump_valloc(struct cos_compinfo *ci, size_t sz)
 	vaddr_t ret_addr = 0;
 
 	ps_lock_take(&ci->va_lock);
-	ret_addr = __page_bump_mem_alloc(ci, &ci->vas_frontier, (vaddr_t *)&ci->vasrange_frontier, sz);
+	ret_addr = __page_bump_mem_alloc(ci, &ci->vas_frontier, &ci->vasrange_frontier[0], sz);
 	ps_lock_release(&ci->va_lock);
 
 	return ret_addr;
@@ -782,13 +808,8 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 	assert(ci);
 
 	if (__alloc_mem_cap(ci, CAP_PGTBL, &kmem, &cap)) return 0;
-	#if defined(__x86_64__)
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))
 		BUG();
-	#else
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))
-		BUG();
-	#endif
 
 	return cap;
 }
@@ -1055,7 +1076,7 @@ cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t s
 	first_dst = dst;
 
 	for (i = 0; i < sz; i += PAGE_SIZE, src += PAGE_SIZE, dst += PAGE_SIZE) {
-		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, PAGE_ORDER)) {printc("return bug\n");return 0;}
+		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, PAGE_ORDER)) return 0;
 	}
 
 	return first_dst;

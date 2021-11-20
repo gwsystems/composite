@@ -291,7 +291,7 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 		return -1;
 	}
 
-	struct sl_thd * thd = sl_thd_alloc((cos_thd_fn_t) (void *)func, arg);
+	struct sl_thd * thd = sl_thd_alloc((cos_thd_fn_t)func, arg);
 	if (tls) {
 		setup_thread_area(thd, tls);
 	}
@@ -475,29 +475,29 @@ syscall_emulation_setup(void)
 		cos_syscalls[i] = 0;
 	}
 
-	libc_syscall_override((cos_syscall_t) (void *)cos_write, __NR_write);
-	libc_syscall_override((cos_syscall_t) (void *)cos_writev, __NR_writev);
-	libc_syscall_override((cos_syscall_t) (void *)cos_ioctl, __NR_ioctl);
-	libc_syscall_override((cos_syscall_t) (void *)cos_brk, __NR_brk);
-	libc_syscall_override((cos_syscall_t) (void *)cos_mmap, __NR_mmap2);
-	libc_syscall_override((cos_syscall_t) (void *)cos_munmap, __NR_munmap);
-	libc_syscall_override((cos_syscall_t) (void *)cos_madvise, __NR_madvise);
-	libc_syscall_override((cos_syscall_t) (void *)cos_mremap, __NR_mremap);
+	libc_syscall_override((cos_syscall_t)cos_write, __NR_write);
+	libc_syscall_override((cos_syscall_t)cos_writev, __NR_writev);
+	libc_syscall_override((cos_syscall_t)cos_ioctl, __NR_ioctl);
+	libc_syscall_override((cos_syscall_t)cos_brk, __NR_brk);
+	libc_syscall_override((cos_syscall_t)cos_mmap, __NR_mmap2);
+	libc_syscall_override((cos_syscall_t)cos_munmap, __NR_munmap);
+	libc_syscall_override((cos_syscall_t)cos_madvise, __NR_madvise);
+	libc_syscall_override((cos_syscall_t)cos_mremap, __NR_mremap);
 
-	libc_syscall_override((cos_syscall_t) (void *)cos_nanosleep, __NR_nanosleep);
+	libc_syscall_override((cos_syscall_t)cos_nanosleep, __NR_nanosleep);
 
-	libc_syscall_override((cos_syscall_t) (void *)cos_rt_sigprocmask, __NR_rt_sigprocmask);
-	libc_syscall_override((cos_syscall_t) (void *)cos_mprotect, __NR_mprotect);
+	libc_syscall_override((cos_syscall_t)cos_rt_sigprocmask, __NR_rt_sigprocmask);
+	libc_syscall_override((cos_syscall_t)cos_mprotect, __NR_mprotect);
 
-	libc_syscall_override((cos_syscall_t) (void *)cos_gettid, __NR_gettid);
-	libc_syscall_override((cos_syscall_t) (void *)cos_tkill, __NR_tkill);
+	libc_syscall_override((cos_syscall_t)cos_gettid, __NR_gettid);
+	libc_syscall_override((cos_syscall_t)cos_tkill, __NR_tkill);
 #if defined(__x86__)
-	libc_syscall_override((cos_syscall_t) (void *)cos_mmap, __NR_mmap);
-	libc_syscall_override((cos_syscall_t) (void *)cos_set_thread_area, __NR_set_thread_area);
+	libc_syscall_override((cos_syscall_t)cos_mmap, __NR_mmap);
+	libc_syscall_override((cos_syscall_t)cos_set_thread_area, __NR_set_thread_area);
 #endif
-	libc_syscall_override((cos_syscall_t) (void *)cos_set_tid_address, __NR_set_tid_address);
-	libc_syscall_override((cos_syscall_t) (void *)cos_clone, __NR_clone);
-	libc_syscall_override((cos_syscall_t) (void *)cos_futex, __NR_futex);
+	libc_syscall_override((cos_syscall_t)cos_set_tid_address, __NR_set_tid_address);
+	libc_syscall_override((cos_syscall_t)cos_clone, __NR_clone);
+	libc_syscall_override((cos_syscall_t)cos_futex, __NR_futex);
 }
 
 long

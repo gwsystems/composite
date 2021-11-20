@@ -562,12 +562,12 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
            struct cos_cpu_local_info *cos_info)
 {
 	struct thread *next        = thd_cap->t;
-#if defined(__x86_64__)
+#if defined(__WORD_SIZE_64__)
 	capid_t        arcv        = __userregs_get3(regs);
 	capid_t        tc          = __userregs_getop(regs);
 	tcap_prio_t    prio        = __userregs_get2(regs);
 	sched_tok_t    usr_counter = __userregs_get1(regs);
-#elif defined(__i386__)
+#else
 	capid_t        arcv        = (__userregs_get1(regs) << 16) >> 16;
 	capid_t        tc          = __userregs_get1(regs) >> 16;
 	u32_t          prio_higher = __userregs_get3(regs);

@@ -65,14 +65,14 @@ chal_cpu_eflags_init(void)
 
 }
 
-static void
+static inline void
 chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 {
-	#if defined(__x86_64__)
+#if defined(__x86_64__)
 	asm volatile("movq %0, %%cr3" : : "r"(pgtbl));
-	#elif defined(__i386__)
+#elif defined(__i386__)
 	asm volatile("mov %0, %%cr3" : : "r"(pgtbl));
-	#endif
+#endif
 }
 
 #define IA32_SYSENTER_CS  0x174

@@ -51,6 +51,7 @@
 #define COS_MEM_KERN_START_VA (0xffff800000000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
 #define COS_MEM_USER_MAX_VA 0x00007fffffffffff
 #else 
+#define COS_MEM_USER_MAX_VA (0xc0000000 - 1)
 #define COS_MEM_KERN_START_VA (0xc0000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
 #endif
 

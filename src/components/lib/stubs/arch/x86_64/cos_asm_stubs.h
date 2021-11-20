@@ -1,5 +1,5 @@
-#ifndef COS_ASM_STUB_X86_H
-#define COS_ASM_STUB_X86_H
+#ifndef COS_ASM_STUB_X86_64_H
+#define COS_ASM_STUB_X86_64_H
 
 /* clang-format off */
 #ifdef COS_SERVER_STUBS
@@ -18,25 +18,24 @@
  * stack trace later, we know that when the %ebp is 0, we are at the
  * end of the stack.
  */
-#define cos_asm_stub(name)			\
-.globl __cosrt_s_##name;			\
-.type  __cosrt_s_##name, @function ;		\
-.align 16 ;					\
-__cosrt_s_##name:				\
-	COS_ASM_GET_STACK_INVTOKEN		\
-	mov %r12, %rcx;				\
-	xor %rbp, %rbp;				\
-	mov %rdi, %rax;				\
-	mov %rbx, %rdi;				\
-	mov %rax, %rdx;				\
-	/* ABI mandate a 16-byte alignment stack pointer*/ \
-	and $~0xf, %rsp;			\
-	call name ;				\
- 	/* addl $16, %esp; */			\
-	mov %rax, %r8;			\
-	mov $RET_CAP, %rax;			\
-	COS_ASM_RET_STACK			\
-						\
+#define cos_asm_stub(name)					\
+.globl __cosrt_s_##name;					\
+.type  __cosrt_s_##name, @function ;				\
+.align 16 ;							\
+__cosrt_s_##name:						\
+	COS_ASM_GET_STACK_INVTOKEN				\
+	mov %r12, %rcx;						\
+	xor %rbp, %rbp;						\
+	mov %rdi, %rax;						\
+	mov %rbx, %rdi;						\
+	mov %rax, %rdx;						\
+	/* ABI mandate a 16-byte alignment stack pointer*/	\
+	and $~0xf, %rsp;					\
+	call name ;						\
+ 	/* addl $16, %esp; */					\
+	mov %rax, %r8;						\
+	mov $RET_CAP, %rax;					\
+	COS_ASM_RET_STACK					\
 	syscall;
 
 /*
@@ -50,10 +49,11 @@ __cosrt_s_##name:				\
 .type  __cosrt_s_##name, @function ;		\
 .align 16 ;					\
 __cosrt_s_##name:				\
-        COS_ASM_GET_STACK_INVTOKEN              \
+	COS_ASM_GET_STACK_INVTOKEN		\
+	/* 16-byte alignment of rsp*/		\
 	and $~0xf, %rsp;			\
 	push $0;				\
-	mov %rsp, %r8;			\
+	mov %rsp, %r8;				\
 	push $0;				\
 	mov %rsp, %r9;				\
 	mov %r12, %rcx;				\
@@ -64,11 +64,9 @@ __cosrt_s_##name:				\
 	call __cosrt_s_cstub_##name ;		\
 	pop %rdi;				\
 	pop %rsi;				\
-						\
-	mov %rax, %r8;			\
+	mov %rax, %r8;				\
 	mov $RET_CAP, %rax;			\
 	COS_ASM_RET_STACK			\
-						\
 	syscall;
 #endif
 
@@ -106,24 +104,24 @@ __cosrt_s_##name:				\
  * server function in an interface that it also exports.
  */
 
-#define cos_asm_stub(name)		       \
-.text;                                         \
-.weak name;                                    \
-.globl __cosrt_extern_##name;                  \
-.type  name, @function;			       \
-.type  __cosrt_extern_##name, @function;       \
-.align 8 ;                                     \
-name:                                          \
-__cosrt_extern_##name:			       \
-        mov $__cosrt_ucap_##name, %rax ;      \
-        jmp *INVFN(%rax) ;		       \
-					       \
-.section .ucap, "a", @progbits ;               \
-.globl __cosrt_ucap_##name ;                   \
-__cosrt_ucap_##name:                           \
-        .rep UCAP_SZ ;                         \
-        .quad 0 ;                              \
-        .endr ;				       \
+#define cos_asm_stub(name)			\
+.text;						\
+.weak name;					\
+.globl __cosrt_extern_##name;			\
+.type  name, @function;				\
+.type  __cosrt_extern_##name, @function;	\
+.align 8 ;					\
+name:						\
+__cosrt_extern_##name:				\
+	mov $__cosrt_ucap_##name, %rax ;	\
+	jmp *INVFN(%rax) ;			\
+						\
+.section .ucap, "a", @progbits ;		\
+.globl __cosrt_ucap_##name ;			\
+__cosrt_ucap_##name:				\
+	.rep UCAP_SZ ;				\
+	.quad 0 ;				\
+	.endr ;					\
 .text /* start out in the text segment, and always return there */
 
 #define cos_asm_stub_indirect(name) cos_asm_stub(name)
