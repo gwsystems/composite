@@ -39,6 +39,7 @@ fi
 if [ "${debug_flag}" == "debug" ]
 then
 	debug_flag="-S"
+	kvm_flag=""
 fi
 
 if [ "${arch}" == "x86_64" ]
