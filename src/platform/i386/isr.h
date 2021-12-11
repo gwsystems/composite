@@ -2,7 +2,7 @@
 #define ISR_H
 
 #include "shared/cos_types.h"
-#include "chal/io.h"
+#include "chal/shared/cos_io.h"
 #include "chal_asm_inc.h"
 #include <inv.h>
 

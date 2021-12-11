@@ -18,7 +18,7 @@ enum CapRes {
 // The equivalent of the C __captbl_cap2sz(c)
 fn cap_sz(cap: &CapRes) -> u32 {
     match cap {
-        CapRes::CapTbl(_) | CapRes::PgTbl(_) => 2,
+        CapRes::CapTbl(_) | CapRes::PgTbl(_) => 4,
         CapRes::Comp(_) => 4,
     }
 }
@@ -45,7 +45,7 @@ impl CaptblState {
     fn new() -> CaptblState {
         CaptblState {
             captbl: BTreeMap::new(),
-            frontier: 44, // BOOT_CAPTBL_FREE...FIXME: automatically generate this
+            frontier: 52, // BOOT_CAPTBL_FREE...FIXME: automatically generate this
             prev_sz: 4,
         }
     }

@@ -34,6 +34,16 @@
 		__mod;                                                                              \
 	})
 
+#if defined(__x86_64__)
+unsigned int do_div64(unsigned long long *num, int base)
+{
+	unsigned int mod = 0;
+	mod = *num % base;
+	*num = *num / base; 
+	return mod;	
+}
+#endif
+
 /* haha, don't need ctype.c */
 #define isdigit(c) ((c) >= '0' && (c) <= '9')
 #define is_digit isdigit
@@ -91,8 +101,13 @@ number(void (*tx_byte)(unsigned char byte), unsigned long long num, int base, in
 	i = 0;
 	if (num == 0)
 		tmp[i++] = '0';
-	else
+	else {
+	#if defined(__x86_64__)
+		while (num != 0) tmp[i++] = digits[do_div64(&num, base)];
+	#elif defined(__i386__)
 		while (num != 0) tmp[i++] = digits[do_div(num, base)];
+	#endif
+	}
 	if (i > precision) precision = i;
 	size -= precision;
 	if (!(type & (ZEROPAD + LEFT)))

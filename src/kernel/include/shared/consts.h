@@ -14,35 +14,14 @@
 #define CONSTS_H
 
 #include "cos_errno.h"
-#include "cos_config.h"
 
 #ifndef __ASM__
-#ifdef __KERNEL__
-#include <linux/thread_info.h> /* for PAGE_SIZE */
-#else
-struct pt_regs {
-	long bx;
-	long cx;
-	long dx;
-	long si;
-	long di;
-	long bp;
-	long ax;
-	long ds;
-	long es;
-	long fs;
-	long gs;
-	long orig_ax;
-	long ip;
-	long cs;
-	long flags;
-	long sp;
-	long ss;
-};
-// struct pt_regs { int dummy[16]; };
+#include "../chal/shared/chal_consts.h"
 #endif
-#endif
+#define MAX_PA_LIMIT     (1ULL << 32)
 #define PAGE_ORDER 12
+#define SUPER_PAGE_ORDER 22
+#define MAX_PA_LIMIT     (1ULL << 32)
 #ifndef __KERNEL__
 #ifndef PAGE_SIZE
 #define PAGE_SIZE (1 << PAGE_ORDER)
@@ -59,7 +38,12 @@ struct pt_regs {
 /* Stack size in words */
 #define MAX_STACK_SZ (COS_STACK_SZ / 4)
 
-#define ALL_STACK_SZ (MAX_NUM_THREADS * MAX_STACK_SZ)
+#define ALL_STACK_SZ ((MAX_NUM_THREADS + 1) * MAX_STACK_SZ)
+/* 
+ * 4096B / 4 * (64+1) : to flatten the math because of the below error
+ *cos_asm_upcall_simple_stacks.S:28: Error: bad or irreducible absolute expression
+ */
+#define ALL_STACK_SZ_FLAT 66560
 #define MAX_SPD_VAS_LOCATIONS 8
 
 /* a kludge:  should not use a tmp stack on a stack miss */
@@ -75,13 +59,6 @@ struct pt_regs {
 #define MAX_STATIC_CAP 256
 #define MAX_NUM_ACAP 256
 
-#define PAGE_MASK (~(PAGE_SIZE - 1))
-#define PGD_SHIFT 22
-#define PGD_RANGE (1 << PGD_SHIFT)
-#define PGD_SIZE PGD_RANGE
-#define PGD_MASK (~(PGD_RANGE - 1))
-#define PGD_PER_PTBL 1024
-
 /* For this family of macros, do NOT pass zero as the pow2 */
 #define round_to_pow2(x, pow2) (((unsigned long)(x)) & (~((pow2)-1)))
 #define round_up_to_pow2(x, pow2) (round_to_pow2(((unsigned long)x) + (pow2)-1, (pow2)))
@@ -90,6 +67,21 @@ struct pt_regs {
 #define round_up_to_page(x) round_up_to_pow2(x, PAGE_SIZE)
 #define round_to_pgd_page(x) round_to_pow2(x, PGD_SIZE)
 #define round_up_to_pgd_page(x) round_up_to_pow2(x, PGD_SIZE)
+
+#define round_to_pgt0_page(x) round_to_pow2(x, PGD_SIZE)
+#define round_up_to_pgt0_page(x) round_up_to_pow2(x, PGD_SIZE)
+
+#if defined(__x86_64__)
+#define round_to_pgt1_page(x) round_to_pow2(x, PGT1_SIZE)
+#define round_up_to_pgt1_page(x) round_up_to_pow2(x, PGT1_SIZE)
+#define round_to_pgt2_page(x) round_to_pow2(x, PGT2_SIZE)
+#define round_up_to_pgt2_page(x) round_up_to_pow2(x, PGT2_SIZE)
+#else
+#define round_to_pgt1_page(x) 0
+#define round_up_to_pgt1_page(x) 0
+#define round_to_pgt2_page(x) 0
+#define round_up_to_pgt2_page(x) 0
+#endif
 
 #define CACHE_LINE (64)
 #define CACHE_ALIGNED __attribute__((aligned(CACHE_LINE)))
@@ -139,5 +131,9 @@ struct pt_regs {
 #define CPUID_OFFSET 1
 #define THDID_OFFSET 2
 #define INVTOKEN_OFFSET 3
+#define INVCAP_OFFSET 4
+
+/* FIXME: Info on superpage mappings - this should be passed from kernel to userlevel! */
+#define TEST_SUPERPAGE_FRAME    0x10400000
 
 #endif

@@ -15,21 +15,23 @@
 #define TYPES_H
 
 #include "./consts.h"
-#include "./cos_config.h"
-#include "./chal_config.h"
+#include "../chal/shared/cos_config.h"
+#include "../chal/chal_config.h"
 
 #ifndef LLONG_MAX
 #define LLONG_MAX 9223372036854775807LL
 #endif
 
-typedef unsigned long word_t;
-typedef u64_t         cycles_t;
-typedef u64_t         microsec_t;
-typedef unsigned long tcap_res_t;
-typedef unsigned long tcap_time_t;
-typedef u64_t         tcap_prio_t;
-typedef u64_t         tcap_uid_t;
-typedef u32_t         sched_tok_t;
+typedef unsigned long      word_t;
+typedef unsigned long long dword_t;
+typedef u64_t              cycles_t;
+typedef u64_t              microsec_t;
+typedef unsigned long      tcap_res_t;
+typedef unsigned long      tcap_time_t;
+typedef u64_t              tcap_prio_t;
+typedef u64_t              tcap_uid_t;
+typedef u32_t              sched_tok_t;
+typedef u32_t              asid_t;
 
 /*
  * The assumption in the following is that cycles_t are higher
@@ -37,7 +39,11 @@ typedef u32_t         sched_tok_t;
  *
  *  sizeof(cycles_t) >= sizeof(tcap_time_t)
  */
-#define TCAP_TIME_QUANTUM_ORD 12
+#if defined(__x86_64__)
+	#define TCAP_TIME_QUANTUM_ORD 0
+#elif defined(__i386__)
+	#define TCAP_TIME_QUANTUM_ORD 12
+#endif
 #define TCAP_TIME_MAX_ORD (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
 #define TCAP_TIME_MAX_BITS(c) (((u64_t)c >> TCAP_TIME_MAX_ORD) << TCAP_TIME_MAX_ORD)
 #define TCAP_TIME_NIL 0
@@ -45,7 +51,12 @@ typedef u32_t         sched_tok_t;
 static inline cycles_t
 tcap_time2cyc(tcap_time_t c, cycles_t curr)
 {
+#if defined(__x86_64__)
+	(void)curr;
+	return c;
+#elif defined(__i386__)
 	return (((cycles_t)c) << TCAP_TIME_QUANTUM_ORD) | TCAP_TIME_MAX_BITS(curr);
+#endif
 }
 static inline tcap_time_t
 tcap_cyc2time(cycles_t c)
@@ -126,6 +137,11 @@ typedef enum {
 	CAPTBL_OP_HW_CYC_USEC,
 	CAPTBL_OP_HW_CYC_THRESH,
 	CAPTBL_OP_HW_SHUTDOWN,
+	CAPTBL_OP_HW_TLB_LOCKDOWN,
+	CAPTBL_OP_HW_L1FLUSH,
+	CAPTBL_OP_HW_TLBFLUSH,
+	CAPTBL_OP_HW_TLBSTALL,
+	CAPTBL_OP_HW_TLBSTALL_RECOUNT
 } syscall_op_t;
 
 typedef enum {
@@ -199,14 +215,14 @@ __captbl_cap2sz(cap_t c)
 	case CAP_THD:
 	case CAP_TCAP:
 		return CAP_SZ_16B;
-	case CAP_CAPTBL:
-	case CAP_PGTBL:
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 		return CAP_SZ_32B;
 	case CAP_SINV:
 	case CAP_COMP:
 	case CAP_ASND:
 	case CAP_ARCV:
+	case CAP_CAPTBL:
+	case CAP_PGTBL:
 		return CAP_SZ_64B;
 	default:
 		return CAP_SZ_ERR;
@@ -245,16 +261,16 @@ enum
 	BOOT_CAPTBL_SRET            = 0,
 	BOOT_CAPTBL_PRINT_HACK      = 2, /* This slot is not used for any capability and SRET is 16B (1slot).. */
 	BOOT_CAPTBL_SELF_CT         = 4,
-	BOOT_CAPTBL_SELF_PT         = 6,
-	BOOT_CAPTBL_SELF_COMP       = 8,
-	BOOT_CAPTBL_BOOTVM_PTE      = 12,
-	BOOT_CAPTBL_SELF_UNTYPED_PT = 14,
-	BOOT_CAPTBL_PHYSM_PTE       = 16,
-	BOOT_CAPTBL_KM_PTE          = 18,
+	BOOT_CAPTBL_SELF_PT         = 8,
+	BOOT_CAPTBL_SELF_COMP       = 12,
+	BOOT_CAPTBL_BOOTVM_PTE      = 16,
+	BOOT_CAPTBL_SELF_UNTYPED_PT = 20,
+	BOOT_CAPTBL_PHYSM_PTE       = 24,
+	BOOT_CAPTBL_KM_PTE          = 28,
 
-	BOOT_CAPTBL_SINV_CAP           = 20,
-	BOOT_CAPTBL_SELF_INITHW_BASE   = 24,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
+	BOOT_CAPTBL_SINV_CAP           = 32,
+	BOOT_CAPTBL_SELF_INITHW_BASE   = 36,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 40,
 	/*
 	 * NOTE: kernel doesn't support sharing a cache-line across cores,
 	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU
@@ -282,11 +298,8 @@ enum
  */
 #define BOOT_CAPTBL_NPAGES ((BOOT_CAPTBL_FREE + CAPTBL_EXPAND_SZ + CAPTBL_EXPAND_SZ * 2 - 1) / (CAPTBL_EXPAND_SZ * 2))
 
-enum
-{
-	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1 << 22)), /* @ 1G + 8M */
-	BOOT_MEM_KM_BASE = PGD_SIZE, /* kernel & user memory @ 4M, pgd aligned start address */
-};
+#define BOOT_MEM_VM_BASE (COS_MEM_COMP_START_VA + (1 << 22)) /* @ 1G + 8M */
+#define BOOT_MEM_KM_BASE PGD_SIZE /* kernel & user memory @ 4M, pgd aligned start address */
 
 enum
 {
@@ -335,8 +348,6 @@ enum
  * separately in user(cos_component.h) and kernel(per_cpu.h).*/
 #define PERCPU_GET(name) (&(name[GET_CURR_CPU].name))
 #define PERCPU_GET_TARGET(name, target) (&(name[target].name))
-
-#define COS_SYSCALL __attribute__((regparm(0)))
 
 #ifndef NULL
 #define NULL ((void *)0)

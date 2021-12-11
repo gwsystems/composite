@@ -16,6 +16,7 @@ captbl_activate_boot(struct captbl *t, unsigned long cap)
 
 	ctc = (struct cap_captbl *)captbl_add(t, cap, CAP_CAPTBL, &ret);
 	if (!ctc) return ret;
+
 	ctc->captbl       = t; /* reference ourself! */
 	ctc->lvl          = 0;
 	ctc->h.type       = CAP_CAPTBL;
@@ -88,7 +89,7 @@ captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned lon
 	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_CAPTBL, lid);
 	if (ret) cos_throw(err, ret);
 
-	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS)
+	if (cos_cas_32((u32_t *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS)
 		cos_throw(err, -ECASFAIL);
 
 	/* deactivation success. We should either release the
@@ -124,7 +125,7 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 	if ((l & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) cos_throw(err, -EOVERFLOW);
 
 	/* increment refcnt */
-	if (cos_cas((unsigned long *)&(cons_cap->refcnt_flags), l, l + 1) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+	if (cos_cas_32((u32_t *)&(cons_cap->refcnt_flags), l, l + 1) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	/*
 	 * FIXME: we are expanding the entire page to
@@ -153,6 +154,41 @@ err:
 	return ret;
 }
 
+
+int
+captbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl)
+{
+	unsigned long *    intern, old_v;
+	u32_t l;
+	struct cap_captbl *ct = (struct cap_captbl *)head;
+
+	if (lvl <= ct->lvl) return -EINVAL;
+	intern = captbl_lkup_lvl(ct->captbl, pruneid, ct->lvl, lvl);
+	if (!intern) return -ENOENT;
+	old_v = *intern;
+
+	if (old_v == 0) return -ENOENT; /* return an error here? */
+	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
+	if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
+
+	/* FIXME: we are removing two half pages for captbl. */
+	intern = captbl_lkup_lvl(ct->captbl, pruneid + (PAGE_SIZE / 2 / CAPTBL_LEAFSZ), ct->lvl, lvl);
+	if (!intern) return -ENOENT;
+
+	old_v = *intern;
+	if (old_v == 0) return -ENOENT; /* return an error here? */
+	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
+	if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
+
+	/* decrement the refcnt */
+	ct = (struct cap_captbl *)sub;
+	l = ct->refcnt_flags;
+	if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+	cos_faa((int *)&(ct->refcnt_flags), -1);
+
+	return 0;
+}
+
 static int
 captbl_leaflvl_scan(struct captbl *ct)
 {
@@ -173,7 +209,7 @@ captbl_leaflvl_scan(struct captbl *ct)
 
 		rdtscll(curr_ts);
 		header_i = h;
-		n_ent    = CACHELINE_SIZE / ent_size;
+		n_ent    = CACHELINE_SIZE >> (l.size + CAP_SZ_OFF) ;
 
 		for (j = 0; j < n_ent; j++) {
 			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));

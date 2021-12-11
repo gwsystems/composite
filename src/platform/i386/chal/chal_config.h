@@ -86,4 +86,13 @@ cos_mem_fence(void)
 // Static entries are after the dynamic allocated entries
 #define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))
 
+#define COS_SYSCALL __attribute__((regparm(0)))
+#if defined(__x86_64__)
+#define KERNEL_PGD_REGION_OFFSET (PAGE_SIZE - PAGE_SIZE / 2)
+#define KERNEL_PGD_REGION_SIZE (PAGE_SIZE / 2)
+#elif defined(__i386__)
+#define KERNEL_PGD_REGION_OFFSET (PAGE_SIZE - PAGE_SIZE / 4)
+#define KERNEL_PGD_REGION_SIZE (PAGE_SIZE / 4)
+#endif
+
 #endif /* CHAL_CONFIG_H */

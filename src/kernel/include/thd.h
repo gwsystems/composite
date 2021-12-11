@@ -90,20 +90,9 @@ struct cap_thd {
 } __attribute__((packed));
 
 static void
-thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
+thd_upcall_setup(struct thread *thd, vaddr_t entry_addr, int option, int arg1, int arg2, int arg3)
 {
-	struct pt_regs *r = &thd->regs;
-
-	r->cx = option;
-
-	r->bx = arg1;
-	r->di = arg2;
-	r->si = arg3;
-
-	r->ip = r->dx = entry_addr;
-	r->ax         = thd->tid | (get_cpuid() << 16); // thd id + cpu id
-
-	return;
+	regs_upcall_setup(&thd->regs, entry_addr, option, thd->tid | (get_cpuid() << 16), arg1, arg2, arg3);
 }
 
 /*
@@ -493,7 +482,7 @@ thd_current_pgtbl(struct thread *thd)
 	/* don't use the cached invstk_top here. We need the stack
 	 * pointer of the specified thread. */
 	curr_entry = &thd->invstk[thd->invstk_top];
-	return curr_entry->comp_info.pgtbl;
+	return curr_entry->comp_info.pgtblinfo.pgtbl;
 }
 
 static inline int

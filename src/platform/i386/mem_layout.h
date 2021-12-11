@@ -6,7 +6,7 @@
 #include <shared/cos_config.h>
 #include <retype_tbl.h>
 
-#include "multiboot.h"
+#include "multiboot2.h"
 
 /*
  * Virtual memory layout of the system.  Physical addresses can be

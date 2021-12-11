@@ -1,12 +1,15 @@
 include Makefile.src
+include Makefile.arch
 
 CC := gcc -m32
-LD := ld -m elf_i386
+LD := ld -m elf_i386 --nmagic
 AS := as --32 -g
 
 INCPATH := ../../kernel/include
-INCS    := -I$(INCPATH) -I$(INCPATH)/shared/
-CFLAGS  := -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone $(INCS)
+INCS    := -I$(INCPATH) -I$(INCPATH)/shared/ -I$(INCPATH)/chal/
+# This variable gets rid of the all the warnings on Ubuntu 20, but we should look into each...
+TMPFLGS := -Wno-address-of-packed-member
+CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable $(TMPFLGS) -nostdinc -nostdlib -fno-pic -mno-red-zone $(INCS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img
@@ -27,6 +30,7 @@ WARNINGS += -Wstrict-prototypes
 WARNINGS += -Wundef
 WARNINGS += -Wvolatile-register-var
 WARNINGS += -Wwrite-strings
+WARNINGS += -Wno-address-of-packed-member
 
 CFLAGS += $(WARNINGS)
 
@@ -48,6 +52,7 @@ OBJS += miniacpi.o
 OBJS += vga.o
 OBJS += exception.o
 OBJS += lapic.o
+OBJS += chal_pgtbl.o
 
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o

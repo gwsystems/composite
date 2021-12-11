@@ -10,6 +10,7 @@
 #include <sl_xcpu.h>
 #include <sl.h>
 #include <bitmap.h>
+#include <errno.h>
 
 #define SL_REQ_THD_ALLOC(req, fn, data) do {							\
 						req.type = SL_XCPU_THD_ALLOC;			\

@@ -1,0 +1,11 @@
+#!/bin/sh
+
+echo -n "Setting \"arm-none-eabi-\" environment..."
+export CC=arm-none-eabi-gcc
+export ARCH=arm
+export CROSS_COMPILE=arm-none-eabi-
+export REALGCC=arm-none-eabi-gcc
+
+echo "Done."
+
+echo "Make sure you run it as \". `pwd`/arm_setenv\" for the current session!"

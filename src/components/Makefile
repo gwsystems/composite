@@ -10,9 +10,9 @@ all:
 	$(MAKE) $(MAKEOPTIONS) -C implementation
 
 clean:
-	$(MAKE) $(MAKEOPTIONS) -C lib clean
 	$(MAKE) $(MAKEOPTIONS) -C interface clean
 	$(MAKE) $(MAKEOPTIONS) -C implementation clean
+	$(MAKE) $(MAKEOPTIONS) -C lib clean
 
 distclean:
 	$(MAKE) $(MAKEOPTIONS) -C lib distclean

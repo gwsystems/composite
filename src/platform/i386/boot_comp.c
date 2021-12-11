@@ -2,6 +2,8 @@
 #include "kernel.h"
 #include "boot_comp.h"
 #include "chal_cpu.h"
+#include "chal/chal_proto.h"
+#include "chal_pgtbl.h"
 #include "mem_layout.h"
 #include "string.h"
 #include <pgtbl.h>
@@ -10,6 +12,7 @@
 #include <inv.h>
 #include <hw.h>
 #include <shared/elf_loader.h>
+#include <shared/cos_config.h>
 
 extern u8_t *boot_comp_pgd;
 
@@ -25,8 +28,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	struct tcap *              tc       = tcap_mem;
 	tcap_res_t                 expended;
 	int                        ret;
-	struct cap_pgtbl *         cap_pt;
-	pgtbl_t                    pgtbl;
+	struct cap_comp *          cap_comp;
 
 	assert(cpu_id >= 0);
 	assert(cos_info->cpuid == (u32_t)cpu_id);
@@ -58,15 +60,12 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	                    BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpu_id), 0, 1);
 	assert(!ret);
 
-	/*
-	 * boot component's mapped into SELF_PT,
-	 * switching to boot component's pgd
-	 */
-	cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, BOOT_CAPTBL_SELF_PT);
-	if (!cap_pt || !CAP_TYPECHK(cap_pt, CAP_PGTBL)) assert(0);
-	pgtbl = cap_pt->pgtbl;
-	assert(pgtbl);
-	pgtbl_update(pgtbl);
+	/* switching to boot component's PGD using component capability */
+	cap_comp = (struct cap_comp *)captbl_lkup(ct, BOOT_CAPTBL_SELF_COMP);
+	if (!cap_comp || !CAP_TYPECHK(cap_comp, CAP_COMP)) assert(0);
+	assert(cap_comp->info.pgtblinfo.pgtbl);
+	pgtbl_update(&cap_comp->info.pgtblinfo);
+
 
 	printk("\tCreating initial threads, tcaps, and rcv end-points in boot-component.\n");
 }
@@ -78,54 +77,75 @@ mem_bootc_entry(void)
 }
 
 static int
-boot_nptes(unsigned int sz)
+boot_nptes(unsigned long vaddr_start, unsigned long sz, int lvl)
 {
-	return round_up_to_pow2(sz, PGD_RANGE) / PGD_RANGE;
+	/* 
+	 * Need the start address for edge cases
+	 * 4 lvl page tables, each lvl is: 0, 1, 2, 3
+	 * the 0, 1, 2 lvl page tables' order is 9, the 
+	 * last one order is 12, which is a page order
+	 * will return the number of lvl-th page tables needed.
+	 * the idea here is that page tables needed depends on
+	 * how many entries we have on higher lvl page table(s),
+	 * we calculate the entries one by one
+	 */	
+	assert(lvl > 0);
+	assert(sz > 0);
+	assert(vaddr_start <= COS_MEM_USER_MAX_VA);
+
+	unsigned long end_addr = (vaddr_start + sz - 1) >> PAGE_ORDER;
+	vaddr_start = vaddr_start >> PAGE_ORDER;
+
+	return ((end_addr >> ((PGTBL_DEPTH - lvl) * PGTBL_ENTRY_ORDER)) - 
+			(vaddr_start >> ((PGTBL_DEPTH - lvl) * PGTBL_ENTRY_ORDER)) 
+			+ 1);
 }
 
 static void
 boot_pgtbl_expand(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *label,
-		  unsigned long user_vaddr, unsigned int range)
+		  unsigned long user_vaddr, unsigned long range)
 {
 	int               ret;
 	u8_t *            ptes;
-	unsigned int      nptes = 0, i;
+	unsigned int      nptes = 0, lvl, i;
 	struct cap_pgtbl *pte_cap, *pgd_cap;
 
-	nptes = boot_nptes(range);
-	ptes  = mem_boot_alloc(nptes);
-	assert(ptes);
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, ptecap, NULL, 1)) assert(0);
+	for (lvl = 1; lvl < PGTBL_DEPTH; lvl++) {
+		nptes = boot_nptes(user_vaddr, range, lvl);
+		ptes  = mem_boot_alloc(nptes);
+		assert(ptes);
 
-	printk("\tCreating %d %s PTEs from [%x,%x) to [%x,%x).\n", nptes, label,
+		printk("\tCreating %d %d-lvl %s pages from [%p,%p) for v_addr [%p,%p).\n", nptes, lvl ,label,
 	       ptes, ptes + nptes * PAGE_SIZE, user_vaddr, user_vaddr + range);
 
-	/*
-	 * Note the use of NULL here.  We aren't actually adding a PTE
-	 * currently.  This is a hack and only used on boot-up.  We'll
-	 * reuse this capability entry to create _multiple_ ptes.  We
-	 * won't create captbl entries for each of them, so they
-	 * cannot be aliased/removed later.  The only adverse
-	 * side-effect I can think of from this is that we cannot
-	 * reclaim all of the boot-time memory, but that is so far
-	 * into the future, I don't think we care.
-	 */
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, ptecap, NULL, 1)) assert(0);
-	pte_cap = (struct cap_pgtbl *)captbl_lkup(ct, ptecap);
-	assert(pte_cap);
+		/*
+		* Note the use of NULL here.  We aren't actually adding a PTE
+		* currently.  This is a hack and only used on boot-up.  We'll
+		* reuse this capability entry to create _multiple_ ptes.  We
+		* won't create captbl entries for each of them, so they
+		* cannot be aliased/removed later.  The only adverse
+		* side-effect I can think of from this is that we cannot
+		* reclaim all of the boot-time memory, but that is so far
+		* into the future, I don't think we care.
+		*/
+		pte_cap = (struct cap_pgtbl *)captbl_lkup(ct, ptecap);
+		assert(pte_cap);
+		/* Hook in the PTEs */
+		for (i = 0; i < nptes; i++) {
+			u8_t *  p  = ptes + i * PAGE_SIZE;
+			paddr_t pf = chal_va2pa(p);
 
-	/* Hook in the PTEs */
-	for (i = 0; i < nptes; i++) {
-		u8_t *  p  = ptes + i * PAGE_SIZE;
-		paddr_t pf = chal_va2pa(p);
-
-		pgtbl_init_pte(p);
-		pte_cap->pgtbl = (pgtbl_t)p;
-
-		/* hook the pte into the boot component's page tables */
-		ret = cap_cons(ct, pgdcap, ptecap, (capid_t)(user_vaddr + i * PGD_RANGE));
-		assert(!ret);
+			pgtbl_init_pte(p);
+			pte_cap->pgtbl = (pgtbl_t)p;
+			pte_cap->lvl = lvl;
+			/* hook the pte into the boot component's page tables */
+			ret = cap_cons(ct, pgdcap, ptecap, 
+					(capid_t)(user_vaddr + i * (1 << (PAGE_ORDER + (PGTBL_DEPTH - lvl) * PGTBL_ENTRY_ORDER))));
+			assert(!ret);
+		}
 	}
-
+	
 	return;
 }
 
@@ -135,7 +155,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 {
 	int               ret;
 	u8_t *            ptes;
-	unsigned int      nptes = 0, i;
+	unsigned long int      nptes = 0, i;
 	struct cap_pgtbl *pte_cap, *pgd_cap;
 	pgtbl_t           pgtbl;
 
@@ -143,16 +163,18 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 	if (!pgd_cap || !CAP_TYPECHK(pgd_cap, CAP_PGTBL)) assert(0);
 	pgtbl = (pgtbl_t)pgd_cap->pgtbl;
 
-	printk("\tMapping in %s (@ [0x%x, 0x%x))\n", label, user_vaddr, user_vaddr + range);
+	printk("\tMapping in %s (@ [0x%p, 0x%p))\n", label, user_vaddr, user_vaddr + range);
 	/* Map in the actual memory. */
 	for (i = 0; i < round_up_to_page(range) / PAGE_SIZE; i++) {
 		u8_t *  p     = kern_vaddr + i * PAGE_SIZE;
 		paddr_t pf    = chal_va2pa(p);
-		u32_t   mapat = (u32_t)user_vaddr + i * PAGE_SIZE, flags = 0;
+		unsigned long   mapat = (unsigned long)user_vaddr + i * PAGE_SIZE;
+		u32_t flags = 0;
 
-		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, PGTBL_USER_DEF)) assert(0);
-		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, PGTBL_COSFRAME)) assert(0);
-		assert((void *)p == pgtbl_lkup(pgtbl, user_vaddr + i * PAGE_SIZE, &flags));
+		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, PAGE_ORDER)) assert(0);
+		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, PAGE_ORDER)) assert(0);
+		assert(pf == (*(unsigned long*)chal_pgtbl_lkup_lvl((pgtbl_t)(pgtbl), mapat, &flags, 0, PGTBL_DEPTH) & 
+				PGTBL_ENTRY_ADDR_MASK));
 	}
 
 	return 0;
@@ -176,16 +198,16 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 	unsigned char *bss;	   /* memory array for the last bit of .data and .bss */
 
 	/* RO + Code */
-	if (elf_contig_mem((struct elf_hdr *)kern_vaddr, 0, &s[0])) assert(0);
+	if (elf_contig_mem(kern_vaddr, 0, &s[0])) assert(0);
 	assert(s[0].objsz == s[0].sz && s[0].access == ELF_PH_CODE);
 
 	/* Data + BSS */
-	if (elf_contig_mem((struct elf_hdr *)kern_vaddr, 1, &s[1])) assert(0);
+	if (elf_contig_mem(kern_vaddr, 1, &s[1])) assert(0);
 	assert(s[1].access == ELF_PH_RW);
 	/* the data should immediately follow code */
 	assert(round_up_to_page(s[0].vstart + s[0].sz) == s[1].vstart);
 	/* should be page aligned so that we can map it directly */
-	assert(round_to_page(s[0].mem) == (unsigned int)s[0].mem);
+	assert(round_to_page(s[0].mem) == (unsigned long)s[0].mem);
 
 	/* allocate bss memory, including the last sub-page of .data (assumes .data is page-aligned) */
 	assert(s[1].vstart % PAGE_SIZE == 0);
@@ -199,8 +221,7 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 	memset(bss + bss_offset, 0, bss_sz);
 
 	/* Assume there are no more sections */
-	if (elf_contig_mem((struct elf_hdr *)kern_vaddr, 2, &s[2]) != 1) assert(0);
-
+	if (elf_contig_mem(kern_vaddr, 2, &s[2]) != 1) assert(0);
 
 	/* We have the elf information, time to do the virtual memory operations... */
 	boot_pgtbl_expand(ct, pgdcap, ptecap, label, s[0].vstart, round_up_to_page(s[0].sz) + s[1].sz);
@@ -219,7 +240,7 @@ boot_elf_process(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *
 void
 kern_boot_comp(const cpuid_t cpu_id)
 {
-	int            ret = 0, nkmemptes;
+	int            ret = 0, nkmemptes = 0;
 	unsigned int   i;
 	u8_t *         boot_comp_captbl;
 	pgtbl_t        pgtbl     = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
@@ -228,7 +249,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	assert(cpu_id >= 0);
 	if (NUM_CPU > 1 && cpu_id > 0) {
 		assert(glb_boot_ct);
-		pgtbl_update(pgtbl);
+		chal_cpu_pgtbl_activate(pgtbl);
 		kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
 		return;
 	}
@@ -293,12 +314,13 @@ kern_boot_comp(const cpuid_t cpu_id)
 	 */
 	if (pgtbl_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_UNTYPED_PT, pgtbl, 0)) assert(0);
 
-	nkmemptes = boot_nptes(mem_utmem_end() - mem_boot_end());
 	boot_pgtbl_expand(glb_boot_ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
-			  BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_nalloc_end(nkmemptes));
+			  BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_end());
+
 	ret = boot_pgtbl_mappings_add(glb_boot_ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
-                                      mem_boot_nalloc_end(nkmemptes), BOOT_MEM_KM_BASE,
-                                      mem_utmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
+                                      mem_utmem_start(), BOOT_MEM_KM_BASE,
+                                      mem_utmem_end() - mem_utmem_start(), 0);
+
 	assert(ret == 0);
 
 	printk("\tCapability table and page-table created.\n");
@@ -307,7 +329,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	glb_memlayout.allocs_avail = 0;
 
 	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
-	                  mem_bootc_entry(), NULL))
+	                  mem_bootc_entry()))
 		assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
@@ -326,7 +348,7 @@ kern_boot_upcall(void)
 	assert(get_cpuid() >= 0);
 	/* only print complete msg for BSP */
 	if (get_cpuid() == 0) {
-		printk("Upcall into boot component at ip 0x%x for cpu: %d with tid: %d\n", entry, get_cpuid(), thd_current(cos_cpu_local_info())->tid);
+		printk("Upcall into boot component at ip 0x%p for cpu: %d with tid: %d\n", entry, get_cpuid(), thd_current(cos_cpu_local_info())->tid);
 		printk("------------------[ Kernel boot complete ]------------------\n");
 	}
 

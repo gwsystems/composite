@@ -54,29 +54,39 @@ LIBRARY_DEPENDENCIES = component
 
 include Makefile.src Makefile.comp Makefile.dependencies
 
-.PHONY: all clean init distclean config clean_lib
+.PHONY: all clean init distclean config clean_lib armv7a_config i386_config
 CINC_ENV = $(CINC) $(DEPENDENCY_INCPATH)
-CFLAGS   = $(CINC_ENV)
+
+CFLAGS   = $(CINC_ENV) -Wno-address-of-packed-member
 export CINC_ENV
 export CFLAGS
-# Note that these are used during the ps compilation processes
 
 all: config
 	$(info Building ps library...)
-	make -s -C ps all
-	@cp ps/libps.a .
+	make -C ps all
+	cp ps/libps.a .
 
 clean_lib:
 	@rm -f libps.a
 	make -C ps clean
 
 # need to make sure the ps_plat.h is always available
-clean: clean_lib config
+clean: config clean_lib
 
-config:
+armv7a_config:
+	$(info Configuring the ps library)
+	@cd ps; ./configure cos armv7a general; cd ..
+
+i386_config:
 	$(info Configuring the ps library)
 	@cd ps; ./configure cos x86 general; cd ..
-	make -s -C ps config
+
+x86_64_config:
+	$(info Configuring the ps library)
+	cd ps; ./configure cos x86_64 general; cd ..
+
+config: $(PLATFORM)_config
+	make -C ps config
 
 init: clean config
 distclean: clean

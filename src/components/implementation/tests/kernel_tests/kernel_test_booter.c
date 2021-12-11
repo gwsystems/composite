@@ -1,5 +1,6 @@
 #include "kernel_tests.h"
 #include <init.h>
+#include <ps_plat.h>
 
 struct cos_compinfo booter_info;
 thdcap_t            termthd[NUM_CPU] = { 0 }; /* switch to this to shutdown */
@@ -10,7 +11,7 @@ unsigned long       thd_test[TEST_NTHDS];
 
 /* For Div-by-zero test */
 int num = 1, den = 0;
-int count = 0;
+word_t count = 0;
 
 void
 term_fn(void *d)
@@ -30,20 +31,12 @@ cos_init(void)
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 }
 
-int
-main(void)
+void
+test_run_unit_kernel(void)
 {
-        int i;
-
-        termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
-        assert(termthd[cos_cpuid()]);
-        PRINTC("Kernel Tests\n");
-
-        cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-	printc("\tTiming: %d cycles per microsecond\n", cyc_per_usec);
-
         /* Kernel Tests */
-        printc("\nUnit Test Started:\n\n");
+	printc("\n");
+        PRINTC("Unit Test Started:\n\n");
         test_timer();
         test_tcap_budgets();
         test_2timers();
@@ -52,9 +45,23 @@ main(void)
         test_async_endpoints();
         test_inv();
         test_captbl_expands();
+}
 
-        printc("\nuBenchamarks Started:\n\n");
+int
+main(void)
+{
+        int i;
 
+        PRINTC("Kernel Tests\n");
+        termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
+        assert(termthd[cos_cpuid()]);
+
+        cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	printc("\tTiming: %d cycles per microsecond\n", cyc_per_usec);
+	perfcntr_init();
+	printc("\tPerformance Counter: %llu\n", ps_tsc());
+
+	test_run_unit_kernel();
         test_run_perf_kernel();
 
         /* NOTE: This is just to make sense of the output on HW! To understand that microbooter runs to completion on all cores! */
@@ -64,7 +71,7 @@ main(void)
         }
 
         printc("\n");
-        PRINTC("Kernel Tests done.\n");
+        PRINTC("Kernel Tests done.\n\n");
 
         cos_thd_switch(termthd[cos_cpuid()]);
 
