@@ -188,7 +188,7 @@ __chal_pgtbl_lkup(pgtbl_t pt, unsigned long addr)
 }
 
 int
-chal_pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
+chal_pgtbl_kmem_act(pgtbl_t pt, vaddr_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
 	struct ert_intern *pte;
 	u32_t              orig_v, new_v, accum = 0;
@@ -384,7 +384,7 @@ err:
 }
 
 int
-chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order)
+chal_pgtbl_mapping_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32_t order)
 {
 	int                ret = 0;
 	struct ert_intern *pte;
@@ -421,7 +421,7 @@ chal_pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t or
 }
 
 int
-chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t order)
+chal_pgtbl_cosframe_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32_t order)
 {
 	struct ert_intern *pte;
 	u32_t              orig_v, accum = 0;
@@ -447,7 +447,7 @@ chal_pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags, u32_t o
 
 /* This function updates flags of an existing mapping. */
 int
-chal_pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
+chal_pgtbl_mapping_mod(pgtbl_t pt, vaddr_t addr, u32_t flags, u32_t *prevflags)
 {
 	/* Not used for now. TODO: add retypetbl_ref / _deref */
 
@@ -479,7 +479,7 @@ chal_pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
  * which tracks quiescence for us.
  */
 int
-chal_pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
+chal_pgtbl_mapping_del(pgtbl_t pt, vaddr_t addr, u32_t liv_id)
 {
 	int                ret;
 	struct ert_intern *pte;
@@ -563,7 +563,7 @@ chal_pgtbl_mapping_scan(struct cap_pgtbl *pt)
 
 /* Perform lookup to a certain level */
 void *
-chal_pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
+chal_pgtbl_lkup_lvl(pgtbl_t pt, vaddr_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
 {
 	/* We return level 1 in all cases */
 	unsigned long *next;

@@ -15,6 +15,7 @@
 
 extern u8_t *boot_comp_pgd;
 
+struct cap_asnd hw_asnd_caps[HW_IRQ_TOTAL];
 void *thd_mem[NUM_CPU], *tcap_mem[NUM_CPU];
 struct captbl *glb_boot_ct;
 
@@ -322,7 +323,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	glb_memlayout.allocs_avail = 0;
 
 	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
-	                  mem_bootc_entry(), NULL))
+	                  mem_bootc_entry()))
 		assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 

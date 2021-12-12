@@ -124,6 +124,7 @@
 #define ENABLE_VGA
 #define ENABLE_SERIAL
 
+#define COS_PGTBL_DEPTH 2
 #define COS_PGTBL_ORDER_PTE 12
 #define COS_PGTBL_ORDER_PGD 20
 

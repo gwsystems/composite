@@ -41,7 +41,8 @@ typedef u32_t              asid_t;
  */
 #if defined(__x86_64__)
 	#define TCAP_TIME_QUANTUM_ORD 0
-#elif defined(__i386__)
+#else 
+
 	#define TCAP_TIME_QUANTUM_ORD 12
 #endif
 #define TCAP_TIME_MAX_ORD (TCAP_TIME_QUANTUM_ORD + (sizeof(tcap_time_t) * 8))
@@ -54,7 +55,7 @@ tcap_time2cyc(tcap_time_t c, cycles_t curr)
 #if defined(__x86_64__)
 	(void)curr;
 	return c;
-#elif defined(__i386__)
+#else
 	return (((cycles_t)c) << TCAP_TIME_QUANTUM_ORD) | TCAP_TIME_MAX_BITS(curr);
 #endif
 }

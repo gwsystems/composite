@@ -14,6 +14,8 @@ initialize()
 		;;
 		i386 )
 		;;
+		armv7a )
+		;;
 		* )
 		echo "Unsupported architecture"
 		exit 1
@@ -73,6 +75,12 @@ run()
 	fi
 
 	local elf_type=$(readelf -h ${dir}/cos.img | grep "Class:" | awk '{print $2}')
+	local machine=$(readelf -h ${dir}/cos.img | grep "Machine:" | awk '{print $2}')
+
+	if [ "${machine}" == "ARM" ]
+	then
+		./tools/arm_qemurun.sh all ${dir}
+	fi
 
 	if [ "${elf_type}" == "ELF64" ]
 	then
@@ -81,7 +89,7 @@ run()
 	then
 		tools/run.sh ${dir}/cos.iso i386
 	else
-		echo "Unsupported image type!"
+		echo "Unsupported image type: ${elf_type} !"
 	fi
 }
 
@@ -124,7 +132,7 @@ gdb()
 
 usage()
 {
-	echo "Usage: " $0 " init <arch: [x86_64|i386]>|build|clean|compose <script> <output name>|run <composite name>|debug_run <composite name>|gdb"
+	echo "Usage: " $0 " init <arch: [x86_64|i386|armv7a]>|build|clean|compose <script> <output name>|run <composite name>|debug_run <composite name>|gdb"
 	exit 1
 }
 

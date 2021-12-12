@@ -87,4 +87,10 @@ x86_64_init:
 	make LIBCXX_ARCH=-m64 -C ./libstdc++-v3-4.8/libsupc++
 	make LIBCXX_ARCH=-m64 -C ./libstdc++-v3-4.8
 
+armv7a_init:
+	$(info Building libcxx for armv7-a...)
+	$(info This is not supported currently, abort...)
+	# make CXX=arm-none-eabi-g++  -C ./libstdc++-v3-4.8/libsupc++
+	# make CXX=arm-none-eabi-g++  -C ./libstdc++-v3-4.8
+
 init: $(PLATFORM)_init

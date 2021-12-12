@@ -118,7 +118,11 @@ extern struct retype_info_glb glb_retype_tbl[N_RETYPE_SLOTS];
 	                              : (((paddr_t)(pa) - chal_kernel_mem_pa) / RETYPE_MEM_SIZE + N_USER_MEM_SETS))
 /* The minimum/maximum page order - currently 4kB/1MB pages. This is fine because we don't support large pages on ARM */
 #define MIN_PAGE_ORDER               12
+#if defined(__arm__)
+#define MAX_PAGE_ORDER               20
+#else
 #define MAX_PAGE_ORDER               22
+#endif
 #define NUM_PAGE_SIZES               2
 /* get the memory set struct of the current cpu */
 #define GET_RETYPE_POS(idx,order)    (((idx) >> ((order) - MIN_PAGE_ORDER)) + pos2base[order2pos[order]])

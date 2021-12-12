@@ -55,6 +55,31 @@ cos_cas(unsigned long *target, unsigned long old, unsigned long updated)
 }
 
 /*
+ * Return values:
+ * 0 on failure due to contention (*target != old)
+ * 1 otherwise (*target == old -> *target = updated)
+ */
+static inline int 
+cos_cas_32(unsigned long *target, unsigned long old, unsigned long updated)
+{
+	unsigned long oldval, res;
+
+	do {
+		oldval=cos_ldrexw(target);
+
+		if(oldval==old) /* 0=succeeded, 1=failed */
+			res=cos_strexw(updated, target);
+		else {
+			cos_clrex();
+			return 0;
+		}
+	}
+	while(res);
+
+	return 1;
+}
+
+/*
  * Fetch-and-add implementation on Cortex-A. Returns the original value.
  */
 static inline int 
