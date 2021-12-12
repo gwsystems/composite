@@ -708,7 +708,7 @@ chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid
 	assert(kmem_addr && pte);
 
 	/* Convert order to level here */
-	pgtbl_lvl = LVL(pgtbl_order);
+	pgtbl_lvl = pgtbl_order;
 
 	if (pgtbl_lvl == 0) {
 		/* PGD */

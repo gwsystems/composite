@@ -69,7 +69,7 @@ call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
 			     "str r0, %[_ret]\n\t"
 			     : [ _ret ] "=m"(ret)
 			     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3)
-			     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "lr");
+			     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10" "lr");
 
 #else 
 	assert(0);
