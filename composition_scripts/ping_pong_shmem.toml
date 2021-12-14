@@ -23,19 +23,14 @@ implements = [{interface = "sched"}, {interface = "init"}]
 constructor = "booter"
 
 [[components]]
-name = "schedtest"
-img  = "tests.unit_schedcomp"
-deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}]
-constructor = "booter"
-
-[[components]]
 name = "pingshmem"
 img  = "tests.unit_pingshmem"
-deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}]
+deps = [{srv = "pongshmem", interface = "pongshmem"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}]
 constructor = "booter"
 
 [[components]]
 name = "pongshmem"
 img  = "tests.unit_pongshmem"
-deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}]
+deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "pongshmem"}]
 constructor = "booter"

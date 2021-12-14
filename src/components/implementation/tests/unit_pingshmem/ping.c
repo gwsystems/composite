@@ -17,12 +17,11 @@ main(void)
 	printc("PING HELLO WORLD\n");
 
 	id = memmgr_shared_page_allocn(1, &addr);
-	memmgr_shared_page_map(id, &addr);
 
 	PRINTLOG(PRINT_DEBUG, "%s: shared memory allocation in ping\n", (id == 0) ? "FAILURE" : "SUCCESS");
 	printc("PTR: %p\n", addr);
 
-	*((int *) addr) = 69;
+	strcpy((char *) addr, "TESTING");
 	pongshmem_read(id);
 
 	return 0;
