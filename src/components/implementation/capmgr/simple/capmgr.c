@@ -244,6 +244,7 @@ memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr)
 	ss_span_activate(s);
 
 	ret = ss_span_id(s);
+	*pgaddr = p->mappings[0].addr;
 done:
 	return ret;
 cleanup:
