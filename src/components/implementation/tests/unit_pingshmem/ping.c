@@ -1,8 +1,4 @@
-#include <cos_kernel_api.h>
 #include <cos_types.h>
-#include <cos_component.h>
-#include <cos_defkernel_api.h>
-#include <capmgr.h>
 #include <memmgr.h>
 #include <pongshmem.h>
 

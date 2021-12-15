@@ -1,15 +1,7 @@
-#include <cos_kernel_api.h>
 #include <cos_types.h>
-#include <ps.h>
-#include <capmgr.h>
 #include <memmgr.h>
 #include <pongshmem.h>
 
-int
-main(void)
-{
-	return 0;
-}
 
 void
 pongshmem_read(cbuf_t id)

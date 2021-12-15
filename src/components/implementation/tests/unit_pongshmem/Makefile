@@ -6,10 +6,10 @@
 INTERFACE_EXPORTS = pongshmem
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES = init capmgr
+INTERFACE_DEPENDENCIES = init memmgr
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = kernel ps
+LIBRARY_DEPENDENCIES =
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this
