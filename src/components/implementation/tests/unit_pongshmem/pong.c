@@ -8,8 +8,6 @@
 int
 main(void)
 {
-	printc("PONG HELLO WORLD\n");
-
 	return 0;
 }
 
@@ -17,13 +15,15 @@ void
 pongshmem_read(cbuf_t id)
 {
 	vaddr_t addr;
-
-	printc("READING....\n");
+	int failure;
 
 	memmgr_shared_page_map(id, &addr);
-	printc("PTR: %p COSID: %lu\n", (void *) addr, cos_compid());
 	
 	PRINTLOG(PRINT_DEBUG, "%s: shared memory mapped in pong\n", (addr == 0) ? "FAILURE" : "SUCCESS");
 
-	printc("MEM: %s\n", (char *) addr);
+	failure = strcmp((char *) addr, "PINGPING") != 0;
+	PRINTLOG(PRINT_DEBUG, "%s: pong can read data from ping\n", (failure) ? "FAILURE" : "SUCCESS");
+
+	strcpy((char *) addr, "PONGPONG");
+	
 }

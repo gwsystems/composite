@@ -13,16 +13,17 @@ main(void)
 {
 	cbuf_t  id;
 	vaddr_t addr;
-
-	printc("PING HELLO WORLD\n");
+	int failure;
 
 	id = memmgr_shared_page_allocn(1, &addr);
 
 	PRINTLOG(PRINT_DEBUG, "%s: shared memory allocation in ping\n", (id == 0) ? "FAILURE" : "SUCCESS");
-	printc("PTR: %p COSID: %lu\n", (void *) addr, cos_compid());
 
-	strcpy((char *) addr, "TESTING");
+	strcpy((char *) addr, "PINGPING");
 	pongshmem_read(id);
+	
+	failure = strcmp((char *) addr, "PONGPONG") != 0;
+	PRINTLOG(PRINT_DEBUG, "%s: ping can read data from pong\n", (failure) ? "FAILURE" : "SUCCESS");
 
 	return 0;
 }
