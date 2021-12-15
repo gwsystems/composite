@@ -21,7 +21,7 @@ pongshmem_read(cbuf_t id)
 	printc("READING....\n");
 
 	memmgr_shared_page_map(id, &addr);
-	printc("PTR: %p\n", addr);
+	printc("PTR: %p COSID: %lu\n", (void *) addr, cos_compid());
 	
 	PRINTLOG(PRINT_DEBUG, "%s: shared memory mapped in pong\n", (addr == 0) ? "FAILURE" : "SUCCESS");
 

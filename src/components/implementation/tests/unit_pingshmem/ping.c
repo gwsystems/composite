@@ -19,7 +19,7 @@ main(void)
 	id = memmgr_shared_page_allocn(1, &addr);
 
 	PRINTLOG(PRINT_DEBUG, "%s: shared memory allocation in ping\n", (id == 0) ? "FAILURE" : "SUCCESS");
-	printc("PTR: %p\n", addr);
+	printc("PTR: %p COSID: %lu\n", (void *) addr, cos_compid());
 
 	strcpy((char *) addr, "TESTING");
 	pongshmem_read(id);
