@@ -142,13 +142,14 @@ shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
  * - @id the cbuf_t that identifies a shared memory region
  *
  * @return: a shm_bm_t that references the shared memory region for 
- *          the calling component
+ *          the calling component. 0 on failure.
  */
 shm_bm_t 
 shm_bm_map(cbuf_t id)
 {
     shm_bm_t shm;
-    memmgr_shared_page_map(id, (vaddr_t *) &shm);
+    if (memmgr_shared_page_map(id, (vaddr_t *) &shm) == 0) return 0;
+    cos_faa(((struct shm_bm_header *) shm)->refcnt, 1);
     return shm;
 }
 
