@@ -7,7 +7,7 @@ void
 pongshmem_read(cbuf_t id)
 {
 	vaddr_t addr;
-	int failure;
+	int failure; 
 
 	memmgr_shared_page_map(id, &addr);
 	
