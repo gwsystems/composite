@@ -29,9 +29,9 @@ struct shm_bm_header {
 };
 
 /* 
- * macros to get a each of the 3 parts of the shared memory region 
+ * macros to get a ref to each of the 3 parts of the shared memory 
  * (bitmap, ref counts, data) because we cannot store pointer to 
- * them in the header since this memory this shared across virt
+ * them in the header since this memory is shared across virt
  * address spaces...
  */
 #define SHM_BM_BITM(shm) ((word_t *)  (shm + ((struct shm_bm_header *) shm)->bitm_offset))
