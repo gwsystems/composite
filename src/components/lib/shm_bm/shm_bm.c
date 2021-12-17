@@ -224,5 +224,21 @@ shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id)
 void
 shm_bm_obj_free(void *ptr)
 {
-    (void) ptr;
+    // int bit, index, offset;
+    // sm_t shm;
+    // word_t word_old, word_new, *bm;
+
+    // // spicy bit magic
+    // shm = (sm_t) ((word_t) ptr & ~((ALLOC_BOUNDRY >> 1) - 1));
+
+    // bit = ((byte_t *) ptr - SM_DATA(shm)) / SM_SIZE(shm);
+    // if (bit < 0 || bit >= SM_NOBJ(shm)) return;
+
+    // index  = bit / SM_NOBJ(shm);
+    // offset = WORDSIZE - (bit % SM_NOBJ(shm)) - 1;
+    // bm = SM_BITM(shm);
+    // do {
+    //     word_old = bm[index];
+    //     word_new = word_old | (1ul << offset);
+    // } while (!sm_bm_cas(bm + index, word_old, word_new));
 }
