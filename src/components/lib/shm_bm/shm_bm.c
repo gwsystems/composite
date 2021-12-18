@@ -15,7 +15,7 @@ typedef unsigned char byte_t;
  * functionally used as a pointer to this struct. 
  * 
  * We can't store pointers to the bitmap, reference counts, or data in
- * the shared memory because this is a header for memory that will be 
+ * the shared memory because the header is for memory that will be 
  * mapped in different address spaces; instead offsets from the header
  * are stored.
  */
@@ -25,7 +25,6 @@ struct shm_bm_header {
     unsigned long data_offset; 
     unsigned int  nobj;
     size_t        objsz;
-    refcnt_t      refcnt;
 };
 
 /* 
@@ -65,15 +64,18 @@ shm_bm_clz(word_t *bm, void *stop, int *index, int *offset)
     int ind = 0;
     
     while ((void *) bm < stop) {
+        if (*bm == 0) {
+            bm++;
+            ind++;
+            lz += SHM_BM_BITMAP_BLOCK;
+            continue;
+        }
+
         cnt = __builtin_clzl(*bm);
         lz += cnt;
-        if (cnt != SHM_BM_BITMAP_BLOCK) {
-            *index = ind;
-            *offset = SHM_BM_BITMAP_BLOCK - cnt - 1;
-            return lz;
-        }
-        bm++;
-        ind++;
+        *index = ind;
+        *offset = SHM_BM_BITMAP_BLOCK - cnt - 1;
+        return lz;
     }
 
     return -1;
@@ -109,18 +111,20 @@ shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
     alloc = PAGE_SIZE + (bitmap_sz + refcnt_sz + data_sz);
     if (alloc > SHM_BM_ALLOC_BOUNDRY) return 0;
 
-    id  = memmgr_shared_page_allocn(alloc/PAGE_SIZE, (vaddr_t *) *shm);
+    id  = memmgr_shared_page_allocn(round_up_to_page(alloc)/PAGE_SIZE, (vaddr_t *) shm);
+
     if (id == 0) return 0;
-    memset((void *) shm, 0, alloc);
+    memset((void *) *shm, 0, round_up_to_page(alloc));
 
     // metadata
     header = (struct shm_bm_header *) *shm;
-    header->refcnt      = (refcnt_t) 1;
     header->objsz       = objsz;
     header->nobj        = nobj;
     header->bitm_offset = PAGE_SIZE; 
     header->refc_offset = PAGE_SIZE + bitmap_sz; 
     header->data_offset = PAGE_SIZE + bitmap_sz + refcnt_sz; 
+
+
 
     // make metadata read-only [NOT A FUNCTIONALITY PROVIDED BY CAPMGR?]
     // if (mprotect(*shm, PGSIZE-1, PROT_READ) == -1) {
@@ -129,7 +133,7 @@ shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
     // }
 
     // set nobj bits to free
-    sm_bm_set_contig(SHM_BM_BITM(*shm), nobj);
+    shm_bm_set_contig(SHM_BM_BITM(*shm), nobj);
     return id;
 }
 
@@ -149,7 +153,6 @@ shm_bm_map(cbuf_t id)
 {
     shm_bm_t shm;
     if (memmgr_shared_page_map(id, (vaddr_t *) &shm) == 0) return 0;
-    cos_faa(((struct shm_bm_header *) shm)->refcnt, 1);
     return shm;
 }
 
@@ -173,7 +176,7 @@ shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
     // find a free space. could be preempted
     bm = SHM_BM_BITM(shm);
     do {
-        freebit = shm_bm_clz(bm, SM_REFC(shm), &idx, &off);
+        freebit = shm_bm_clz(bm, SHM_BM_REFC(shm), &idx, &off);
         if (freebit == -1) return 0;
         word_old = bm[idx];
     } while (!cos_cas(bm + idx, word_old, word_old & ~(1ul << off)));
@@ -196,7 +199,7 @@ shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
  * - @id  an indentifier that can be used to share this object between
  *        components if they have this shared memory region mapped
  *
- * @return: a pointer to the allocated object
+ * @return: a pointer to the allocated object. 0 on failure
  */
 void *   
 shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id)
