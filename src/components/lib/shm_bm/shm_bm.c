@@ -108,7 +108,7 @@ shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
     refcnt_sz = nobj;
     data_sz   = nobj * objsz;
 
-    alloc = PAGE_SIZE + (bitmap_sz + refcnt_sz + data_sz);
+    alloc = sizeof (struct shm_bm_header) + (bitmap_sz + refcnt_sz + data_sz);
     if (alloc > SHM_BM_ALLOC_BOUNDRY) return 0;
 
     id  = memmgr_shared_page_allocn(round_up_to_page(alloc)/PAGE_SIZE, (vaddr_t *) shm);
@@ -120,9 +120,9 @@ shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
     header = (struct shm_bm_header *) *shm;
     header->objsz       = objsz;
     header->nobj        = nobj;
-    header->bitm_offset = PAGE_SIZE; 
-    header->refc_offset = PAGE_SIZE + bitmap_sz; 
-    header->data_offset = PAGE_SIZE + bitmap_sz + refcnt_sz; 
+    header->bitm_offset = sizeof (struct shm_bm_header); 
+    header->refc_offset = sizeof (struct shm_bm_header) + bitmap_sz; 
+    header->data_offset = sizeof (struct shm_bm_header) + bitmap_sz + refcnt_sz; 
 
 
 
@@ -161,10 +161,11 @@ shm_bm_map(cbuf_t id)
  *
  * Arguments:
  * - @shm the shared memory region from which to allocate an object
- * - @id  an indentifier that can be used to share this object between
- *        components if they have this shared memory region mapped
+ * - @id  a pointer indentifier that can be used to share this object 
+ *        between components if they have this shared memory region 
+ *        mapped. The value of the identifier is set by the function
  *
- * @return: a pointer to the allocated object
+ * @return: a pointer to the allocated object, 0 if no free objects
  */
 void *
 shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
@@ -227,21 +228,25 @@ shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id)
 void
 shm_bm_obj_free(void *ptr)
 {
-    // int bit, index, offset;
-    // sm_t shm;
-    // word_t word_old, word_new, *bm;
+    int bit, index, offset;
+    shm_bm_t shm;
+    word_t word_old, word_new, *bm;
 
-    // // spicy bit magic
-    // shm = (sm_t) ((word_t) ptr & ~((ALLOC_BOUNDRY >> 1) - 1));
+    // mask out the bits less significant than the allocation alignment
+    shm = (shm_bm_t) ((word_t) ptr & ~((SHM_BM_ALLOC_BOUNDRY >> 1) - 1));
 
-    // bit = ((byte_t *) ptr - SM_DATA(shm)) / SM_SIZE(shm);
-    // if (bit < 0 || bit >= SM_NOBJ(shm)) return;
+    bit = ((byte_t *) ptr - SHM_BM_DATA(shm)) / SHM_BM_SIZE(shm);
+    if (bit < 0 || bit >= SHM_BM_NOBJ(shm)) return;
 
-    // index  = bit / SM_NOBJ(shm);
-    // offset = WORDSIZE - (bit % SM_NOBJ(shm)) - 1;
-    // bm = SM_BITM(shm);
-    // do {
-    //     word_old = bm[index];
-    //     word_new = word_old | (1ul << offset);
-    // } while (!sm_bm_cas(bm + index, word_old, word_new));
+    if (cos_faa(SHM_BM_REFC(shm) + bit, -1) > 1)
+        return;
+
+    // droping the last reference, must free obj
+    index  = bit / SHM_BM_NOBJ(shm);
+    offset = SHM_BM_BITMAP_BLOCK - (bit % SHM_BM_NOBJ(shm)) - 1;
+    bm     = SHM_BM_BITM(shm);
+
+    // does this need to happen atomically?? 
+    // does FAA should ensure only one thread gets here??
+    bm[index] = bm[index] | (1ul << offset);
 }
