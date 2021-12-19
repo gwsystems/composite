@@ -199,11 +199,9 @@ shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id)
     if (id >= SHM_BM_NOBJ(shm)) return 0;
 
     // obj has not been allocated
-    if (cos_faa(SHM_BM_REFC(shm) + id, 1) == 0) {
-        cos_faa(SHM_BM_REFC(shm) + id, -1);
-        return 0;
-    }
+    if ((SHM_BM_REFC(shm) + id) == 0) return 0;
 
+    cos_faa(SHM_BM_REFC(shm) + id, 1);
     return SHM_BM_DATA(shm) + (id * SHM_BM_SIZE(shm));
 }
 
