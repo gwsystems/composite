@@ -29,17 +29,20 @@ ping_test_objread(void)
 	cbuf_t           id;
 
 	id = shm_bm_create(&shm, sizeof(struct obj_test), 4 * sizeof(struct obj_test));
-	PRINTLOG(PRINT_DEBUG, "%s:Shared memory allocation in ping\n", (id == 0) ? "FAILURE" : "SUCCESS");
+	PRINTLOG(PRINT_DEBUG, "%s: Shared memory allocation in ping\n", (id == 0) ? "FAILURE" : "SUCCESS");
 
 	pongshmem_test_map(id);
 
 	for (i = 0; i < 4; i++) {
-		obj = shm_bm_obj_alloc(shm, &objid);
+		// allocate an object from shared mem buffer
+		obj = (struct obj_test *) shm_bm_obj_alloc(shm, &objid);
 		PRINTLOG(PRINT_DEBUG, "%s: (%d) Ping can allocate object from shared buffer\n", (obj == 0) ? "FAILURE" : "SUCCESS", i+1);
 		
+		// send the obj to pong
 		strcpy(obj->string, ping_test_strings[i]);
 		pongshmem_test_objread(objid, i);
 
+		// pong should have read and changed the object data
 		failure = strcmp(obj->string, pong_test_strings[i]) != 0;
 		PRINTLOG(PRINT_DEBUG, "%s: (%d) Ping can read data from pong\n", (failure) ? "FAILURE" : "SUCCESS", i+1);
 	}
@@ -56,8 +59,8 @@ ping_test_bigalloc(void)
 	shm_bufid_t      objid;
 	int      i, failure = 0;
 
-	shm_bm_create(&shm, sizeof(struct obj_test), 200 * sizeof(struct obj_test));
-	for (i = 0; i < 200; i++) {
+	shm_bm_create(&shm, sizeof(struct obj_test), 1000 * sizeof(struct obj_test));
+	for (i = 0; i < 1000; i++) {
 		if (shm_bm_obj_alloc(shm, &objid) == 0) {
 			failure = 1;
 			break;

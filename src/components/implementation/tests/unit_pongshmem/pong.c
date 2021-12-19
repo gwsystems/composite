@@ -33,10 +33,14 @@ pongshmem_test_objread(shm_bufid_t objid, int test_string)
 	struct obj_test *obj;
 	int              failure; 
 
+	// get a reference to shared object sent from ping
 	obj = (struct obj_test *) shm_bm_obj_use(shm, objid);
 	PRINTLOG(PRINT_DEBUG, "%s: (%d) Pong can get shared object from buffer\n", (obj == 0) ? "FAILURE" : "SUCCESS", test_string+1);
+	
+	// verify that we can read data from ping
 	failure = strcmp(obj->string, ping_test_strings[test_string]) != 0;
 	PRINTLOG(PRINT_DEBUG, "%s: (%d) Pong can read data from ping\n", (failure) ? "FAILURE" : "SUCCESS", test_string+1);
 
+	// send new data to ping
 	strcpy(obj->string, pong_test_strings[test_string]);
 }

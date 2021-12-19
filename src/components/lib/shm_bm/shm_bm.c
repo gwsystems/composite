@@ -15,9 +15,8 @@ typedef unsigned char byte_t;
  * functionally used as a pointer to this struct. 
  * 
  * We can't store pointers to the bitmap, reference counts, or data in
- * the shared memory because the header is for memory that will be 
- * mapped in different address spaces; instead offsets from the header
- * are stored.
+ * the shared memory because the header  will be mapped in different 
+ * address spaces; instead offsets from the header are stored.
  */
 struct shm_bm_header {
     unsigned long bitm_offset;
@@ -108,7 +107,7 @@ shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
     refcnt_sz = nobj;
     data_sz   = nobj * objsz;
 
-    alloc = sizeof (struct shm_bm_header) + (bitmap_sz + refcnt_sz + data_sz);
+    alloc = sizeof (struct shm_bm_header) + bitmap_sz + refcnt_sz + data_sz;
     if (alloc > SHM_BM_ALLOC_BOUNDRY) return 0;
 
     id  = memmgr_shared_page_allocn(round_up_to_page(alloc)/PAGE_SIZE, (vaddr_t *) shm);
@@ -123,14 +122,6 @@ shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
     header->bitm_offset = sizeof (struct shm_bm_header); 
     header->refc_offset = sizeof (struct shm_bm_header) + bitmap_sz; 
     header->data_offset = sizeof (struct shm_bm_header) + bitmap_sz + refcnt_sz; 
-
-
-
-    // make metadata read-only [NOT A FUNCTIONALITY PROVIDED BY CAPMGR?]
-    // if (mprotect(*shm, PGSIZE-1, PROT_READ) == -1) {
-    //     free(*shm);
-    //     return -1;
-    // }
 
     // set nobj bits to free
     shm_bm_set_contig(SHM_BM_BITM(*shm), nobj);
@@ -170,8 +161,8 @@ shm_bm_map(cbuf_t id)
 void *
 shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
 {
-    int    freebit, idx, off;
-    word_t word_old; 
+    int     freebit, idx, off;
+    word_t  word_old; 
     word_t *bm;
 
     // find a free space. could be preempted
@@ -228,9 +219,9 @@ shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id)
 void
 shm_bm_obj_free(void *ptr)
 {
-    int bit, index, offset;
+    int      bit, index, offset;
     shm_bm_t shm;
-    word_t word_old, word_new, *bm;
+    word_t  *bm;
 
     // mask out the bits less significant than the allocation alignment
     shm = (shm_bm_t) ((word_t) ptr & ~((SHM_BM_ALLOC_BOUNDRY >> 1) - 1));
@@ -246,7 +237,8 @@ shm_bm_obj_free(void *ptr)
     offset = SHM_BM_BITMAP_BLOCK - (bit % SHM_BM_NOBJ(shm)) - 1;
     bm     = SHM_BM_BITM(shm);
 
-    // does this need to happen atomically?? 
-    // does FAA should ensure only one thread gets here??
+    // does this need to happen atomically
+    // or FAA should ensure only one thread 
+    // gets here??
     bm[index] = bm[index] | (1ul << offset);
 }
