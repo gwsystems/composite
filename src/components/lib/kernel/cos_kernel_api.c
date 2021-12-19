@@ -633,7 +633,7 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 
 	/* Do we not need to allocate PTEs? */
 	if (heap_vaddr + sz <= *mem_frontier) return heap_vaddr;
-	retaddr = __bump_mem_expand_range(ci, ci->pgtbl_cap, round_to_pgd_page(heap_vaddr), rounded, 0);
+	retaddr = __bump_mem_expand_range(ci, ci->pgtbl_cap, round_up_to_pgd_page(heap_vaddr), rounded, 0);
 
 	assert(retaddr);
 
