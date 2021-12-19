@@ -80,6 +80,7 @@ run()
 	if [ "${machine}" == "ARM" ]
 	then
 		./tools/arm_qemurun.sh all ${dir}
+		exit 0
 	fi
 
 	if [ "${elf_type}" == "ELF64" ]

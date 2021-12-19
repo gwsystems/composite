@@ -65,7 +65,7 @@ setup() {
 
 
 qemu() {
-	cd $TMPDIR ; $QEMU -nographic -M $MACHINE -m 1024 -serial /dev/null -serial mon:stdio -display none -kernel $UBOOTELF -sd $UDISK ; cd -
+	cd $TMPDIR ; $QEMU -s -nographic -M $MACHINE -m 1024 -serial /dev/null -serial mon:stdio -display none -kernel $UBOOTELF -sd $UDISK ; cd -
 }
 
 all() {
