@@ -236,7 +236,7 @@ shm_bm_obj_free(void *ptr)
     bm     = SHM_BM_BITM(shm);
 
     // does this need to happen atomically
-    // or FAA should ensure only one thread 
+    // or does FAA ensure only one thread 
     // gets here??
     bm[index] = bm[index] | (1ul << offset);
 }
