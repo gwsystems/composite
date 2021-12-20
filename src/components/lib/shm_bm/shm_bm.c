@@ -232,7 +232,7 @@ shm_bm_obj_free(void *ptr)
 
     // droping the last reference, must free obj
     index  = bit / SHM_BM_NOBJ(shm);
-    offset = SHM_BM_BITMAP_BLOCK - (bit % SHM_BM_NOBJ(shm)) - 1;
+    offset = SHM_BM_BITMAP_BLOCK - (bit - index * SHM_BM_NOBJ(shm)) - 1;
     bm     = SHM_BM_BITM(shm);
 
     // does this need to happen atomically
