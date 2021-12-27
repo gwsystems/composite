@@ -1,8 +1,9 @@
 #include <cos_types.h>
 #include <memmgr.h>
 
-int
-main(void)
+
+static void
+test_alignment()
 {
 	void *ptr;
 	int   i;
@@ -18,6 +19,32 @@ main(void)
 	}
 
 	PRINTLOG(PRINT_DEBUG, "%s: Aligned memory allocation is properly aligned\n", (failure) ? "FAILURE" : "SUCCESS");
+}
 
+static void
+test_aligned_allocation_continuity()
+{
+	int   i;
+	int   n = 5;
+	char *ptr;
+
+	// making sure we dont fault between pages 
+	// (that pages are still contiguous with the alignment)
+	for (i = 12; i < 22; i++) {
+		ptr = (char *) memmgr_heap_page_allocn_aligned(n, 1 << i);
+		for (i = 0; i < n*4096; i++) {
+			ptr[i] = '\1';
+		}
+	}	
+
+	PRINTLOG(PRINT_DEBUG, "SUCCESS: Aligned memory allocation is continguous across pages\n");
+
+}
+
+int
+main(void)
+{
+	test_alignment();
+	test_aligned_allocation_continuity();
 	return 0;
 }

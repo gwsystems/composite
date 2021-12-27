@@ -199,7 +199,7 @@ mm_page_allocn(struct cm_comp *c, unsigned long num_pages, unsigned long align)
 	initial = prev = p = mm_page_alloc(c, align);
 	if (!p) return 0;
 	for (i = 1; i < num_pages; i++) {
-		p = mm_page_alloc(c, align);
+		p = mm_page_alloc(c, PAGE_SIZE);
 		if (!p) return NULL;
 		if ((prev->page + 4096) != p->page) {
 			BUG(); /* FIXME: handle concurrency */
