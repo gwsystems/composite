@@ -54,7 +54,7 @@ def makefile_deps(path):
         if len(data) != 2:
             continue
         attr = data[0].strip()
-        lst  = filter(lambda x: x != "", re.split(" ", data[1].strip()))
+        lst  = list(filter(lambda x: x != "", re.split(" ", data[1].strip())))
         if attr == lib_str:
             libdeps = lst
         if attr == if_dep_str:
@@ -62,12 +62,12 @@ def makefile_deps(path):
         if attr == if_exp_str:
             ifexps += lst
         if attr == lib_out_str:
-            libout   = map(lambda x: "-l" + str(x), lst)
-            libpaths = map(lambda x: "-L" + str(path), lst)
+            libout   = list(map(lambda x: "-l" + str(x), lst))
+            libpaths = list(map(lambda x: "-L" + str(path), lst))
         if attr == bin_out_str:
-            objout   = map(lambda x: str(path) + "/" + str(x) + ".lib.o", lst)
+            objout   = list(map(lambda x: str(path) + "/" + str(x) + ".lib.o", lst))
         if attr == inc_paths_str:
-            incpaths = map(lambda x: "-I" + str(path) + "/" + str(x), lst)
+            incpaths = list(map(lambda x: "-I" + str(path) + "/" + str(x), lst))
 
     return (True, libdeps, ifdeps, ifexps, libout, libpaths, objout, incpaths)
 
