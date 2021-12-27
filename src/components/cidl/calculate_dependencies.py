@@ -4,7 +4,7 @@ import re
 import sys
 import os
 import copy
-import string
+
 
 def error_out(message):
     sys.stderr.write("Error: " + sys.argv[0] + " " + message)
@@ -47,7 +47,7 @@ def makefile_deps(path):
     incpaths = []
 
     for line in lines:
-        line           = string.rstrip(line)
+        line           = line.rstrip()
         comment_filter = re.split("#", line) # filter out comments
         data           = re.split("=", comment_filter[0])
 
