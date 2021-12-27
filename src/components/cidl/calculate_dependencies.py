@@ -190,4 +190,4 @@ except:
 output = ""
 for o in out:
     output += " " + str(o).strip()
-print output.strip()
+print(output.strip())
