@@ -118,17 +118,17 @@ comps_init(void)
 		vaddr_t info = atol(args_get_from("info", &curr));
 		const char *root = "binaries/";
 		int   len  = strlen(root);
-		char  path[INITARGS_MAX_PATHNAME];
+		char  path[INITARGS_MAX_PATHNAME + 1];
 
 		printc("%s: %lu\n", name, id);
 
 		assert(id < MAX_NUM_COMPS && id > 0 && name);
 
-		memset(path, 0, INITARGS_MAX_PATHNAME);
-		strncat(path, root, len);
+		memset(path, 0, INITARGS_MAX_PATHNAME + 1);
+		strncat(path, root, len + 1);
 		assert(path[len] == '\0');
 		strncat(path, name, INITARGS_MAX_PATHNAME - len);
-		assert(path[INITARGS_MAX_PATHNAME - 1] == '\0'); /* no truncation allowed */
+		assert(path[INITARGS_MAX_PATHNAME] == '\0'); /* no truncation allowed */
 
 		comp = boot_comp_get(id);
 		assert(comp);
