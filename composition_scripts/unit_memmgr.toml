@@ -1,0 +1,29 @@
+[system]
+description = "Simplest system with both capability manager and scheduler to test shared memory implementation"
+
+[[components]]
+name = "booter"
+img  = "no_interface.llbooter"
+implements = [{interface = "init"}, {interface = "addr"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"
+
+[[components]]
+name = "capmgr"
+img  = "capmgr.simple"
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
+implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
+constructor = "booter"
+
+[[components]]
+name = "sched"
+img  = "sched.root_fprr"
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "sched"}, {interface = "init"}]
+constructor = "booter"
+
+[[components]]
+name = "unit_memmgr"
+img  = "tests.unit_memmgr"
+deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}]
+constructor = "booter"
