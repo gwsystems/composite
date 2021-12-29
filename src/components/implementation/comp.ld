@@ -69,4 +69,6 @@ SECTIONS
 	.bss : { *(.bss*) }
 
 	__crt_static_heap_ptr = .;
+
+	/DISCARD/ : { *(.note.gnu.property) }
 }
