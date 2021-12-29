@@ -77,7 +77,7 @@ clean:
 
 init:
 	$(info Building libc (musl)...)
-	cd $(MUSLDIR); ./configure "CFLAGS=-m32 -march=i686 -O3" "LDFLAGS=-Wl,-melf_i386" --disable-shared --target=i386; cd ..
+	cd $(MUSLDIR); ./configure "CFLAGS=-m32 -march=i686 -O3 -fno-stack-protector" "LDFLAGS=-Wl,-melf_i386" --disable-shared --target=i386; cd ..
 	make -C $(MUSLDIR)
 	make -C $(MUSLDIR) install
 	cp $(MUSLLIB)*.a .
