@@ -1,6 +1,6 @@
 # include ../../../Makefile.inc first!
 
-ARCH_CFLAGS =-m32 -D__x86__
+ARCH_CFLAGS =-m32 -D__x86__ -march=i686
 ARCH_ASFLAGS=$(ARCH_CFLAGS)
 ARCH_LDFLAGS=-melf_i386
 
