@@ -11,8 +11,8 @@ typedef unsigned char refcnt_t;
 typedef unsigned char byte_t;
 
 /* 
- * This header is abstracted from the user. shm_bm_t is 
- * functionally used as a pointer to this struct. 
+ * shm_bm_t is functionally used as a pointer to this struct
+   to provide some abstraction 
  * 
  * We can't store pointers to the bitmap, reference counts, or data in
  * the shared memory because the header  will be mapped in different 
@@ -79,7 +79,7 @@ shm_bm_clz(word_t *bm, void *stop, int *index, int *offset)
 
 /**
  * Creates a shared shared memory region of size `allocsz` from
- * which objects of size `objsz` can be allocated from. 
+ * which objects of size `objsz` can be allocated. 
  *
  * Arguments:
  * - @shm     a pointer to a shm_bm_t that is set by function
@@ -145,13 +145,14 @@ shm_bm_map(cbuf_t id)
 }
 
 /**
- * Allocates an object in the shared memory region reference by `shm`.
+ * Allocates an object in the shared memory region referenced by `shm`.
  *
  * Arguments:
  * - @shm the shared memory region from which to allocate an object
- * - @id  a pointer indentifier that can be used to share this object 
- *        between components if they have this shared memory region 
- *        mapped. The value of the identifier is set by the function
+ * - @id  a pointer to an identifier that can be used to share this 
+ *        object between components if they have this shared memory 
+ *        region mapped. The value of the identifier is set by the 
+ *        function
  *
  * @return: a pointer to the allocated object, 0 if no free objects
  */
