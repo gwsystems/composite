@@ -5,13 +5,13 @@
 
 #define SHM_BM_BITMAP_BLOCK (sizeof (word_t) * CHAR_BIT)
 #define SHM_BM_BITS_TO_WORDS(bits) (round_up_to_pow2(bits, SHM_BM_BITMAP_BLOCK) / SHM_BM_BITMAP_BLOCK)
-#define SHM_BM_ALLOC_BOUNDRY 1ul << 22 // sm regions are on 4MB boundries
+#define SHM_BM_ALLOC_ALIGNMENT 1ul << 22 // sm regions are on 4MB boundries
 
 typedef unsigned char refcnt_t;
 typedef unsigned char byte_t;
 
 /* 
- * This header is abstracted from the user for ease-of-use. shm_bm_t is 
+ * This header is abstracted from the user. shm_bm_t is 
  * functionally used as a pointer to this struct. 
  * 
  * We can't store pointers to the bitmap, reference counts, or data in
@@ -59,22 +59,19 @@ shm_bm_set_contig(word_t *bm, int offset)
 static inline int
 shm_bm_clz(word_t *bm, void *stop, int *index, int *offset)
 {
-    int cnt, lz = 0;
-    int ind = 0;
+    int cnt, lz = 0, ind = 0;
     
     while ((void *) bm < stop) {
-        if (*bm == 0) {
-            bm++;
-            ind++;
-            lz += SHM_BM_BITMAP_BLOCK;
-            continue;
+        if (*bm != 0) {
+            cnt = __builtin_clzl(*bm);
+            lz += cnt;
+            *index = ind;
+            *offset = SHM_BM_BITMAP_BLOCK - cnt - 1;
+            return lz;
         }
-
-        cnt = __builtin_clzl(*bm);
-        lz += cnt;
-        *index = ind;
-        *offset = SHM_BM_BITMAP_BLOCK - cnt - 1;
-        return lz;
+        bm++;
+        ind++;
+        lz += SHM_BM_BITMAP_BLOCK;
     }
 
     return -1;
@@ -108,9 +105,9 @@ shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
     data_sz   = nobj * objsz;
 
     alloc = sizeof (struct shm_bm_header) + bitmap_sz + refcnt_sz + data_sz;
-    if (alloc > SHM_BM_ALLOC_BOUNDRY) return 0;
+    if (alloc > SHM_BM_ALLOC_ALIGNMENT) return 0;
 
-    id  = memmgr_shared_page_allocn(round_up_to_page(alloc)/PAGE_SIZE, (vaddr_t *) shm);
+    id  = memmgr_shared_page_allocn_aligned(round_up_to_page(alloc)/PAGE_SIZE, SHM_BM_ALLOC_ALIGNMENT, (vaddr_t *) shm);
 
     if (id == 0) return 0;
     memset((void *) *shm, 0, round_up_to_page(alloc));
@@ -143,7 +140,7 @@ shm_bm_t
 shm_bm_map(cbuf_t id)
 {
     shm_bm_t shm;
-    if (memmgr_shared_page_map(id, (vaddr_t *) &shm) == 0) return 0;
+    if (memmgr_shared_page_map_aligned(id, SHM_BM_ALLOC_ALIGNMENT, (vaddr_t *) &shm) == 0) return 0;
     return shm;
 }
 
@@ -173,7 +170,7 @@ shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
         word_old = bm[idx];
     } while (!cos_cas(bm + idx, word_old, word_old & ~(1ul << off)));
 
-    cos_faa(SHM_BM_REFC(shm) + freebit, 1);
+    cos_faab(SHM_BM_REFC(shm) + freebit, 1);
 
     *id = (shm_bufid_t) freebit;
     return SHM_BM_DATA(shm) + (freebit * SHM_BM_SIZE(shm));
@@ -201,7 +198,7 @@ shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id)
     // obj has not been allocated
     if ((SHM_BM_REFC(shm) + id) == 0) return 0;
 
-    cos_faa(SHM_BM_REFC(shm) + id, 1);
+    cos_faab(SHM_BM_REFC(shm) + id, 1);
     return SHM_BM_DATA(shm) + (id * SHM_BM_SIZE(shm));
 }
 
@@ -222,17 +219,17 @@ shm_bm_obj_free(void *ptr)
     word_t  *bm;
 
     // mask out the bits less significant than the allocation alignment
-    shm = (shm_bm_t) ((word_t) ptr & ~((SHM_BM_ALLOC_BOUNDRY >> 1) - 1));
+    shm = (shm_bm_t) ((word_t) ptr & ~((SHM_BM_ALLOC_ALIGNMENT >> 1) - 1));
 
     bit = ((byte_t *) ptr - SHM_BM_DATA(shm)) / SHM_BM_SIZE(shm);
     if (bit < 0 || bit >= SHM_BM_NOBJ(shm)) return;
 
-    if (cos_faa(SHM_BM_REFC(shm) + bit, -1) > 1)
+    if (cos_faab(SHM_BM_REFC(shm) + bit, -1) > 1)
         return;
 
     // droping the last reference, must free obj
     index  = bit / SHM_BM_NOBJ(shm);
-    offset = SHM_BM_BITMAP_BLOCK - (bit - index * SHM_BM_NOBJ(shm)) - 1;
+    offset = SHM_BM_BITMAP_BLOCK - bit % SHM_BM_NOBJ(shm) - 1;
     bm     = SHM_BM_BITM(shm);
 
     // does this need to happen atomically

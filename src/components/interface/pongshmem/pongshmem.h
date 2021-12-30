@@ -10,5 +10,6 @@ struct obj_test {
 
 void pongshmem_test_map(cbuf_t shmid);
 void pongshmem_test_objread(shm_bufid_t objid, int test_string);
+void pongshmem_test_refcnt(shm_bufid_t objid);
 
 #endif

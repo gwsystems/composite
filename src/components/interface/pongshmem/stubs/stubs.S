@@ -2,3 +2,4 @@
 
 cos_asm_stub(pongshmem_test_map)
 cos_asm_stub(pongshmem_test_objread)
+cos_asm_stub(pongshmem_test_refcnt)

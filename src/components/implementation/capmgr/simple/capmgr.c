@@ -320,6 +320,7 @@ memmgr_shared_page_map_aligned(cbuf_t id, unsigned long align, vaddr_t *pgaddr)
 
 		if (mm_page_alias(p, c, &addr, align)) BUG();
 		if (*pgaddr == 0) *pgaddr = addr;
+		align = PAGE_SIZE; // only the first page can have special alignment
 	}
 
 	return s->n_pages;
