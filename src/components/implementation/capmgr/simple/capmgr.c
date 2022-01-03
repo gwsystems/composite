@@ -163,7 +163,7 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, thdclosure_index_t clo
  *   page is available.
  */
 static struct mm_page *
-mm_page_alloc(struct cm_comp *c)
+mm_page_alloc(struct cm_comp *c, unsigned long align)
 {
 	struct mm_mapping *m;
 	struct mm_page    *ret = NULL, *p;
@@ -178,7 +178,7 @@ mm_page_alloc(struct cm_comp *c)
 	/* Allocate page, map page */
 	p->page = crt_page_allocn(&cm_self()->comp, 1);
 	if (!p->page) ERR_THROW(NULL, free_p);
-	if (crt_page_aliasn_in(p->page, 1, &cm_self()->comp, &c->comp, &m->addr)) BUG();
+	if (crt_page_aliasn_aligned_in(p->page, align, 1, &cm_self()->comp, &c->comp, &m->addr)) BUG();
 
 	ss_state_activate_with(&m->comp, (word_t)c);
 	ss_page_activate(p);
@@ -191,15 +191,15 @@ free_p:
 }
 
 static struct mm_page *
-mm_page_allocn(struct cm_comp *c, unsigned long num_pages)
+mm_page_allocn(struct cm_comp *c, unsigned long num_pages, unsigned long align)
 {
 	struct mm_page *p, *prev, *initial;
 	unsigned long i;
 
-	initial = prev = p = mm_page_alloc(c);
+	initial = prev = p = mm_page_alloc(c, align);
 	if (!p) return 0;
 	for (i = 1; i < num_pages; i++) {
-		p = mm_page_alloc(c);
+		p = mm_page_alloc(c, PAGE_SIZE);
 		if (!p) return NULL;
 		if ((prev->page + 4096) != p->page) {
 			BUG(); /* FIXME: handle concurrency */
@@ -211,21 +211,27 @@ mm_page_allocn(struct cm_comp *c, unsigned long num_pages)
 }
 
 vaddr_t
-memmgr_heap_page_allocn(unsigned long num_pages)
+memmgr_heap_page_allocn_aligned(unsigned long num_pages, unsigned long align)
 {
 	struct cm_comp *c;
 	struct mm_page *p;
 
 	c = ss_comp_get(cos_inv_token());
 	if (!c) return 0;
-	p = mm_page_allocn(c, num_pages);
+	p = mm_page_allocn(c, num_pages, align);
 	if (!p) return 0;
 
 	return (vaddr_t)p->mappings[0].addr;
 }
 
+vaddr_t
+memmgr_heap_page_allocn(unsigned long num_pages)
+{
+	return memmgr_heap_page_allocn_aligned(num_pages, PAGE_SIZE);
+}
+
 cbuf_t
-memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr)
+memmgr_shared_page_allocn_aligned(unsigned long num_pages, unsigned long align, vaddr_t *pgaddr)
 {
 	struct cm_comp *c;
 	struct mm_page *p;
@@ -236,7 +242,7 @@ memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr)
 	if (!c) return 0;
 	s = ss_span_alloc();
 	if (!s) return 0;
-	p = mm_page_allocn(c, num_pages);
+	p = mm_page_allocn(c, num_pages, align);
 	if (!p) ERR_THROW(0, cleanup);
 
 	s->page_off = ss_page_id(p);
@@ -252,6 +258,13 @@ cleanup:
 	goto done;
 }
 
+cbuf_t
+memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr)
+{
+	return memmgr_shared_page_allocn_aligned(num_pages, PAGE_SIZE, pgaddr);
+}
+
+
 /**
  * Alias a page of memory into another component (i.e., create shared
  * memory). The number of mappings are limited by `MM_MAPPINGS_MAX`.
@@ -262,7 +275,7 @@ cleanup:
  * @return - `0` = success, `<0` = error
  */
 static int
-mm_page_alias(struct mm_page *p, struct cm_comp *c, vaddr_t *addr)
+mm_page_alias(struct mm_page *p, struct cm_comp *c, vaddr_t *addr, unsigned long align)
 {
 	struct mm_mapping *m;
 	int i;
@@ -272,7 +285,7 @@ mm_page_alias(struct mm_page *p, struct cm_comp *c, vaddr_t *addr)
 		m = &p->mappings[i];
 
 		if (ss_state_alloc(&m->comp)) continue;
-		if (crt_page_aliasn_in(p->page, 1, &cm_self()->comp, &c->comp, &m->addr)) BUG();
+		if (crt_page_aliasn_aligned_in(p->page, align, 1, &cm_self()->comp, &c->comp, &m->addr)) BUG();
 		assert(m->addr);
 		*addr = m->addr;
 		ss_state_activate_with(&m->comp, (word_t)c);
@@ -285,7 +298,7 @@ mm_page_alias(struct mm_page *p, struct cm_comp *c, vaddr_t *addr)
 }
 
 unsigned long
-memmgr_shared_page_map(cbuf_t id, vaddr_t *pgaddr)
+memmgr_shared_page_map_aligned(cbuf_t id, unsigned long align, vaddr_t *pgaddr)
 {
 	struct cm_comp *c;
 	struct mm_span *s;
@@ -305,11 +318,18 @@ memmgr_shared_page_map(cbuf_t id, vaddr_t *pgaddr)
 		p = ss_page_get(s->page_off + i);
 		if (!p) return 0;
 
-		if (mm_page_alias(p, c, &addr)) BUG();
+		if (mm_page_alias(p, c, &addr, align)) BUG();
 		if (*pgaddr == 0) *pgaddr = addr;
+		align = PAGE_SIZE; // only the first page can have special alignment
 	}
 
 	return s->n_pages;
+}
+
+unsigned long
+memmgr_shared_page_map(cbuf_t id, vaddr_t *pgaddr)
+{
+	return memmgr_shared_page_map_aligned(id, PAGE_SIZE, pgaddr);
 }
 
 static compid_t

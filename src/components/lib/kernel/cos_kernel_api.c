@@ -510,19 +510,24 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 }
 
 static vaddr_t
-__page_bump_valloc(struct cos_compinfo *ci, size_t sz)
+__page_bump_valloc(struct cos_compinfo *ci, size_t sz, size_t align)
 {
 	vaddr_t ret_addr = 0;
+	vaddr_t rounding; // how much we need to round up sz to handle alignment
 
 	ps_lock_take(&ci->va_lock);
+	rounding = round_up_to_pow2(ci->vas_frontier, align) - ci->vas_frontier;
+	sz += rounding;
 	ret_addr = __page_bump_mem_alloc(ci, &ci->vas_frontier, &ci->vasrange_frontier, sz);
+	ret_addr += rounding;
 	ps_lock_release(&ci->va_lock);
+	assert(ret_addr % align == 0);
 
 	return ret_addr;
 }
 
 static vaddr_t
-__page_bump_alloc(struct cos_compinfo *ci, size_t sz)
+__page_bump_alloc(struct cos_compinfo *ci, size_t sz, size_t align)
 {
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 	vaddr_t              heap_vaddr, heap_cursor, heap_limit;
@@ -531,7 +536,7 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz)
 	 * Allocate the virtual address range to map into.  This is
 	 * atomic, so we will get a contiguous range of sz.
 	 */
-	heap_vaddr = __page_bump_valloc(ci, sz);
+	heap_vaddr = __page_bump_valloc(ci, sz, align);
 	if (unlikely(!heap_vaddr)) return 0;
 	heap_limit = heap_vaddr + sz;
 	assert(heap_limit > heap_vaddr);
@@ -810,17 +815,26 @@ cos_hw_alloc(struct cos_compinfo *ci, u32_t bitmap)
 }
 
 void *
-cos_page_bump_alloc(struct cos_compinfo *ci)
-{
-	return (void *)__page_bump_alloc(ci, PAGE_SIZE);
-}
-
-void *
 cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz)
 {
 	assert(sz % PAGE_SIZE == 0);
+	return (void *)__page_bump_alloc(ci, sz, PAGE_SIZE);
+}
 
-	return (void *)__page_bump_alloc(ci, sz);
+void *
+cos_page_bump_allocn_aligned(struct cos_compinfo *ci, size_t sz, size_t align)
+{
+	assert(sz % PAGE_SIZE == 0);
+	assert(align % PAGE_SIZE == 0);
+
+	return (void *)__page_bump_alloc(ci, sz, align);
+}
+
+void *
+cos_page_bump_alloc(struct cos_compinfo *ci)
+{
+	return cos_page_bump_allocn(ci, PAGE_SIZE);
+
 }
 
 capid_t
@@ -929,15 +943,16 @@ cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd)
 }
 
 vaddr_t
-cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz)
+cos_mem_aliasn_aligned(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz, size_t align)
 {
 	size_t i;
 	vaddr_t dst, first_dst;
 
 	assert(srcci && dstci);
 	assert(sz && (sz % PAGE_SIZE == 0));
+	assert(align % PAGE_SIZE == 0);
 
-	dst = __page_bump_valloc(dstci, sz);
+	dst = __page_bump_valloc(dstci, sz, align);
 	if (unlikely(!dst)) return 0;
 	first_dst = dst;
 
@@ -946,6 +961,12 @@ cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t s
 	}
 
 	return first_dst;
+}
+
+vaddr_t
+cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz)
+{
+	return cos_mem_aliasn_aligned(dstci, srcci, src, sz, PAGE_SIZE);
 }
 
 vaddr_t
@@ -978,7 +999,7 @@ cos_mem_move(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src
 
 	assert(srcci && dstci);
 
-	dst = __page_bump_valloc(dstci, PAGE_SIZE);
+	dst = __page_bump_valloc(dstci, PAGE_SIZE, PAGE_SIZE);
 	if (unlikely(!dst)) return 0;
 
 	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_MEMMOVE, src, dstci->pgtbl_cap, dst, 0)) BUG();
@@ -1100,7 +1121,7 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 	assert(ci && hwc && pa && len);
 
 	sz = round_up_to_page(len);
-	va = __page_bump_valloc(ci, sz);
+	va = __page_bump_valloc(ci, sz, PAGE_SIZE);
 	if (unlikely(!va)) return NULL;
 
 	for (i = 0; i < sz; i += PAGE_SIZE) {
