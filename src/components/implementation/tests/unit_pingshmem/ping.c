@@ -4,6 +4,7 @@
 #include <shm_bm.h>
 #include <string.h>
 
+#define BENCH_ITER 1024
 
 char *ping_test_strings[] = {
     "PING TEST 1",
@@ -75,7 +76,7 @@ ping_test_bigalloc(void)
 }
 
 void
-ping_obj_free(void)
+ping_test_objfree(void)
 {
     shm_bm_t         shm;
     shm_bufid_t      objid;
@@ -162,13 +163,42 @@ ping_test_refcnt(void)
     PRINTLOG(PRINT_DEBUG, "%s: Reference counts prevent freeing object in-use\n", (failure) ? "FAILURE" : "SUCCESS");
 }
 
+void
+ping_bench_msgpassing(void)
+{
+    shm_bm_t         shm;
+    cbuf_t           id;
+    shm_bufid_t      objid;
+    struct obj_test *obj;
+    ps_tsc_t         begin, end, bench;
+    int              i;
+
+    id = shm_bm_create(&shm, sizeof (struct obj_test), BENCH_ITER * sizeof (struct obj_test));
+    pongshmem_bench_map(id);
+
+    begin = ps_tsc();
+    for (i = 0; i < BENCH_ITER; i++) {
+        // allocate an obj from shared mem
+        obj = (struct obj_test *) shm_bm_obj_alloc(shm, &objid);
+        // send obj to server, server gets ref and frees
+        pongshmem_bench_objread(objid);
+        // free obj
+        shm_bm_obj_free(obj);
+    }
+    end = ps_tsc();
+    bench = (end - begin) / BENCH_ITER;
+    PRINTLOG(PRINT_DEBUG, "BENCHMARK Message passing with free: %llu cycles\n", bench);
+}
+
 int
 main(void)
 {
     ping_test_objread();
     ping_test_bigalloc();
-    ping_obj_free();
+    ping_test_objfree();
     ping_test_refcnt();
+
+    ping_bench_msgpassing();
 
     return 0;
 }
