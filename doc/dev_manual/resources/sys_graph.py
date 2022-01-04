@@ -5,7 +5,7 @@
 import glob
 import subprocess
 import re
-import string
+
 
 dep_script = "../../src/components/cidl/calculate_dependencies.py"
 comp_base = "../../src/components/"
@@ -15,7 +15,7 @@ interfaces = comp_base + "interface/*/"
 
 
 def filter_out_skel(p):
-    s = re.split("/", string.rstrip(p))
+    s = re.split("/", p.rstrip())
     s = filter(lambda e: e != "", s)
     return not (s[-1] == "skel" or s[-2] == "skel") and not (s[-2] == "archives")
 
@@ -31,7 +31,7 @@ def unique(l):
 
 # listify the output
 def clean_dep_output(lst):
-    return unique(re.split(" ", string.rstrip(lst)))
+    return unique(re.split(" ", lst.rstrip()))
 
 
 def gather_deps(path):
@@ -45,13 +45,13 @@ def gather_deps(path):
 
 
 def comp_name(p):
-    s = re.split("/", string.rstrip(p))
+    s = re.split("/", p.rstrip())
     s = filter(lambda e: e != "", s)
     return s[-2] + "." + s[-1]
 
 
 def lib_or_if_name(p):
-    s = re.split("/", string.rstrip(p))
+    s = re.split("/", p.rstrip())
     s = filter(lambda e: e != "", s)
     return s[-1]
 
