@@ -11,15 +11,17 @@ import os
 import copy
 
 dep_script = "../../src/components/cidl/calculate_dependencies.py"
-comp_base  = "../../src/components/"
+comp_base = "../../src/components/"
 components = comp_base + "implementation/*/*/doc.md"
-libraries  = comp_base + "lib/*/doc.md"
+libraries = comp_base + "lib/*/doc.md"
 interfaces = comp_base + "interface/*/doc.md"
+
 
 def readfile(p):
     with open(p) as f:
         return f.read()
     return ""
+
 
 def remove_trailing_doc(wildcard_path):
     ps = glob.glob(wildcard_path)
@@ -31,48 +33,68 @@ def remove_trailing_doc(wildcard_path):
         removed.append(pathified)
     return removed
 
+
 def filter_out_skel(p):
     s = re.split("/", string.rstrip(p))
-    s = filter(lambda e: e != '', s)
-    return not(s[-1] == "skel" or s[-2] == "skel") and not(s[-2] == "archives")
+    s = filter(lambda e: e != "", s)
+    return not (s[-1] == "skel" or s[-2] == "skel") and not (s[-2] == "archives")
 
-cs  = filter(filter_out_skel, remove_trailing_doc(components))
-ls  = filter(filter_out_skel, remove_trailing_doc(libraries))
+
+cs = filter(filter_out_skel, remove_trailing_doc(components))
+ls = filter(filter_out_skel, remove_trailing_doc(libraries))
 ifs = filter(filter_out_skel, remove_trailing_doc(interfaces))
+
 
 def unique(l):
     return list(set(l))
 
+
 # listify the output
 def clean_dep_output(lst):
-    return filter(lambda d: d != '', unique(re.split(" ", string.rstrip(lst))))
+    return filter(lambda d: d != "", unique(re.split(" ", string.rstrip(lst))))
+
 
 def gather_deps(path):
-    libdeps = clean_dep_output(subprocess.check_output(['python', dep_script, path, comp_base, 'shallowlibdeps']))
-    ifdeps  = clean_dep_output(subprocess.check_output(['python', dep_script, path, comp_base, 'shallowifdeps']))
-    ifexps  = clean_dep_output(subprocess.check_output(['python', dep_script, path, comp_base, 'shallowifexps']))
+    libdeps = clean_dep_output(
+        subprocess.check_output(
+            ["python", dep_script, path, comp_base, "shallowlibdeps"]
+        )
+    )
+    ifdeps = clean_dep_output(
+        subprocess.check_output(
+            ["python", dep_script, path, comp_base, "shallowifdeps"]
+        )
+    )
+    ifexps = clean_dep_output(
+        subprocess.check_output(
+            ["python", dep_script, path, comp_base, "shallowifexps"]
+        )
+    )
     return (libdeps, ifdeps, ifexps)
+
 
 def comp_name(p):
     s = re.split("/", string.rstrip(p))
-    s = filter(lambda e: e != '', s)
+    s = filter(lambda e: e != "", s)
     return s[-2] + "." + s[-1]
+
 
 def lib_or_if_name(p):
     s = re.split("/", string.rstrip(p))
-    s = filter(lambda e: e != '', s)
+    s = filter(lambda e: e != "", s)
     return s[-1]
 
+
 compdeps = {}
-libdeps  = {}
-ifdeps   = {}
+libdeps = {}
+ifdeps = {}
 
 for c in cs:
-    compdeps[comp_name(c)] = { "deps": gather_deps(c), "type": "component", "path":c }
+    compdeps[comp_name(c)] = {"deps": gather_deps(c), "type": "component", "path": c}
 for l in ls:
-    libdeps[lib_or_if_name(l)] = { "deps": gather_deps(l), "type": "library", "path":l }
+    libdeps[lib_or_if_name(l)] = {"deps": gather_deps(l), "type": "library", "path": l}
 for i in ifs:
-    ifdeps[lib_or_if_name(i)] = { "deps": gather_deps(i), "type": "interface", "path":i }
+    ifdeps[lib_or_if_name(i)] = {"deps": gather_deps(i), "type": "interface", "path": i}
 
 header = """digraph blob_dependencies {
 /* label = "Component Software Dependencies" ; */
@@ -88,14 +110,34 @@ fontname="Sans serif" ;
 """
 footer = "}"
 
+
 def gen_node(n, typestr):
-    fontattr = "fontname=\"Sans serif\""
-    if   typestr == "component":
-        return "\"" + n + "\" [shape=hexagon,style=filled,fillcolor=lightblue," + fontattr + "] ;\n"
+    fontattr = 'fontname="Sans serif"'
+    if typestr == "component":
+        return (
+            '"'
+            + n
+            + '" [shape=hexagon,style=filled,fillcolor=lightblue,'
+            + fontattr
+            + "] ;\n"
+        )
     elif typestr == "library":
-        return "\"" + n + "\" [shape=oval,style=filled,fillcolor=gray82," + fontattr + "] ;\n"
+        return (
+            '"'
+            + n
+            + '" [shape=oval,style=filled,fillcolor=gray82,'
+            + fontattr
+            + "] ;\n"
+        )
     elif typestr == "interface":
-        return "\"" + n + "\" [shape=rectangle,style=filled,fillcolor=lightsteelblue," + fontattr + "] ;\n"
+        return (
+            '"'
+            + n
+            + '" [shape=rectangle,style=filled,fillcolor=lightsteelblue,'
+            + fontattr
+            + "] ;\n"
+        )
+
 
 def gen_graphviz(blobs):
     for (b, d) in blobs.items():
@@ -107,24 +149,33 @@ def gen_graphviz(blobs):
         (libs, ifdeps, ifexps) = d["deps"]
         for l in libs:
             nodes.append(gen_node(l, "library"))
-            edges += "\"" + b + "\" -> \"" + l + "\" ;\n"
+            edges += '"' + b + '" -> "' + l + '" ;\n'
         for ifd in ifdeps:
             nodes.append(gen_node(ifd, "interface"))
-            edges += "\"" + b + "\" -> \"" + ifd + "\" ;\n"
+            edges += '"' + b + '" -> "' + ifd + '" ;\n'
         for ife in ifexps:
             nodes.append(gen_node(ife + "\n(export)", "interface"))
-            edges += "\"" + ife + "\n(export)\" -> \"" + b + "\" [fontname=\"Sans serif\",style=dashed] ;\n"
+            edges += (
+                '"'
+                + ife
+                + '\n(export)" -> "'
+                + b
+                + '" [fontname="Sans serif",style=dashed] ;\n'
+            )
 
-        (gffd, gfpath) = tempfile.mkstemp(suffix=".gf", prefix="cos_docgen_" + b);
-        nodes_str = "".join(unique(nodes)) # rely on unique to simplify this logic
+        (gffd, gfpath) = tempfile.mkstemp(suffix=".gf", prefix="cos_docgen_" + b)
+        nodes_str = "".join(unique(nodes))  # rely on unique to simplify this logic
         os.write(gffd, header + nodes_str + edges + footer)
-        d["gf"]   = gfpath;
-        d["gffd"] = gffd;
+        d["gf"] = gfpath
+        d["gffd"] = gffd
 
-        (pdffd, pdfpath) = tempfile.mkstemp(suffix=".pdf", prefix="cos_docgen_" + b.replace(".", "_"));
-        subprocess.call(['dot', '-Tpdf', gfpath], stdout=pdffd)
-        d["pdf"]   = pdfpath
+        (pdffd, pdfpath) = tempfile.mkstemp(
+            suffix=".pdf", prefix="cos_docgen_" + b.replace(".", "_")
+        )
+        subprocess.call(["dot", "-Tpdf", gfpath], stdout=pdffd)
+        d["pdf"] = pdfpath
         d["pdffd"] = pdffd
+
 
 gen_graphviz(compdeps)
 gen_graphviz(libdeps)
@@ -152,7 +203,7 @@ gen_graphviz(ifdeps)
 #
 # This assumes and leverages the style perscribed by the CSG.
 
-library_headers   = comp_base + "lib/*/*.h"
+library_headers = comp_base + "lib/*/*.h"
 interface_headers = comp_base + "interface/*/*.h"
 ### Auto-gen the documentation for the interfaces and libraries
 def gen_doc(header):
@@ -166,8 +217,8 @@ def gen_doc(header):
     state = "scanning"
 
     def de_comment(line):
-        l = re.sub(r'^ \*', r'', line) # get rid of the leading " *"
-        if len(l) > 0 and l[0] == ' ':
+        l = re.sub(r"^ \*", r"", line)  # get rid of the leading " *"
+        if len(l) > 0 and l[0] == " ":
             return l[1:]
         return l
 
@@ -182,13 +233,13 @@ def gen_doc(header):
     in_comment = False
     for l in re.split("\n", header):
         # First, filter out # directives and comments
-        if re.match('^#.*', l) != None:
-            continue        # skip #endif/#define etc...
-        c_single = re.match(r'(.*)//.*', l) # remove text following //
+        if re.match("^#.*", l) != None:
+            continue  # skip #endif/#define etc...
+        c_single = re.match(r"(.*)//.*", l)  # remove text following //
         if c_single != None:
             l = c_single.group(0)
-        c_start  = re.match(r'(.*)/\*[^\*].*', l) # remove all after /*
-        c_end    = re.match(r'.*\*/(.*)', l)  # leave only code after */
+        c_start = re.match(r"(.*)/\*[^\*].*", l)  # remove all after /*
+        c_end = re.match(r".*\*/(.*)", l)  # leave only code after */
         if not in_comment and c_start != None:
             in_comment = True
             l = c_start.group(0)
@@ -210,13 +261,13 @@ def gen_doc(header):
             comment = ""
             state = "header comment"
         elif state == "comment":
-            if (l == " */"):
+            if l == " */":
                 state = "prototypes"
             else:
                 l = de_comment(l)
                 comment += l + "\n"
         elif state == "header comment":
-            if (l == " */"):
+            if l == " */":
                 state = "scanning"
             else:
                 l = de_comment(l)
@@ -229,7 +280,7 @@ def gen_doc(header):
                 comment = ""
                 state = "comment"
             elif p != None:
-                proto += p.group(0)  + "\n"
+                proto += p.group(0) + "\n"
             elif l == "{":
                 proto += "{ ... "
                 state = "function body"
@@ -243,23 +294,24 @@ def gen_doc(header):
         elif state == "function body":
             if l == "}":
                 proto += "}\n"
-                state  = "prototypes"
+                state = "prototypes"
 
-    doc += commit_proto(proto,comment)
+    doc += commit_proto(proto, comment)
 
     return doc_header + header_comment + doc
 
+
 for (b, d) in ifdeps.items():
-    path     = d["path"] + b + ".h"
+    path = d["path"] + b + ".h"
     contents = readfile(path)
-    doc      = gen_doc(contents)
-    d["doc"] = doc;
+    doc = gen_doc(contents)
+    d["doc"] = doc
 
 for (b, d) in libdeps.items():
-    path     = d["path"] + b + ".h"
+    path = d["path"] + b + ".h"
     contents = readfile(path)
-    doc      = gen_doc(contents)
-    d["doc"] = doc;
+    doc = gen_doc(contents)
+    d["doc"] = doc
 
 # At this point, we have all of the pdfs generated for the component
 # dependencies, and need to simply generate the markdown that links to
@@ -269,17 +321,24 @@ def gen_md(header, blobs):
     output = "\n" + copy.copy(header) + "\n\n"
     for (b, d) in blobs.items():
         output += readfile(d["path"] + "doc.md")
-        output += "\n### Dependencies and Exports\n\n![Exports and dependencies for " + b + ". Teal hexagons are *component* implementations, slate rectangles are *interfaces*, and gray ellipses are *libraries*. Dotted lines denote an *export* relation, and solid lines denote a *dependency*.](" + d["pdf"] + ")\n\n"
+        output += (
+            "\n### Dependencies and Exports\n\n![Exports and dependencies for "
+            + b
+            + ". Teal hexagons are *component* implementations, slate rectangles are *interfaces*, and gray ellipses are *libraries*. Dotted lines denote an *export* relation, and solid lines denote a *dependency*.]("
+            + d["pdf"]
+            + ")\n\n"
+        )
         if d.has_key("doc"):
             output += d["doc"] + "\n\n"
     return output
 
-comphead=readfile("./resources/component_doc.md")
-ifhead  =readfile("./resources/interface_doc.md")
-libhead =readfile("./resources/lib_doc.md")
+
+comphead = readfile("./resources/component_doc.md")
+ifhead = readfile("./resources/interface_doc.md")
+libhead = readfile("./resources/lib_doc.md")
 
 md = gen_md(comphead, compdeps) + gen_md(ifhead, ifdeps) + gen_md(libhead, libdeps)
-(mdfd, mdpath) = tempfile.mkstemp(suffix=".md", prefix="cos_docgen_per-blob");
+(mdfd, mdpath) = tempfile.mkstemp(suffix=".md", prefix="cos_docgen_per-blob")
 os.write(mdfd, md)
 
 print(mdpath)
