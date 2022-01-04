@@ -16,7 +16,7 @@ interfaces = comp_base + "interface/*/"
 
 def filter_out_skel(p):
     s = re.split("/", p.rstrip())
-    s = filter(lambda e: e != "", s)
+    s = list(filter(lambda e: e != "", s))
     return not (s[-1] == "skel" or s[-2] == "skel") and not (s[-2] == "archives")
 
 
@@ -46,13 +46,13 @@ def gather_deps(path):
 
 def comp_name(p):
     s = re.split("/", p.rstrip())
-    s = filter(lambda e: e != "", s)
+    s = list(filter(lambda e: e != "", s))
     return s[-2] + "." + s[-1]
 
 
 def lib_or_if_name(p):
     s = re.split("/", p.rstrip())
-    s = filter(lambda e: e != "", s)
+    s = list(filter(lambda e: e != "", s))
     return s[-1]
 
 
