@@ -31,6 +31,8 @@ def unique(l):
 
 # listify the output
 def clean_dep_output(lst):
+    if isinstance(lst, bytes):
+        lst = lst.decode("utf-8")
     return unique(re.split(" ", lst.rstrip()))
 
 

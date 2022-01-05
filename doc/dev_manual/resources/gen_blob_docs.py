@@ -50,6 +50,8 @@ def unique(l):
 
 # listify the output
 def clean_dep_output(lst):
+    if isinstance(lst, bytes):
+        lst = lst.decode("utf-8")
     return filter(lambda d: d != "", unique(re.split(" ", lst.rstrip())))
 
 
@@ -164,7 +166,10 @@ def gen_graphviz(blobs):
 
         (gffd, gfpath) = tempfile.mkstemp(suffix=".gf", prefix="cos_docgen_" + b)
         nodes_str = "".join(unique(nodes))  # rely on unique to simplify this logic
-        os.write(gffd, header + nodes_str + edges + footer)
+        content = header + nodes_str + edges + footer
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+        os.write(gffd, content)
         d["gf"] = gfpath
         d["gffd"] = gffd
 
@@ -337,6 +342,8 @@ ifhead = readfile("./resources/interface_doc.md")
 libhead = readfile("./resources/lib_doc.md")
 
 md = gen_md(comphead, compdeps) + gen_md(ifhead, ifdeps) + gen_md(libhead, libdeps)
+if isinstance(md, str):
+    md = md.encode("utf-8")
 (mdfd, mdpath) = tempfile.mkstemp(suffix=".md", prefix="cos_docgen_per-blob")
 os.write(mdfd, md)
 
