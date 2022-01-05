@@ -332,7 +332,7 @@ def gen_md(header, blobs):
             + d["pdf"]
             + ")\n\n"
         )
-        if d.has_key("doc"):
+        if "doc" in d:
             output += d["doc"] + "\n\n"
     return output
 
