@@ -198,7 +198,7 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 		new->names[i]->allocated = 0;
 		new->names[i]->aliased = 0;
 		/* FIXME: still stuck on the actual address "name" */
-		new->names[i]->addr = i;
+		new->names[i]->addr = NULL;
 		new->names[i]->comp = NULL;
 	}
 
@@ -274,7 +274,11 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 		if(vas->names[name_index]->reserved == 1 && vas->names[name_index]->allocated == 0) {
 			vas->names[name_index]->allocated = 1;
 			vas->names[name_index]->comp = c;
-			return;
+			
+			/* FIXME: this might be totally wrong */
+			vas->names[name_index]->addr = c->entry_addr;
+
+			return 0;
 		}
 		name_index++;
 	}

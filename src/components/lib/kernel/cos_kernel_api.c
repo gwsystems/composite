@@ -677,7 +677,7 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))
 		BUG();
 
-	ci->mi.second_lvl_flag = 0;
+	ci->mi.second_lvl_pgtbl_flag = 0;
 	return cap;
 }
 
@@ -1120,7 +1120,7 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 }
 
 
-/* ----- Shared Pgtbl ------ */
+/* ----- Shared Pgtbl ------ 
 int
 cos_get_second_lvl(struct cos_compinfo *ci, capid_t *pgtbl_cap, vaddr_t *pgtbl_addr)
 {
@@ -1135,8 +1135,7 @@ cos_get_second_lvl(struct cos_compinfo *ci, capid_t *pgtbl_cap, vaddr_t *pgtbl_a
 int
 cos_cons_into_shared_pgtbl(struct cos_compinfo *ci)
 {
-	/* TODO: get shared pgtbl node */
-	pgtblcap_t shared_pgtbl = shareg_pgtbl.cap; //get_shared_pgbtl();
+	pgtblcap_t shared_pgtbl = shared_pgtbl.cap; //get_shared_pgbtl();
 	capid_t pte_cap;
 	vaddr_t pgtbl_addr;
 
@@ -1171,3 +1170,4 @@ cos_shared_pgtbl_alloc(void)
 
 	return cap;
 }
+*/
