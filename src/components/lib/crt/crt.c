@@ -105,6 +105,185 @@ crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c)
 	return 0;
 }
 
+/* Create a new asids namespace */
+int 
+crt_ns_asids_init(struct crt_ns_asid *asids)
+{
+	int i;
+
+	memset(asids, 0, sizeof(struct crt_ns_asid));
+	for(i = 0; i < CRT_ASID_NUM_NAMES; i++) {
+		asids->names[i]->reserved = 1;
+		asids->names[i]->allocated = 0;
+		asids->names[i]->aliased = 0;
+		/* what are ASIDs? */
+		asids->names[i]->id = i;
+	}
+
+	return 0;
+}
+
+/*
+ * Create a asid namespace from the names "left over" in `existing`,
+ * i.e. those that have not been `crt_ns_vas_alloc_in`ed.
+ */
+int 
+crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
+{
+	int i;
+
+	/* error check that new has no allocations (?) */
+	if(new == NULL || new->names == NULL) {
+		return -1;
+	}
+	for(i = 0; i < CRT_ASID_NUM_NAMES; i++) {
+		if(new->names[i]->allocated == 1) {
+			return -2;
+		} 
+	}
+
+	if(crt_ns_asids_init(new)) {
+		return -1;
+	}
+
+	for(i = 0; i < CRT_ASID_NUM_NAMES; i++) {
+		/* if a name is allocated in existing, it should not be reserved in new */
+		/* by default via init everything else will go to:
+		 * 		reserved  = 1
+		 *      allocated = 0
+		 *      aliased   = 0
+		 */
+		if(existing->names[i]->allocated == 1) {
+			new->names[i]->reserved = 0;
+		}
+		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 
+		 * NOTE: this means no further allocations can be made in existing
+		 */
+		if(existing->names[i]->reserved == 1) {
+			existing->names[i]->reserved = 0;
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * Initialize a new vas namespace, pulling a name from the `asids`
+ */
+int 
+crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
+{
+	int asid_index = 0;
+	int i = 0;
+
+	/* TODO: add error check that new and asids are sufficiently allocated */
+
+	while(asid_index < CRT_ASID_NUM_NAMES) {
+		if(asids->names[asid_index]->reserved == 1 && asids->names[asid_index]->allocated == 0) {
+			asids->names[asid_index]->allocated = 1;
+			break;
+		}
+		asid_index++;
+	}
+
+	if(asid_index >= CRT_ASID_NUM_NAMES) {
+		/* no available ASID names! */
+		return -1;
+	}
+
+	new->asid_name = asids->names[asid_index];
+
+	for(i = 0; i < CRT_VAS_NUM_NAMES; i++) {
+		new->names[i]->reserved = 1;
+		new->names[i]->allocated = 0;
+		new->names[i]->aliased = 0;
+		/* FIXME: still stuck on the actual address "name" */
+		new->names[i]->addr = i;
+		new->names[i]->comp = NULL;
+	}
+
+	new->parent = NULL;
+	new->asid_parent_name = NULL;
+
+	return 0;
+
+}
+/*
+ * Create a new vas namespace from the names "left over" in
+ * `existing`, i.e. those that have not been `crt_ns_vas_alloc_in`ed
+ */
+int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids)
+{
+	int i;
+
+	/* error check that new has no allocations (?) */
+	if(new == NULL || new->names == NULL) {
+		return -1;
+	}
+	for(i = 0; i < CRT_VAS_NUM_NAMES; i++) {
+		if(new->names[i]->allocated == 1) {
+			return -2;
+		} 
+	}
+
+	if(crt_ns_vas_init(new, asids)) {
+		return -1;
+	}
+
+	for(i = 0; i < CRT_VAS_NUM_NAMES; i++) {
+		/* if a name is allocated in existing, it should not be reserved in new */
+		/* by default via init everything else will go to:
+		 * 		reserved  = 1
+		 *      allocated = 0
+		 *      aliased   = 0
+		 */
+		if(existing->names[i]->allocated == 1) {
+			new->names[i]->reserved = 0;
+		}
+		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 
+		 * NOTE: this means no further allocations can be made in existing
+		 */
+		if(existing->names[i]->reserved == 1 && existing->names[i]->allocated == 0) {
+			existing->names[i]->reserved = 0;
+		}
+	}
+
+	new->parent = existing;
+	new->asid_parent_name = existing->asid_name;
+
+	return 0;
+}
+
+/*
+ * VAS name mapping/allocation. This function allocates `c` into `vas`
+ * by tracking which names (MPK & VAS) are dedicated to `c`. A
+ * component can only be allocated into a *single* vas.
+ */
+int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
+{
+	/* 
+	 * 1. find a reserved and unallocated name in vas
+	 * 2. put c there!
+	 * 3. vas has its asid name, so that's covered?
+	 * 4. what about mpk?
+	 */
+
+	int name_index = 0;
+
+	while(name_index < CRT_VAS_NUM_NAMES) {
+		if(vas->names[name_index]->reserved == 1 && vas->names[name_index]->allocated == 0) {
+			vas->names[name_index]->allocated = 1;
+			vas->names[name_index]->comp = c;
+			return;
+		}
+		name_index++;
+	}
+
+	/* no available names! */
+	return -1;
+
+}
+
 static inline int
 crt_refcnt_alive(crt_refcnt_t *r)
 {
