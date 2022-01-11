@@ -19,11 +19,11 @@ typedef unsigned char byte_t;
  * address spaces; instead offsets from the header are stored.
  */
 struct shm_bm_header {
-    unsigned long bitm_offset;
-    unsigned long refc_offset;
-    unsigned long data_offset; 
-    unsigned int  nobj;
-    size_t        objsz;
+	unsigned long bitm_offset;
+	unsigned long refc_offset;
+	unsigned long data_offset; 
+	unsigned int  nobj;
+	size_t        objsz;
 };
 
 /* 
@@ -44,37 +44,37 @@ struct shm_bm_header {
 static inline void
 shm_bm_set_contig(word_t *bm, int offset)
 {
-    int i, n, ind;
+	int i, n, ind;
 
-    ind = offset / SHM_BM_BITMAP_BLOCK;
-    offset %= SHM_BM_BITMAP_BLOCK;
+	ind = offset / SHM_BM_BITMAP_BLOCK;
+	offset %= SHM_BM_BITMAP_BLOCK;
 
-    for (i = 0; i < ind; i++)
-        bm[i] = ~0x0ul;
+	for (i = 0; i < ind; i++)
+		bm[i] = ~0x0ul;
 
-    n = SHM_BM_BITMAP_BLOCK - offset;
-    bm[ind] = ~((1ul << n) - 1); // set most sig n bits of bm[ind]
+	n = SHM_BM_BITMAP_BLOCK - offset;
+	bm[ind] = ~((1ul << n) - 1); // set most sig n bits of bm[ind]
 }
 
 static inline int
 shm_bm_clz(word_t *bm, void *stop, int *index, int *offset)
 {
-    int cnt, lz = 0, ind = 0;
-    
-    while ((void *) bm < stop) {
-        if (*bm != 0) {
-            cnt = __builtin_clzl(*bm);
-            lz += cnt;
-            *index = ind;
-            *offset = SHM_BM_BITMAP_BLOCK - cnt - 1;
-            return lz;
-        }
-        bm++;
-        ind++;
-        lz += SHM_BM_BITMAP_BLOCK;
-    }
+	int cnt, lz = 0, ind = 0;
+	
+	while ((void *) bm < stop) {
+		if (*bm != 0) {
+			cnt = __builtin_clzl(*bm);
+			lz += cnt;
+			*index = ind;
+			*offset = SHM_BM_BITMAP_BLOCK - cnt - 1;
+			return lz;
+		}
+		bm++;
+		ind++;
+		lz += SHM_BM_BITMAP_BLOCK;
+	}
 
-    return -1;
+	return -1;
 }
 
 /**
@@ -91,38 +91,38 @@ shm_bm_clz(word_t *bm, void *stop, int *index, int *offset)
 cbuf_t   
 shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
 {
-    struct shm_bm_header *header;
-    int                   nobj;
-    size_t                bitmap_sz, refcnt_sz, data_sz;
-    size_t                alloc;
-    cbuf_t                id;
+	struct shm_bm_header *header;
+	int                   nobj;
+	size_t                bitmap_sz, refcnt_sz, data_sz;
+	size_t                alloc;
+	cbuf_t                id;
 
-    if (allocsz < objsz) return 0;
+	if (allocsz < objsz) return 0;
 
-    nobj = allocsz / objsz;
-    bitmap_sz = SHM_BM_BITS_TO_WORDS(nobj) * sizeof (word_t);
-    refcnt_sz = nobj;
-    data_sz   = nobj * objsz;
+	nobj = allocsz / objsz;
+	bitmap_sz = SHM_BM_BITS_TO_WORDS(nobj) * sizeof (word_t);
+	refcnt_sz = nobj;
+	data_sz   = nobj * objsz;
 
-    alloc = sizeof (struct shm_bm_header) + bitmap_sz + refcnt_sz + data_sz;
-    if (alloc > SHM_BM_ALLOC_ALIGNMENT) return 0;
+	alloc = sizeof (struct shm_bm_header) + bitmap_sz + refcnt_sz + data_sz;
+	if (alloc > SHM_BM_ALLOC_ALIGNMENT) return 0;
 
-    id  = memmgr_shared_page_allocn_aligned(round_up_to_page(alloc)/PAGE_SIZE, SHM_BM_ALLOC_ALIGNMENT, (vaddr_t *) shm);
+	id  = memmgr_shared_page_allocn_aligned(round_up_to_page(alloc)/PAGE_SIZE, SHM_BM_ALLOC_ALIGNMENT, (vaddr_t *) shm);
 
-    if (id == 0) return 0;
-    memset((void *) *shm, 0, round_up_to_page(alloc));
+	if (id == 0) return 0;
+	memset((void *) *shm, 0, round_up_to_page(alloc));
 
-    // metadata
-    header = (struct shm_bm_header *) *shm;
-    header->objsz       = objsz;
-    header->nobj        = nobj;
-    header->bitm_offset = sizeof (struct shm_bm_header); 
-    header->refc_offset = sizeof (struct shm_bm_header) + bitmap_sz; 
-    header->data_offset = sizeof (struct shm_bm_header) + bitmap_sz + refcnt_sz; 
+	// metadata
+	header = (struct shm_bm_header *) *shm;
+	header->objsz       = objsz;
+	header->nobj        = nobj;
+	header->bitm_offset = sizeof (struct shm_bm_header); 
+	header->refc_offset = sizeof (struct shm_bm_header) + bitmap_sz; 
+	header->data_offset = sizeof (struct shm_bm_header) + bitmap_sz + refcnt_sz; 
 
-    // set nobj bits to free
-    shm_bm_set_contig(SHM_BM_BITM(*shm), nobj);
-    return id;
+	// set nobj bits to free
+	shm_bm_set_contig(SHM_BM_BITM(*shm), nobj);
+	return id;
 }
 
 /**
@@ -139,9 +139,9 @@ shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
 shm_bm_t 
 shm_bm_map(cbuf_t id)
 {
-    shm_bm_t shm;
-    if (memmgr_shared_page_map_aligned(id, SHM_BM_ALLOC_ALIGNMENT, (vaddr_t *) &shm) == 0) return 0;
-    return shm;
+	shm_bm_t shm;
+	if (memmgr_shared_page_map_aligned(id, SHM_BM_ALLOC_ALIGNMENT, (vaddr_t *) &shm) == 0) return 0;
+	return shm;
 }
 
 /**
@@ -159,22 +159,22 @@ shm_bm_map(cbuf_t id)
 void *
 shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
 {
-    int     freebit, idx, off;
-    word_t  word_old; 
-    word_t *bm;
+	int     freebit, idx, off;
+	word_t  word_old; 
+	word_t *bm;
 
-    // find a free space. could be preempted
-    bm = SHM_BM_BITM(shm);
-    do {
-        freebit = shm_bm_clz(bm, SHM_BM_REFC(shm), &idx, &off);
-        if (freebit == -1) return 0;
-        word_old = bm[idx];
-    } while (!cos_cas(bm + idx, word_old, word_old & ~(1ul << off)));
+	// find a free space. could be preempted
+	bm = SHM_BM_BITM(shm);
+	do {
+		freebit = shm_bm_clz(bm, SHM_BM_REFC(shm), &idx, &off);
+		if (freebit == -1) return 0;
+		word_old = bm[idx];
+	} while (!cos_cas(bm + idx, word_old, word_old & ~(1ul << off)));
 
-    cos_faab(SHM_BM_REFC(shm) + freebit, 1);
+	cos_faab(SHM_BM_REFC(shm) + freebit, 1);
 
-    *id = (shm_bufid_t) freebit;
-    return SHM_BM_DATA(shm) + (freebit * SHM_BM_SIZE(shm));
+	*id = (shm_bufid_t) freebit;
+	return SHM_BM_DATA(shm) + (freebit * SHM_BM_SIZE(shm));
 }
 
 /**
@@ -194,13 +194,13 @@ shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
 void *   
 shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id)
 {
-    if (id >= SHM_BM_NOBJ(shm)) return 0;
+	if (id >= SHM_BM_NOBJ(shm)) return 0;
 
-    // obj has not been allocated
-    if ((SHM_BM_REFC(shm) + id) == 0) return 0;
+	// obj has not been allocated
+	if ((SHM_BM_REFC(shm) + id) == 0) return 0;
 
-    cos_faab(SHM_BM_REFC(shm) + id, 1);
-    return SHM_BM_DATA(shm) + (id * SHM_BM_SIZE(shm));
+	cos_faab(SHM_BM_REFC(shm) + id, 1);
+	return SHM_BM_DATA(shm) + (id * SHM_BM_SIZE(shm));
 }
 
 /**
@@ -215,26 +215,26 @@ shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id)
 void
 shm_bm_obj_free(void *ptr)
 {
-    int      bit, index, offset;
-    shm_bm_t shm;
-    word_t  *bm;
+	int      bit, index, offset;
+	shm_bm_t shm;
+	word_t  *bm;
 
-    // mask out the bits less significant than the allocation alignment
-    shm = (shm_bm_t) ((word_t) ptr & ~((SHM_BM_ALLOC_ALIGNMENT >> 1) - 1));
+	// mask out the bits less significant than the allocation alignment
+	shm = (shm_bm_t) ((word_t) ptr & ~((SHM_BM_ALLOC_ALIGNMENT >> 1) - 1));
 
-    bit = ((byte_t *) ptr - SHM_BM_DATA(shm)) / SHM_BM_SIZE(shm);
-    if (bit < 0 || bit >= SHM_BM_NOBJ(shm)) return;
+	bit = ((byte_t *) ptr - SHM_BM_DATA(shm)) / SHM_BM_SIZE(shm);
+	if (bit < 0 || bit >= SHM_BM_NOBJ(shm)) return;
 
-    if (cos_faab(SHM_BM_REFC(shm) + bit, -1) > 1)
-        return;
+	if (cos_faab(SHM_BM_REFC(shm) + bit, -1) > 1)
+		return;
 
-    // droping the last reference, must free obj
-    index  = bit / SHM_BM_NOBJ(shm);
-    offset = SHM_BM_BITMAP_BLOCK - bit % SHM_BM_NOBJ(shm) - 1;
-    bm     = SHM_BM_BITM(shm);
+	// droping the last reference, must free obj
+	index  = bit / SHM_BM_NOBJ(shm);
+	offset = SHM_BM_BITMAP_BLOCK - bit % SHM_BM_NOBJ(shm) - 1;
+	bm     = SHM_BM_BITM(shm);
 
-    // does this need to happen atomically
-    // or does FAA ensure only one thread 
-    // gets here??
-    bm[index] = bm[index] | (1ul << offset);
+	// does this need to happen atomically
+	// or does FAA ensure only one thread 
+	// gets here??
+	bm[index] = bm[index] | (1ul << offset);
 }

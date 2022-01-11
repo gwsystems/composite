@@ -5,7 +5,7 @@
 #include <shm_bm.h>
 
 struct obj_test {
-    char string[16];
+	char string[16];
 };
 
 void pongshmem_test_map(cbuf_t shmid);
