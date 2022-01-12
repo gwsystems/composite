@@ -77,17 +77,6 @@ shm_bm_clz(word_t *bm, void *stop, int *index, int *offset)
 	return -1;
 }
 
-/**
- * Creates a shared shared memory region of size `allocsz` from
- * which objects of size `objsz` can be allocated. 
- *
- * Arguments:
- * - @shm     a pointer to a shm_bm_t that is set by function
- * - @objsz   size of objects that are allocated from this buffer
- * - @allocsz size of the shared memory buffer
- *
- * @return: a cbuf_t to identify the shared memory. 0 on failure
- */
 cbuf_t   
 shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
 {
@@ -125,17 +114,6 @@ shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
 	return id;
 }
 
-/**
- * Maps a shared memory region identified by `id` into this component's
- * address space. The cbuf_t must have been created from a call to 
- * `shm_bm_create` in another component.
- *
- * Arguments:
- * - @id the cbuf_t that identifies a shared memory region
- *
- * @return: a shm_bm_t that references the shared memory region for 
- *          the calling component. 0 on failure.
- */
 shm_bm_t 
 shm_bm_map(cbuf_t id)
 {
@@ -144,18 +122,6 @@ shm_bm_map(cbuf_t id)
 	return shm;
 }
 
-/**
- * Allocates an object in the shared memory region referenced by `shm`.
- *
- * Arguments:
- * - @shm the shared memory region from which to allocate an object
- * - @id  a pointer to an identifier that can be used to share this 
- *        object between components if they have this shared memory 
- *        region mapped. The value of the identifier is set by the 
- *        function
- *
- * @return: a pointer to the allocated object, 0 if no free objects
- */
 void *
 shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
 {
@@ -177,20 +143,6 @@ shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
 	return SHM_BM_DATA(shm) + (freebit * SHM_BM_SIZE(shm));
 }
 
-/**
- * Takes a reference to an object identified by `id` allocated in 
- * a shared memory region. The shared memory region must be mapped
- * in the calling component's address space and the id must be to
- * an allocated object from a call to `shm_bm_obj_alloc` in another 
- * component. 
- *
- * Arguments:
- * - @shm the shared memory region from which to allocate an object
- * - @id  an indentifier that can be used to share this object between
- *        components if they have this shared memory region mapped
- *
- * @return: a pointer to the allocated object. 0 on failure
- */
 void *   
 shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id)
 {
@@ -203,15 +155,6 @@ shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id)
 	return SHM_BM_DATA(shm) + (id * SHM_BM_SIZE(shm));
 }
 
-/**
- * Drops a reference to an object allocated from a shared
- * memory region. If no other component is referencing that object,
- * it will be freed and can be reallocated. `ptr` should have come 
- * from a call to either `shm_bm_obj_alloc` or `shm_bm_obj_use`.
- * 
- * Arguments:
- * - @ptr a pointer to the object to free
- */
 void
 shm_bm_obj_free(void *ptr)
 {
