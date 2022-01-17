@@ -72,9 +72,7 @@ pongshmem_bench_objread(shm_bufid_t objid)
 	struct obj_test *obj;
 
 	// get a reference to shared object sent from ping
-	obj = (struct obj_test *) shm_bm_obj_use(shm, objid);    
-
-	// free it
-	//shm_bm_obj_free(obj);
+	obj = (struct obj_test *) shm_bm_obj_take(shm, objid);
+	(void)obj;
 }
 

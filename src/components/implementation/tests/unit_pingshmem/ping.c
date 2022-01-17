@@ -179,15 +179,13 @@ ping_bench_msgpassing(void)
 	begin = ps_tsc();
 	for (i = 0; i < BENCH_ITER; i++) {
 		// allocate an obj from shared mem
-		obj = (struct obj_test *) shm_bm_obj_alloc(shm, &objid);
-		// send obj to server, server gets ref and frees
+		shm_bm_obj_alloc(shm, &objid);
+		// send obj to server, server borrows it
 		pongshmem_bench_objread(objid);
-		// free obj
-		//shm_bm_obj_free(obj);
 	}
 	end = ps_tsc();
 	bench = (end - begin) / BENCH_ITER;
-	PRINTLOG(PRINT_DEBUG, "BENCHMARK Message passing with free: %llu cycles\n", bench);
+	PRINTLOG(PRINT_DEBUG, "BENCHMARK Message passing: %llu cycles\n", bench);
 }
 
 int

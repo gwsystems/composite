@@ -76,6 +76,22 @@ void * shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id);
 void * shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id);
 
 /**
+ * Like `shm_bm_obj_use` except does not update the reference count
+ * of the object. This can be used when the caller wants to 'borrow'
+ * the object and not have to free it themselves, or when ownership 
+ * of the object is being transfered to the caller so the reference 
+ * count should stay the same.  
+ *
+ * Arguments:
+ * - @shm the shared memory region from which to allocate an object
+ * - @id  an indentifier that can be used to share this object between
+ *        components if they have this shared memory region mapped
+ *
+ * @return: a pointer to the allocated object. 0 on failure
+ */
+void * shm_bm_obj_take(shm_bm_t shm, shm_bufid_t id);
+
+/**
  * Drops a reference to an object allocated from a shared
  * memory region. If no other component is referencing that object,
  * it will be freed and can be reallocated. `ptr` should have come 
