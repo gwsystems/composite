@@ -4,7 +4,7 @@
 #include <shm_bm.h>
 #include <string.h>
 
-#define BENCH_ITER 1024
+#define BENCH_ITER 2048
 
 char *ping_test_strings[] = {
 	"PING TEST 1",
@@ -183,7 +183,7 @@ ping_bench_msgpassing(void)
 		// send obj to server, server gets ref and frees
 		pongshmem_bench_objread(objid);
 		// free obj
-		shm_bm_obj_free(obj);
+		//shm_bm_obj_free(obj);
 	}
 	end = ps_tsc();
 	bench = (end - begin) / BENCH_ITER;

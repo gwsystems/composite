@@ -75,6 +75,6 @@ pongshmem_bench_objread(shm_bufid_t objid)
 	obj = (struct obj_test *) shm_bm_obj_use(shm, objid);    
 
 	// free it
-	shm_bm_obj_free(obj);
+	//shm_bm_obj_free(obj);
 }
 

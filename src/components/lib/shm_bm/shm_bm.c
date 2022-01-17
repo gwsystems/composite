@@ -56,25 +56,24 @@ shm_bm_set_contig(word_t *bm, int offset)
 	bm[ind] = ~((1ul << n) - 1); // set most sig n bits of bm[ind]
 }
 
-static inline int
+static int
 shm_bm_clz(word_t *bm, void *stop, int *index, int *offset)
 {
-	int cnt, lz = 0, ind = 0;
-	
-	while ((void *) bm < stop) {
-		if (*bm != 0) {
-			cnt = __builtin_clzl(*bm);
-			lz += cnt;
-			*index = ind;
-			*offset = SHM_BM_BITMAP_BLOCK - cnt - 1;
-			return lz;
-		}
+	int cnt, lz = 0;
+
+	while (*bm == 0) {
+		if ((void *)bm == stop) return -1;
 		bm++;
-		ind++;
+		(*index)++;
 		lz += SHM_BM_BITMAP_BLOCK;
 	}
 
-	return -1;
+	if ((void *)bm >= stop) return -1;	
+	cnt = __builtin_clzl(*bm);
+	lz += cnt;
+	*offset = SHM_BM_BITMAP_BLOCK - cnt - 1;
+	return lz;
+
 }
 
 /**
@@ -159,7 +158,7 @@ shm_bm_map(cbuf_t id)
 void *
 shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
 {
-	int     freebit, idx, off;
+	int     freebit = 0, idx = 0, off = -1;
 	word_t  word_old; 
 	word_t *bm;
 
