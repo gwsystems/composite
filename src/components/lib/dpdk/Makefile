@@ -1,10 +1,13 @@
+DPDKDIR = dpdk
+DPDKBUILD = dpdk/build
+
 # Required variables used to drive the compilation process. It is OK
 # for many of these to be empty.
 #
 # The library names associated with .a files output that are linked
 # (via, for example, -ldpdk) into dependents. This list should be
 # "dpdk" for output files such as libdpdk.a.
-LIBRARY_OUTPUT = rte_eal rte_telemetry
+LIBRARY_OUTPUT = rte_eal
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,
@@ -15,7 +18,7 @@ OBJECT_OUTPUT =
 # The path within this directory that holds the .h files for
 # dependents to compile with (./ by default). Will be fed into the -I
 # compiler arguments.
-INCLUDE_PATHS = lib/eal/include
+INCLUDE_PATHS = dpdk/build/install/include
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
 INTERFACE_DEPENDENCIES =
@@ -62,35 +65,25 @@ include Makefile.lib
 # init: clean all
 # distclean: clean
 
-DPDKDIR=dpdk/
-DPDKBUILD=dpdk/build
-
 .PHONY: all config install clean distclean init
 all:
 clean:
 
 install:
-	cp $(DPDKBUILD)/lib/*.a .
+	cd $(DPDKBUILD); meson install; cd install/lib/x86_64-linux-gnu; rm *.so*
+	cp $(DPDKBUILD)/install/lib/x86_64-linux-gnu/*.a .
+	mkdir -p $(DPDKBUILD)/install/include/sys;cp /usr/include/x86_64-linux-gnu/sys/queue.h $(DPDKBUILD)/install/include/sys
 
 config:
 	$(info Building DPDK)
-	cd $(DPDKDIR); rm -rf build
-	cd $(DPDKDIR); meson -Dmachine=default -Ddisable_drivers=common/*,\
-	raw/*,\
-	crypto/*,\
-	compress/*,\
-	regex/*,\
-	vdpa/*,\
-	event/*,\
-	baseband/*,\
-	net/af_packet,net/ark,net/atlantic,net/avp,net/axgbe,net/bnx2x,net/bnxt,net/bond,net/cxgbe,net/ena,net/enetfec,net/enic,net/failsafe,net/fm10k,net/hinic,net/hns3,net/igc,net/ionic,net/liquidio,net/memif,net/netvsc,net/nfp,net/ngbe,net/null,net/octeontx_ep,net/qede,net/softnic,net/thunderx,net/txgbe,net/vmxnet3,\
-	dma/* \
-	build
+	cd $(DPDKDIR); meson -Dmachine=default build
+	cd $(DPDKBUILD); meson configure -Ddefault_library=static -Dbuildtype=debug -Ddebug=true -Doptimization=0 -Dincludedir=$(shell pwd)/$(DPDKBUILD)/install/include -Dprefix=$(shell pwd)/$(DPDKBUILD)/install -Ddisable_drivers=common/mvep,common/mlx5,af_xdp,net/ipn3ke,net/mlx4,net/mlx5,net/mvneta,net/mvpp2,net/nfb,net/szedata2,raw/ifpga,crypto/aesni_gcm,crypto/aesni_mb,crypto/ccp,crypto/kasumi,crypto/mvsam,crypto/openssl,crypto/snow3g,crypto/zuc,compress/isal,crypto/bcmfs,crypto/caam_jr,crypto/cnxk,crypto/dpaa_sec,crypto/dpaa2_sec,crypto/nitrox,crypto/null,crypto/octeontx,crypto/octeontx2,crypto/scheduler,crypto/virtio,compress/octeontx,compress/zlib,regex/octeontx2,vdpa/ifc,event/cnxk,event/dlb2,event/dsw,event/opdl,event/skeleton,event/sw,baseband/acc100,baseband/fpga_5gnr_fec,baseband/fpga_lte_fec,baseband/null,baseband/turbo_sw,raw/cnxk_bphy,raw/dpaa2_cmdif,raw/dpaa2_qdma,raw/ioat,raw/ntb,raw/octeontx2_dma,raw/octeontx2_ep,raw/skeleton,common/cpt,common/dpaax,common/iavf,common/octeontx,common/octeontx2,common/cnxk,common/qat,common/sfc_efx,bus/auxiliary,bus/dpaa,bus/fslmc,bus/ifpga,bus/vmbus,mempool/bucket,mempool/cnxk,mempool/dpaa,mempool/dpaa2,mempool/octeontx,mempool/octeontx2,mempool/ring,mempool/stack,net/af_packet,net/ark,net/atlantic,net/avp,net/axgbe,net/bnx2x,net/bnxt,net/bond,net/cxgbe,net/ena,net/enic,net/failsafe,net/fm10k,net/hinic,net/hns3,net/i40e,net/igc,net/ionic,net/ixgbe,net/kni,net/liquidio,net/memif,net/nfp,net/ngbe,net/null,net/pcap,net/qede,net/ring,net/softnic,net/tap,net/thunderx,net/txgbe,net/vdev_netvsc,baseband/la12xx,dma/idxd,dma/ioat,dma/skeleton,net/octeontx_ep,
 
 dpdk: config
-	cd $(DPDKBUILD); ninja
+	cd $(DPDKBUILD); ninja -j2
 
 init: dpdk install
+
 distclean:
 	cd $(DPDKBUILD) ninja clean
 	cd $(DPDKDIR); rm -rf build

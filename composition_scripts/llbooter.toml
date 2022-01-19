@@ -1,0 +1,9 @@
+[system]
+description = "Simple system: the ping pong test for IPC, and initialization ordering"
+
+[[components]]
+name = "booter"
+img  = "no_interface.llbooter"
+implements = [{interface = "init"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"

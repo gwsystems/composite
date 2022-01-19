@@ -17,7 +17,7 @@
 
 #include <init.h>
 #include <addr.h>
-//#include <rte_eal.h>
+#include <rte_eal.h>
 
 #ifndef BOOTER_MAX_SINV
 #define BOOTER_MAX_SINV 256
@@ -513,7 +513,7 @@ init_exit(int retval)
 void
 cos_init(void)
 {
-	rte_eal_init();
+	rte_eal_init(1,0);
 	booter_init();
 	comps_init();
 }
