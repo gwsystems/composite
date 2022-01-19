@@ -513,7 +513,14 @@ init_exit(int retval)
 void
 cos_init(void)
 {
-	rte_eal_init(1,0);
+	int num = 0;
+	num = rte_str_to_size("666\n");
+	printc("num :%d\n",num);
+	while (1)
+	{
+		/* code */
+	}
+	
 	booter_init();
 	comps_init();
 }
