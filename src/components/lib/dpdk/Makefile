@@ -7,7 +7,8 @@ DPDKBUILD = dpdk/build
 # The library names associated with .a files output that are linked
 # (via, for example, -ldpdk) into dependents. This list should be
 # "dpdk" for output files such as libdpdk.a.
-LIBRARY_OUTPUT = rte_eal
+LIBRARY_OUTPUT = dpdk
+#LIBRARY_OUTPUT = $(patsubst lib%.a,%,$(wildcard *.a))
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,
@@ -71,7 +72,7 @@ clean:
 
 install:
 	cd $(DPDKBUILD); meson install; cd install/lib/x86_64-linux-gnu; rm *.so*
-	cp $(DPDKBUILD)/install/lib/x86_64-linux-gnu/*.a .
+	$(AR) crT libdpdk.a $(DPDKBUILD)/install/lib/x86_64-linux-gnu/*.a
 	mkdir -p $(DPDKBUILD)/install/include/sys;cp /usr/include/x86_64-linux-gnu/sys/queue.h $(DPDKBUILD)/install/include/sys
 
 config:
