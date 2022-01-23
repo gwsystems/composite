@@ -1,5 +1,5 @@
 [binaries]
-c = 'src/components/lib/libc/musl-1.2.0/bin/musl-gcc'
+c = 'musl-gcc'
 strip = 'strip'
 
 [host_machine]
