@@ -86,7 +86,9 @@ struct crt_comp {
 	size_t ro_sz;
 	struct crt_sinv sinvs[CRT_COMP_SINVS_LEN];
 	u32_t  n_sinvs;
-	
+
+	u32_t mpk_key;
+	capid_t second_lvl_pgtbl_cap;	
 };
 
 struct crt_comp_resources {
@@ -226,48 +228,42 @@ int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
  */
 
 /* for 32 bit:
- * each name takes up 4 megabytes = 4 * 8^6 bits
- * (forgot how calculate 3 mb per name, something about pgtbl structure)
- * there are 2^32 bits available
- * 2^32 / (4 * (8^6)) = 4096 names
+ * name sz = 2^22
+ * 2^32 / 2^22 = 2^10 = 1024 names
+ * 2^10 / 2 to ensure the array fits into a page = 512 names
  */
-#define CRT_VAS_NUM_NAMES 4096
+#define CRT_VAS_NAME_SZ (1 << 22)
+#define CRT_VAS_NUM_NAMES 512
 #define CRT_MPK_NUM_NAMES 16
 #define CRT_ASID_NUM_NAMES 1024
 
 /* is reserved the right verbiage here? */
 struct crt_vas_name {
+	/* can change this to be just the crt comp and use the LSB for the reserved/allocated stuff */
 	unsigned int reserved  : 1;
 	unsigned int allocated : 1;
 	unsigned int aliased   : 1;
 	struct crt_comp *comp;
-	/* this is like the id for the asid_mpk name */
-	vaddr_t addr;
-};
-
-struct crt_ns_vas {
-	struct crt_vas_name *names[CRT_VAS_NUM_NAMES];
-	struct crt_ns_vas *parent;
-	struct crt_asid_mpk_name *asid_name;
-	/*FIXME: I forget what this is supposed to be used for? */
-	struct crt_asid_mpk_name *asid_parent_name;
 };
 
 struct crt_asid_mpk_name {
 	unsigned int reserved  : 1;
 	unsigned int allocated : 1;
-	unsigned int aliased   : 1;
-	/* id can just be index into the name array */
-	unsigned int id;
+	/* id is index into the name array */
 };
+
+struct crt_ns_vas {
+	pgtblcap_t top_lvl_pgtbl;
+	struct crt_vas_name names[CRT_VAS_NUM_NAMES];
+	struct crt_ns_vas *parent;
+	u32_t asid_name;
+	struct crt_asid_mpk_name mpk_names[CRT_MPK_NUM_NAMES];
+};
+
 
 struct crt_ns_asid {
-	struct crt_asid_mpk_name *names[CRT_ASID_NUM_NAMES];
-	struct crt_ns_asid *parent;
-};
-
-struct crt_ns_mpk {
-	struct crt_asid_mpk_name *names[CRT_MPK_NUM_NAMES];
+	/* this can probably be a simple bitmap, since we just need to track 0/1 for allocated, and id is just the index */
+	struct crt_asid_mpk_name names[CRT_ASID_NUM_NAMES];
 	struct crt_ns_asid *parent;
 };
 

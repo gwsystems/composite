@@ -1120,22 +1120,22 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 }
 
 
-/* ----- Shared Pgtbl ------ 
+/* ----- Shared Pgtbl ------ */
 int
 cos_get_second_lvl(struct cos_compinfo *ci, capid_t *pgtbl_cap, vaddr_t *pgtbl_addr)
 {
 	if(ci->mi.second_lvl_pgtbl_flag) {
 		return -1;
 	}
+	/* probably don't need flag -- can just check if the capability is 0 */
 	pgtbl_cap = &ci->mi.second_lvl_pgtbl_cap;
 	pgtbl_addr = &ci->mi.second_lvl_pgtbl_addr;
 	return 0;
 }
 
-int
-cos_cons_into_shared_pgtbl(struct cos_compinfo *ci)
+u32_t
+cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl)
 {
-	pgtblcap_t shared_pgtbl = shared_pgtbl.cap; //get_shared_pgbtl();
 	capid_t pte_cap;
 	vaddr_t pgtbl_addr;
 
@@ -1143,31 +1143,37 @@ cos_cons_into_shared_pgtbl(struct cos_compinfo *ci)
 		return -1;
 	}
 
-	call_cap_op(shared_pgtbl, CAPTBL_OP_CONS, pte_cap, pgtbl_addr, 0, 0);
+	if (call_cap_op(top_lvl, CAPTBL_OP_CONS, pte_cap, pgtbl_addr, 0, 0)) {
+		assert(0); /* race? */
+		return -1;
+	}
+
+	return 0;
 
 }
 
-int
+
+pgtblcap_t
 cos_shared_pgtbl_alloc(void)
 {
-	struct cos_defcompinfo *defcomp = cos_defcompinfo_curr_get();
-	struct cos_compinfo *ci = cos_compinfo_get(defcomp);
+	// struct cos_defcompinfo *defcomp = cos_defcompinfo_curr_get();
+	// struct cos_compinfo *ci = cos_compinfo_get(defcomp);
 
-	shared_pgtbl.cap = cos_pgtbl_alloc(ci);
+	// shared_pgtbl.cap = cos_pgtbl_alloc(ci);
 
 	vaddr_t kmem;
 	capid_t cap;
 
 	printd("cos_shared_pgtbl_alloc\n");
 
-	assert(ci);
+	// assert(ci);
 
-	if (__alloc_mem_cap(ci, CAP_PGTBL, &kmem, &cap)) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))
+	if (__alloc_mem_cap(NULL, CAP_PGTBL, &kmem, &cap)) return 0;
+	// this is probably so wrong
+	if (call_cap_op(-1, CAPTBL_OP_PGTBLACTIVATE, cap, NULL, kmem, 0))
 		BUG();
 
 	//ci->mi.second_lvl_flag = 0;
 
 	return cap;
 }
-*/

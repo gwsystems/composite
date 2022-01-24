@@ -207,6 +207,7 @@ void    cos_hw_shutdown(hwcap_t hwc);
 
 capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
 
-int cos_shared_pgtbl_alloc(void);
+pgtblcap_t cos_shared_pgtbl_alloc(void);
+u32_t cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl);
 
 #endif /* COS_KERNEL_API_H */

@@ -111,14 +111,14 @@ crt_ns_asids_init(struct crt_ns_asid *asids)
 {
 	int i;
 
-	memset(asids, 0, sizeof(struct crt_ns_asid));
+	printc("asids init\n");
+
 	for(i = 0; i < CRT_ASID_NUM_NAMES; i++) {
-		asids->names[i]->reserved = 1;
-		asids->names[i]->allocated = 0;
-		asids->names[i]->aliased = 0;
-		/* what are ASIDs? */
-		asids->names[i]->id = i;
+		asids->names[i].reserved = 1;
+		asids->names[i].allocated = 0;
 	}
+
+	asids->parent = NULL;
 
 	return 0;
 }
@@ -137,7 +137,7 @@ crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 		return -1;
 	}
 	for(i = 0; i < CRT_ASID_NUM_NAMES; i++) {
-		if(new->names[i]->allocated == 1) {
+		if(new->names[i].allocated == 1) {
 			return -2;
 		} 
 	}
@@ -153,18 +153,31 @@ crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 		 *      allocated = 0
 		 *      aliased   = 0
 		 */
-		if(existing->names[i]->allocated == 1) {
-			new->names[i]->reserved = 0;
+		if(existing->names[i].allocated == 1) {
+			new->names[i].reserved = 0;
 		}
 		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 
 		 * NOTE: this means no further allocations can be made in existing
 		 */
-		if(existing->names[i]->reserved == 1) {
-			existing->names[i]->reserved = 0;
+		if(existing->names[i].reserved == 1) {
+			existing->names[i].reserved = 0;
 		}
 	}
 
 	return 0;
+}
+
+int crt_asid_available_name(struct crt_ns_asid *asids) {
+	int asid_index = 0;
+
+	/* allocate an asid name for new */
+	while(asid_index < CRT_ASID_NUM_NAMES) {
+		if(asids->names[asid_index].reserved == 1 && asids->names[asid_index].allocated == 0) {
+			return asid_index;
+		}
+		asid_index++;
+	}
+	return -1;
 }
 
 /*
@@ -178,32 +191,32 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 
 	/* TODO: add error check that new and asids are sufficiently allocated */
 
-	while(asid_index < CRT_ASID_NUM_NAMES) {
-		if(asids->names[asid_index]->reserved == 1 && asids->names[asid_index]->allocated == 0) {
-			asids->names[asid_index]->allocated = 1;
-			break;
-		}
-		asid_index++;
-	}
-
-	if(asid_index >= CRT_ASID_NUM_NAMES) {
+	/* allocate an asid name for new */
+	asid_index = crt_asid_available_name(asids);
+	if(asid_index == -1) {
 		/* no available ASID names! */
 		return -1;
 	}
 
-	new->asid_name = asids->names[asid_index];
+	new->asid_name = asid_index;
 
+	/* initialize the names in new */
 	for(i = 0; i < CRT_VAS_NUM_NAMES; i++) {
-		new->names[i]->reserved = 1;
-		new->names[i]->allocated = 0;
-		new->names[i]->aliased = 0;
-		/* FIXME: still stuck on the actual address "name" */
-		new->names[i]->addr = NULL;
-		new->names[i]->comp = NULL;
+		new->names[i].reserved = 1;
+		new->names[i].allocated = 0;
+		new->names[i].aliased = 0;
+		new->names[i].comp = NULL;
 	}
 
+	new->top_lvl_pgtbl = cos_shared_pgtbl_alloc();
+
 	new->parent = NULL;
-	new->asid_parent_name = NULL;
+
+	/* initialize an MPK NS for new */
+	for(i = 0; i < CRT_VAS_NUM_NAMES; i++) {
+		new->mpk_names[i].reserved = 1;
+		new->mpk_names[i].allocated = 0;
+	}
 
 	return 0;
 
@@ -214,14 +227,14 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
  */
 int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids)
 {
-	int i;
+	u64_t i;
 
 	/* error check that new has no allocations (?) */
 	if(new == NULL || new->names == NULL) {
 		return -1;
 	}
 	for(i = 0; i < CRT_VAS_NUM_NAMES; i++) {
-		if(new->names[i]->allocated == 1) {
+		if(new->names[i].allocated == 1) {
 			return -2;
 		} 
 	}
@@ -237,19 +250,60 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 		 *      allocated = 0
 		 *      aliased   = 0
 		 */
-		if(existing->names[i]->allocated == 1) {
-			new->names[i]->reserved = 0;
+		if(existing->names[i].allocated == 1) {
+			new->names[i].reserved = 0;
 		}
 		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 
 		 * NOTE: this means no further allocations can be made in existing
 		 */
-		if(existing->names[i]->reserved == 1 && existing->names[i]->allocated == 0) {
-			existing->names[i]->reserved = 0;
+		if(existing->names[i].reserved == 1 && existing->names[i].allocated == 0) {
+			existing->names[i].reserved = 0;
+		}
+	}
+
+	/* init mpk namespace */
+	for(i = 0; i < CRT_MPK_NUM_NAMES; i++) {
+		if(existing->mpk_names[i].allocated == 1) {
+			new->mpk_names[i].reserved = 0;
+		}
+		if(existing->mpk_names[i].reserved == 1 && existing->mpk_names[i].allocated == 0) {
+			existing->mpk_names[i].reserved = 0;
 		}
 	}
 
 	new->parent = existing;
-	new->asid_parent_name = existing->asid_name;
+
+	return 0;
+}
+
+
+/* helper function */
+int
+crt_mpk_available_name(struct crt_ns_vas *vas)
+{
+	/* we're looking for an MPK name that's not allocated */
+	int i = 0;
+
+	while(i < CRT_MPK_NUM_NAMES) {
+		if(vas->mpk_names[i].reserved == 1 && vas->mpk_names[i].allocated == 0) {
+			return i;
+		}
+		i++;
+	}
+
+	return -1;
+}
+
+int
+vas_ancestor(struct crt_ns_vas *vas, struct crt_comp *c, int name_index)
+{
+	if(vas->names[name_index].comp->id == c->id) {
+		return 1;
+	}
+
+	if(vas->parent != NULL) {
+		return vas_ancestor(vas->parent, c, name_index);
+	}
 
 	return 0;
 }
@@ -262,29 +316,55 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 {
 	/* 
-	 * 1. find a reserved and unallocated name in vas
-	 * 2. put c there!
-	 * 3. vas has its asid name, so that's covered?
-	 * 4. what about mpk?
+	 * find the name at the entry addr for the elf object for c
+	 * is it reserved but unallocated? --> make allocated & assign MPK key w same properties
+	 * is it unreserved but unaliased? --> make aliased & assign MPK key w same properties
+	 * else --> not possible
 	 */
 
-	int name_index = 0;
+	int name_index;
+	int mpk_key = c->mpk_key;
 
-	while(name_index < CRT_VAS_NUM_NAMES) {
-		if(vas->names[name_index]->reserved == 1 && vas->names[name_index]->allocated == 0) {
-			vas->names[name_index]->allocated = 1;
-			vas->names[name_index]->comp = c;
-			
-			/* FIXME: this might be totally wrong */
-			vas->names[name_index]->addr = c->entry_addr;
+	printc("comp addr = %lx: \n", c->entry_addr);
 
-			return 0;
-		}
-		name_index++;
+	name_index = c->entry_addr / CRT_VAS_NAME_SZ;
+	printc("name index = %x\n", name_index);
+	assert(name_index < CRT_VAS_NUM_NAMES);
+
+	/* 0: make sure that in the bitmap, this comp is either unallocated or unaliased */
+	if(vas->names[name_index].allocated || vas->names[name_index].aliased) {
+		/* if there's something already allocated or already aliased here, can't complete this operation */
+		return -1;
 	}
 
-	/* no available names! */
-	return -1;
+	/* 1: make sure there's an available mpk name */
+	if(mpk_key == 0 && ((mpk_key = crt_mpk_available_name(vas)) == -1)) {
+			return -1;
+	}
+	
+	/* 2: add comp to namespace  */
+	/* 2a: it's reserved and unallocated --> allocate! */
+	if(vas->names[name_index].reserved && !vas->names[name_index].allocated) {
+		vas->names[name_index].allocated = 1;
+		vas->names[name_index].comp = c;
+	}
+	/* 2b: it's not reserved and not aliased  and comp is in an NS that's an ancestor of vas --> alias! */
+	else if(!vas->names[name_index].reserved && !vas->names[name_index].aliased && vas_ancestor(vas, c, name_index)) {
+		vas->names[name_index].aliased = 1;
+		vas->names[name_index].comp = c;
+	}
+
+	/* 3: mark allocated for MPK key (if it already had one this just re-assigns) */
+	c->mpk_key = mpk_key;
+	vas->mpk_names[mpk_key].allocated = 1;
+
+	/* 4: cons the 2nd level pgtbl node in c into the pgtbl node in vas */
+	printc("would be about to cons\n");
+	// if(cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl) != 0) {
+	// 	printc("cons failed\n");
+	// }
+
+	return 0;
 
 }
 

@@ -37,6 +37,14 @@
 #define BOOTER_MAX_CHKPT 64
 #endif
 
+#ifndef BOOTER_MAX_NS_ASID
+#define BOOTER_MAX_NS_ASID 2
+#endif
+
+#ifndef BOOTER_MAX_NS_VAS
+#define BOOTER_MAX_NS_VAS 2
+#endif
+
 /* UNCOMMENT HERE FOR CHECKPOINT FUNCTIONALITY */
 /* #ifndef ENABLE_CHKPT
  * #define ENABLE_CHKPT 1
@@ -47,12 +55,12 @@ static struct crt_comp boot_comps[MAX_NUM_COMPS];
 static const  compid_t sched_root_id  = 2;
 static        long     boot_id_offset = -1;
 
-SS_STATIC_SLAB(sinv,   struct crt_sinv,   BOOTER_MAX_SINV);
-SS_STATIC_SLAB(thd,    struct crt_thd,    BOOTER_MAX_INITTHD);
-SS_STATIC_SLAB(rcv,    struct crt_rcv,    BOOTER_MAX_SCHED);
-SS_STATIC_SLAB(chkpt,  struct crt_chkpt,  BOOTER_MAX_CHKPT);
-
-static struct pgtbl_shared shared_pgtbl;
+SS_STATIC_SLAB(sinv,   struct crt_sinv,   	BOOTER_MAX_SINV);
+SS_STATIC_SLAB(thd,    struct crt_thd,    	BOOTER_MAX_INITTHD);
+SS_STATIC_SLAB(rcv,    struct crt_rcv,    	BOOTER_MAX_SCHED);
+SS_STATIC_SLAB(chkpt,  struct crt_chkpt,  	BOOTER_MAX_CHKPT);
+SS_STATIC_SLAB(ns_asid, struct crt_ns_asid, BOOTER_MAX_NS_ASID);
+SS_STATIC_SLAB(ns_vas, struct crt_ns_vas, 	BOOTER_MAX_NS_VAS);
 
 /*
  * Assumptions: the component with the lowest id *must* be the one
@@ -100,6 +108,7 @@ comps_init(void)
 	 * components we are set to create, and that we get it from
 	 * mkimg.
 	 */
+	printc("comps init?\n");
 	if (cos_compid_uninitialized()) {
 		int booter_id;
 
@@ -108,9 +117,17 @@ comps_init(void)
 	}
 	boot_comp_set_idoffset(cos_compid());
 
-	/* allocate the shared pgtbl */
-	cos_shared_pgtbl_alloc();
-	//shared_pgtbl.cap = cos_pgtbl_alloc(&shared_pgtbl.ci);
+	/* allocate an ASID / VAS ns */
+	/* TODO: check # of NSs won't be too many: something like if (crt_nasid() > BOOTER_MAX_) */
+	
+	struct crt_ns_asid *ns_asid = ss_ns_asid_alloc();
+	ss_ns_asid_activate(ns_asid);
+	if(crt_ns_asids_init(ns_asid) != 0) BUG();
+
+	/* TODO: check # of NSs won't be too many: something like if (crt_nvas() > BOOTER_MAX_) */
+	struct crt_ns_vas *ns_vas = ss_ns_vas_alloc();
+	ss_ns_vas_activate(ns_vas);
+	if(crt_ns_vas_init(ns_vas, ns_asid) != 0) BUG();
 
 	ret = args_get_entry("components", &comps);
 	assert(!ret);
@@ -151,6 +168,11 @@ comps_init(void)
 			assert(elf_hdr);
 			if (crt_comp_create(comp, name, id, elf_hdr, info)) {
 				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
+				BUG();
+			}
+			/* add the component to the VAS NS */
+			printc("about to allocate in the VAS\n");
+			if(crt_ns_vas_alloc_in(ns_vas, comp) != 0) {
 				BUG();
 			}	
 		}
