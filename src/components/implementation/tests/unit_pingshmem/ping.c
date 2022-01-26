@@ -60,7 +60,7 @@ ping_test_bigalloc(void)
 	shm_bufid_t objid;
 	int         i;
 	int         failure = 0;
-	int         big_num = 10000;
+	int         big_num = 1000;
 
 	shm_bm_create(&shm, sizeof(struct obj_test), big_num * sizeof (struct obj_test));
 	for (i = 0; i < big_num; i++) {

@@ -30,6 +30,8 @@ cos_faa(int *var, int value)
 	return value;
 }
 
+/* Byte sized fetch-and-add implementation on x86. It returns the 
+original value * before xaddl. */
 static inline unsigned char
 cos_faab(unsigned char *var, unsigned char value)
 {
