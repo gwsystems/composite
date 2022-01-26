@@ -60,22 +60,19 @@ shm_bm_set_contig(word_t *bm, int offset)
 static int
 shm_bm_clz(word_t *bm, void *stop, int *index, int *offset)
 {
-	int cnt, lz = 0, idx = 0;
+	int cnt, lz , idx;
 
-	while (*bm == 0) {
-		if ((void *)bm == stop) return -1;
+	for (idx = 0; bm < stop; idx++) {
+		if (*bm != 0) break;
 		bm++;
-		idx++;
-		lz += SHM_BM_BITMAP_BLOCK;
 	}
 
-	if ((void *)bm >= stop) return -1;	
+	if (unlikely((void *) bm >= stop)) return -1;	
 	cnt = __builtin_clzl(*bm);
-	lz += cnt;
+	lz  = cnt + idx * SHM_BM_BITMAP_BLOCK;
 	*index = idx;
 	*offset = SHM_BM_BITMAP_BLOCK - cnt - 1;
 	return lz;
-
 }
 
 cbuf_t   
@@ -191,8 +188,5 @@ shm_bm_obj_free(void *ptr)
 	bm_offset = SHM_BM_BITMAP_BLOCK - obj_idx % SHM_BM_BITMAP_BLOCK - 1;
 	bm        = SHM_BM_BITM(shm);
 
-	// does this need to happen atomically
-	// or does FAA ensure only one thread 
-	// gets here??
 	bm[bm_idx] = bm[bm_idx] | (1ul << bm_offset);
 }
