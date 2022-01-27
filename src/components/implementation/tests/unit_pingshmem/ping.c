@@ -196,6 +196,7 @@ main(void)
 	ping_test_objfree();
 	ping_test_refcnt();
 
+
 	ping_bench_msgpassing();
 
 	return 0;

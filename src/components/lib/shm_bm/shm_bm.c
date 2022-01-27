@@ -23,7 +23,7 @@ struct shm_bm_header {
 	unsigned long refc_offset;
 	unsigned long data_offset; 
 	unsigned int  nobj;
-	size_t        objsz;
+	size_t        objsz_order;
 };
 
 /* 
@@ -37,7 +37,7 @@ struct shm_bm_header {
 #define SHM_BM_DATA(shm) ((byte_t *)  (shm + ((struct shm_bm_header *) shm)->data_offset))
 
 // ...and to make the code a little cleaner when using the opaque shm_bm_t type
-#define SHM_BM_SIZE(shm) (((struct shm_bm_header *) shm)->objsz)
+#define SHM_BM_OBJSZ_ORDER(shm) (((struct shm_bm_header *) shm)->objsz_order)
 #define SHM_BM_NOBJ(shm) (((struct shm_bm_header *) shm)->nobj)
 
 
@@ -75,6 +75,13 @@ shm_bm_clz(word_t *bm, void *stop, int *index, int *offset)
 	return lz;
 }
 
+static inline int
+shm_bm_ceil_log2(size_t x)
+{
+	if (x == 1) return 0;
+    return sizeof (size_t) * CHAR_BIT - __builtin_clzl(x-1);
+}
+
 cbuf_t   
 shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
 {
@@ -101,7 +108,7 @@ shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz)
 
 	// metadata
 	header = (struct shm_bm_header *) *shm;
-	header->objsz       = objsz;
+	header->objsz_order = shm_bm_ceil_log2(objsz);
 	header->nobj        = nobj;
 	header->refc_offset = sizeof (struct shm_bm_header) + bitmap_sz; 
 	header->data_offset = sizeof (struct shm_bm_header) + bitmap_sz + refcnt_sz; 
@@ -139,7 +146,7 @@ shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
 	cos_faab(SHM_BM_REFC(shm) + freebit, 1);
 
 	*id = (shm_bufid_t) freebit;
-	return SHM_BM_DATA(shm) + (freebit * SHM_BM_SIZE(shm));
+	return SHM_BM_DATA(shm) + (freebit << SHM_BM_OBJSZ_ORDER(shm));
 }
 
 void *   
@@ -152,7 +159,7 @@ shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id)
 
 	cos_faab(SHM_BM_REFC(shm) + id, 1);
 
-	return SHM_BM_DATA(shm) + (id * SHM_BM_SIZE(shm));
+	return SHM_BM_DATA(shm) + (id << SHM_BM_OBJSZ_ORDER(shm));
 }
 
 void *   
@@ -163,7 +170,7 @@ shm_bm_obj_take(shm_bm_t shm, shm_bufid_t id)
 	// obj has not been allocated
 	if (unlikely((SHM_BM_REFC(shm) + id) == 0)) return 0;
 
-	return SHM_BM_DATA(shm) + (id * SHM_BM_SIZE(shm));
+	return SHM_BM_DATA(shm) + (id << SHM_BM_OBJSZ_ORDER(shm));
 }
 
 void
@@ -176,17 +183,17 @@ shm_bm_obj_free(void *ptr)
 	// mask out the bits less significant than the allocation alignment
 	shm = (shm_bm_t) ((word_t) ptr & ~(SHM_BM_ALLOC_ALIGNMENT - 1));
 
-	obj_idx = ((byte_t *) ptr - SHM_BM_DATA(shm)) / SHM_BM_SIZE(shm);
-	if (obj_idx < 0 || obj_idx >= SHM_BM_NOBJ(shm)) return;
+	obj_idx = ((byte_t *) ptr - SHM_BM_DATA(shm)) >> SHM_BM_OBJSZ_ORDER(shm);
+	if (unlikely(obj_idx < 0 || obj_idx >= SHM_BM_NOBJ(shm))) return;
 
-	if (cos_faab(SHM_BM_REFC(shm) + obj_idx, -1) > 1)
+	if (cos_faab(SHM_BM_REFC(shm) + obj_idx, -1) > 1) { 
 		return;
+	}
 
 	/*droping the last reference, must free obj*/
 
-	bm_idx    = obj_idx / SHM_BM_BITMAP_BLOCK;
-	bm_offset = SHM_BM_BITMAP_BLOCK - obj_idx % SHM_BM_BITMAP_BLOCK - 1;
-	bm        = SHM_BM_BITM(shm);
-
+	bm_idx     = obj_idx / SHM_BM_BITMAP_BLOCK;
+	bm_offset  = SHM_BM_BITMAP_BLOCK - obj_idx % SHM_BM_BITMAP_BLOCK - 1;
+	bm         = SHM_BM_BITM(shm);
 	bm[bm_idx] = bm[bm_idx] | (1ul << bm_offset);
 }
