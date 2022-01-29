@@ -6,7 +6,7 @@
  * Functionally this is a pointer to the shared memory region's header.
  * This pointer is aligned on a power-of-2 boundary in order to provide
  * a free API that does not require a reference to the shared memory
- * header (see `shm_bm_obj_free`).  
+ * header (see `shm_bm_obj_free`).
  */
 typedef unsigned long shm_bm_t;
 
@@ -21,7 +21,9 @@ typedef unsigned int shm_bufid_t;
 
 /**
  * Creates a shared shared memory region of size `allocsz` from
- * which objects of size `objsz` can be allocated. 
+ * which objects of size `objsz` can be allocated. Internally,
+ * objects are stored as a power of two so `objsz` is rounded up
+ * to the nearest power of 2.
  *
  * Arguments:
  * - @shm     a pointer to a shm_bm_t that is set by function

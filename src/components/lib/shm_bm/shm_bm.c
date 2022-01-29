@@ -16,7 +16,9 @@ typedef unsigned char byte_t;
  * 
  * We can't store pointers to the bitmap, reference counts, or data in
  * the shared memory because the header  will be mapped in different 
- * address spaces; instead offsets from the header are stored.
+ * address spaces; instead offsets from the header are stored. Since 
+ * object sizes are rounded up to the nearest power of 2, the order (log2)
+ * of the size is stored.
  */
 struct shm_bm_header {
 	unsigned long bitm_offset;
@@ -26,15 +28,15 @@ struct shm_bm_header {
 	size_t        objsz_order;
 };
 
-/* 
+/**
  * macros to get a ref to each of the 3 parts of the shared memory 
  * (bitmap, ref counts, data) because we cannot store pointer to 
  * them in the header since this memory is shared across virt
  * address spaces...
  */
-#define SHM_BM_BITM(shm) ((word_t *)  (shm + (sizeof (struct shm_bm_header))))
-#define SHM_BM_REFC(shm) ((refcnt_t *)(shm + ((struct shm_bm_header *) shm)->refc_offset))
-#define SHM_BM_DATA(shm) ((byte_t *)  (shm + ((struct shm_bm_header *) shm)->data_offset))
+#define SHM_BM_BITM(shm) ((word_t *)  ((struct shm_bm_header *) shm + (sizeof (struct shm_bm_header))))
+#define SHM_BM_REFC(shm) ((refcnt_t *)((struct shm_bm_header *) shm + ((struct shm_bm_header *) shm)->refc_offset))
+#define SHM_BM_DATA(shm) ((byte_t *)  ((struct shm_bm_header *) shm + ((struct shm_bm_header *) shm)->data_offset))
 
 // ...and to make the code a little cleaner when using the opaque shm_bm_t type
 #define SHM_BM_OBJSZ_ORDER(shm) (((struct shm_bm_header *) shm)->objsz_order)
@@ -57,29 +59,41 @@ shm_bm_set_contig(word_t *bm, int offset)
 	bm[ind] = ~((1ul << n) - 1); // set most sig n bits of bm[ind]
 }
 
+/**
+ * Given a bitmap of an arbitrary number of words long, find the
+ * first set bit in the bitmap and record the index of the word 
+ * in the bitmap that the bit was found, as well as the offset 
+ * of the bit in that word.
+ */
 static int
 shm_bm_clz(word_t *bm, void *stop, int *index, int *offset)
 {
-	int cnt, lz , idx;
+	int lz;  // the number of zeros leading the first set bit in the first nonzero word in the bitmap
+	int fs;  // index of the first set bit in the bitmap
+	int idx; // the index of the word in the bitmap where the first set bit is found
 
+	/* iterate through the bitmap to find the first non-zero word */
 	for (idx = 0; bm < stop; idx++) {
 		if (*bm != 0) break;
 		bm++;
 	}
 
+	/* all bits set to zero */
 	if (unlikely((void *) bm >= stop)) return -1;	
-	cnt = __builtin_clzl(*bm);
-	lz  = cnt + idx * SHM_BM_BITMAP_BLOCK;
-	*index = idx;
-	*offset = SHM_BM_BITMAP_BLOCK - cnt - 1;
+
+	lz = __builtin_clzl(*bm);
+	fs = lz + (idx * SHM_BM_BITMAP_BLOCK);
+	*index  = idx;
+	*offset = SHM_BM_BITMAP_BLOCK - lz - 1;
+
 	return lz;
 }
 
 static inline int
-shm_bm_ceil_log2(size_t x)
+shm_bm_ceil_log2(word_t x)
 {
 	if (x == 1) return 0;
-    return sizeof (size_t) * CHAR_BIT - __builtin_clzl(x-1);
+    return sizeof (word_t) * CHAR_BIT - __builtin_clzl(x-1);
 }
 
 cbuf_t   
@@ -135,12 +149,13 @@ shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
 	word_t  word_old; 
 	word_t *bm;
 
-	// find a free space. could be preempted
+	/* find a free space. could be preempted */
 	bm = SHM_BM_BITM(shm);
 	do {
 		freebit = shm_bm_clz(bm, SHM_BM_REFC(shm), &idx, &off);
 		if (freebit == -1) return 0;
 		word_old = bm[idx];
+		/* try to xchg current word with the word with freebit set to 1 */
 	} while (!cos_cas(bm + idx, word_old, word_old & ~(1ul << off)));
 
 	cos_faab(SHM_BM_REFC(shm) + freebit, 1);
@@ -155,7 +170,7 @@ shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id)
 	if (unlikely(id >= SHM_BM_NOBJ(shm))) return 0;
 
 	// obj has not been allocated
-	if (unlikely((SHM_BM_REFC(shm) + id) == 0)) return 0;
+	if (unlikely(*(SHM_BM_REFC(shm) + id) == 0)) return 0;
 
 	cos_faab(SHM_BM_REFC(shm) + id, 1);
 
@@ -168,7 +183,7 @@ shm_bm_obj_take(shm_bm_t shm, shm_bufid_t id)
 	if (unlikely(id >= SHM_BM_NOBJ(shm))) return 0;
 	
 	// obj has not been allocated
-	if (unlikely((SHM_BM_REFC(shm) + id) == 0)) return 0;
+	if (unlikely(*(SHM_BM_REFC(shm) + id) == 0)) return 0;
 
 	return SHM_BM_DATA(shm) + (id << SHM_BM_OBJSZ_ORDER(shm));
 }
@@ -180,20 +195,20 @@ shm_bm_obj_free(void *ptr)
 	shm_bm_t shm;
 	word_t  *bm;
 
-	// mask out the bits less significant than the allocation alignment
+	/* mask out the bits less significant than the allocation alignment */
 	shm = (shm_bm_t) ((word_t) ptr & ~(SHM_BM_ALLOC_ALIGNMENT - 1));
 
-	obj_idx = ((byte_t *) ptr - SHM_BM_DATA(shm)) >> SHM_BM_OBJSZ_ORDER(shm);
+	obj_idx = ((byte_t *) ptr - (SHM_BM_DATA(shm)) >> SHM_BM_OBJSZ_ORDER(shm));
 	if (unlikely(obj_idx < 0 || obj_idx >= SHM_BM_NOBJ(shm))) return;
 
 	if (cos_faab(SHM_BM_REFC(shm) + obj_idx, -1) > 1) { 
 		return;
 	}
 
-	/*droping the last reference, must free obj*/
+	/* droping the last reference, must set obj to free in bitmap */
 
+	bm         = SHM_BM_BITM(shm);
 	bm_idx     = obj_idx / SHM_BM_BITMAP_BLOCK;
 	bm_offset  = SHM_BM_BITMAP_BLOCK - obj_idx % SHM_BM_BITMAP_BLOCK - 1;
-	bm         = SHM_BM_BITM(shm);
 	bm[bm_idx] = bm[bm_idx] | (1ul << bm_offset);
 }

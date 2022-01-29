@@ -35,20 +35,20 @@ ping_test_objread(void)
 	pongshmem_test_map(id);
 
 	for (i = 0; i < 4; i++) {
-		// allocate an object from shared mem buffer
+		/* allocate an object from shared mem buffer */
 		obj = (struct obj_test *) shm_bm_obj_alloc(shm, &objid);
 		PRINTLOG(PRINT_DEBUG, "%s: (%d) Ping can allocate object from shared buffer\n", (obj == 0) ? "FAILURE" : "SUCCESS", i+1);
 		
-		// send the obj to pong
+		/* send the obj to pong */
 		strcpy(obj->string, ping_test_strings[i]);
 		pongshmem_test_objread(objid, i);
 
-		// pong should have read and changed the object data
+		/* pong should have read and changed the object data */
 		failure = strcmp(obj->string, pong_test_strings[i]) != 0;
 		PRINTLOG(PRINT_DEBUG, "%s: (%d) Ping can read data from pong\n", (failure) ? "FAILURE" : "SUCCESS", i+1);
 	}
 
-	// we should have allocated the entire buffer now
+	/* we should have allocated the entire buffer now */
 	failure = shm_bm_obj_alloc(shm, &objid) != 0;
 	PRINTLOG(PRINT_DEBUG, "%s: Ping can't allocate from full shared buffer\n", (failure) ? "FAILURE" : "SUCCESS");
 }
@@ -86,16 +86,16 @@ ping_test_objfree(void)
 
 	shm_bm_create(&shm, sizeof (struct obj_test), 20 * sizeof (struct obj_test));
 
-	// sanity check, allocate and free and object
+	/* sanity check, allocate and free and object */
 	obj1 = shm_bm_obj_alloc(shm, &objid);
 	shm_bm_obj_free(obj1);
-	// we should get the same object in the buffer 
+	/* we should get the same object in the buffer */
 	obj2 = shm_bm_obj_alloc(shm, &objid);
 	failure = obj1 != obj2;
 	PRINTLOG(PRINT_DEBUG, "%s: Ping can free an allocated obj from the buffer\n", (failure) ? "FAILURE" : "SUCCESS");
 	shm_bm_obj_free(obj2);
 
-	// allocate the whole buffer
+	/* allocate the whole buffer */
 	failure = 0;
 	for (i = 0; i < 18; i++) {
 		if (shm_bm_obj_alloc(shm, &objid) == 0)
@@ -105,18 +105,18 @@ ping_test_objfree(void)
 	obj1 = shm_bm_obj_alloc(shm, &objid);
 	obj2 = shm_bm_obj_alloc(shm, &objid);
 
-	// buffer should be full
+	/* buffer should be full */
 	if (shm_bm_obj_alloc(shm, &objid) != 0) failure = 1;
 	if (shm_bm_obj_alloc(shm, &objid) != 0) failure = 1;
 
 	shm_bm_obj_free(obj1);
 	shm_bm_obj_free(obj2);
 
-	// should be 2 more free objects now
+	/* should be 2 more free objects now */
 	if (shm_bm_obj_alloc(shm, &objid) == 0) failure = 1;
 	if (shm_bm_obj_alloc(shm, &objid) == 0) failure = 1;
 
-	// buffer should be full
+	/* buffer should be full */
 	if (shm_bm_obj_alloc(shm, &objid) != 0) failure = 1;
 	if (shm_bm_obj_alloc(shm, &objid) != 0) failure = 1;
 
@@ -138,25 +138,31 @@ ping_test_refcnt(void)
 	id = shm_bm_create(&shm, sizeof (struct obj_test), 4 * sizeof (struct obj_test));
 	pongshmem_test_map(id);
 
-	// allocate an object from the buffer
+	/* allocate an object from the buffer */
 	obj = shm_bm_obj_alloc(shm, &objid); 
 	strcpy(obj->string, teststr);
 
-	// pong gets a reference to object and frees it
-	// but the object should not be deallocated bc we 
-	// still hold a reference
+	/**
+	 * pong gets a reference to object and frees it
+	 * but the object should not be deallocated bc we 
+	 * still hold a reference
+	 */ 
 	pongshmem_test_refcnt(objid);
 
-	// we still hold a reference to obj, so we should not
-	// should not get a reference to it when we allocate
-	// a new object
+	/**
+	 * we still hold a reference to obj, so we should not
+	 * should not get a reference to it when we allocate
+	 * a new object
+	 */
 	obj2 = shm_bm_obj_alloc(shm, &objid);
 	if (obj2 == obj) failure = 1;
 
 	shm_bm_obj_free(obj);
 
-	// now that we have also freed the object, we should 
-	// get a reference to the same object if we realloc
+	/**
+	 * now that we have also freed the object, we should 
+	 * get a reference to the same object if we realloc
+	 */
 	obj2 = shm_bm_obj_alloc(shm, &objid);
 	if (obj2 != obj) failure = 1;
 	
@@ -178,9 +184,9 @@ ping_bench_msgpassing(void)
 
 	begin = ps_tsc();
 	for (i = 0; i < BENCH_ITER; i++) {
-		// allocate an obj from shared mem
+		/* allocate an obj from shared mem */
 		shm_bm_obj_alloc(shm, &objid);
-		// send obj to server, server borrows it
+		/* send obj to server, server borrows it */
 		pongshmem_bench_objread(objid);
 	}
 	end = ps_tsc();
