@@ -518,5 +518,6 @@ void
 libc_initialization_handler()
 {
 	printc("libc_init\n");
-	libc_init();
+	/* libc_init() need to be commented before use posix in composite */
+	//libc_init();
 }
