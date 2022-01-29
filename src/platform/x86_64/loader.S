@@ -58,7 +58,7 @@ huge_page_enabled:
 	/* we have to set up a temparaily page scheme to before enter long mode */
 	/* we use 1G paging scheme, so only to set p0_pgt, p1_pgt */
 	mov $p1_pgt, %eax
-	or $0x01, %eax
+	or $0x03, %eax
 	mov %eax, p0_pgt
 	mov %eax, (p0_pgt+0x08*256)
 	
