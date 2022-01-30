@@ -56,7 +56,7 @@ call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
                              "pop %%rbp"
                              : "=a"(ret)
                              : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3)
-                             : "memory", "cc", "rcx", "rdx");
+                             : "memory", "cc", "rcx", "rdx", "r8", "r9", "r11", "r12");
 
 #elif defined(__arm__)
 
