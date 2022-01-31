@@ -509,19 +509,35 @@ init_exit(int retval)
 
 	while (1) ;
 }
+// static __thread int test = 0;
+
+// int *f_test(void) {
+//     return &test;
+// }
+
+// int g_test(void) {
+//     return test;
+// }
 
 void
 cos_init(void)
 {
+	booter_init();
 	int num = 0;
 	num = rte_str_to_size("666\n");
 	printc("num :%d\n",num);
+	int argc = 3, ret = -1;
+
+	/* single core */
+	char arg1[] = "DEBUG", arg2[] = "-l", arg3[] = "0";
+	char *argv[] = {arg1, arg2, arg3};
+	ret = rte_eal_init(argc, argv);
+	printc("end of init dpdk:%d\n",ret);
 	while (1)
 	{
 		/* code */
 	}
 	
-	booter_init();
 	comps_init();
 }
 

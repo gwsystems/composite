@@ -514,10 +514,18 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 	}
 }
 
+char tls_space[8192] = {0};
+void tls_init()
+{
+	vaddr_t* tls_addr		= (vaddr_t *)&tls_space;
+	*tls_addr 			= (vaddr_t)&tls_space;
+	call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDTLSSET, BOOT_CAPTBL_SELF_INITTHD_BASE, (word_t)tls_addr, 0, 0);
+}
 void
 libc_initialization_handler()
 {
 	printc("libc_init\n");
+	tls_init();
 	/* libc_init() need to be commented before use posix in composite */
 	//libc_init();
 }
