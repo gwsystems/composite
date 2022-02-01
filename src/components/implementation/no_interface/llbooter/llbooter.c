@@ -120,6 +120,7 @@ comps_init(void)
 	/* allocate an ASID / VAS ns */
 	/* TODO: check # of NSs won't be too many: something like if (crt_nasid() > BOOTER_MAX_) */
 	
+	/* TODO: SHOULD THIS HAPPEN AFTER BOOTER COMP INIT? */
 	struct crt_ns_asid *ns_asid = ss_ns_asid_alloc();
 	ss_ns_asid_activate(ns_asid);
 	if(crt_ns_asids_init(ns_asid) != 0) BUG();
@@ -164,6 +165,7 @@ comps_init(void)
 			assert(!elf_hdr);
 			ret = crt_booter_create(comp, name, id, info);
 			assert(ret == 0);
+			
 		} else {
 			assert(elf_hdr);
 			if (crt_comp_create(comp, name, id, elf_hdr, info)) {

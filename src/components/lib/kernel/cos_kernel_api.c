@@ -17,9 +17,6 @@
 #define printd(...)
 #endif
 
-
-static struct pgtbl_shared shared_pgtbl;
-
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz, pgtblcap_t pgtbl_cap)
 {
@@ -429,6 +426,12 @@ error:
 	return 0;
 }
 
+int
+cos_shared_pgtbl_connect(pgtblcap_t top_lvl, pgtblcap_t intern, vaddr_t mem)
+{
+	call_cap_op(top_lvl, CAPTBL_OP_CONS, intern, mem, 0, 0);
+	return 0;
+}
 int
 cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem)
 {
@@ -1124,12 +1127,13 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 int
 cos_get_second_lvl(struct cos_compinfo *ci, capid_t *pgtbl_cap, vaddr_t *pgtbl_addr)
 {
-	if(ci->mi.second_lvl_pgtbl_flag) {
+	if(!ci->mi.second_lvl_pgtbl_flag) {
 		return -1;
 	}
 	/* probably don't need flag -- can just check if the capability is 0 */
-	pgtbl_cap = &ci->mi.second_lvl_pgtbl_cap;
-	pgtbl_addr = &ci->mi.second_lvl_pgtbl_addr;
+	*pgtbl_cap = ci->mi.second_lvl_pgtbl_cap;
+	*pgtbl_addr = ci->mi.second_lvl_pgtbl_addr;
+
 	return 0;
 }
 
@@ -1140,10 +1144,12 @@ cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl)
 	vaddr_t pgtbl_addr;
 
 	if(cos_get_second_lvl(ci, &pte_cap, &pgtbl_addr) != 0) {
+		printc("no second level\n");
 		return -1;
 	}
 
 	if (call_cap_op(top_lvl, CAPTBL_OP_CONS, pte_cap, pgtbl_addr, 0, 0)) {
+		printc("call cap op cons failed\n");
 		assert(0); /* race? */
 		return -1;
 	}
@@ -1153,27 +1159,27 @@ cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl)
 }
 
 
-pgtblcap_t
-cos_shared_pgtbl_alloc(void)
-{
-	// struct cos_defcompinfo *defcomp = cos_defcompinfo_curr_get();
-	// struct cos_compinfo *ci = cos_compinfo_get(defcomp);
+// pgtblcap_t
+// cos_shared_pgtbl_alloc(void)
+// {
+// 	// struct cos_defcompinfo *defcomp = cos_defcompinfo_curr_get();
+// 	// struct cos_compinfo *ci = cos_compinfo_get(defcomp);
 
-	// shared_pgtbl.cap = cos_pgtbl_alloc(ci);
+// 	// shared_pgtbl.cap = cos_pgtbl_alloc(ci);
 
-	vaddr_t kmem;
-	capid_t cap;
+// 	vaddr_t kmem;
+// 	capid_t cap;
 
-	printd("cos_shared_pgtbl_alloc\n");
+// 	printd("cos_shared_pgtbl_alloc\n");
 
-	// assert(ci);
+// 	// assert(ci);
 
-	if (__alloc_mem_cap(NULL, CAP_PGTBL, &kmem, &cap)) return 0;
-	// this is probably so wrong
-	if (call_cap_op(-1, CAPTBL_OP_PGTBLACTIVATE, cap, NULL, kmem, 0))
-		BUG();
+// 	if (__alloc_mem_cap(NULL, CAP_PGTBL, &kmem, &cap)) return 0;
+// 	// this is probably so wrong
+// 	if (call_cap_op(-1, CAPTBL_OP_PGTBLACTIVATE, cap, NULL, kmem, 0))
+// 		BUG();
 
-	//ci->mi.second_lvl_flag = 0;
+// 	//ci->mi.second_lvl_flag = 0;
 
-	return cap;
-}
+// 	return cap;
+// }

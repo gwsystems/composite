@@ -188,6 +188,8 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 {
 	int asid_index = 0;
 	int i = 0;
+	/* This must be the booter CI */
+	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 	/* TODO: add error check that new and asids are sufficiently allocated */
 
@@ -208,7 +210,7 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 		new->names[i].comp = NULL;
 	}
 
-	new->top_lvl_pgtbl = cos_shared_pgtbl_alloc();
+	new->top_lvl_pgtbl = cos_pgtbl_alloc(ci);
 
 	new->parent = NULL;
 
@@ -325,9 +327,10 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	int name_index;
 	int mpk_key = c->mpk_key;
 
-	printc("comp addr = %lx: \n", c->entry_addr);
+	printc("comp addr = %lx\n", c->entry_addr);
 
 	name_index = c->entry_addr / CRT_VAS_NAME_SZ;
+	///name_index = c->entry_addr / CRT_VAS_NUM_NAMES;
 	printc("name index = %x\n", name_index);
 	assert(name_index < CRT_VAS_NUM_NAMES);
 
@@ -359,10 +362,9 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	vas->mpk_names[mpk_key].allocated = 1;
 
 	/* 4: cons the 2nd level pgtbl node in c into the pgtbl node in vas */
-	printc("would be about to cons\n");
-	// if(cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl) != 0) {
-	// 	printc("cons failed\n");
-	// }
+	if(cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl) != 0) {
+		printc("cons failed\n");
+	}
 
 	return 0;
 
