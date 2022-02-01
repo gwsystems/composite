@@ -81,7 +81,7 @@ armv7a_init:
 
 i386_init:
 	$(info Building libc (musl) for i386...)
-	cd $(MUSLDIR); ./configure "CFLAGS=-m32 -O3" "LDFLAGS=-Wl,-melf_i386" --disable-shared --target=i386; cd ..
+	cd $(MUSLDIR); ./configure "CFLAGS=-m32 -march=i686 -O3 -fno-stack-protector" "LDFLAGS=-Wl,-melf_i386" --disable-shared --target=i386; cd ..
 
 x86_64_init:
 	$(info Building libc (musl) for x86_64)

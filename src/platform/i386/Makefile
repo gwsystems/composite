@@ -1,15 +1,14 @@
 include Makefile.src
 include Makefile.arch
 
-CC := gcc -m32
+CC := gcc -m32 -march=i686
 LD := ld -m elf_i386 --nmagic
 AS := as --32 -g
 
 INCPATH := ../../kernel/include
 INCS    := -I$(INCPATH) -I$(INCPATH)/shared/ -I$(INCPATH)/chal/
 # This variable gets rid of the all the warnings on Ubuntu 20, but we should look into each...
-TMPFLGS := -Wno-address-of-packed-member
-CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable $(TMPFLGS) -nostdinc -nostdlib -fno-pic -mno-red-zone $(INCS)
+CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -fno-stack-protector -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone $(INCS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img
