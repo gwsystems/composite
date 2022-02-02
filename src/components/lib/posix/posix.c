@@ -504,7 +504,7 @@ long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f)
 {
 	assert(syscall_num <= SYSCALLS_NUM);
-	/* printc("Making syscall %d\n", syscall_num); */
+	printc("Making syscall %d\n", syscall_num);
 	if (!cos_syscalls[syscall_num]){
 		printc("WARNING: Component %ld calling unimplemented system call %d\n", cos_spd_id(), syscall_num);
 		assert(0);
