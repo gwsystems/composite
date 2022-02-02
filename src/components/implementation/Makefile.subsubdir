@@ -34,15 +34,17 @@ LIB_MANDATORY=$(DEPENDENCY_LIBOBJS)
 # references
 LIB_FLAGS    =$(LIB_MANDATORY) $(if $(wildcard ../*.a), -L.. -linterfacelib) $(DEPENDENCY_LIBPATH) $(DEPENDENCY_LIBS) $(DEPENDENCY_LIBS)
 
-COMP_LD_SCRIPT=$(IMPLDIR)/comp.ld
 TAR_SYMBOL_NAME=crt_init.tar
 
 ifeq ($(PLATFORM), i386)
 LINKFLAG=-Xlinker -melf_i386
+COMP_LD_SCRIPT=$(IMPLDIR)/comp_i386.ld
 else ifeq ($(PLATFORM), x86_64)
 LINKFLAG=-Xlinker -melf_x86_64 
+COMP_LD_SCRIPT=$(IMPLDIR)/comp_x86_64.ld
 else ifeq ($(PLATFORM), armv7a)
 LINKFLAG=-Xlinker -marmelf
+COMP_LD_SCRIPT=$(IMPLDIR)/comp_armv7a.ld
 endif
 
 .PHONY: all

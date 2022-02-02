@@ -18,6 +18,8 @@
 #include <init.h>
 #include <addr.h>
 #include <rte_eal.h>
+#include <rte_pci.h>
+#include <rte_bus_pci.h>
 
 #ifndef BOOTER_MAX_SINV
 #define BOOTER_MAX_SINV 256
@@ -518,7 +520,7 @@ init_exit(int retval)
 // int g_test(void) {
 //     return test;
 // }
-
+extern struct rte_pci_bus rte_pci_bus;
 void
 cos_init(void)
 {

@@ -88,7 +88,7 @@ build:
 
 install:
 	cd $(DPDKBUILD); meson install;
-	rm libdpdk.a
+	rm libdpdk.a || true
 	$(AR) crT libdpdk.a $(DPDKBUILD)/install/lib/*.a
 
 init: config build
