@@ -299,6 +299,8 @@ crt_mpk_available_name(struct crt_ns_vas *vas)
 int
 vas_ancestor(struct crt_ns_vas *vas, struct crt_comp *c, int name_index)
 {
+	/* FIXME: check for null first */
+	printc("In vas ancestor, vas->names[%d].comp->id = %ld, c->id = %ld\n", name_index, vas->names[name_index].comp->id, c->id);
 	if(vas->names[name_index].comp->id == c->id) {
 		return 1;
 	}
@@ -330,36 +332,48 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	printc("comp addr = %lx\n", c->entry_addr);
 
 	name_index = c->entry_addr / CRT_VAS_NAME_SZ;
-	///name_index = c->entry_addr / CRT_VAS_NUM_NAMES;
 	printc("name index = %x\n", name_index);
 	assert(name_index < CRT_VAS_NUM_NAMES);
+
+	printc("vas->names[%d].reserved = %d, .allocated = %d, .aliased = %d\n", name_index, vas->names[name_index].reserved, vas->names[name_index].allocated, vas->names[name_index].aliased);
 
 	/* 0: make sure that in the bitmap, this comp is either unallocated or unaliased */
 	if(vas->names[name_index].allocated || vas->names[name_index].aliased) {
 		/* if there's something already allocated or already aliased here, can't complete this operation */
+		printc("Index %d has something already allocated/aliased\n", name_index);
 		return -1;
 	}
 
 	/* 1: make sure there's an available mpk name */
 	if(mpk_key == 0 && ((mpk_key = crt_mpk_available_name(vas)) == -1)) {
-			return -1;
+		printc("No mpk names left\n");
+		return -1;
 	}
 	
 	/* 2: add comp to namespace  */
 	/* 2a: it's reserved and unallocated --> allocate! */
 	if(vas->names[name_index].reserved && !vas->names[name_index].allocated) {
+		printc("Index %d : allocating\n", name_index);
 		vas->names[name_index].allocated = 1;
 		vas->names[name_index].comp = c;
 	}
 	/* 2b: it's not reserved and not aliased  and comp is in an NS that's an ancestor of vas --> alias! */
-	else if(!vas->names[name_index].reserved && !vas->names[name_index].aliased && vas_ancestor(vas, c, name_index)) {
+	else if(!vas->names[name_index].reserved && !vas->names[name_index].aliased && vas_ancestor(vas->parent, c, name_index)) {
+		printc("Index %d : aliasing\n", name_index);
 		vas->names[name_index].aliased = 1;
 		vas->names[name_index].comp = c;
+	}
+	/* 2c: can't be aliased bc of ancestry */
+	else {
+		printc("Index %d : can't allocate or alias\n", name_index);
+		return -1;
 	}
 
 	/* 3: mark allocated for MPK key (if it already had one this just re-assigns) */
 	c->mpk_key = mpk_key;
 	vas->mpk_names[mpk_key].allocated = 1;
+
+	printc("After all checks\n");
 
 	/* 4: cons the 2nd level pgtbl node in c into the pgtbl node in vas */
 	if(cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl) != 0) {

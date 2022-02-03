@@ -117,19 +117,6 @@ comps_init(void)
 	}
 	boot_comp_set_idoffset(cos_compid());
 
-	/* allocate an ASID / VAS ns */
-	/* TODO: check # of NSs won't be too many: something like if (crt_nasid() > BOOTER_MAX_) */
-	
-	/* TODO: SHOULD THIS HAPPEN AFTER BOOTER COMP INIT? */
-	struct crt_ns_asid *ns_asid = ss_ns_asid_alloc();
-	ss_ns_asid_activate(ns_asid);
-	if(crt_ns_asids_init(ns_asid) != 0) BUG();
-
-	/* TODO: check # of NSs won't be too many: something like if (crt_nvas() > BOOTER_MAX_) */
-	struct crt_ns_vas *ns_vas = ss_ns_vas_alloc();
-	ss_ns_vas_activate(ns_vas);
-	if(crt_ns_vas_init(ns_vas, ns_asid) != 0) BUG();
-
 	ret = args_get_entry("components", &comps);
 	assert(!ret);
 	printc("Components (%d):\n", args_len(&comps));
@@ -172,14 +159,79 @@ comps_init(void)
 				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
 				BUG();
 			}
-			/* add the component to the VAS NS */
-			printc("about to allocate in the VAS\n");
-			if(crt_ns_vas_alloc_in(ns_vas, comp) != 0) {
-				BUG();
-			}	
+			// /* add the component to the VAS NS */
+			// printc("about to allocate in the VAS\n");
+			// if(crt_ns_vas_alloc_in(ns_vas, comp) != 0) {
+			// 	BUG();
+			// }	
 		}
 		assert(comp->refcnt != 0);
 	}
+
+	/* allocate an ASID / VAS ns */
+	/* TODO: check # of NSs won't be too many: something like if (crt_nasid() > BOOTER_MAX_) */
+	
+	/* TODO: SHOULD THIS HAPPEN AFTER BOOTER COMP INIT? */
+	struct crt_ns_asid *ns_asid = ss_ns_asid_alloc();
+	ss_ns_asid_activate(ns_asid);
+	if(crt_ns_asids_init(ns_asid) != 0) BUG();
+
+	/* TODO: check # of NSs won't be too many: something like if (crt_nvas() > BOOTER_MAX_) */
+	struct crt_ns_vas *ns_vas1 = ss_ns_vas_alloc();
+	ss_ns_vas_activate(ns_vas1);
+	if(crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
+
+	/* component 2 = index 5 */
+	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) {
+		printc("alloc in for component 2 in ns vas 1 failed\n");
+		BUG();
+	}
+
+	struct crt_ns_vas *ns_vas2 = ss_ns_vas_alloc();
+	ss_ns_vas_activate(ns_vas2);
+	if(crt_ns_vas_split(ns_vas2, ns_vas1, ns_asid) != 0) {
+		printc("split failed\n");
+		BUG();
+	}
+
+	/* component 3 fail to allocate in ns vas 1 */
+	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) == 0) {
+		printc("alloc in for component 3 worked, but should have failed\n");
+		BUG();
+	}
+
+	/* component 4 with index 6 --> allocated */
+	if(crt_ns_vas_alloc_in(ns_vas2, boot_comp_get(4)) != 0) {
+		printc("alloc in for component 4 in ns vas 2 failed\n");
+		BUG();
+	}
+
+	// struct crt_ns_vas *ns_vas3 = ss_ns_vas_alloc();
+	// ss_ns_vas_activate(ns_vas3);
+	// if(crt_ns_vas_init(ns_vas3, ns_asid) != 0) {
+	// 	printc("failed\n");
+	// 	BUG();
+	// }
+	// /* component 2 with index 5 --> NO alias */
+	// // if(crt_ns_vas_alloc_in(ns_vas3, boot_comp_get(2)) == 0) {
+	// // 	printc("alias for component 2 in ns vas 3 worked, when it shouldn't\n");
+	// // 	BUG();
+	// // }
+
+
+	/* component 5 with index 5 --> NO alias */
+	if(crt_ns_vas_alloc_in(ns_vas2, boot_comp_get(5)) == 0) {
+		printc("alias for component 5 in ns vas 2 worked, when it shouldn't\n");
+		BUG();
+	}
+
+	/* component 2 with index 5 --> aliased */
+	if(crt_ns_vas_alloc_in(ns_vas2, boot_comp_get(2)) != 0) {
+		printc("alias for component 2 in ns vas 2 failed\n");
+		BUG();
+	}
+
+
 
 	ret = args_get_entry("execute", &comps);
 	assert(!ret);
