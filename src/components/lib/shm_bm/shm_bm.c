@@ -85,10 +85,10 @@ shm_bm_next_free_word(word_t *bm, void *stop)
 static word_t
 shm_bm_npow2(word_t w)
 {
-	size_t s;
+	unsigned long s;
 
 	w--;
-	for (size_t s = 1; s < (sizeof (word_t) * CHAR_BIT); s *= 2) {
+	for (s = 1; s < (sizeof (word_t) * CHAR_BIT); s *= 2) {
 		w |= (w >> s);
 	}
 
