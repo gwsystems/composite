@@ -66,6 +66,14 @@ pongshmem_bench_map(cbuf_t shmid)
 	shm = shm_bm_map(shmid);
 }
 
+unsigned long global_word;
+
+void
+pongshmem_bench_syncinv(unsigned long word) 
+{
+	global_word = word;
+}
+
 void
 pongshmem_bench_objread(shm_bufid_t objid)
 {

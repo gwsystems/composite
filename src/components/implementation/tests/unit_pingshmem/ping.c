@@ -246,6 +246,21 @@ ping_test_refcnt(void)
 }
 
 void
+ping_bench_syncinv(void)
+{
+	ps_tsc_t         begin, end, bench;
+	int              i;
+
+	begin = ps_tsc();
+	for (i = 0; i < BENCH_ITER; i++) {
+		pongshmem_bench_syncinv((unsigned long) i);
+	}
+	end = ps_tsc();
+	bench = (end - begin) / BENCH_ITER;
+	PRINTLOG(PRINT_DEBUG, "BENCHMARK Regular syncronous invocation: %llu cycles\n", bench);
+}
+
+void
 ping_bench_msgpassing(void)
 {
 	shm_bm_t         shm;
@@ -279,7 +294,7 @@ main(void)
 	ping_test_bigfree();
 	ping_test_refcnt();
 
-
+	ping_bench_syncinv();
 	ping_bench_msgpassing();
 
 	return 0;
