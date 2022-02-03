@@ -5,6 +5,7 @@
 #include <shm_bm.h>
 
 struct obj_test {
+	int  id;
 	char string[16];
 };
 

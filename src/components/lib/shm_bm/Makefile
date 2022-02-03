@@ -4,7 +4,7 @@
 # The library names associated with .a files output that are linked
 # (via, for example, -lshm_bm) into dependents. This list should be
 # "shm_bm" for output files such as libshm_bm.a.
-LIBRARY_OUTPUT = shm_bm2
+LIBRARY_OUTPUT = shm_bm
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,

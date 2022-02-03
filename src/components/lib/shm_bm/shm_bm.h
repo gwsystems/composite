@@ -1,21 +1,39 @@
 #include <cos_types.h>
 #include <memmgr.h>
 
+/***
+ * `shm_bm` provides an interface for a slab-like allocator of a shared 
+ * memory pool to facilitate message passing between components. A shared
+ * memory region is instantiated with the ability to allocate objects of
+ * a fixed size. 
+ * 
+ * Internally, objects are stored in a power of 2 amount of space. This
+ * is to make resolving pointers from the bitmap faster using bit shits
+ * instead of multiplication and division. If an shared memory region is 
+ * created to allocate objects that are not of a power of 2 size, the size 
+ * of the object is rounded up to the nearest power of 2. 
+ * 
+ * The shared memory region is aligned in a component's VAS on a power
+ * of 2 boundry. This is in order to provide a free API that does not 
+ * require a reference to the shared memory header. To resolve the pointer
+ * to the shared memory region header from a pointer to an object in the
+ * region, the bits of the address that are less significant than the 
+ * allocation boundry are masked out. 
+ */
+
 /**
  * Opaque reference to the shared region to provide some abstraction. 
  * Functionally this is a pointer to the shared memory region's header.
- * This pointer is aligned on a power-of-2 boundary in order to provide
- * a free API that does not require a reference to the shared memory
- * header (see `shm_bm_obj_free`).
+ * This pointer is aligned on a power-of-2 boundary (see `shm_bm_obj_free`).
  */
 typedef unsigned long shm_bm_t;
 
 /**
  * An identifier to an allocated obj in the shared memory region. Allocating
  * an object from the shared memory region returns a `shm_bufid_t` that
- * identifies the object in the shared memory. Another component that is using
- * the shared memory region can use this identifer to get a pointer to the object
- * in the shared memory in their own address space.
+ * identifies the object in the shared memory. Another component that is 
+ * using the shared memory region can use this identifer to get a pointer to 
+ * the object in the shared memory in their own address space.
  */
 typedef unsigned int shm_bufid_t;
 
@@ -32,7 +50,7 @@ typedef unsigned int shm_bufid_t;
  *
  * @return: a cbuf_t to identify the shared memory. 0 on failure
  */
-cbuf_t shm_bm_create(shm_bm_t *shm, size_t objsz, size_t allocsz);
+cbuf_t shm_bm_create(shm_bm_t *shm, size_t objsz, int nobj);
 
 /**
  * Maps a shared memory region identified by `id` into this component's

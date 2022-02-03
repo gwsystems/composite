@@ -29,7 +29,7 @@ ping_test_objread(void)
 	int              i, failure; 
 	cbuf_t           id;
 
-	id = shm_bm_create(&shm, sizeof(struct obj_test), 4 * sizeof (struct obj_test));
+	id = shm_bm_create(&shm, sizeof(struct obj_test), 4);
 	PRINTLOG(PRINT_DEBUG, "%s: Shared memory allocation in ping\n", (id == 0) ? "FAILURE" : "SUCCESS");
 
 	pongshmem_test_map(id);
@@ -56,22 +56,36 @@ ping_test_objread(void)
 void
 ping_test_bigalloc(void)
 {
-	shm_bm_t    shm;
-	shm_bufid_t objid;
-	int         i;
-	int         failure = 0;
-	int         big_num = 1000;
+	int              big_num = 200;
+	struct obj_test* obj;
+	shm_bm_t         shm;
+	shm_bufid_t      objids[big_num];
+	int              i;
+	int              failure = 0;
 
-	shm_bm_create(&shm, sizeof(struct obj_test), big_num * sizeof (struct obj_test));
+	shm_bm_create(&shm, sizeof(struct obj_test), big_num);
 	for (i = 0; i < big_num; i++) {
-		if (shm_bm_obj_alloc(shm, &objid) == 0) {
+		if ((obj = shm_bm_obj_alloc(shm, objids+i)) == 0) {
 			failure = 1;
-			break;
+			goto bigallocdone;
+		}
+		obj->id = i;
+	}
+
+	for (i = 0; i < big_num; i++) {
+		if ((obj = shm_bm_obj_take(shm, objids[i])) == 0) {
+			failure = 1;
+			goto bigallocdone;
+		}
+		if (obj->id != i) {
+			failure = 1;
+			goto bigallocdone;
 		}
 	}
+bigallocdone:
 	PRINTLOG(PRINT_DEBUG, "%s: Ping can allocate from big shared buffer\n", (failure) ? "FAILURE" : "SUCCESS");
 	
-	failure = shm_bm_obj_alloc(shm, &objid) != 0;
+	failure = shm_bm_obj_alloc(shm, objids) != 0;
 	PRINTLOG(PRINT_DEBUG, "%s: Ping can't allocate from full big shared buffer\n", (failure) ? "FAILURE" : "SUCCESS");
 }
 
@@ -84,7 +98,7 @@ ping_test_objfree(void)
 	struct obj_test *obj1, *obj2;
 	int              failure, i;
 
-	shm_bm_create(&shm, sizeof (struct obj_test), 20 * sizeof (struct obj_test));
+	shm_bm_create(&shm, sizeof (struct obj_test), 20);
 
 	/* sanity check, allocate and free and object */
 	obj1 = shm_bm_obj_alloc(shm, &objid);
@@ -124,6 +138,68 @@ ping_test_objfree(void)
 	PRINTLOG(PRINT_DEBUG, "%s: Ping can free objects in the buffer and reuse them\n", (failure) ? "FAILURE" : "SUCCESS");
 }
 
+void
+ping_test_bigfree(void)
+{
+	int              big_num = 200;
+	struct obj_test* obj[big_num];
+	shm_bm_t         shm;
+	shm_bufid_t      objids[big_num];
+	int              i;
+	int              failure = 0;
+
+	shm_bm_create(&shm, sizeof(struct obj_test), big_num);
+	/* allocate whole buffer */
+	for (i = 0; i < big_num; i++) {
+		if ((obj[i] = shm_bm_obj_alloc(shm, objids+i)) == 0) {
+			failure = 1;
+			goto bigfreedone;
+		}
+		obj[i]->id = i;
+	}
+
+	/* check whole buffer */
+	for (i = 0; i < big_num; i++) {
+		if ((obj[i] = shm_bm_obj_take(shm, objids[i])) == 0) {
+			failure = 1;
+			goto bigfreedone;
+		}
+		if (obj[i]->id != i) {
+			failure = 1;
+			goto bigfreedone;
+		}
+	}
+
+	/* free whole buffer */
+	for (i = 0; i < big_num; i++) {
+		shm_bm_obj_free(obj[i]);
+	}
+
+	/* reallocate whole buffer */
+	for (i = 0; i < big_num; i++) {
+		if ((obj[i] = shm_bm_obj_alloc(shm, objids+i)) == 0) {
+			failure = 1;
+			goto bigfreedone;
+		}
+		obj[i]->id = -i;
+	}
+
+	/* recheck whole buffer */
+	for (i = 0; i < big_num; i++) {
+		if ((obj[i] = shm_bm_obj_take(shm, objids[i])) == 0) {
+			failure = 1;
+			goto bigfreedone;
+		}
+		if (obj[i]->id != -i) {
+			failure = 1;
+			goto bigfreedone;
+		}
+	}
+
+bigfreedone:
+	PRINTLOG(PRINT_DEBUG, "%s: Ping can free and reallocate from big shared buffer\n", (failure) ? "FAILURE" : "SUCCESS");
+}
+
 void 
 ping_test_refcnt(void)
 {
@@ -135,7 +211,7 @@ ping_test_refcnt(void)
 	const char      *teststr = "test string";
 
 	failure = 0;
-	id = shm_bm_create(&shm, sizeof (struct obj_test), 4 * sizeof (struct obj_test));
+	id = shm_bm_create(&shm, sizeof (struct obj_test), 4);
 	pongshmem_test_map(id);
 
 	/* allocate an object from the buffer */
@@ -179,7 +255,7 @@ ping_bench_msgpassing(void)
 	ps_tsc_t         begin, end, bench;
 	int              i;
 
-	id = shm_bm_create(&shm, sizeof (struct obj_test), BENCH_ITER * sizeof (struct obj_test));
+	id = shm_bm_create(&shm, sizeof (struct obj_test), BENCH_ITER);
 	pongshmem_bench_map(id);
 
 	begin = ps_tsc();
@@ -200,6 +276,7 @@ main(void)
 	ping_test_objread();
 	ping_test_bigalloc();
 	ping_test_objfree();
+	ping_test_bigfree();
 	ping_test_refcnt();
 
 
