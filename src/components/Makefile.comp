@@ -1,6 +1,6 @@
 # include ../../../Makefile.inc first!
 
-ARCH_CFLAGS =-m32 -D__x86__
+ARCH_CFLAGS =-m32 -D__x86__ -march=i686
 ARCH_ASFLAGS=$(ARCH_CFLAGS)
 ARCH_LDFLAGS=-melf_i386
 
@@ -21,14 +21,13 @@ OPT= -O3
 
 CFLAGS=$(ARCH_CFLAGS) -Wall -Wextra -Wno-unused-parameter -Wno-type-limits -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable $(CINC) $(MUSLINC) $(OPT) $(SHARED_FLAGS)
 CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
-LDFLAGS=$(ARCH_LDFLAGS) -no-pic
+LDFLAGS=$(ARCH_LDFLAGS)
 MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r
 ASFLAGS=$(ARCH_ASFLAGS) $(CINC) $(SHARED_FLAGS)
 
 GCC_PIE=$(shell gcc -v 2>&1 | grep -c "\--enable-default-pie")
 ifeq ($(GCC_PIE),1)
 MUSLCFLAGS+=-no-pie
-LDFLAGS+=-no-pie
 CFLAGS+=-fno-pie
 CXXFLAGS+=-fno-pie
 endif
