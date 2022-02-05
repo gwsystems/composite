@@ -2,7 +2,7 @@
 #include<cos_stdio.h>
 
 int
-cos_printc(char *fmt, va_list ap)
+cos_printc(const char *fmt, va_list ap)
 {
 	char    s[128];
 	size_t  ret, len = 128;
@@ -14,7 +14,7 @@ cos_printc(char *fmt, va_list ap)
 }
 
 int
-cos_printf(char *fmt,...)
+cos_printf(const char *fmt,...)
 {
 	va_list ap;
 	int ret;
