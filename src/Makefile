@@ -7,9 +7,14 @@ PLAT_FILE=.PLATFORM_ID
 
 default: | all
 
-all: composer comps plat
+all: comps plat composer
 
 composer:
+	@CAP_FREE=`gdb platform/$(shell cat $(PLAT_FILE))/boot_comp.o --eval-command="p /d BOOT_CAPTBL_FREE" --eval-command="quit" | grep "$\\$$1" | awk -F "= " '{print $$2}'`; \
+	LINE_NUM=`cat -n composer/src/resources.rs | grep "const BOOT_CAPTBL_FREE" | awk -F " " '{print $$1}'`; \
+	LINE_NUM=`echo $$LINE_NUM`; \
+	CAP_FREE=`echo $$CAP_FREE`; \
+	sed -i "$${LINE_NUM}cconst BOOT_CAPTBL_FREE: u32 = $${CAP_FREE}$\;" composer/src/resources.rs
 	cd composer/ ; cargo build
 
 component:

@@ -19,7 +19,7 @@ tss_init(const cpuid_t cpu_id)
 	tss[cpu_id].bitmap = 0xdfff;
 	tss[cpu_id].rsp0   = (((u64_t)&rsp & ~PGMASK) + PGSIZE - STK_INFO_OFF);
 
-	memset(kernel_stack_info, 0, sizeof(kernel_stack_info));
+	memset(&kernel_stack_info[cpu_id], 0, sizeof(struct kernel_stack_info));
 
 	kernel_stack_info[cpu_id].kernel_stack_addr = tss[cpu_id].rsp0;
 }

@@ -227,8 +227,8 @@ start_execution(coreid_t cid, int init_core, int ncores)
 			cos_parallel_init(cid, init_core, init_parallelism());
 		}
 		/* All initialization completed here, go onto main execution */
-		initialization_completed = 1;
 		COS_EXTERN_INV(init_done)(0, main_type);
+		initialization_completed = 1;
 	}
 	/* No main? we shouldn't have continued here... */
 	assert(main_type != INIT_MAIN_NONE);

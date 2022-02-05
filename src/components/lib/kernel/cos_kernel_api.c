@@ -155,10 +155,9 @@ cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier)
 		/* caprange_frontier should be rounded up to CAPTBL_EXPAND_SZ * 2 */
 		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ * 2) - CAPTBL_EXPAND_SZ;
 	}
-	ci->cap64_frontier = cap_frontier;
 
 	for (i = 0; i < NUM_CPU; i++) {
-		ci->cap16_frontier[i] = ci->cap32_frontier[i] = cap_frontier;
+		ci->cap16_frontier[i] = ci->cap32_frontier[i] = ci->cap64_frontier[i] = cap_frontier;
 	}
 }
 
@@ -409,7 +408,7 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 		frontier = &ci->cap32_frontier[cos_cpuid()];
 		break;
 	case CAP64B_IDSZ:
-		frontier = &ci->cap64_frontier;
+		frontier = &ci->cap64_frontier[cos_cpuid()];
 		break;
 	default:
 		return -1;

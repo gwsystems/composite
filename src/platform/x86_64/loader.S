@@ -315,6 +315,9 @@ smp_entry_64:
 	mov %rax, %gs
 	mov %rax, %ss
 
+	/* set up a kernel stack for smp_kmain */
+	movq    $RELOCATE_ADDR(smpstack), %rsp
+	movq    (%rsp), %rsp
 	xor %rsi, %rsi
 	xor %rdi, %rdi
 	movl multiboot_magic, %esi
@@ -322,7 +325,7 @@ smp_entry_64:
 	movabs $COS_MEM_KERN_START_VA, %rax
 	add %rax, %rdi
 
-	movabs $kmain, %rax
+	movabs $smp_kmain, %rax
 	pushq $0x08
 	pushq %rax
 	lretq
