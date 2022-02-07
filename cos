@@ -1,74 +1,170 @@
-#!/bin/sh
+#!/bin/bash
+
+set -e
 
 script=
 name=
 binary=
+arch=
+
+initialize()
+{
+	case ${arch} in
+		x86_64 )
+		;;
+		i386 )
+		;;
+		armv7a )
+		;;
+		* )
+		echo "Unsupported architecture"
+		exit 1
+	esac
+
+	echo "[cos setting arch] make -C src config-${arch}"
+	make -C src config-${arch} 
+
+	echo "[cos executing] make -C src config init"
+	make -C src init
+}
 
 build()
 {
-    if ! [ -r "src/.PLATFORM_ID" ]; then
-	echo "Must \"cos init\" before \"cos build\"."
-	exit 2
-    fi
+	if ! [ -r "src/.PLATFORM_ID" ]; then
+		echo "Must \"cos init\" before \"cos build\"."
+		exit 1
+	fi
 
-    echo "[cos executing] make -C src all"
-    make -C src all
+	echo "[cos executing] make -C src all"
+	make -C src all
 }
 
 clean()
 {
-    echo "[cos executing] make -C clean"
-    make -C src clean
-}
-
-initialize()
-{
-    echo "[cos executing] make -C src config init"
-    make -C src config init
-}
-
-usage()
-{
-    echo "Usage: " $0 " init|build|reset|compose <script> <output name>|run <binary>"
-    exit 2
+	echo "[cos executing] make -C src clean"
+	make -C src distclean
 }
 
 compose()
 {
-    if [ -z "$script" ] || [ -z "$name" ]; then
-	usage
-    fi
-    if ! [ -e "src/composer/target/debug/compose" ]; then
-	echo "Must \"cos build\" before composition. Could not find src/composer/target/debug/compose"
-	exit 2
-    fi
-    echo "[cos executing] src/composer/target/debug/compose $script $name"
-    src/composer/target/debug/compose $script $name
+	if [ -z "$script" ] || [ -z "$name" ]; then
+		usage
+	fi
+
+	if ! [ -e "src/composer/target/debug/compose" ]; then
+		echo "Must \"cos build\" before composition. Could not find src/composer/target/debug/compose"
+	exit 1
+	fi
+
+	echo "[cos executing] src/composer/target/debug/compose $script $name"
+	src/composer/target/debug/compose $script $name
+
+	local dir="system_binaries/cos_build-${name}"
+
+	tools/build_iso.sh ${dir}/cos.img
 }
 
 run()
 {
-    if [ -z "$binary" ]; then
-	usage
-    fi
+	local dir="./system_binaries/cos_build-${name}"
 
-    echo "[cos executing] tools/run.sh $binary"
-    tools/run.sh $binary
+	if [ ! -f ${dir}/cos.iso ]
+	then
+		echo "Cannot find cos.iso, please do compose first"
+		exit 1
+	fi
+
+	local elf_type=$(readelf -h ${dir}/cos.img | grep "Class:" | awk '{print $2}')
+	local machine=$(readelf -h ${dir}/cos.img | grep "Machine:" | awk '{print $2}')
+
+	if [ "${machine}" == "ARM" ]
+	then
+		./tools/arm_qemurun.sh all ${dir}
+		exit 0
+	fi
+
+	if [ "${elf_type}" == "ELF64" ]
+	then
+		tools/run.sh ${dir}/cos.iso x86_64
+	elif [ "${elf_type}" == "ELF32" ]
+	then
+		tools/run.sh ${dir}/cos.iso i386
+	else
+		echo "Unsupported image type: ${elf_type} !"
+	fi
+}
+
+debug_run()
+{
+	local dir="system_binaries/cos_build-${name}"
+	local gdbinit="system_binaries/gdbinit"
+
+	if [ ! -f ${dir}/cos.iso ]
+	then
+		echo "Cannot find cos.iso, please do compose first and check its name"
+		exit 1
+	fi
+
+	if [ ! -f ${gdbinit} ]
+	then
+		echo "set confirm off" > ${gdbinit}
+		echo "#file ${dir}/global.booter/no_interface.llbooter.global.booter" >> ${gdbinit}
+		echo "file ${dir}/cos.img" >> ${gdbinit}
+		echo "target remote:1234" >> ${gdbinit}
+	fi
+
+	local elf_type=$(readelf -h ${dir}/cos.img | grep "Class:" | awk '{print $2}')
+
+	if [ "${elf_type}" == "ELF64" ]
+	then
+		tools/run.sh ${dir}/cos.iso x86_64 debug
+	elif [ "${elf_type}" == "ELF32" ]
+	then
+		tools/run.sh ${dir}/cos.iso i386 debug
+	else
+		echo "Unsupported image type!"
+	fi
+}
+
+gdb()
+{
+	command gdb -x ./system_binaries/gdbinit
+}
+
+usage()
+{
+	echo "Usage: " $0 " init <arch: [x86_64|i386|armv7a]>|build|clean|compose <script> <output name>|run <composite name>|debug_run <composite name>|gdb"
+	exit 1
 }
 
 case $1 in
-    init )    initialize
-	      ;;
-    build )   build
-	      ;;
-    reset )   clean
-	      ;;
-    compose ) script=$2
-	      name=$3
-	      compose
-	      ;;
-    run )     binary=$2
-	      run
-	      ;;
-    * )       usage
+	init )
+		arch=$2
+		initialize
+		;;
+	build )
+		build
+		;;
+	clean )
+		clean
+		;;
+	compose )
+		script=$2
+		name=$3
+		compose
+		;;
+	run )
+		binary=$2
+		name=$2
+		run
+		;;
+	debug_run )
+		name=$2
+		debug_run
+		;;
+	gdb )
+		gdb
+		;;
+	* )
+		usage
 esac

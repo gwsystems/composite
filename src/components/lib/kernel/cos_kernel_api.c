@@ -17,6 +17,75 @@
 #define printd(...)
 #endif
 
+struct pgtbl_lvl_info {
+	unsigned long range;
+	vaddr_t (* round_to_pg)(vaddr_t );
+	vaddr_t (* round_up_to_pg)(vaddr_t );
+};
+
+vaddr_t __round_to_pgt0_page(vaddr_t vaddr) { return round_to_pgt0_page(vaddr); }
+vaddr_t __round_up_to_pgt0_page(vaddr_t vaddr) { return round_up_to_pgt0_page(vaddr); }
+
+vaddr_t __round_to_pgt1_page(vaddr_t vaddr) { return round_to_pgt1_page(vaddr); }
+vaddr_t __round_up_to_pgt1_page(vaddr_t vaddr) { return round_up_to_pgt1_page(vaddr); }
+
+vaddr_t __round_to_pgt2_page(vaddr_t vaddr) { return round_to_pgt2_page(vaddr); }
+vaddr_t __round_up_to_pgt2_page(vaddr_t vaddr) { return round_up_to_pgt2_page(vaddr); }
+
+unsigned long
+cos_pgtbl_get_range(int pgtbl_lvl)
+{
+	switch (pgtbl_lvl)
+	{
+	case 0:
+		return PGD_RANGE;
+	case 1:
+		return PGT1_RANGE;
+	case 2:
+		return PGT2_RANGE;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+vaddr_t
+cos_pgtbl_round_to_page(int pgtbl_lvl, vaddr_t vaddr)
+{
+	switch (pgtbl_lvl)
+	{
+	case 0:
+		return round_to_pgt0_page(vaddr);
+	case 1:
+		return round_to_pgt1_page(vaddr);
+	case 2:
+		return round_to_pgt2_page(vaddr);
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+vaddr_t
+cos_pgtbl_round_up_to_page(int pgtbl_lvl, vaddr_t vaddr)
+{
+	switch (pgtbl_lvl)
+	{
+	case 0:
+		return round_up_to_pgt0_page(vaddr);
+	case 1:
+		return round_up_to_pgt1_page(vaddr);
+	case 2:
+		return round_up_to_pgt2_page(vaddr);
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz, pgtblcap_t pgtbl_cap)
 {
@@ -34,13 +103,38 @@ __compinfo_metacap(struct cos_compinfo *ci)
 static inline void
 cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
 {
+	int pgtbl_lvl;
 	ci->vas_frontier = heap_ptr;
+
+#if defined(__x86_64__)
+	/*
+	 * The asumption here is that the last 4-k page lower than heap_ptr has been mapped ,
+	 * because loader loads the components into memory region lower than heap_ptr, so initially,
+	 * heap_ptr is set to be round_up_to_page(virtual address of component's binary frontier),
+	 * thus we can calculate which pate tables have been allocated, thus set corresponding page 
+	 * table frontiers.
+	 */
+	vaddr_t last_page = round_to_page(heap_ptr - 1);	
+
+	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
+		ci->vasrange_frontier[pgtbl_lvl] = cos_pgtbl_round_up_to_page(pgtbl_lvl, last_page);
+	}
+
+#else
 	/*
 	 * The first allocation should trigger PTE allocation, thus we
 	 * always round down to a PGD.
+	 *
+	 * FIXME: first allocation should if the heap_ptr is not contiguous with the
+	 *        component's allocated segments I'd think.
+	 *        I believe best would be to round up the heap_ptr? So you always start at
+	 *        a new PGD range, which means first allocation would trigger PTE allocation?
 	 */
-	ci->vasrange_frontier = round_to_pgd_page(heap_ptr);
-	assert(ci->vasrange_frontier == round_to_pgd_page(ci->vasrange_frontier));
+	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
+		ci->vasrange_frontier[pgtbl_lvl] = cos_pgtbl_round_up_to_page(pgtbl_lvl, heap_ptr);
+		assert(ci->vasrange_frontier[pgtbl_lvl] == round_to_pgd_page(ci->vasrange_frontier[pgtbl_lvl]));
+	}
+#endif
 }
 
 static inline void
@@ -61,10 +155,9 @@ cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier)
 		/* caprange_frontier should be rounded up to CAPTBL_EXPAND_SZ * 2 */
 		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ * 2) - CAPTBL_EXPAND_SZ;
 	}
-	ci->cap64_frontier = cap_frontier;
 
 	for (i = 0; i < NUM_CPU; i++) {
-		ci->cap16_frontier[i] = ci->cap32_frontier[i] = cap_frontier;
+		ci->cap16_frontier[i] = ci->cap32_frontier[i] = ci->cap64_frontier[i] = cap_frontier;
 	}
 }
 
@@ -315,7 +408,7 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 		frontier = &ci->cap32_frontier[cos_cpuid()];
 		break;
 	case CAP64B_IDSZ:
-		frontier = &ci->cap64_frontier;
+		frontier = &ci->cap64_frontier[cos_cpuid()];
 		break;
 	default:
 		return -1;
@@ -326,7 +419,7 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 /**************** [User Virtual Memory Allocation Functions] ****************/
 
 static pgtblcap_t
-__bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, pgtblcap_t intern)
+__bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, pgtblcap_t intern, int lvl)
 {
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 	capid_t              pte_cap;
@@ -336,6 +429,7 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
 
 	if (!intern) {
+		/* if no pte cap, we activate here, and then we hook/cos this new allocated page table into its parent */
 		pte_cap    = __capid_bump_alloc(meta, CAP_PGTBL);
 		ptemem_cap = __kmem_bump_alloc(meta);
 		/* TODO: handle the case of running out of memory */
@@ -344,11 +438,11 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 			return 0;
 		}
 
-		/* PTE */
+		/* Current pgtbl is lvl-th, we would like to activate its next lvl page, so we use lvl + 1 */
 		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, pte_cap, meta->mi.pgtbl_cap, ptemem_cap,
-		                1)) {
-			assert(0); /* race? */
-			return 0;
+		                lvl + 1)) {
+				assert(0); /* race? */
+				return 0;
 		}
 	} else {
 		pte_cap = intern;
@@ -372,16 +466,28 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 }
 
 static vaddr_t
-__bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
+__bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz, int pgtbl_lvl)
 {
-	vaddr_t addr;
+	vaddr_t addr, range;
+	assert(pgtbl_lvl >=0 && pgtbl_lvl < COS_PGTBL_DEPTH - 1);
 
-	for (addr = mem_ptr; addr < mem_ptr + mem_sz; addr += PGD_RANGE) {
-		/* ignore errors likely due to races here as we want to keep expanding regardless */
-		if (__bump_mem_expand_intern(ci, cipgtbl, addr, 0) == 0) return 0;
+
+#if defined(__x86_64__)
+	vaddr_t tmp_frontier;
+	range		= cos_pgtbl_get_range(pgtbl_lvl);;
+	tmp_frontier	= cos_pgtbl_round_up_to_page(pgtbl_lvl, mem_ptr + mem_sz);
+
+	for (addr = mem_ptr; addr < tmp_frontier; addr += range) {
+		if (__bump_mem_expand_intern(ci, cipgtbl, addr, 0, pgtbl_lvl) == 0) return 0;
 	}
 
+#else
+	for (addr = mem_ptr; addr < mem_ptr + mem_sz; addr += PGD_RANGE) {
+		/* ignore errors likely due to races here as we want to keep expanding regardless */
+		if (__bump_mem_expand_intern(ci, cipgtbl, addr, 0, 0) == 0) return 0;
+	}
 	assert(round_up_to_pgd_page(addr) == round_up_to_pgd_page(mem_ptr + mem_sz));
+#endif
 
 	return mem_ptr;
 }
@@ -389,7 +495,7 @@ __bump_mem_expand_range(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem
 vaddr_t
 cos_pgtbl_intern_alloc(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t mem_ptr, unsigned long mem_sz)
 {
-	return __bump_mem_expand_range(ci, cipgtbl, mem_ptr, mem_sz);
+	return __bump_mem_expand_range(ci, cipgtbl, mem_ptr, mem_sz, 0);
 }
 
 pgtblcap_t
@@ -397,20 +503,22 @@ cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int lvl)
 {
 	pgtblcap_t cap;
 
+#if defined(__x86_64__)
 	assert(lvl > 0);
+#endif
 
 	ps_lock_take(&ci->va_lock);
-	if (ci->vasrange_frontier != round_to_pgd_page(mem_ptr)) goto error;
+	if (ci->vasrange_frontier[lvl] != round_to_pgd_page(mem_ptr)) goto error;
 
-	cap = __bump_mem_expand_intern(ci, ci->pgtbl_cap, mem_ptr, 0);
+	cap = __bump_mem_expand_intern(ci, ci->pgtbl_cap, mem_ptr, 0, 0);
 	if (!cap) goto error;
 
 	while (1) {
-		vaddr_t tmp = ps_load(&ci->vasrange_frontier);
+		vaddr_t tmp = ps_load(&ci->vasrange_frontier[lvl]);
 
 		if (tmp >= mem_ptr + PGD_RANGE) break;
 		/* If someone else beats us to this, then the range has been extended anyway */
-		ps_cas(&ci->vasrange_frontier, tmp, tmp + PGD_RANGE);
+		ps_cas(&ci->vasrange_frontier[lvl], tmp, tmp + PGD_RANGE);
 	}
 
 	ps_lock_release(&ci->va_lock);
@@ -425,12 +533,12 @@ int
 cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem)
 {
 	ps_lock_take(&ci->va_lock);
-	if (ci->vasrange_frontier != round_to_pgd_page(mem)) goto error;
+	if (ci->vasrange_frontier[0] != round_to_pgd_page(mem)) goto error;
 
-	if ((unsigned long)ps_faa(&ci->vasrange_frontier, PGD_RANGE) > round_to_pgd_page(mem)) goto error;
+	if ((unsigned long)ps_faa(&ci->vasrange_frontier[0], PGD_RANGE) > round_to_pgd_page(mem)) goto error;
 	if ((unsigned long)ps_faa(&ci->vas_frontier, PGD_RANGE) > round_to_pgd_page(mem)) goto error;
 
-	if (__bump_mem_expand_intern(ci, ci->pgtbl_cap, mem, intern) != intern) {
+	if (__bump_mem_expand_intern(ci, ci->pgtbl_cap, mem, intern, 0) != intern) {
 		ps_lock_release(&ci->va_lock);
 		return 1;
 	}
@@ -446,13 +554,22 @@ error:
 static void
 __cos_meminfo_populate(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz)
 {
-	vaddr_t              addr, start_addr, retaddr;
+	vaddr_t		addr, start_addr, retaddr;
+	size_t		pgtbl_lvl;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 
 	assert(untyped_ptr == round_up_to_pgd_page(untyped_ptr));
-	assert(untyped_sz == round_up_to_pgd_page(untyped_sz));
 
-	retaddr = __bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz);
+#if defined(__x86_64__)
+	for(pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
+		retaddr = __bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz, pgtbl_lvl);
+		assert(retaddr);
+	}
+#else
+
+	assert(untyped_sz == round_up_to_pgd_page(untyped_sz));
+	retaddr = __bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz, 0);
+#endif
 	assert(retaddr == untyped_ptr);
 
 	ps_lock_take(&ci->mem_lock);
@@ -481,19 +598,42 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 {
 	vaddr_t              heap_vaddr, retaddr;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
-	size_t               rounded;
+	size_t               rounded, pgtbl_lvl;
 
-	printd("__page_bump_alloc\n");
+	printd("__page_bump_mem_alloc\n");
 
 	assert(sz % PAGE_SIZE == 0);
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
-	heap_vaddr = ps_faa(mem_addr, sz);        /* allocate our memory addresses */
+	heap_vaddr = ps_faa(mem_addr, sz);        /* allocate our memory addresses */	
+
+#if defined(__x86_64__)
+	/* Just need to map COS_PGTBL_DEPTH - 1 levels page tables, assuming root page table is already there */
+	for(pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
+		if (heap_vaddr + sz > ci->vasrange_frontier[pgtbl_lvl]) {
+			retaddr = __bump_mem_expand_range(ci, ci->pgtbl_cap, heap_vaddr, sz, pgtbl_lvl);
+			assert(retaddr);
+
+			while (1) {
+				vaddr_t tmp = ps_load(&ci->vasrange_frontier[pgtbl_lvl]);
+				vaddr_t tmp_frontier;
+
+				tmp_frontier = cos_pgtbl_round_up_to_page(pgtbl_lvl, heap_vaddr + sz);;
+
+				/* perhaps another thread already advanced the frontier? */
+				if (tmp >= heap_vaddr + sz) break;
+				/* If this fails, then someone else already expanded for us...win! */
+				ps_cas(&ci->vasrange_frontier[pgtbl_lvl], tmp, tmp_frontier);
+			}
+		}
+	}
+	
+#else
 	rounded    = sz + (heap_vaddr - round_to_pgd_page(heap_vaddr));
 
 	/* Do we not need to allocate PTEs? */
 	if (heap_vaddr + sz <= *mem_frontier) return heap_vaddr;
+	retaddr = __bump_mem_expand_range(ci, ci->pgtbl_cap, round_up_to_pgd_page(heap_vaddr), rounded, 0);
 
-	retaddr = __bump_mem_expand_range(ci, ci->pgtbl_cap, round_to_pgd_page(heap_vaddr), rounded);
 	assert(retaddr);
 
 	while (1) {
@@ -506,6 +646,7 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 	}
 	assert(*mem_frontier > heap_vaddr);
 
+#endif
 	return heap_vaddr;
 }
 
@@ -515,7 +656,7 @@ __page_bump_valloc(struct cos_compinfo *ci, size_t sz)
 	vaddr_t ret_addr = 0;
 
 	ps_lock_take(&ci->va_lock);
-	ret_addr = __page_bump_mem_alloc(ci, &ci->vas_frontier, &ci->vasrange_frontier, sz);
+	ret_addr = __page_bump_mem_alloc(ci, &ci->vas_frontier, &ci->vasrange_frontier[0], sz);
 	ps_lock_release(&ci->va_lock);
 
 	return ret_addr;
@@ -551,7 +692,7 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz)
 		if (!umem) return 0;
 
 		/* Actually map in the memory. */
-		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, 0)) {
+		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, PAGE_ORDER)) {
 			assert(0);
 			return 0;
 		}
@@ -704,6 +845,7 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 	pgtblcap_t  ptc;
 	captblcap_t ctc;
 	compcap_t   compc;
+	int pgtbl_lvl;
 
 	printd("cos_compinfo_alloc\n");
 
@@ -715,6 +857,11 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 	assert(compc);
 
 	cos_compinfo_init(ci, ptc, ctc, compc, heap_ptr, cap_frontier, ci_resources);
+
+	/* This is to make sure that "the address below vas_frontier has been allocated, follow the assumption we put in cos_vasfrontier_init()"*/
+	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
+		__bump_mem_expand_intern(ci, ptc, round_to_page(ci->vas_frontier - 1), 0, pgtbl_lvl);
+	}
 
 	return 0;
 }
@@ -733,24 +880,6 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, inv
 	if (call_cap_op(srcci->captbl_cap, CAPTBL_OP_SINVACTIVATE, cap, dstcomp, entry, token)) BUG();
 
 	return cap;
-}
-
-int
-cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
-{
-	return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4);
-}
-
-int
-cos_sinv_rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2, word_t *ret3)
-{
-	return call_cap_retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret1, ret2, ret3);
-}
-
-int
-cos_sinv_2rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2)
-{
-	return call_cap_2retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret1, ret2);
 }
 
 /*
@@ -875,8 +1004,12 @@ cos_sched_sync(void)
 int
 cos_switch(thdcap_t c, tcap_t tc, tcap_prio_t prio, tcap_time_t timeout, arcvcap_t rcv, sched_tok_t stok)
 {
+#if defined(__x86_64__)
+	return call_cap_op(c, tc, stok, prio, rcv, timeout);
+#else
 	return call_cap_op(c, (stok >> 16), tc << 16 | rcv, (prio << 32) >> 32,
 	                   (((prio << 16) >> 48) << 16) | ((stok << 16) >> 16), timeout);
+#endif
 }
 
 int
@@ -942,7 +1075,7 @@ cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t s
 	first_dst = dst;
 
 	for (i = 0; i < sz; i += PAGE_SIZE, src += PAGE_SIZE, dst += PAGE_SIZE) {
-		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) return 0;
+		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, PAGE_ORDER)) return 0;
 	}
 
 	return first_dst;
@@ -959,7 +1092,24 @@ cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *s
 {
 	assert(srcci && dstci);
 
-	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, 0)) BUG();
+	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, PAGE_ORDER)) BUG();
+
+	return 0;
+}
+
+int
+cos_mem_alias_atn(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, size_t sz)
+{
+	size_t i;
+	size_t npages;
+
+	assert(srcci && dstci);
+	assert(sz % PAGE_SIZE == 0);
+
+	npages = sz / PAGE_SIZE;
+	for (i=0; i < npages; i++) {
+		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src + i * PAGE_SIZE, dstci->pgtbl_cap, dst + i * PAGE_SIZE, PAGE_ORDER)) BUG();
+	}
 
 	return 0;
 }
@@ -1001,7 +1151,7 @@ cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *sr
 int
 cos_thd_mod(struct cos_compinfo *ci, thdcap_t tc, void *tlsaddr)
 {
-	return call_cap_op(ci->captbl_cap, CAPTBL_OP_THDTLSSET, tc, (int)tlsaddr, 0, 0);
+	return call_cap_op(ci->captbl_cap, CAPTBL_OP_THDTLSSET, tc, (long)tlsaddr, 0, 0);
 }
 
 /* FIXME: problems when we got to 64 bit systems with the return value */
@@ -1077,6 +1227,36 @@ cos_hw_cycles_per_usec(hwcap_t hwc)
 	while (cycs <= 0) cycs = call_cap_op(hwc, CAPTBL_OP_HW_CYC_USEC, 0, 0, 0, 0);
 
 	return cycs;
+}
+
+int
+cos_hw_tlb_lockdown(hwcap_t hwc, unsigned long entryid, unsigned long vaddr, unsigned long paddr)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_TLB_LOCKDOWN, entryid, vaddr, paddr, 0);
+}
+
+int
+cos_hw_l1flush(hwcap_t hwc)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_L1FLUSH, 0, 0, 0, 0);
+}
+
+int
+cos_hw_tlbflush(hwcap_t hwc)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_TLBFLUSH, 0, 0, 0, 0);
+}
+
+int
+cos_hw_tlbstall(hwcap_t hwc)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_TLBSTALL, 0, 0, 0, 0);
+}
+
+int
+cos_hw_tlbstall_recount(hwcap_t hwc)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_TLBSTALL_RECOUNT, 0, 0, 0, 0);
 }
 
 int

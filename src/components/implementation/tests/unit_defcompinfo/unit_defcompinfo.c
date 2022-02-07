@@ -32,7 +32,7 @@ struct cos_aep_info test_aep[TEST_NAEPS];
 static void
 aep_thd_fn(arcvcap_t rcv, void *data)
 {
-	printc("\tSwitched to aep %d\n", (int)data);
+	printc("\tSwitched to aep %lu\n", (word_t)data);
 	while (1) {
 		cos_rcv(rcv, 0, NULL);
 	}
@@ -41,7 +41,8 @@ aep_thd_fn(arcvcap_t rcv, void *data)
 static void
 test_aeps(void)
 {
-	int                  i, ret;
+	word_t               i;
+	int                  ret;
 	int                  blocked;
 	cycles_t             cycs;
 	thdid_t              tid;
@@ -54,7 +55,7 @@ test_aeps(void)
 	for (i = 0; i < TEST_NAEPS; i++) {
 		asndcap_t snd;
 
-		printc("\tCreating AEP [%d]\n", i);
+		printc("\tCreating AEP [%lu]\n", i);
 		ret = cos_aep_tcap_alloc(&(test_aep[i]), BOOT_CAPTBL_SELF_INITTCAP_BASE, aep_thd_fn, (void *)i);
 		assert(ret == 0);
 

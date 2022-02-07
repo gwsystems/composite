@@ -131,8 +131,8 @@ Using GDB with QEMU, we can step through the kernel code line by line and check 
 To start to use GDB, we should add `-S` and `-s` options to QEMU, `-S` make QEMU stop when startup,
 and `-s` open the `gdbserver` for QEMU on TCP port 1234. After that, we then can start GDB by typing `gdb` in the command line to open it.
 
-After GDB starts, it will prompt the banner and gdb command line:
-
+After GDB starts, it will prompt the banner and gdb command line:  
+(Hint: steps below have been automatically done by our `cos` command, you can use `./cos debug_run $your_build_name` and `./cos gdb` to bgein gdb debug in Qemu)
 ```bash
 GNU gdb (Ubuntu 8.1.1-0ubuntu1) 8.1.1
 Copyright (C) 2018 Free Software Foundation, Inc.

@@ -61,7 +61,7 @@ LIBRARY_DEPENDENCIES = component
 # init: clean all
 # distclean: clean
 
-.PHONY: all clean distclean init
+.PHONY: all clean distclean init i386_init x86_64_init
 
 all:
 clean:
@@ -77,4 +77,20 @@ distclean: clean
 	@make -C ./libstdc++-v3-4.8 clean
 	rm -f *.o *.a
 
-init: libsupc++.a libstdc++.a
+i386_init:
+	$(info Building libcxx for i386...)
+	make LIBCXX_ARCH=-m32 -C ./libstdc++-v3-4.8/libsupc++
+	make LIBCXX_ARCH=-m32 -C ./libstdc++-v3-4.8
+
+x86_64_init:
+	$(info Building libcxx for x86_64...)
+	make LIBCXX_ARCH=-m64 -C ./libstdc++-v3-4.8/libsupc++
+	make LIBCXX_ARCH=-m64 -C ./libstdc++-v3-4.8
+
+armv7a_init:
+	$(info Building libcxx for armv7-a...)
+	$(info This is not supported currently, abort...)
+	# make CXX=arm-none-eabi-g++  -C ./libstdc++-v3-4.8/libsupc++
+	# make CXX=arm-none-eabi-g++  -C ./libstdc++-v3-4.8
+
+init: $(PLATFORM)_init

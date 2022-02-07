@@ -6,25 +6,10 @@
 #include "isr.h"
 #include "chal_cpu.h"
 
-#define PRINTK(format, ...) printk("(CPU%ld:) " format, get_cpuid(), ## __VA_ARGS__)
-
-void
-print_regs_state(struct pt_regs *regs)
-{
-	PRINTK("registers:\n");
-	PRINTK("General registers-> EAX: %x, EBX: %x, ECX: %x, EDX: %x\n", regs->ax, regs->bx, regs->cx, regs->dx);
-	PRINTK("Segment registers-> CS: %x, DS: %x, ES: %x, FS: %x, GS: %x, SS: %x\n", regs->cs, regs->ds, regs->es,
-	       regs->fs, regs->gs, regs->ss);
-	PRINTK("Index registers-> ESI: %x, EDI: %x, EIP: %x, ESP: %x, EBP: %x\n", regs->si, regs->di, regs->ip,
-	       regs->sp, regs->bp);
-	PRINTK("Indicator-> EFLAGS: %x\n", regs->flags);
-	PRINTK("(Exception Error Code-> ORIG_AX: %x)\n", regs->orig_ax);
-}
-
 int
 div_by_zero_err_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: Divide by Zero Error\n\n");
 
 	return 1;
@@ -33,7 +18,7 @@ div_by_zero_err_fault_handler(struct pt_regs *regs)
 int
 debug_trap_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("TRAP: Debug\n");
 
 	return 1;
@@ -42,7 +27,7 @@ debug_trap_handler(struct pt_regs *regs)
 int
 breakpoint_trap_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("TRAP: Breakpoint\n");
 
 	return 1;
@@ -51,7 +36,7 @@ breakpoint_trap_handler(struct pt_regs *regs)
 int
 overflow_trap_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("TRAP: Overflow\n");
 
 	return 1;
@@ -60,7 +45,7 @@ overflow_trap_handler(struct pt_regs *regs)
 int
 bound_range_exceed_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: Bound Range Exceeded\n");
 
 	return 1;
@@ -69,7 +54,7 @@ bound_range_exceed_fault_handler(struct pt_regs *regs)
 int
 invalid_opcode_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: Invalid opcode\n");
 
 	return 1;
@@ -78,7 +63,7 @@ invalid_opcode_fault_handler(struct pt_regs *regs)
 int
 device_not_avail_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: Device Not Available\n");
 
 	return 1;
@@ -87,7 +72,7 @@ device_not_avail_fault_handler(struct pt_regs *regs)
 int
 double_fault_abort_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("ABORT: Double Fault\n");
 
 	return 1;
@@ -96,7 +81,7 @@ double_fault_abort_handler(struct pt_regs *regs)
 int
 invalid_tss_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: Invalid TSS\n");
 
 	return 1;
@@ -105,7 +90,7 @@ invalid_tss_fault_handler(struct pt_regs *regs)
 int
 seg_not_present_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: Segment Not Present\n");
 
 	return 1;
@@ -114,7 +99,7 @@ seg_not_present_fault_handler(struct pt_regs *regs)
 int
 stack_seg_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: Stack Segment Fault\n");
 
 	return 1;
@@ -123,7 +108,7 @@ stack_seg_fault_handler(struct pt_regs *regs)
 int
 gen_protect_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: General Protection Fault\n");
 
 	return 1;
@@ -132,19 +117,19 @@ gen_protect_fault_handler(struct pt_regs *regs)
 int
 page_fault_handler(struct pt_regs *regs)
 {
-	u32_t                      fault_addr, errcode = 0, eip = 0;
+	unsigned long                      fault_addr = 0, errcode = 0, ip = 0;
 	struct cos_cpu_local_info *ci    = cos_cpu_local_info();
 	thdid_t                    thdid = thd_current(ci)->tid;
 
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	fault_addr = chal_cpu_fault_vaddr(regs);
 	errcode    = chal_cpu_fault_errcode(regs);
-	eip        = chal_cpu_fault_ip(regs);
+	ip        = chal_cpu_fault_ip(regs);
 
-	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%x, ip 0x%x\n", thdid,
+	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%p, ip 0x%p\n", thdid,
 	    errcode & PGTBL_PRESENT ? "present" : "not-present",
 	    errcode & PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & PGTBL_USER ? "user-mode" : "system",
-	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, eip);
+	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, ip);
 
 	return 1;
 }
@@ -152,7 +137,7 @@ page_fault_handler(struct pt_regs *regs)
 int
 x87_float_pt_except_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: x87 Floating-point Exception\n");
 
 	return 1;
@@ -161,7 +146,7 @@ x87_float_pt_except_fault_handler(struct pt_regs *regs)
 int
 align_check_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: Alignment Check\n");
 
 	return 1;
@@ -170,7 +155,7 @@ align_check_fault_handler(struct pt_regs *regs)
 int
 machine_check_abort_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("ABORT: Machine Check\n");
 
 	return 1;
@@ -179,7 +164,7 @@ machine_check_abort_handler(struct pt_regs *regs)
 int
 smid_float_pt_except_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: SMID Floating-point Exception\n");
 
 	return 1;
@@ -188,7 +173,7 @@ smid_float_pt_except_fault_handler(struct pt_regs *regs)
 int
 virtualization_except_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: Virtualization Exception\n");
 
 	return 1;
@@ -197,7 +182,7 @@ virtualization_except_fault_handler(struct pt_regs *regs)
 int
 security_except_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 	die("FAULT: Security Exception\n");
 
 	return 1;

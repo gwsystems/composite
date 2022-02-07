@@ -19,7 +19,7 @@
 volatile int* null_ptr = NULL;
 #define ABORT() do {int i = *null_ptr;} while(0)
 
-#define SYSCALLS_NUM 378
+#define SYSCALLS_NUM 500
 
 typedef long (*cos_syscall_t)(long a, long b, long c, long d, long e, long f);
 cos_syscall_t cos_syscalls[SYSCALLS_NUM];
@@ -291,7 +291,7 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 		return -1;
 	}
 
-	struct sl_thd * thd = sl_thd_alloc((cos_thd_fn_t) func, arg);
+	struct sl_thd * thd = sl_thd_alloc((cos_thd_fn_t)func, arg);
 	if (tls) {
 		setup_thread_area(thd, tls);
 	}
@@ -362,7 +362,7 @@ struct sl_lock futex_lock = SL_LOCK_STATIC_INIT();
 int
 cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct timespec *timeout)
 {
-	cycles_t   deadline;
+	cycles_t   deadline = 0;
 	microsec_t wait_time;
 	struct futex_waiter waiter = (struct futex_waiter) {
 		.thdid = sl_thdid()
@@ -479,7 +479,6 @@ syscall_emulation_setup(void)
 	libc_syscall_override((cos_syscall_t)cos_writev, __NR_writev);
 	libc_syscall_override((cos_syscall_t)cos_ioctl, __NR_ioctl);
 	libc_syscall_override((cos_syscall_t)cos_brk, __NR_brk);
-	libc_syscall_override((cos_syscall_t)cos_mmap, __NR_mmap);
 	libc_syscall_override((cos_syscall_t)cos_mmap, __NR_mmap2);
 	libc_syscall_override((cos_syscall_t)cos_munmap, __NR_munmap);
 	libc_syscall_override((cos_syscall_t)cos_madvise, __NR_madvise);
@@ -492,7 +491,10 @@ syscall_emulation_setup(void)
 
 	libc_syscall_override((cos_syscall_t)cos_gettid, __NR_gettid);
 	libc_syscall_override((cos_syscall_t)cos_tkill, __NR_tkill);
+#if defined(__x86__)
+	libc_syscall_override((cos_syscall_t)cos_mmap, __NR_mmap);
 	libc_syscall_override((cos_syscall_t)cos_set_thread_area, __NR_set_thread_area);
+#endif
 	libc_syscall_override((cos_syscall_t)cos_set_tid_address, __NR_set_tid_address);
 	libc_syscall_override((cos_syscall_t)cos_clone, __NR_clone);
 	libc_syscall_override((cos_syscall_t)cos_futex, __NR_futex);

@@ -507,6 +507,7 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 
 	sched_param_get(sp, &type, &value);
 
+	sl_cs_enter();
 	switch (type) {
 	case SCHEDP_WINDOW:
 	{
@@ -523,6 +524,7 @@ sl_thd_param_set(struct sl_thd *t, sched_param_t sp)
 	}
 
 	sl_mod_thd_param_set(sl_mod_thd_policy_get(t), type, value);
+	sl_cs_exit();
 }
 
 void
@@ -560,7 +562,7 @@ void
 sl_init_cpubmp(microsec_t period, u32_t *cpubmp)
 {
 	int i;
-	static volatile int first    = 1, init_done = 0;
+	static volatile long long int first    = 1, init_done = 0;
 	struct cos_defcompinfo *dci  = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci   = cos_compinfo_get(dci);
 	struct sl_global_cpu   *g    = sl__globals_cpu();
@@ -572,7 +574,7 @@ sl_init_cpubmp(microsec_t period, u32_t *cpubmp)
 		ps_faa((unsigned long *)&init_done, 1);
 	} else {
 		/* wait until global ring buffers are initialized correctly! */
-		while (!ps_load((unsigned long *)&init_done)) ;
+		while (!ps_load(&init_done)) ;
 		/* make sure this scheduler is active on this cpu/core */
 		assert(sl_cpu_active());
 	}

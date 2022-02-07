@@ -7,7 +7,7 @@
 #include "kernel_tests.h"
 
 static int      failure = 0;
-struct perfdata result;
+static struct perfdata result;
 struct results  result_sinv;
 
 #define ARRAY_SIZE 10000
@@ -34,6 +34,7 @@ call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
          */
         cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 
+#if defined(__x86__)
         __asm__ __volatile__("pushl %%ebp\n\t"
                              "movl %%esp, %%ebp\n\t"
                              "movl %%esp, %%edx\n\t"
@@ -45,6 +46,34 @@ call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
                              : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3)
                              : "memory", "cc", "ecx", "edx");
 
+#elif defined(__x86_64__)
+        __asm__ __volatile__("pushq %%rbp\n\t"
+                             "mov %%rsp, %%rbp\n\t"
+                             "mov %%rsp, %%rdx\n\t"
+                             "mov $1f, %%r8\n\t"
+                             "syscall\n\t"
+                             "1:\n\t"
+                             "pop %%rbp"
+                             : "=a"(ret)
+                             : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3)
+                             : "memory", "cc", "rcx", "rdx", "r8", "r9", "r11", "r12");
+
+#elif defined(__arm__)
+
+	__asm__ __volatile__("ldr r1,%[_cap_no]\n\t"
+			     "ldr r2,%[_arg1]\n\t"
+			     "ldr r3,%[_arg2]\n\t"
+			     "ldr r4,%[_arg3]\n\t"
+			     "mov r5, #0\n\t"
+			     "svc #0x00\n\t"
+			     "str r0, %[_ret]\n\t"
+			     : [ _ret ] "=m"(ret)
+			     : [ _cap_no ] "m"(cap_no), [ _arg1 ] "m"(arg1), [ _arg2 ] "m"(arg2), [ _arg3 ] "m"(arg3)
+			     : "memory", "cc", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "lr");
+
+#else 
+	assert(0);
+#endif
         return ret;
 }
 
@@ -61,29 +90,23 @@ test_inv(void)
 
         cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
         if (EXPECT_LL_LT(1, cc, "Invocation: Cannot Allocate")) return;
-        ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0);
+        ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0xdead);
         if (EXPECT_LL_LT(1, ic, "Invocation: Cannot Allocate")) return;
 
         r = call_cap_mb(ic, 1, 2, 3);
         if (EXPECT_LLU_NEQ(0xDEADBEEF, r, "Test Invocation")) return;
+	perfcntr_init(); /* 32bit counter, so resetting before every benchmark */
 
         for (i = 0; i < ITER; i++) {
-                rdtscll(start_cycles);
+                start_cycles = ps_tsc();
                 call_cap_mb(ic, 1, 2, 3);
-                rdtscll(end_cycles);
+                end_cycles = ps_tsc();
 
                 perfdata_add(&result, end_cycles - start_cycles);
         }
 
         perfdata_calc(&result);
-        result_sinv.avg = perfdata_avg(&result);
-        result_sinv.max = perfdata_avg(&result);
-        result_sinv.min = perfdata_avg(&result);
-        result_sinv.sz = perfdata_avg(&result);
-        result_sinv.sd = perfdata_avg(&result);
-        result_sinv.p90tile = perfdata_avg(&result);
-        result_sinv.p95tile = perfdata_avg(&result);
-        result_sinv.p99tile = perfdata_avg(&result);
+	results_save(&result_sinv, &result);
 
         CHECK_STATUS_FLAG();
         PRINTC("\t%s: \t\tSuccess\n", "Synchronous Invocations");

@@ -15,13 +15,14 @@
 #include <cos_kernel_api.h>
 #include <cos_types.h>
 
+#include <c_stub.h>
+
 /*
  * Macros for defining C stubs for the client and server. These
  * functions are called through the PLT-like level of indirection on
  * interface functions that ensure the the invocation information
  * (struct usr_inv_cap) which includes the capability id.
  */
-#define COS_CLIENT_STUB(_type, _client_fn) __attribute__((regparm(1))) _type __cosrt_c_##_client_fn
 
 /*
  * Note that this provides the complete prototype as it is fixed for
@@ -29,7 +30,7 @@
  */
 #define COS_SERVER_STUB(_type, _server_fn)				\
 _type									\
-__cosrt_s_cstub_##_server_fn##(word_t p0, word_t p1, word_t p2, word_t p3, word_t *r1, word_t *r2)
+__cosrt_s_cstub_##_server_fn(word_t p0, word_t p1, word_t p2, word_t p3, word_t *r1, word_t *r2)
 
 #define COS_SERVER_3RET_STUB(_type, _server_fn)			\
 _type								\

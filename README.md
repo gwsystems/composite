@@ -13,7 +13,7 @@ more information.
 Branches
 --------
 
-- `master` is the original system with a full user-level set of components.
+- `main` is the original system with a full user-level set of components.
 - `ppos` is the Speck kernel emphasizing scalable predictability.
 - `tcaps` has mainly been integrated into `ppos`, but a few unrelated pieces remain.
 
@@ -37,7 +37,8 @@ _Composite_ system support
 --------------------------
 
 - x86-32
-- Qemu with 32 bit, x86 support
+- x86-64
+- Qemu with 32/64 bit, x86 support
 
 Important note
 --------------

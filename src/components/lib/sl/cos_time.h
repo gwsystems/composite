@@ -38,7 +38,10 @@ time_usec2cyc(microsec_t usec)
 static inline cycles_t
 time_now(void)
 {
-	return ps_tsc();
+	cycles_t now;
+	rdtscll(now);
+
+	return now;
 }
 
 static inline microsec_t

@@ -2,8 +2,9 @@
 #include <cos_stubs.h>
 #include <memmgr.h>
 
-COS_CLIENT_STUB(cbuf_t, memmgr_shared_page_allocn)(struct usr_inv_cap *uc, unsigned long num_pages, vaddr_t *pgaddr)
+COS_CLIENT_STUB(cbuf_t, memmgr_shared_page_allocn, unsigned long num_pages, vaddr_t *pgaddr)
 {
+	COS_CLIENT_INVCAP;
 	word_t unused, addrret;
 	cbuf_t ret;
 
@@ -13,8 +14,9 @@ COS_CLIENT_STUB(cbuf_t, memmgr_shared_page_allocn)(struct usr_inv_cap *uc, unsig
 	return ret;
 }
 
-COS_CLIENT_STUB(unsigned long, memmgr_shared_page_map)(struct usr_inv_cap *uc, cbuf_t id, vaddr_t *pgaddr)
+COS_CLIENT_STUB(unsigned long, memmgr_shared_page_map, cbuf_t id, vaddr_t *pgaddr)
 {
+	COS_CLIENT_INVCAP;
 	word_t unused, addrret;
 	unsigned long ret;
 

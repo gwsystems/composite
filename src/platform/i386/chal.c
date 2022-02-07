@@ -12,18 +12,6 @@ u32_t        chal_msr_mhz = 0;
 paddr_t chal_kernel_mem_pa;
 
 void *
-chal_pa2va(paddr_t address)
-{
-	return (void *)(address + COS_MEM_KERN_START_VA);
-}
-
-paddr_t
-chal_va2pa(void *address)
-{
-	return (paddr_t)(address - COS_MEM_KERN_START_VA);
-}
-
-void *
 chal_alloc_kern_mem(int order)
 {
 	return mem_kmem_start();
@@ -52,6 +40,40 @@ void
 chal_khalt(void)
 {
 	khalt();
+}
+
+int
+chal_tlb_lockdown(unsigned long entryid, unsigned long vaddr, unsigned long paddr)
+{
+	return 0;
+}
+
+int
+chal_l1flush(void)
+{
+	/* TODO */
+	return 0;
+}
+
+int
+chal_tlbflush(int a)
+{
+	/* TODO */
+	return 0;
+}
+
+int
+chal_tlbstall(void)
+{
+	/* TODO */
+	return 0;
+}
+
+int
+chal_tlbstall_recount(int a)
+{
+	/* TODO */
+	return 0;
 }
 
 void
@@ -101,12 +123,15 @@ chal_init(void)
 	printk("]\n");
 
 	chal_cpuid(0x16, &a, &b, &c, &d);
+	/* FIXME: on x86_64, need to do cpuid twice to get frequency, don't know why */
+	chal_cpuid(0x16, &a, &b, &c, &d);
 	a = (a << 16) >> 16;
 	if (a) {
 		printk("\tCPUID base frequency: %d (* 1Mhz)\n", a);
 		printk("\tCPUID max  frequency: %d (* 1Mhz)\n", (b << 16) >> 16);
 	}
 
+	/* FIXME: on x86_64, cannot get platform info on qemu */
 	readmsr(MSR_PLATFORM_INFO, &a, &b);
 	a = (a >> 8) & ((1<<7)-1);
 	if (a) {

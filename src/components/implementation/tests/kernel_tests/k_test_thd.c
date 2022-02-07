@@ -13,7 +13,7 @@ test_thd_arg(void *d)
 {
         int ret = 0;
 
-        if (EXPECT_LL_NEQ((int)d, THD_ARG, "Thread Creation: Argument Incorrect")) failure = 1;
+        if (EXPECT_LL_NEQ((word_t)d, THD_ARG, "Thread Creation: Argument Incorrect")) failure = 1;
         while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
         PRINTC("Error, shouldn't get here!\n");
 }
@@ -42,7 +42,7 @@ thd_fn_mthds_ring(void *d)
 {
         int ret;
 
-        if (count != (int) d) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
+        if (count != (word_t)d) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
 
         int next = (++count) % TEST_NTHDS;
         if (!next) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
@@ -66,9 +66,10 @@ thd_fn_mthds_ring(void *d)
 static void
 test_mthds_ring(void)
 {
-        int   i, ret;
+        word_t	i;
+        int	ret;
 
-        count = 0;
+        count	= 0;
 
         for (i = 0; i < TEST_NTHDS; i++) {
                 thd_test[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_mthds_ring, (void *)i);
@@ -129,11 +130,13 @@ test_mthds_classic(void)
 static void
 thd_tls(void *d)
 {
+#if defined(__x86__)
         if (EXPECT_LLU_NEQ((long unsigned)tls_get(0), (long unsigned)tls_test[cos_cpuid()][(int)d],
                             "Thread TLS: ARG not correct")) failure = 1;
         while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
         EXPECT_LL_NEQ(1, 0, "Error, shouldn't get here!\n");
         assert(0);
+#endif
 }
 
 /* Test the TLS support
@@ -142,6 +145,7 @@ thd_tls(void *d)
 static void
 test_thds_tls(void)
 {
+#if defined(__x86__)
         thdcap_t ts[TEST_NTHDS];
         intptr_t i;
         int      ret;
@@ -160,6 +164,7 @@ test_thds_tls(void)
         CHECK_STATUS_FLAG();
         PRINTC("\t%s: \t\t\tSuccess\n", "THD => Creation & TLS");
         EXIT_FN();
+#endif
 }
 
 void

@@ -12,6 +12,17 @@
 #include <sl_blkpt.h>
 
 int
+sched_thd_yield_to(thdid_t t)
+{
+	spdid_t c = cos_inv_token();
+
+	if (!c || !sched_childinfo_find(c)) return -1;
+	sl_thd_yield(t);
+
+	return 0;
+}
+
+int
 sched_thd_wakeup(thdid_t t)
 {
 	spdid_t c = cos_inv_token();
