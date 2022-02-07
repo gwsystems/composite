@@ -9,7 +9,7 @@ INTERFACE_EXPORTS =
 INTERFACE_DEPENDENCIES = init memmgr pongshmem
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = shm_bm
+LIBRARY_DEPENDENCIES = shm_bm shm_bm_static
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this
