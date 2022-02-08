@@ -94,6 +94,7 @@ chanmgr_mem_resources(chan_id_t id, cbuf_t *cb_id, void **mem)
 	chinfo = ss_channel_get(id);
 	if (!chinfo) return -1;
 
+	*mem   = (void *)chinfo->mem;
 	*cb_id = chinfo->buf_id;
 
 	return 0;
@@ -149,9 +150,12 @@ struct init_info {
 	        .itemsz = _sz				\
 	}
 
+/* These are the initial channels - do not modify parameters! */
 struct init_info init_chan[] = {
 	CHAN_INIT(1, 128, sizeof(u64_t)),
 	CHAN_INIT(2, 128, sizeof(u64_t)),
+	CHAN_INIT(3, 2, sizeof(u32_t)),
+	CHAN_INIT(4, 2, sizeof(u32_t)),
 	CHAN_INIT(0, 0, 0),
 };
 
@@ -160,7 +164,7 @@ cos_init(void)
 {
 	int i;
 
-	printc("Chanmgr (%ld): creating static, initial channels\n", cos_compid());
+	printc("Chanmgr (%ld): creating static, initial channels.\n", cos_compid());
 
 	for (i = 0; init_chan[i].id > 0; i++) {
 		struct init_info *ch = &init_chan[i];

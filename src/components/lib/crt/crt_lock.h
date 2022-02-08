@@ -21,7 +21,7 @@ struct crt_lock {
 };
 
 #define CRT_LOCK_OWNER_BLKED_BITS (sizeof(unsigned long) * 8)
-#define CRT_LOCK_BLKED_MASK       (1 << (CRT_LOCK_OWNER_BLKED_BITS - 2))
+#define CRT_LOCK_BLKED_MASK       (1UL << (CRT_LOCK_OWNER_BLKED_BITS - 2))
 #define CRT_LOCK_BLKED(e)         ((e) &  CRT_LOCK_BLKED_MASK)
 #define CRT_LOCK_OWNER(e)         ((e) & ~CRT_LOCK_BLKED_MASK)
 

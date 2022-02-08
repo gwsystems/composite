@@ -124,7 +124,7 @@ comps_init(void)
 
 		assert(id < MAX_NUM_COMPS && id > 0 && name);
 
-		memset(path, 0, INITARGS_MAX_PATHNAME + 1);
+		memset(path, 0, INITARGS_MAX_PATHNAME);
 		strncat(path, root, len + 1);
 		assert(path[len] == '\0');
 		strncat(path, name, INITARGS_MAX_PATHNAME - len);

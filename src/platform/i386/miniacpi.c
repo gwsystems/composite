@@ -3,8 +3,8 @@
 #include "mem_layout.h"
 #include "pgtbl.h"
 
-#define RSDP_LO_ADDRESS ((unsigned char *)0xc00E0000)
-#define RSDP_HI_ADDRESS ((unsigned char *)0xc00FFFFF)
+#define RSDP_LO_ADDRESS ((unsigned char *)(0x000E0000 + COS_MEM_KERN_START_VA))
+#define RSDP_HI_ADDRESS ((unsigned char *)(0x000FFFFF + COS_MEM_KERN_START_VA))
 #define RSDP_ALIGNMENT (16)
 
 struct rsdp {
@@ -33,7 +33,7 @@ struct rsdt {
 	u32_t        oemrevision;
 	u32_t        creatorid;
 	u32_t        creatorrevision;
-	paddr_t      entry[0];
+	u32_t        entry[0];
 } __attribute__((packed));
 
 static struct rsdt *rsdt;
@@ -66,7 +66,9 @@ acpi_find_rsdt(void)
 	}
 
 	if (!rsdp) return NULL;
-
+	printk("\tRDST paddr is @ %p\n", rsdp->rsdtaddress);
+	printk("\tRSDP lenth is :%u\n", rsdp->length);
+	printk("\tXSDT paddr is @ %p\n", rsdp->xsdtaddress);
 	rsdt_pa = (paddr_t)rsdp->rsdtaddress;
 	return device_map_mem(rsdt_pa, 0);
 }
@@ -93,13 +95,37 @@ acpi_chk_header(void *ptr, const char *sig)
 	return 0;
 }
 
+void
+acpi_iterate_tbs(void)
+{
+	size_t  i;
+	size_t entries = (rsdt->head.len - sizeof(struct rsdt)) / 4;
+
+	#define SDT_NAME_SZ 5
+	char name[SDT_NAME_SZ];
+
+	memset(name, 0, SDT_NAME_SZ);
+
+	printk("Supported System Description Tables\n");
+	for (i = 0; i < entries; i++) {
+		struct rsdt *e = (struct rsdt *)device_pa2va(rsdt->entry[i]);
+
+		if (!e) {
+			e = device_map_mem((u32_t)rsdt->entry[i], 0);
+			assert(e);
+		}
+		
+		memcpy(name, e->head.sig, SDT_NAME_SZ - 1);
+		printk("\t%s\n", name);
+	}
+}
 
 static void *
 acpi_find_resource_flags(const char *res_name, pgtbl_flags_t flags)
 {
 	size_t  i;
-
-	for (i = 0; i < (rsdt->head.len - sizeof(struct rsdt)) / sizeof(struct rsdt *); i++) {
+	size_t entries = (rsdt->head.len - sizeof(struct rsdt)) / 4;
+	for (i = 0; i < entries; i++) {
 		struct rsdt *e = (struct rsdt *)device_pa2va(rsdt->entry[i]);
 
 		if (!e) {
@@ -108,7 +134,7 @@ acpi_find_resource_flags(const char *res_name, pgtbl_flags_t flags)
 			 * as the resources should be on the same
 			 * super-page as the parent rsdt.
 			 */
-			e = device_map_mem(rsdt->entry[i], flags);
+			e = device_map_mem((u32_t)rsdt->entry[i], flags);
 			assert(e);
 		}
 		if (!acpi_chk_header(e, res_name)) return e;
@@ -143,9 +169,9 @@ acpi_find_apic(void)
 struct facp {
 	struct acpi_header head;
 	u8_t   _unneeded1[40 - 8]; /* see offsets in spec */
-	paddr_t dsdt;
+	u32_t  dsdt;
 	char   _unneeded2[48 - 44];
-	paddr_t smi_cmd;
+	u32_t  smi_cmd;
 	u8_t   acpi_enable;
 	u8_t   acpi_disable;
 	char   unneeded3[64 - 54];
@@ -324,6 +350,9 @@ acpi_init(void)
 		printk("\tCould not find the ACPI RSDT; not using ACPI.");
 		return; 	/* No acpi? */
 	}
+
+	printk("\tRSDT vaddr is @ %p\n", rsdt);
+	acpi_iterate_tbs();
 
 	timer = acpi_find_timer();
 	if (timer) {

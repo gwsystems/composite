@@ -24,7 +24,11 @@
 
 #define CAPTBL_DEPTH 2
 #define CAPTBL_INTERNSZ (sizeof(int *))
-#define CAPTBL_INTERN_ORD 9 /* log(PAGE_SIZE/(2*(CAPTBL_DEPTH-1)*CAPTBL_INTERNSZ)) */
+#if defined(__WORD_SIZE_64__)
+	#define CAPTBL_INTERN_ORD 8 /* log(PAGE_SIZE/(2*(CAPTBL_DEPTH-1)*CAPTBL_INTERNSZ)) */
+#else
+	#define CAPTBL_INTERN_ORD 9
+#endif
 #define CAPTBL_LEAFSZ (sizeof(struct cap_min))
 #define CAPTBL_LEAF_ORD 7 /* log(PAGE_SIZE/(2*CAPTBL_LEAFSZ)) */
 
@@ -71,7 +75,7 @@ struct cap_header {
 	cap_flags_t flags : CAP_HEAD_FLAGS_SZ;
 	cap_t       type : CAP_HEAD_TYPE_SZ;
 
-	u8_t post[0];
+	u8_t post[];
 } __attribute__((packed));
 
 struct cap_min {
@@ -246,13 +250,22 @@ captbl_lkup(struct captbl *t, capid_t cap)
 }
 
 static inline int
-__captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
+__captbl_store_32(u32_t *addr, u32_t new, u32_t old)
 {
-	if (!cos_cas(addr, old, new)) return -1;
+	if (!cos_cas_32(addr, old, new)) { return -1; }
 
 	return 0;
 }
-#define CTSTORE(a, n, o) __captbl_store((unsigned long *)a, *(unsigned long *)n, *(unsigned long *)o)
+
+#define CTSTORE(a, n, o) \
+	({                            \
+		int tmp_ret = 0;     \
+		u32_t *tmp_n = n;   \
+		u32_t *tmp_o = o;   \
+		tmp_ret = __captbl_store_32((u32_t *)a, *tmp_n, *tmp_o); \
+		tmp_ret; \
+	})
+
 #define cos_throw(label, errno) \
 	{                       \
 		ret = (errno);  \
@@ -305,7 +318,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 
 		rdtscll(curr_ts);
 		header_i = h;
-		n_ent    = CACHELINE_SIZE / ent_size;
+		n_ent    = CACHELINE_SIZE >> (l.size + CAP_SZ_OFF);
 		for (i = 0; i < n_ent; i++) {
 			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));
 
@@ -343,7 +356,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 		l.type        = type;
 		l.liveness_id = 0;
 	}
-	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
+	if (CTSTORE(h, (u32_t *)&l,(u32_t *)&o)) cos_throw(err, -EEXIST); /* commit */
 
 	/* FIXME: same as above */
 	if (p != h) {
@@ -407,7 +420,7 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 		l.type = CAP_QUIESCENCE;
 	}
 
-	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
+	if (CTSTORE(h, (u32_t *)&l, (u32_t *)&o)) cos_throw(err, -EEXIST); /* commit */
 err:
 	return ret;
 }
@@ -453,7 +466,7 @@ captbl_prune(struct captbl *t, capid_t cap, u32_t depth, int *retval)
 	if (unlikely(!intern)) cos_throw(err, -EPERM);
 	p   = *intern;
 	new = (unsigned long)CT_DEFINITVAL;
-	if (CTSTORE(intern, &new, &p)) cos_throw(err, -EEXIST); /* commit */
+	if (CTSTORE(intern, (u32_t*)&new, (u32_t *)&p)) cos_throw(err, -EEXIST); /* commit */
 done:
 	*retval = ret;
 	return (void *)p;
@@ -489,6 +502,7 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
 
 int captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr);
+int captbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl);
 int captbl_kmem_scan(struct cap_captbl *cap);
 
 static void

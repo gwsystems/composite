@@ -19,8 +19,13 @@ static inline cycles_t
 tsc(void)
 {
 	unsigned long long ret;
-
-	__asm__ __volatile__("rdtsc" : "=A"(ret));
+	
+	#if defined(__x86_64__)
+		__asm__ __volatile__("rdtsc; shl $32, %%rdx; or %%rdx, %0" : "=a"(ret)::"rdx");
+	#elif defined(__i386__)
+		__asm__ __volatile__("rdtsc" : "=A"(ret));
+	#endif
+	
 
 	return ret;
 }
@@ -84,11 +89,11 @@ cos_cpu_local_info(void)
 static inline int
 get_cpuid(void)
 {
-	if (NUM_CPU > 1) {
-		return cos_cpu_local_info()->cpuid;
-	}
-
+#if NUM_CPU == 1
 	return 0;
+#endif
+
+	return cos_cpu_local_info()->cpuid;
 }
 
 #endif /* CPUID_H */

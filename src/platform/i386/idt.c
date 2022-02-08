@@ -1,7 +1,7 @@
 #include "kernel.h"
 #include "string.h"
 #include "isr.h"
-#include "chal/io.h"
+#include "chal/shared/cos_io.h"
 
 /* Information taken from: http://wiki.osdev.org/PIC */
 /* FIXME:  Remove magic numbers and replace with this */
@@ -34,28 +34,36 @@ struct idt_entry {
 	u8_t  zero;    // Must always be zero
 	u8_t  flags;   // flags
 	u16_t base_hi; // Upper 16 bits of addres to jump too
+	#if defined(__x86_64__)
+	u64_t base_hi_64; //x64
+	#endif
 } __attribute__((packed));
 
 struct idt_ptr {
 	u16_t limit;
-	u32_t base; // Addres of first element
+	unsigned long base; // Addres of first element
 } __attribute__((packed));
 
 // Always must be 256
 #define NUM_IDT_ENTRIES 256
 
-extern void idt_flush(u32_t);
-
 struct idt_entry idt_entries[NUM_IDT_ENTRIES];
 struct idt_ptr   idt_ptr;
 
+static void 
+idt_flush(struct idt_ptr * idt_ptr_addr){
+	__asm__ __volatile__("lidt %0" : :"m"(*idt_ptr_addr)); 
+}
+
 static void
-idt_set_gate(u8_t num, u32_t base, u16_t sel, u8_t flags)
+idt_set_gate(u8_t num, unsigned long base, u16_t sel, u8_t flags)
 {
 	int cpu_id = get_cpuid();
 	idt_entries[num].base_lo = base & 0xFFFF;
 	idt_entries[num].base_hi = (base >> 16) & 0xFFFF;
-
+#if defined(__x86_64__)
+	idt_entries[num].base_hi_64 = (base >> 32) & 0x00000000ffffffff;
+#endif
 	idt_entries[num].sel  = sel;
 	idt_entries[num].zero = 0;
 
@@ -96,7 +104,7 @@ void
 idt_init(const cpuid_t cpu_id)
 {
 	idt_ptr.limit = (sizeof(struct idt_entry) * NUM_IDT_ENTRIES) - 1;
-	idt_ptr.base  = (u32_t)&(idt_entries);
+	idt_ptr.base  = (unsigned long)&(idt_entries);
 	memset(&(idt_entries), 0, sizeof(struct idt_entry) * NUM_IDT_ENTRIES);
 
 	outb(0x20, 0x11);
@@ -110,69 +118,61 @@ idt_init(const cpuid_t cpu_id)
 	outb(0x21, 0x0);
 	outb(0xA1, 0x0);
 
-	idt_set_gate(IRQ_DIV_BY_ZERO_ERR_FAULT, (u32_t)div_by_zero_err_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_DEBUG_TRAP, (u32_t)debug_trap_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_BREAKPOINT_TRAP, (u32_t)breakpoint_trap_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_OVERFLOW_TRAP, (u32_t)overflow_trap_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_BOUND_RANGE_EXCEED_FAULT, (u32_t)bound_range_exceed_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_INVALID_OPCODE_FAULT, (u32_t)invalid_opcode_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_DEVICE_NOT_AVAIL_FAULT, (u32_t)device_not_avail_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_DOUBLE_FAULT_ABORT, (u32_t)double_fault_abort_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_INVALID_TSS_FAULT, (u32_t)invalid_tss_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_SEG_NOT_PRESENT_FAULT, (u32_t)seg_not_present_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_STACK_SEG_FAULT, (u32_t)stack_seg_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_GEN_PROTECT_FAULT, (u32_t)gen_protect_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_PAGE_FAULT, (u32_t)page_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_X87_FLOAT_PT_EXCEPT_FAULT, (u32_t)x87_float_pt_except_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_ALIGN_CHECK_FAULT, (u32_t)align_check_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_MACHINE_CHECK_ABORT, (u32_t)machine_check_abort_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_SMID_FLOAT_PT_EXCEPT_FAULT, (u32_t)smid_float_pt_except_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_VIRTUALIZATION_EXCEPT_FAULT, (u32_t)virtualization_except_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_SECURITY_EXCEPT_FAULT, (u32_t)security_except_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_DIV_BY_ZERO_ERR_FAULT, (unsigned long)div_by_zero_err_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_DEBUG_TRAP, (unsigned long)debug_trap_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_BREAKPOINT_TRAP, (unsigned long)breakpoint_trap_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_OVERFLOW_TRAP, (unsigned long)overflow_trap_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_BOUND_RANGE_EXCEED_FAULT, (unsigned long)bound_range_exceed_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_INVALID_OPCODE_FAULT, (unsigned long)invalid_opcode_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_DEVICE_NOT_AVAIL_FAULT, (unsigned long)device_not_avail_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_DOUBLE_FAULT_ABORT, (unsigned long)double_fault_abort_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_INVALID_TSS_FAULT, (unsigned long)invalid_tss_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_SEG_NOT_PRESENT_FAULT, (unsigned long)seg_not_present_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_STACK_SEG_FAULT, (unsigned long)stack_seg_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_GEN_PROTECT_FAULT, (unsigned long)gen_protect_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_PAGE_FAULT, (unsigned long)page_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_X87_FLOAT_PT_EXCEPT_FAULT, (unsigned long)x87_float_pt_except_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_ALIGN_CHECK_FAULT, (unsigned long)align_check_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_MACHINE_CHECK_ABORT, (unsigned long)machine_check_abort_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_SMID_FLOAT_PT_EXCEPT_FAULT, (unsigned long)smid_float_pt_except_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_VIRTUALIZATION_EXCEPT_FAULT, (unsigned long)virtualization_except_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_SECURITY_EXCEPT_FAULT, (unsigned long)security_except_fault_irq, 0x08, 0x8E);
 
-	idt_set_gate(HW_PERIODIC, (u32_t)periodic_irq, 0x08, 0x8E);
-	idt_set_gate(HW_KEYBOARD, (u32_t)keyboard_irq, 0x08, 0x8E);
-	idt_set_gate(HW_ID3, (u32_t)handler_hw_34, 0x08, 0x8E);
-	idt_set_gate(HW_ID4, (u32_t)handler_hw_35, 0x08, 0x8E);
-	idt_set_gate(HW_SERIAL, (u32_t)serial_irq, 0x08, 0x8E);
-	idt_set_gate(HW_ID6, (u32_t)handler_hw_37, 0x08, 0x8E);
-	idt_set_gate(HW_ID7, (u32_t)handler_hw_38, 0x08, 0x8E);
-	idt_set_gate(HW_ID8, (u32_t)handler_hw_39, 0x08, 0x8E);
-	idt_set_gate(HW_ONESHOT, (u32_t)oneshot_irq, 0x08, 0x8E);
-	idt_set_gate(HW_ID10, (u32_t)handler_hw_41, 0x08, 0x8E);
-	idt_set_gate(HW_ID11, (u32_t)handler_hw_42, 0x08, 0x8E);
-	idt_set_gate(HW_ID12, (u32_t)handler_hw_43, 0x08, 0x8E);
-	idt_set_gate(HW_ID13, (u32_t)handler_hw_44, 0x08, 0x8E);
-	idt_set_gate(HW_ID14, (u32_t)handler_hw_45, 0x08, 0x8E);
-	idt_set_gate(HW_ID15, (u32_t)handler_hw_46, 0x08, 0x8E);
-	idt_set_gate(HW_ID16, (u32_t)handler_hw_47, 0x08, 0x8E);
-	idt_set_gate(HW_ID17, (u32_t)handler_hw_48, 0x08, 0x8E);
-	idt_set_gate(HW_ID18, (u32_t)handler_hw_49, 0x08, 0x8E);
-	idt_set_gate(HW_ID19, (u32_t)handler_hw_50, 0x08, 0x8E);
-	idt_set_gate(HW_ID20, (u32_t)handler_hw_51, 0x08, 0x8E);
-	idt_set_gate(HW_ID21, (u32_t)handler_hw_52, 0x08, 0x8E);
-	idt_set_gate(HW_ID22, (u32_t)handler_hw_53, 0x08, 0x8E);
-	idt_set_gate(HW_ID23, (u32_t)handler_hw_54, 0x08, 0x8E);
-	idt_set_gate(HW_ID24, (u32_t)handler_hw_55, 0x08, 0x8E);
-	idt_set_gate(HW_ID25, (u32_t)handler_hw_56, 0x08, 0x8E);
-	idt_set_gate(HW_ID26, (u32_t)handler_hw_57, 0x08, 0x8E);
-	idt_set_gate(HW_ID27, (u32_t)handler_hw_58, 0x08, 0x8E);
-	idt_set_gate(HW_ID28, (u32_t)handler_hw_59, 0x08, 0x8E);
-	idt_set_gate(HW_ID29, (u32_t)handler_hw_60, 0x08, 0x8E);
-	idt_set_gate(HW_ID30, (u32_t)handler_hw_61, 0x08, 0x8E);
-	idt_set_gate(HW_ID31, (u32_t)handler_hw_62, 0x08, 0x8E);
-	idt_set_gate(HW_LAPIC_SPURIOUS, (u32_t)lapic_spurious_irq, 0x08, 0x8E);
-	idt_set_gate(HW_LAPIC_IPI_ASND, (u32_t)lapic_ipi_asnd_irq, 0x08, 0x8E);
-	idt_set_gate(HW_LAPIC_TIMER, (u32_t)lapic_timer_irq, 0x08, 0x8E);
-
-	struct {
-		unsigned short length;
-		unsigned long  base;
-	} __attribute__((__packed__)) idtr;
-
-	idtr.length = idt_ptr.limit;
-	idtr.base   = (unsigned long)(&(idt_entries));
+	idt_set_gate(HW_PERIODIC, (unsigned long)periodic_irq, 0x08, 0x8E);
+	idt_set_gate(HW_KEYBOARD, (unsigned long)keyboard_irq, 0x08, 0x8E);
+	idt_set_gate(HW_ID3, (unsigned long)handler_hw_34, 0x08, 0x8E);
+	idt_set_gate(HW_ID4, (unsigned long)handler_hw_35, 0x08, 0x8E);
+	idt_set_gate(HW_SERIAL, (unsigned long)serial_irq, 0x08, 0x8E);
+	idt_set_gate(HW_ID6, (unsigned long)handler_hw_37, 0x08, 0x8E);
+	idt_set_gate(HW_ID7, (unsigned long)handler_hw_38, 0x08, 0x8E);
+	idt_set_gate(HW_ID8, (unsigned long)handler_hw_39, 0x08, 0x8E);
+	idt_set_gate(HW_ONESHOT, (unsigned long)oneshot_irq, 0x08, 0x8E);
+	idt_set_gate(HW_ID10, (unsigned long)handler_hw_41, 0x08, 0x8E);
+	idt_set_gate(HW_ID11, (unsigned long)handler_hw_42, 0x08, 0x8E);
+	idt_set_gate(HW_ID12, (unsigned long)handler_hw_43, 0x08, 0x8E);
+	idt_set_gate(HW_ID13, (unsigned long)handler_hw_44, 0x08, 0x8E);
+	idt_set_gate(HW_ID14, (unsigned long)handler_hw_45, 0x08, 0x8E);
+	idt_set_gate(HW_ID15, (unsigned long)handler_hw_46, 0x08, 0x8E);
+	idt_set_gate(HW_ID16, (unsigned long)handler_hw_47, 0x08, 0x8E);
+	idt_set_gate(HW_ID17, (unsigned long)handler_hw_48, 0x08, 0x8E);
+	idt_set_gate(HW_ID18, (unsigned long)handler_hw_49, 0x08, 0x8E);
+	idt_set_gate(HW_ID19, (unsigned long)handler_hw_50, 0x08, 0x8E);
+	idt_set_gate(HW_ID20, (unsigned long)handler_hw_51, 0x08, 0x8E);
+	idt_set_gate(HW_ID21, (unsigned long)handler_hw_52, 0x08, 0x8E);
+	idt_set_gate(HW_ID22, (unsigned long)handler_hw_53, 0x08, 0x8E);
+	idt_set_gate(HW_ID23, (unsigned long)handler_hw_54, 0x08, 0x8E);
+	idt_set_gate(HW_ID24, (unsigned long)handler_hw_55, 0x08, 0x8E);
+	idt_set_gate(HW_ID25, (unsigned long)handler_hw_56, 0x08, 0x8E);
+	idt_set_gate(HW_ID26, (unsigned long)handler_hw_57, 0x08, 0x8E);
+	idt_set_gate(HW_ID27, (unsigned long)handler_hw_58, 0x08, 0x8E);
+	idt_set_gate(HW_ID28, (unsigned long)handler_hw_59, 0x08, 0x8E);
+	idt_set_gate(HW_ID29, (unsigned long)handler_hw_60, 0x08, 0x8E);
+	idt_set_gate(HW_ID30, (unsigned long)handler_hw_61, 0x08, 0x8E);
+	idt_set_gate(HW_ID31, (unsigned long)handler_hw_62, 0x08, 0x8E);
+	idt_set_gate(HW_LAPIC_SPURIOUS, (unsigned long)lapic_spurious_irq, 0x08, 0x8E);
+	idt_set_gate(HW_LAPIC_IPI_ASND, (unsigned long)lapic_ipi_asnd_irq, 0x08, 0x8E);
+	idt_set_gate(HW_LAPIC_TIMER, (unsigned long)lapic_timer_irq, 0x08, 0x8E);
 
 	/* asm volatile("lidt (%0)" : : "p"(&idtr)); */
-	idt_flush((u32_t)&idtr);
+	idt_flush((struct idt_ptr *)&idt_ptr);
 }
