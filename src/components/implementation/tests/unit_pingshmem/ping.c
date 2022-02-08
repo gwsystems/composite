@@ -294,8 +294,9 @@ ping_bench_msgpassing_static(void)
 	begin = ps_tsc();
 	for (i = 0; i < BENCH_ITER; i++) {
 		/* allocate an obj from shared mem */
-		shm_bm_obj_alloc_test(&objid);
+		obj = shm_bm_obj_alloc_test(&objid);
 		/* send obj to server, server borrows it */
+		obj->id = objid;
 		pongshmem_bench_objread(objid);
 	}
 	end = ps_tsc();

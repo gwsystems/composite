@@ -99,6 +99,6 @@ pongshmem_bench_objread(shm_objid_t objid)
 
 	/* get a reference to shared object sent from ping */
 	obj = (struct obj_test *) shm_bm_obj_borrow_test(objid);
-	(void)obj;
+	assert(obj->id == objid);
 }
 
