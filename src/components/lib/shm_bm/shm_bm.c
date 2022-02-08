@@ -120,9 +120,8 @@ shm_bm_create(shm_bm_t *shm, size_t objsz, int nobj)
 	alloc = sizeof (struct shm_bm_header) + bitmap_sz + refcnt_sz + data_sz;
 	if (alloc > SHM_BM_ALLOC_ALIGNMENT) return 0;
 
-	id  = memmgr_shared_page_allocn_aligned(round_up_to_page(alloc)/PAGE_SIZE, SHM_BM_ALLOC_ALIGNMENT, (vaddr_t *) shm);
-	
-	if (id == 0) return 0;
+	id = memmgr_shared_page_allocn_aligned(round_up_to_page(alloc)/PAGE_SIZE, SHM_BM_ALLOC_ALIGNMENT, (vaddr_t *) shm);
+
 	memset((void *) *shm, 0, round_up_to_page(alloc));
 
 	// metadata
@@ -170,7 +169,7 @@ shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id)
 	} while (!cos_cas(bm + idx, word, word & ~(1ul << offset)));
 
 	freebit = lz + (idx * SHM_BM_BITMAP_BLOCK);
-	cos_faab(SHM_BM_REFC(shm) + freebit, 1);
+	cos_faa(SHM_BM_REFC(shm) + freebit, 1);
 
 	*id = (shm_bufid_t) freebit;
 	return SHM_BM_DATA(shm) + (freebit << SHM_BM_OBJSZ_ORDER(shm));

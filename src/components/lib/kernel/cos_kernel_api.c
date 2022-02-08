@@ -657,7 +657,10 @@ __page_bump_valloc(struct cos_compinfo *ci, size_t sz, size_t align)
 	vaddr_t rounding; // how much we need to round up sz to handle alignment
 
 	ps_lock_take(&ci->va_lock);
+	rounding = round_up_to_pow2(ci->vas_frontier, align) - ci->vas_frontier;
+	sz += rounding;
 	ret_addr = __page_bump_mem_alloc(ci, &ci->vas_frontier, &ci->vasrange_frontier[0], sz);
+	ret_addr += rounding;
 	ps_lock_release(&ci->va_lock);
 	assert(ret_addr % align == 0);
 

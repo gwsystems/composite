@@ -250,6 +250,7 @@ memmgr_shared_page_allocn_aligned(unsigned long num_pages, unsigned long align, 
 	ss_span_activate(s);
 
 	ret = ss_span_id(s);
+
 	*pgaddr = p->mappings[0].addr;
 done:
 	return ret;

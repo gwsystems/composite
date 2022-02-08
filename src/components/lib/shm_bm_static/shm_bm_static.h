@@ -39,18 +39,6 @@ typedef unsigned char byte_t;
 #define SHM_BM_REFC(shm, nobj) ((refcnt_t *) ((byte_t *) header + SHM_BM_BITS_TO_WORDS(nobj) * sizeof (word_t)))
 #define SHM_BM_DATA(shm, nobj) ((byte_t *)  (SHM_BM_REFC(header, nobj) + (unsigned int) nobj))
 
-/* Byte sized fetch-and-add implementation on x86. It returns the 
-original value before xaddl. */
-static inline char
-cos_faab(unsigned char *var, char value)
-{
-	__asm__ __volatile__("lock xaddb %%al, %2;"
-	                     : "=a"(value)           // Output
-	                     : "a"(value), "m"(*var) // Input
-	                     : "memory");
-	return value;
-}
-
 static inline void
 __shm_bm_set_contig(word_t *bm, int offset)
 {
