@@ -32,10 +32,10 @@ cos_faa(int *var, int value)
 
 /* Byte sized fetch-and-add implementation on x86. It returns the 
 original value before xaddl. */
-static inline unsigned char
-cos_faab(unsigned char *var, unsigned char value)
+static inline char
+cos_faab(unsigned char *var, char value)
 {
-	__asm__ __volatile__("lock xaddl %%eax, %2;"
+	__asm__ __volatile__("lock xaddb %%al, %2;"
 	                     : "=a"(value)           // Output
 	                     : "a"(value), "m"(*var) // Input
 	                     : "memory");
