@@ -71,6 +71,9 @@ struct crt_comp {
 	struct cos_defcompinfo *comp_res;
 	struct cos_defcompinfo comp_res_mem;
 
+	/* for shared */
+	struct cos_defcompinfo *comp_res_shared;
+
 	/* Flags hold tagged variant indicating the execution type */
 	struct crt_comp_exec_context exec_ctxt;
 
@@ -183,6 +186,8 @@ struct crt_rcv *crt_comp_exec_rcv(struct crt_comp *comp);
 struct crt_thd *crt_comp_exec_thd(struct crt_comp *comp);
 
 int crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr);
+int crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr);
+
 int crt_sinv_alias_in(struct crt_sinv *s, struct crt_comp *c, struct crt_sinv_resources *res);
 
 int crt_asnd_create(struct crt_asnd *s, struct crt_rcv *r);

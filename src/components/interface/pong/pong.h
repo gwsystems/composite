@@ -4,7 +4,8 @@
 #include <cos_component.h>
 
 void pong_call(void);
-int pong_ret(void);
+void *pong_ret(void);
+// int pong_ret(void);
 int pong_arg(int p1);
 int pong_args(int p1, int p2, int p3, int p4);
 int pong_argsrets(int p0, int p1, int p2, int p3, int *r0, int *r1);

@@ -710,6 +710,27 @@ cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t
 }
 
 int
+cos_compinfo_alloc_shared(struct cos_compinfo *ci_shared, struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources)
+{
+	compcap_t   compc;
+	vaddr_t		heap_ptr = ci_og->vas_frontier;
+	capid_t		cap_frontier = ci_og->cap_frontier;
+	captblcap_t ctc = ci_og->captbl_cap;
+
+	printd("cos_compinfo_alloc_shared\n");
+
+	assert(ptc);
+	assert(ctc);
+	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry);
+	assert(compc);
+
+	cos_compinfo_init(ci_shared, ptc, ctc, compc, heap_ptr, cap_frontier, ci_resources);
+
+	return 0;
+}
+
+
+int
 cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
                    struct cos_compinfo *ci_resources)
 {

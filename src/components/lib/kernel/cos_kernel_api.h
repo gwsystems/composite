@@ -116,6 +116,9 @@ int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vadd
  */
 int cos_shared_pgtbl_connect(pgtblcap_t top_lvl, pgtblcap_t intern, vaddr_t mem);
 
+int cos_compinfo_alloc_shared(struct cos_compinfo *ci_shared, struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources);
+
+
 /*
  * This uses the next three functions to allocate a new component and
  * correctly populate ci (allocating all resources from ci_resources).

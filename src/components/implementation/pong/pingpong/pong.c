@@ -47,6 +47,7 @@ parallel_main(coreid_t cid)
 	simple_barrier(&main_barrier);
 	if (cos_coreid() == initcore) printc("Pong component %ld: parallel main\n", cos_compid());
 	state = PONG_PARMAIN;
+	printc("Address of pong_call() = %p\n", pong_call);
 }
 
 /* We assume that ping will call pong_call upon initialization. */
@@ -54,15 +55,21 @@ void
 pong_call(void)
 {
 	assert(state >= PONG_PARINIT);
-
+	printc("in pong call\n");
 	return;
 }
 
-int
+void *
 pong_ret(void)
 {
-	return 42;
+	return &pong_call;
 }
+
+// int
+// pong_ret(void)
+// {
+// 	return 42;
+// }
 
 int
 pong_arg(int p1)

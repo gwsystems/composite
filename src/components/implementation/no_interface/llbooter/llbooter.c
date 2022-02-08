@@ -181,57 +181,16 @@ comps_init(void)
 	ss_ns_vas_activate(ns_vas1);
 	if(crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
 
-	/* component 2 = index 5 */
+	/* component 2 = ping = index 5 */
 	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) {
 		printc("alloc in for component 2 in ns vas 1 failed\n");
 		BUG();
 	}
-
-	struct crt_ns_vas *ns_vas2 = ss_ns_vas_alloc();
-	ss_ns_vas_activate(ns_vas2);
-	if(crt_ns_vas_split(ns_vas2, ns_vas1, ns_asid) != 0) {
-		printc("split failed\n");
+	/* component 3 = pong = index 6 */
+	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) != 0) {
+		printc("alloc in for component 3 in ns vas 1 failed\n");
 		BUG();
 	}
-
-	/* component 3 fail to allocate in ns vas 1 */
-	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) == 0) {
-		printc("alloc in for component 3 worked, but should have failed\n");
-		BUG();
-	}
-
-	/* component 4 with index 6 --> allocated */
-	if(crt_ns_vas_alloc_in(ns_vas2, boot_comp_get(4)) != 0) {
-		printc("alloc in for component 4 in ns vas 2 failed\n");
-		BUG();
-	}
-
-	// struct crt_ns_vas *ns_vas3 = ss_ns_vas_alloc();
-	// ss_ns_vas_activate(ns_vas3);
-	// if(crt_ns_vas_init(ns_vas3, ns_asid) != 0) {
-	// 	printc("failed\n");
-	// 	BUG();
-	// }
-	// /* component 2 with index 5 --> NO alias */
-	// // if(crt_ns_vas_alloc_in(ns_vas3, boot_comp_get(2)) == 0) {
-	// // 	printc("alias for component 2 in ns vas 3 worked, when it shouldn't\n");
-	// // 	BUG();
-	// // }
-
-
-	/* component 5 with index 5 --> NO alias */
-	if(crt_ns_vas_alloc_in(ns_vas2, boot_comp_get(5)) == 0) {
-		printc("alias for component 5 in ns vas 2 worked, when it shouldn't\n");
-		BUG();
-	}
-
-	/* component 2 with index 5 --> aliased */
-	if(crt_ns_vas_alloc_in(ns_vas2, boot_comp_get(2)) != 0) {
-		printc("alias for component 2 in ns vas 2 failed\n");
-		BUG();
-	}
-
-
 
 	ret = args_get_entry("execute", &comps);
 	assert(!ret);
@@ -359,8 +318,20 @@ comps_init(void)
 		sinv = ss_sinv_alloc();
 		assert(sinv);
 		crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
-				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
-				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+			strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
+			strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+
+		/* specific hardcoding for ping pong test */
+		// if((serv_id == 3 && cli_id == 2) || (cli_id == 3 && serv_id == 2)) {
+		// 	crt_sinv_create_shared(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
+		// 		strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
+		// 		strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+		// }
+		// else {
+		// 	crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
+		// 			strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
+		// 			strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+		// }
 		ss_sinv_activate(sinv);
 		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
@@ -373,7 +344,7 @@ comps_init(void)
 		cli->n_sinvs++;
 	#endif /* ENABLE_CHKPT */
 	}
-	
+
 	/*
 	 * Delegate the untyped memory to the capmgr. This should go
 	 * *after* all allocations that use untyped memory, so that we
