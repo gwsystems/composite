@@ -32,6 +32,7 @@ typedef unsigned int shm_objid_t;
 #define SHM_BM_BITMAP_BLOCK (sizeof (word_t) * CHAR_BIT)
 #define SHM_BM_BITS_TO_WORDS(bits) (round_up_to_pow2(bits, SHM_BM_BITMAP_BLOCK) / SHM_BM_BITMAP_BLOCK)
 
+typedef unsigned long word_t;
 typedef unsigned char refcnt_t;
 typedef unsigned char byte_t;
 
@@ -89,7 +90,9 @@ __shm_bm_init(void **header, size_t objsz, unsigned int nobj)
 
 	id  = memmgr_shared_page_allocn(round_up_to_page(alloc)/PAGE_SIZE, (vaddr_t *) header);
 	if (id == 0) return 0;
-	memset(*header, 0, round_up_to_page(alloc));
+	memset(header, 0, round_up_to_page(alloc));
+
+	printc("%d %p %p\n", round_up_to_page(alloc), *header, *header + round_up_to_page(alloc));
 
 	// set nobj bits to free
 	__shm_bm_set_contig((word_t *) *header, nobj);
@@ -132,8 +135,7 @@ __shm_bm_obj_alloc(void *header, shm_objid_t *objid, size_t objsz, unsigned int 
 
 	freebit = lz + (idx * SHM_BM_BITMAP_BLOCK);
 
-	cos_faab(SHM_BM_REFC(header, nobj) + freebit, 1);
-	printc("%u\n",*(SHM_BM_REFC(header, nobj) + freebit));
+	cos_faab(SHM_BM_REFC(header, nobj) + freebit, 0x1);
 
 	*objid = (shm_objid_t) freebit;
 	return SHM_BM_DATA(header, nobj) + (freebit * objsz);
@@ -145,7 +147,6 @@ __shm_bm_obj_use(void *header, shm_objid_t objid, size_t objsz, unsigned int nob
 	if (unlikely(objid >= nobj)) return 0;
 
 	// obj has not been allocated
-	
 	if (unlikely(*(SHM_BM_REFC(header, nobj) + objid) == 0)) return 0;
 
 	cos_faab(SHM_BM_REFC(header, nobj) + objid, 1);
@@ -196,41 +197,41 @@ __shm_bm_obj_free(void *header, void *ptr, size_t objsz, unsigned int nobj)
 	inline void * shm_bm_obj_borrow_##name(shm_objid_t objid); \
 	inline void   shm_bm_obj_free_##name(void *ptr);                                                                                         
 
-#define __SHM_BM_CREATE_FCNS(name, objsz, nobjs)                              \
-	static inline cbuf_t                                                      \
-	shm_bm_init_##name(void)                                                  \
-	{                                                                         \
-		return __shm_bm_init(&shm_bm_##name_header, objsz, nobjs);            \
-	}                                                                         \
-	static inline int                                                         \
-	shm_bm_map_##name(cbuf_t id)                                              \
-	{                                                                         \
-		return __shm_bm_map(&shm_bm_##name_header, id);                       \
-	}                                                                         \
-	static inline void *                                                      \
-	shm_bm_obj_alloc_##name(shm_objid_t *objid)                               \
-	{                                                                         \
-		return __shm_bm_obj_alloc(shm_bm_##name_header, objid, objsz, nobjs); \
+#define __SHM_BM_CREATE_FCNS(name, objsz, nobjs)                               \
+	static inline cbuf_t                                                       \
+	shm_bm_init_##name(void)                                                   \
+	{                                                                          \
+		return __shm_bm_init(&shm_bm_##name_header, objsz, nobjs);             \
+	}                                                                          \
+	static inline int                                                          \
+	shm_bm_map_##name(cbuf_t id)                                               \
+	{                                                                          \
+		return __shm_bm_map(&shm_bm_##name_header, id);                        \
 	}                                                                          \
 	static inline void *                                                       \
-		shm_bm_obj_use_##name(shm_objid_t objid)                                      \
-	{                                                                             \
-		return __shm_bm_obj_use(shm_bm_##name_header, objid, objsz, nobjs);       \
-	}                                                                             \
-	static inline void *                                                          \
-	shm_bm_obj_borrow_##name(shm_objid_t objid)                                   \
-	{                                                                             \
-		return __shm_bm_obj_borrow(shm_bm_##name_header, objid, objsz, nobjs);    \
-	}                                                                             \
-	static inline void                                                            \
-	shm_bm_obj_free_##name(void *ptr)                                             \
-	{                                                                             \
-		__shm_bm_obj_free(shm_bm_##name_header, ptr, objsz, nobjs);\
+	shm_bm_obj_alloc_##name(shm_objid_t *objid)                                \
+	{                                                                          \
+		return __shm_bm_obj_alloc(shm_bm_##name_header, objid, objsz, nobjs);  \
+	}                                                                          \
+	static inline void *                                                       \
+	shm_bm_obj_use_##name(shm_objid_t objid)                                   \
+	{                                                                          \
+		return __shm_bm_obj_use(shm_bm_##name_header, objid, objsz, nobjs);    \
+	}                                                                          \
+	static inline void *                                                       \
+	shm_bm_obj_borrow_##name(shm_objid_t objid)                                \
+	{                                                                          \
+		return __shm_bm_obj_borrow(shm_bm_##name_header, objid, objsz, nobjs); \
+	}                                                                          \
+	static inline void                                                         \
+	shm_bm_obj_free_##name(void *ptr)                                          \
+	{                                                                          \
+		__shm_bm_obj_free(shm_bm_##name_header, ptr, objsz, nobjs);            \
 	}                                                                                   
 
 #define SHM_BM_CREATE(name, objsz, nobj)     \
 	__SHM_BM_CREATE_META(name)               \
-	__SHM_BM_DEFINE_FCNS(name) \
+	__SHM_BM_DEFINE_FCNS(name)               \
 	__SHM_BM_CREATE_FCNS(name, objsz, nobj) 
 
 #endif
