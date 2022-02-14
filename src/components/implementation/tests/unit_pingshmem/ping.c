@@ -1,8 +1,6 @@
 #include <cos_types.h>
-#include <memmgr.h>
 #include <pongshmem.h>
 #include <shm_bm.h>
-#include <shm_bm_static.h>
 #include <string.h>
 
 char *ping_test_strings[] = {
@@ -23,9 +21,9 @@ void
 ping_test_objread(void)
 {
 	struct obj_test *obj;
-	shm_buf_t        shm;
+	shm_bm_t         shm;
 	shm_objid_t      objid = 0;
-	shm_reqtok_t      reqtok;
+	shm_reqtok_t     reqtok;
 	int              i, failure; 
 	cbuf_t           id;
 
@@ -54,8 +52,8 @@ ping_test_bigalloc(void)
 {
 	struct obj_test *obj;
 	shm_objid_t      objid;
-	shm_reqtok_t      reqtok;
-	shm_buf_t        shm;
+	shm_reqtok_t     reqtok;
+	shm_bm_t         shm;
 	cbuf_t           id;
 	int              i;
 	int              failure = 0;
@@ -84,9 +82,9 @@ bigallocdone:
 void
 ping_test_objfree(void)
 {
-	shm_buf_t        shm;
+	shm_bm_t         shm;
 	shm_objid_t      objid;
-	shm_reqtok_t      reqtok;
+	shm_reqtok_t     reqtok;
 	cbuf_t           id;
 	const char      *teststr = "test string";
 	struct obj_test *obj1, *obj2;
@@ -96,12 +94,12 @@ ping_test_objfree(void)
 
 	/* sanity check, allocate and free and object */
 	obj1 = shm_bm_clt_alloc_testobj(shm, &objid);
-	shm_bm_ptr_free_testobj(obj1);
+	shm_bm_free_testobj(obj1);
 	/* we should get the same object in the buffer */
 	obj2 = shm_bm_clt_alloc_testobj(shm, &objid);
 	failure = obj1 != obj2;
 	PRINTLOG(PRINT_DEBUG, "%s: Ping can free an allocated obj from the buffer\n", (failure) ? "FAILURE" : "SUCCESS");
-	shm_bm_ptr_free_testobj(obj2);
+	shm_bm_free_testobj(obj2);
 
 	/* allocate the whole buffer */
 	failure = 0;
@@ -117,8 +115,8 @@ ping_test_objfree(void)
 	if (shm_bm_clt_alloc_testobj(shm, &objid) != 0) failure = 1;
 	if (shm_bm_clt_alloc_testobj(shm, &objid) != 0) failure = 1;
 
-	shm_bm_ptr_free_testobj(obj1);
-	shm_bm_ptr_free_testobj(obj2);
+	shm_bm_free_testobj(obj1);
+	shm_bm_free_testobj(obj2);
 
 	/* should be 2 more free objects now */
 	if (shm_bm_clt_alloc_testobj(shm, &objid) == 0) failure = 1;
@@ -138,7 +136,7 @@ ping_test_bigfree(void)
 	struct obj_test **obj_ptrs;
 	shm_objid_t       objid;
 	shm_reqtok_t      reqtok;
-	shm_buf_t         shm;
+	shm_bm_t          shm;
 	cbuf_t            id;
 	int               i, npages;
 	int               failure = 0;
@@ -168,7 +166,7 @@ ping_test_bigfree(void)
 	}
 	/* free the whole buffer */
 	for (i = 0; i < BENCH_ITER; i++) {
-		shm_bm_ptr_free_testobj(obj_ptrs[i]);
+		shm_bm_free_testobj(obj_ptrs[i]);
 	}
 
 	/* reallocate whole buffer */
@@ -194,9 +192,9 @@ bigallocdone:
 void 
 ping_test_refcnt(void)
 {
-	shm_buf_t        shm;
+	shm_bm_t         shm;
 	shm_objid_t      objid = 0;
-	shm_reqtok_t      reqtok;
+	shm_reqtok_t     reqtok;
 	struct obj_test *obj, *obj2;
 	int              i, failure; 
 	cbuf_t           id;
@@ -226,7 +224,7 @@ ping_test_refcnt(void)
 	obj2 = shm_bm_clt_alloc_testobj(shm, &objid); 
 	if (obj2 == obj) failure = 1;
 
-	shm_bm_ptr_free_testobj(obj);
+	shm_bm_free_testobj(obj);
 
 	/**
 	 * now that we have also freed the object, we should 
@@ -257,34 +255,9 @@ void
 ping_bench_msgpassing(void)
 {
 	shm_bm_t         shm;
+	shm_reqtok_t     reqtok;
 	cbuf_t           id;
-	shm_bufid_t      objid = 0;
-	struct obj_test *obj;
-	ps_tsc_t         begin, end, bench;
-	int              i;
-
-	id = shm_bm_create(&shm, sizeof (struct obj_test), BENCH_ITER);
-	pongshmem_bench_map_nonstatic(id);
-
-	begin = ps_tsc();
-	for (i = 0; i < BENCH_ITER; i++) {
-		/* allocate an obj from shared mem */
-		shm_bm_obj_alloc(shm, &objid);
-		/* send obj to server, server borrows it */
-		pongshmem_bench_objread_nonstatic(objid);
-	}
-	end = ps_tsc();
-	bench = (end - begin) / BENCH_ITER;
-	PRINTLOG(PRINT_DEBUG, "BENCHMARK Message passing: %llu cycles\n", bench);
-}
-
-void
-ping_bench_msgpassing_static(void)
-{
-	shm_buf_t        shm;
-	shm_reqtok_t      reqtok;
-	cbuf_t           id;
-	shm_bufid_t      objid = 0;
+	shm_objid_t      objid = 0;
 	struct obj_test *obj;
 	ps_tsc_t         begin, end, bench;
 	int              i;
@@ -316,7 +289,6 @@ main(void)
 
 	ping_bench_syncinv();
 	ping_bench_msgpassing();
-	ping_bench_msgpassing_static();
 
 
 	return 0;

@@ -1,127 +1,271 @@
+#ifndef SHM_BM_CLTSRV_H
+#define SHM_BM_CLTSRV_H
+
 #include <cos_types.h>
 #include <memmgr.h>
+#include <limits.h>
+#include <consts.h>
+#include <string.h>
 
-/***
- * `shm_bm` provides an interface for a slab-like allocator of a shared 
- * memory pool to facilitate message passing between components. A shared
- * memory region is instantiated with the ability to allocate objects of
- * a fixed size. 
+/**
+ * This library provides a slab-like memory allocator interface to allocate fixed-size
+ * blocks of memory from a region of memory shared between a server component and a 
+ * number of client components.
  * 
- * Internally, objects are stored in a power of 2 amount of space. This
- * is to make resolving pointers from the bitmap faster using bit shits
- * instead of multiplication and division. If an shared memory region is 
- * created to allocate objects that are not of a power of 2 size, the size 
- * of the object is rounded up to the nearest power of 2. 
- * 
- * The shared memory region is aligned in a component's VAS on a power
- * of 2 boundry. This is in order to provide a free API that does not 
- * require a reference to the shared memory header. To resolve the pointer
- * to the shared memory region header from a pointer to an object in the
- * region, the bits of the address that are less significant than the 
- * allocation boundry are masked out. 
+ * Reference ./doc.md for interface documentation. Most of this interface is generated
+ * at compile-time for using the preprocessor. This is required for the performance of
+ * this library by giving more information to the compiler that allows it to significantly
+ * optimize most operations, particularily allocating, freeing, and translating between
+ * address spaces, by knowing at compile time the size of allocations and the size of the 
+ * shared memory region.
  */
 
-/**
- * Opaque reference to the shared region to provide some abstraction. 
- * Functionally this is a pointer to the shared memory region's header.
- * This pointer is aligned on a power-of-2 boundary (see `shm_bm_obj_free`).
- */
-typedef unsigned long shm_bm_t;
+#define SHM_BM_BITMAP_BLOCK (sizeof (word_t) * CHAR_BIT)
+#define SHM_BM_ALIGN (1 << 22)
+#define SHM_BM_BITS_TO_WORDS(bits) (round_up_to_pow2(bits, SHM_BM_BITMAP_BLOCK) / SHM_BM_BITMAP_BLOCK)
+#define SHM_BM_SERVICE_TABLE_SIZE MAX_NUM_COMPS
 
-/**
- * An identifier to an allocated obj in the shared memory region. Allocating
- * an object from the shared memory region returns a `shm_bufid_t` that
- * identifies the object in the shared memory. Another component that is 
- * using the shared memory region can use this identifer to get a pointer to 
- * the object in the shared memory in their own address space.
- */
-typedef unsigned int shm_bufid_t;
+typedef void *        shm_bm_t;
+typedef int           shm_reqtok_t;
+typedef unsigned int  shm_objid_t;
 
-/**
- * Creates a shared shared memory region of size `allocsz` from
- * which objects of size `objsz` can be allocated. Internally,
- * objects are stored as a power of two so `objsz` is rounded up
- * to the nearest power of 2.
- *
- * Arguments:
- * - @shm     a pointer to a shm_bm_t that is set by function
- * - @objsz   size of objects that are allocated from this buffer
- * - @allocsz size of the shared memory buffer
- *
- * @return: a cbuf_t to identify the shared memory. 0 on failure
- */
-cbuf_t shm_bm_create(shm_bm_t *shm, size_t objsz, int nobj);
+struct shm_service_tbl_ent {
+	invtoken_t authtok;
+	void *     shmptr;
+};
 
-/**
- * Maps a shared memory region identified by `id` into this component's
- * address space. The cbuf_t must have been created from a call to 
- * `shm_bm_create` in another component.
- *
- * Arguments:
- * - @id the cbuf_t that identifies a shared memory region
- *
- * @return: a shm_bm_t that references the shared memory region for 
- *          the calling component. 0 on failure.
- */
-shm_bm_t shm_bm_map(cbuf_t id);
+typedef unsigned long word_t;
+typedef unsigned char refcnt_t;
+typedef unsigned char byte_t;
 
-/**
- * Allocates an object in the shared memory region referenced by `shm`.
- *
- * Arguments:
- * - @shm the shared memory region from which to allocate an object
- * - @id  a pointer to an identifier that can be used to share this 
- *        object between components if they have this shared memory 
- *        region mapped. The value of the identifier is set by the 
- *        function
- *
- * @return: a pointer to the allocated object, 0 if no free objects
- */
-void * shm_bm_obj_alloc(shm_bm_t shm, shm_bufid_t *id);
+#define SHM_BM_REFC(shm, nobj) ((refcnt_t *) ((byte_t *) shm + SHM_BM_BITS_TO_WORDS(nobj) * sizeof (word_t)))
+#define SHM_BM_DATA(shm, nobj) ((byte_t *)  (SHM_BM_REFC(shm, nobj) + (unsigned int) nobj))
 
-/**
- * Takes a reference to an object identified by `id` allocated in 
- * a shared memory region. The shared memory region must be mapped
- * in the calling component's address space and the id must be to
- * an allocated object from a call to `shm_bm_obj_alloc` in another 
- * component. 
- *
- * Arguments:
- * - @shm the shared memory region from which to allocate an object
- * - @id  an indentifier that can be used to share this object between
- *        components if they have this shared memory region mapped
- *
- * @return: a pointer to the allocated object. 0 on failure
- */
-void * shm_bm_obj_use(shm_bm_t shm, shm_bufid_t id);
+static inline void
+__shm_bm_set_contig(word_t *bm, int offset)
+{
+	int i, n, ind;
 
-/**
- * Like `shm_bm_obj_use` except does not update the reference count
- * of the object. This can be used when the caller wants to 'borrow'
- * the object and not have to free it themselves, or when ownership 
- * of the object is being transfered to the caller so the reference 
- * count should stay the same.  
- *
- * Arguments:
- * - @shm the shared memory region from which to allocate an object
- * - @id  an indentifier that can be used to share this object between
- *        components if they have this shared memory region mapped
- *
- * @return: a pointer to the allocated object. 0 on failure
- */
-void * shm_bm_obj_take(shm_bm_t shm, shm_bufid_t id);
+	ind = offset / SHM_BM_BITMAP_BLOCK;
+	offset %= SHM_BM_BITMAP_BLOCK;
 
-/**
- * Drops a reference to an object allocated from a shared
- * memory region. If no other component is referencing that object,
- * it will be freed and can be reallocated. `ptr` should have come 
- * from a call to either `shm_bm_obj_alloc` or `shm_bm_obj_use`. 
- * Since shared memory region headers are aligned on a power of two,
- * getting a reference to the header from `ptr` us just a matter of 
- * masking out the bits of `ptr` that are less significant than the
- * allocation boundary.
- * 
- * Arguments:
- * - @ptr a pointer to the object to free
- */
-void shm_bm_obj_free(void *ptr);
+	for (i = 0; i < ind; i++) {
+		bm[i] = ~0x0ul;
+	}
+
+	n = SHM_BM_BITMAP_BLOCK - offset;
+	bm[ind] = ~((1ul << n) - 1); // set most sig n bits of bm[ind]
+}
+
+/* Find the first nonzero word in the inputted bitmap */
+static inline int
+__shm_bm_next_free_word(word_t *bm, unsigned long nwords)
+{
+	/* the index of the word in the bitmap where the first set bit is found */
+	int idx;
+
+	for (idx = 0; idx < (int) nwords; idx++) {
+		if (*bm != 0) return idx;
+		bm++;
+	}
+
+	/* all bits set to zero */
+	return -1;
+}
+
+static inline cbuf_t 
+__shm_bm_clt_create(shm_bm_t *shm, size_t objsz, unsigned int nobj)
+{
+	size_t                bitmap_sz, refcnt_sz, data_sz;
+	size_t                alloc;
+	cbuf_t                id;
+
+	if (nobj <= 0) return 0;
+
+	bitmap_sz = SHM_BM_BITS_TO_WORDS(nobj) * sizeof (word_t);
+	refcnt_sz = nobj;
+	data_sz   = nobj * objsz;
+
+	alloc = bitmap_sz + refcnt_sz + data_sz;
+
+	id  = memmgr_shared_page_allocn_aligned(round_up_to_page(alloc)/PAGE_SIZE, SHM_BM_ALIGN, (vaddr_t *) shm);
+	if (id == 0) return 0;
+	memset(*shm, 0, round_up_to_page(alloc));
+
+	// set nobj bits to free
+	__shm_bm_set_contig((word_t *) *shm, nobj);
+	return id;
+}
+
+static inline void * 
+__shm_bm_clt_alloc(shm_bm_t shm, shm_objid_t *objid, size_t objsz, unsigned int nobj)
+{
+	int     freebit, idx , offset, lz;
+	word_t  word; 
+	word_t *bm;
+
+	/* 
+	 * Find a free space; could be preempted. Find the next word in
+	 * the bitmap with a free bit and get its index in the bitmap, and 
+	 * the offset of the free bit in that word. Then try to atomically 
+	 * xchg the bitmap with the freebit set to 0
+	 */
+	bm = (word_t *) shm;
+	do {
+		idx = __shm_bm_next_free_word(bm, SHM_BM_BITS_TO_WORDS(nobj));
+		if (idx == -1) return 0;
+		word   = bm[idx];
+		lz     = __builtin_clzl(word); 
+		offset = SHM_BM_BITMAP_BLOCK - lz - 1;
+	} while (!cos_cas(bm + idx, word, word & ~(1ul << offset)));
+
+	freebit = lz + (idx * SHM_BM_BITMAP_BLOCK);
+
+	cos_faab(SHM_BM_REFC(shm, nobj) + freebit, 1);
+
+	*objid = (shm_objid_t) freebit;
+	return SHM_BM_DATA(shm, nobj) + (freebit * objsz);
+}
+
+static inline shm_reqtok_t
+__shm_bm_srv_map(struct shm_service_tbl_ent *srv_tbl, shm_reqtok_t *nxt_reqtok, cbuf_t shm_id)
+{
+	struct shm_service_tbl_ent *entry;
+
+	if (unlikely(*nxt_reqtok >= SHM_BM_SERVICE_TABLE_SIZE)) return -1;
+	entry = &srv_tbl[*nxt_reqtok];
+
+	if (unlikely(memmgr_shared_page_map_aligned(shm_id, SHM_BM_ALIGN, (vaddr_t *) &entry->shmptr)) == 0) return -1;
+	entry->authtok = cos_inv_token();
+	return (*nxt_reqtok)++;
+}
+
+static inline struct shm_service_tbl_ent *
+__shm_bm_srv_auth(struct shm_service_tbl_ent *srv_tbl, shm_reqtok_t reqtok)
+{
+	struct shm_service_tbl_ent *entry;
+
+	if (unlikely(reqtok >= SHM_BM_SERVICE_TABLE_SIZE || reqtok < 0)) return 0;
+
+	entry = &srv_tbl[reqtok];
+	if (unlikely(entry->authtok != cos_inv_token())) return 0;
+
+	return entry;
+}
+
+static inline void *   
+__shm_bm_srv_take(struct shm_service_tbl_ent *srv_tbl, shm_reqtok_t reqtok, shm_objid_t objid, size_t objsz, unsigned int nobj)
+{
+	struct shm_service_tbl_ent *entry;
+	void                       *shmptr;
+
+	if (unlikely(objid >= nobj)) return 0;
+	if (unlikely((entry = __shm_bm_srv_auth(srv_tbl, reqtok)) == 0)) return 0;
+
+	shmptr = entry->shmptr;
+	/* obj has not been allocated */
+	if (unlikely(*(SHM_BM_REFC(shmptr, nobj) + objid) == 0)) return 0;
+
+	cos_faab(SHM_BM_REFC(shmptr, nobj) + objid, 1);
+
+	return SHM_BM_DATA(shmptr, nobj) + (objid * objsz);
+}
+
+static inline void *   
+__shm_bm_srv_take_norefcnt(struct shm_service_tbl_ent *srv_tbl, shm_reqtok_t reqtok, shm_objid_t objid, size_t objsz, unsigned int nobj)
+{
+	struct shm_service_tbl_ent *entry;
+	void                       *shmptr;
+
+	if (unlikely(objid >= nobj)) return 0;
+	if (unlikely((entry = __shm_bm_srv_auth(srv_tbl, reqtok)) == 0)) return 0;
+
+	shmptr = entry->shmptr;
+	// obj has not been allocated
+	if (unlikely(*(SHM_BM_REFC(shmptr, nobj) + objid) == 0)) return 0;
+
+	return SHM_BM_DATA(shmptr, nobj) + (objid * objsz);
+}
+
+static void
+__shm_bm_ptr_free(void *ptr, size_t objsz, unsigned int nobj)
+{
+	void        *shm;
+	unsigned int obj_idx, bm_idx, bm_offset;
+	word_t      *bm;
+
+	shm = (void *) ((word_t) ptr & ~(SHM_BM_ALIGN - 1));
+	obj_idx = ((byte_t *) ptr - SHM_BM_DATA(shm, nobj)) / objsz;
+	if (obj_idx >= nobj) return;
+	
+	if (cos_faab(SHM_BM_REFC(shm, nobj) + obj_idx, -1) > 1) { 
+		return;
+	}
+	/* droping the last reference, must set obj to free in bitmap */
+	bm         = (word_t *) shm;
+	bm_idx     = obj_idx / SHM_BM_BITMAP_BLOCK;
+	bm_offset  = SHM_BM_BITMAP_BLOCK - obj_idx % SHM_BM_BITMAP_BLOCK - 1;
+	bm[bm_idx] = bm[bm_idx] | (1ul << bm_offset);
+}
+
+
+#define __SHM_BM_DEFINE_FCNS(name)																	\
+	static inline cbuf_t       shm_bm_clt_create_##name(shm_bm_t *shm);								\
+	static inline void *       shm_bm_clt_alloc_##name(shm_bm_t shm, shm_objid_t *objid);			\
+	static inline shm_reqtok_t shm_bm_srv_map_##name(cbuf_t id);									\
+	static inline void *       shm_bm_srv_take_##name(shm_reqtok_t reqtok, shm_objid_t objid);		\
+	static inline void *       shm_bm_srv_borrow_##name(shm_reqtok_t reqtok, shm_objid_t objid);	\
+	static inline void *       shm_bm_srv_transfer_##name(shm_reqtok_t reqtok, shm_objid_t objid);	\
+	static inline void         shm_bm_free_##name(void *ptr);                                                                                         
+
+#define __SHM_BM_CREATE_FCNS(name, objsz, nobjs)											\
+	static inline cbuf_t																	\
+	shm_bm_clt_create_##name(shm_bm_t *shm)													\
+	{																						\
+		return __shm_bm_clt_create(shm, objsz, nobjs);										\
+	}																						\
+	static inline void *																	\
+	shm_bm_clt_alloc_##name(shm_bm_t shm, shm_objid_t *objid)								\
+	{																						\
+		return __shm_bm_clt_alloc(shm, objid, objsz, nobjs);								\
+	}																						\
+	static inline shm_reqtok_t																\
+	shm_bm_srv_map_##name(cbuf_t id)														\
+	{																						\
+		extern struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];	\
+		extern shm_reqtok_t               nxt_reqtok_##name;								\
+		return __shm_bm_srv_map(service_tbl_##name, &nxt_reqtok_##name, id);				\
+	}																						\
+	static inline void *																	\
+	shm_bm_srv_take_##name(shm_reqtok_t reqtok, shm_objid_t objid)							\
+	{																						\
+		extern struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];	\
+		return __shm_bm_srv_take(service_tbl_##name, reqtok, objid, objsz, nobjs);			\
+	}																						\
+	static inline void *																	\
+	shm_bm_srv_borrow_##name(shm_reqtok_t reqtok, shm_objid_t objid)						\
+	{																						\
+		extern struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];	\
+		return __shm_bm_srv_take_norefcnt(service_tbl_##name, reqtok, objid, objsz, nobjs);	\
+	}																						\
+	static inline void *																	\
+	shm_bm_srv_transfer_##name(shm_reqtok_t reqtok, shm_objid_t objid)						\
+	{																						\
+		extern struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];	\
+		return __shm_bm_srv_take_norefcnt(service_tbl_##name, reqtok, objid, objsz, nobjs);	\
+	}																						\
+	static inline void																		\
+	shm_bm_free_##name(void *ptr)															\
+	{																						\
+		__shm_bm_ptr_free(ptr, objsz, nobjs);												\
+	}
+
+#define SHM_BM_INTERFACE_CREATE(name, objsz, nobj)											\
+	__SHM_BM_DEFINE_FCNS(name)																\
+	__SHM_BM_CREATE_FCNS(name, objsz, nobj) 
+
+#define SHM_BM_SERVER_INIT(name) 															\
+	shm_reqtok_t               nxt_reqtok_##name = 0;										\
+	struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];
+
+#endif

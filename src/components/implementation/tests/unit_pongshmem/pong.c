@@ -37,7 +37,7 @@ pongshmem_test_objread(shm_reqtok_t reqtok, shm_objid_t objid, int test_string)
 	int              failure; 
 
 	/* get a reference to shared object sent from ping */
-	obj = (struct obj_test *) shm_bm_srv_use_testobj(reqtok, objid);
+	obj = (struct obj_test *) shm_bm_srv_take_testobj(reqtok, objid);
 	PRINTLOG(PRINT_DEBUG, "%s: (%d) Pong can get shared object from buffer\n", (obj == 0) ? "FAILURE" : "SUCCESS", test_string+1);
 	
 	/* verify that we can read data from ping */
@@ -56,11 +56,11 @@ pongshmem_test_refcnt(shm_reqtok_t reqtok, shm_objid_t objid)
 	const char      *teststr = "test string";
 
 	/* get a reference to shared object sent from ping */
-	obj = (struct obj_test *) shm_bm_srv_use_testobj(reqtok, objid);
+	obj = (struct obj_test *) shm_bm_srv_take_testobj(reqtok, objid);
 	if (obj == 0) 
 		PRINTLOG(PRINT_DEBUG, "FAILURE: Pong can get shared object from buffer\n");
 
-	shm_bm_ptr_free_testobj(obj);
+	shm_bm_free_testobj(obj);
 }
 
 shm_reqtok_t 
@@ -69,28 +69,12 @@ pongshmem_bench_map(cbuf_t shmid)
 	return shm_bm_srv_map_testobj(shmid);
 }
 
-void 
-pongshmem_bench_map_nonstatic(cbuf_t shmid)
-{
-	shm = shm_bm_map(shmid);
-}
-
 unsigned long global_word;
 
 void
 pongshmem_bench_syncinv(unsigned long word) 
 {
 	global_word = word;
-}
-
-void
-pongshmem_bench_objread_nonstatic(shm_bufid_t objid)
-{
-	struct obj_test *obj;
-
-	/* get a reference to shared object sent from ping */
-	obj = (struct obj_test *) shm_bm_obj_take(shm, objid);
-	(void)obj;
 }
 
 void
