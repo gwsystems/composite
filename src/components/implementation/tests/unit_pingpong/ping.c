@@ -19,14 +19,14 @@ cos_init(void)
 
 	printc("Ping component %ld: cos_init execution\n", cos_compid());
 
-	/* doing this still goes through the sinv call function */
-
-	void (*pong_ptr)(void) = pong_ret();
-	printc("pong ptr in ping = %p\n", pong_ptr);
-	(*pong_ptr)();
-	printc("after (non sinv?) pong call\n");
-
 	pong_call();
+
+	// void (*pong_ptr)(void) = pong_ret();
+	// printc("pong ptr in ping = %p\n", pong_ptr);
+	// (*pong_ptr)();
+	// printc("after (non sinv?) pong call\n");
+
+	
 	// assert(pong_ret() == 42);
 	// assert(pong_arg(1024) == 1024);
 	// assert(pong_args(1, 2, 3, 4) == 10);

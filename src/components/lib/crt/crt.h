@@ -71,8 +71,8 @@ struct crt_comp {
 	struct cos_defcompinfo *comp_res;
 	struct cos_defcompinfo comp_res_mem;
 
-	/* for shared */
-	struct cos_defcompinfo *comp_res_shared;
+	// /* for shared */
+	// struct cos_defcompinfo *comp_res_shared;
 
 	/* Flags hold tagged variant indicating the execution type */
 	struct crt_comp_exec_context exec_ctxt;

@@ -82,11 +82,9 @@ struct cos_compinfo {
 
 	struct ps_lock cap_lock, mem_lock; /* locks to make the cap frontier and mem frontier updates and expands atomic */
 	struct ps_lock va_lock; /* lock to make the vas frontier and bump expands for vas atomic */
-};
-
-struct pgtbl_shared {
-	pgtblcap_t cap;
-	struct cos_compinfo *ci;
+	/* shared comp cap */
+	capid_t comp_cap_shared;
+	capid_t pgtbl_cap_shared;
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
@@ -116,7 +114,7 @@ int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vadd
  */
 int cos_shared_pgtbl_connect(pgtblcap_t top_lvl, pgtblcap_t intern, vaddr_t mem);
 
-int cos_compinfo_alloc_shared(struct cos_compinfo *ci_shared, struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources);
+int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources);
 
 
 /*

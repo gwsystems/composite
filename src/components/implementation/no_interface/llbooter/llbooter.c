@@ -95,6 +95,38 @@ boot_comp_set_idoffset(int off)
 	boot_id_offset = off;
 }
 
+int
+check_comp_shared_vas(struct crt_comp *c1, struct crt_comp *c2)
+{
+	unsigned int i;
+	int j;
+	int found1 = 0;
+	int found2 = 0;
+	struct crt_ns_vas *curr_vas;
+	/* FIXME: track total number of allocations */
+	for(i = 1; i <= BOOTER_MAX_NS_VAS; i++) {
+		curr_vas = ss_ns_vas_get(i);
+		found1 = 0;
+		found2 = 0;
+		for(j = 0; j < CRT_VAS_NUM_NAMES; j++) {
+			if(curr_vas == NULL || curr_vas->names[j].comp == NULL) {
+				continue;
+			}
+			if(curr_vas->names[j].comp->id == c1->id) {
+				found1 = 1;
+			}
+			if(curr_vas->names[j].comp->id == c2->id) {
+				found2 = 1;
+			}
+			if(found1 && found2) {
+				return 1;
+			}
+
+		}
+	}
+	return 0;
+}
+
 static void
 comps_init(void)
 {
@@ -159,37 +191,9 @@ comps_init(void)
 				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
 				BUG();
 			}
-			// /* add the component to the VAS NS */
-			// printc("about to allocate in the VAS\n");
-			// if(crt_ns_vas_alloc_in(ns_vas, comp) != 0) {
-			// 	BUG();
-			// }	
 		}
 		assert(comp->refcnt != 0);
-	}
-
-	/* allocate an ASID / VAS ns */
-	/* TODO: check # of NSs won't be too many: something like if (crt_nasid() > BOOTER_MAX_) */
-	
-	/* TODO: SHOULD THIS HAPPEN AFTER BOOTER COMP INIT? */
-	struct crt_ns_asid *ns_asid = ss_ns_asid_alloc();
-	ss_ns_asid_activate(ns_asid);
-	if(crt_ns_asids_init(ns_asid) != 0) BUG();
-
-	/* TODO: check # of NSs won't be too many: something like if (crt_nvas() > BOOTER_MAX_) */
-	struct crt_ns_vas *ns_vas1 = ss_ns_vas_alloc();
-	ss_ns_vas_activate(ns_vas1);
-	if(crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
-
-	/* component 2 = ping = index 5 */
-	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) {
-		printc("alloc in for component 2 in ns vas 1 failed\n");
-		BUG();
-	}
-	/* component 3 = pong = index 6 */
-	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) != 0) {
-		printc("alloc in for component 3 in ns vas 1 failed\n");
-		BUG();
+		printc("created component\n");
 	}
 
 	ret = args_get_entry("execute", &comps);
@@ -305,6 +309,30 @@ comps_init(void)
 	 * for the hard-coded capabilities as we don't want to use up
 	 * those slots for the synchronous invocations.
 	 */
+
+	/* allocate an ASID / VAS ns */
+	/* TODO: check # of NSs won't be too many: something like if (crt_nasid() > BOOTER_MAX_) */
+	struct crt_ns_asid *ns_asid = ss_ns_asid_alloc();
+	ss_ns_asid_activate(ns_asid);
+	if(crt_ns_asids_init(ns_asid) != 0) BUG();
+
+	/* TODO: check # of NSs won't be too many: something like if (crt_nvas() > BOOTER_MAX_) */
+	struct crt_ns_vas *ns_vas1 = ss_ns_vas_alloc();
+	ss_ns_vas_activate(ns_vas1);
+	if(crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
+
+	/* FIXME: THIS IS HARD CODED FOR THE ping_pong_shared_vas.toml COMPOSITION SCRIPT */
+	/* component 3 = pong1  */
+	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) != 0) {
+		printc("alloc in for component 3 in ns vas 1 failed\n");
+		BUG();
+	}
+	/* component 2 = pong1 */
+	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) {
+		printc("alloc in for component 2 in ns vas 1 failed\n");
+		BUG();
+	}
+
 	ret = args_get_entry("sinvs", &comps);
 	assert(!ret);
 	printc("Synchronous invocations (%d):\n", args_len(&comps));
@@ -317,21 +345,17 @@ comps_init(void)
 
 		sinv = ss_sinv_alloc();
 		assert(sinv);
-		crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
-			strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
-			strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
-
-		/* specific hardcoding for ping pong test */
-		// if((serv_id == 3 && cli_id == 2) || (cli_id == 3 && serv_id == 2)) {
-		// 	crt_sinv_create_shared(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
-		// 		strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
-		// 		strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
-		// }
-		// else {
-		// 	crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
-		// 			strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
-		// 			strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
-		// }
+		if((serv_id == 3 && cli_id == 4) || (serv_id == 2 && cli_id == 3)) {
+		// if(check_comp_shared_vas(serv, cli)) {
+			crt_sinv_create_shared(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
+				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
+				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+		}
+		else {
+			crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
+					strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
+					strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+		}
 		ss_sinv_activate(sinv);
 		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);

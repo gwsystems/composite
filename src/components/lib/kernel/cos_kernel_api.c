@@ -710,12 +710,10 @@ cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t
 }
 
 int
-cos_compinfo_alloc_shared(struct cos_compinfo *ci_shared, struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources)
+cos_comp_alloc_shared(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources)
 {
 	compcap_t   compc;
-	vaddr_t		heap_ptr = ci_og->vas_frontier;
-	capid_t		cap_frontier = ci_og->cap_frontier;
-	captblcap_t ctc = ci_og->captbl_cap;
+	captblcap_t ctc = ci->captbl_cap;
 
 	printd("cos_compinfo_alloc_shared\n");
 
@@ -724,7 +722,8 @@ cos_compinfo_alloc_shared(struct cos_compinfo *ci_shared, struct cos_compinfo *c
 	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry);
 	assert(compc);
 
-	cos_compinfo_init(ci_shared, ptc, ctc, compc, heap_ptr, cap_frontier, ci_resources);
+	ci->comp_cap_shared = compc;
+	ci->pgtbl_cap_shared = ptc;
 
 	return 0;
 }
@@ -1178,29 +1177,3 @@ cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl)
 	return 0;
 
 }
-
-
-// pgtblcap_t
-// cos_shared_pgtbl_alloc(void)
-// {
-// 	// struct cos_defcompinfo *defcomp = cos_defcompinfo_curr_get();
-// 	// struct cos_compinfo *ci = cos_compinfo_get(defcomp);
-
-// 	// shared_pgtbl.cap = cos_pgtbl_alloc(ci);
-
-// 	vaddr_t kmem;
-// 	capid_t cap;
-
-// 	printd("cos_shared_pgtbl_alloc\n");
-
-// 	// assert(ci);
-
-// 	if (__alloc_mem_cap(NULL, CAP_PGTBL, &kmem, &cap)) return 0;
-// 	// this is probably so wrong
-// 	if (call_cap_op(-1, CAPTBL_OP_PGTBLACTIVATE, cap, NULL, kmem, 0))
-// 		BUG();
-
-// 	//ci->mi.second_lvl_flag = 0;
-
-// 	return cap;
-// }

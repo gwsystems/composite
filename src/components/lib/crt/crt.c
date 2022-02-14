@@ -329,13 +329,11 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	int name_index;
 	int mpk_key = c->mpk_key;
 
-	printc("comp addr = %lx\n", c->entry_addr);
-
 	name_index = c->entry_addr / CRT_VAS_NAME_SZ;
-	printc("name index = %x\n", name_index);
+	//printc("comp addr - %lx, name index = %x\n", c->entry_addr, name_index);
 	assert(name_index < CRT_VAS_NUM_NAMES);
 
-	printc("vas->names[%d].reserved = %d, .allocated = %d, .aliased = %d\n", name_index, vas->names[name_index].reserved, vas->names[name_index].allocated, vas->names[name_index].aliased);
+	//printc("vas->names[%d].reserved = %d, .allocated = %d, .aliased = %d\n", name_index, vas->names[name_index].reserved, vas->names[name_index].allocated, vas->names[name_index].aliased);
 
 	/* 0: make sure that in the bitmap, this comp is either unallocated or unaliased */
 	if(vas->names[name_index].allocated || vas->names[name_index].aliased) {
@@ -360,7 +358,7 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 		/* initialize the 2nd compinfo to use this pgtbl
 		 * TODO: assumes that component calling this function is the booter (or a component able to allocate capabilities)
 		 */
-		if(cos_compinfo_alloc_shared(cos_compinfo_get(c->comp_res_shared), cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
+		if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
 			printc("allocate comp cap/cap table cap failed\n");
 		}
 
@@ -465,7 +463,7 @@ crt_comp_init(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_
 		.entry_addr = elf_hdr ? elf_entry_addr(elf_hdr) : 0,
 		.comp_res   = &c->comp_res_mem,
 		/* FIXME: IS THIS OK? */
-		.comp_res_shared = &c->comp_res_mem,
+		//.comp_res_shared = &c->comp_res_mem,
 		.info       = info,
 		.refcnt     = CRT_REFCNT_INITVAL,
 
@@ -665,6 +663,7 @@ int
 crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
 {
 	assert(c && name);
+	printc("booter create\n");
 
 	*c = (struct crt_comp) {
 		.flags      = CRT_COMP_BOOTER,
@@ -768,8 +767,8 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 	
 	assert(sinv && name && server && client);
 
-	cli = cos_compinfo_get(client->comp_res_shared);
-	srv = cos_compinfo_get(server->comp_res_shared);
+	cli = cos_compinfo_get(client->comp_res);
+	srv = cos_compinfo_get(server->comp_res);
 
 	assert(crt_refcnt_alive(&server->refcnt) && crt_refcnt_alive(&client->refcnt));
 	crt_refcnt_take(&client->refcnt);
@@ -787,7 +786,7 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 		.s_fn_addr   = s_fn_addr
 	};
 
-	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
+	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap_shared, sinv->s_fn_addr, client->id);
 	assert(sinv->sinv_cap);
 	printc("SHARED sinv %s cap %ld\n", name, sinv->sinv_cap);
 
@@ -803,9 +802,6 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 
 	return 0;
 }
-
-
-
 
 int
 crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client,
@@ -990,8 +986,12 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 	target_aep = cos_sched_aep_get(c->comp_res);
 
 	assert(target_ci->comp_cap);
+	printc("crt thd create in (component %ld): closure id = %d\n", c->id, closure_id);
 	if (closure_id == 0) {
-		if(target_aep->thd != 0) return -1; /* should not allow double initialization */
+		if(target_aep->thd != 0) {
+			printc("\t about to return -1\n");
+			return -1; /* should not allow double initialization */
+		}
 
 		crt_refcnt_take(&c->refcnt);
 		assert(target_ci->comp_cap);
