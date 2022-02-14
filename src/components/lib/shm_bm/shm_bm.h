@@ -209,63 +209,63 @@ __shm_bm_ptr_free(void *ptr, size_t objsz, unsigned int nobj)
 }
 
 
-#define __SHM_BM_DEFINE_FCNS(name)																	\
-	static inline cbuf_t       shm_bm_clt_create_##name(shm_bm_t *shm);								\
-	static inline void *       shm_bm_clt_alloc_##name(shm_bm_t shm, shm_objid_t *objid);			\
-	static inline shm_reqtok_t shm_bm_srv_map_##name(cbuf_t id);									\
-	static inline void *       shm_bm_srv_take_##name(shm_reqtok_t reqtok, shm_objid_t objid);		\
-	static inline void *       shm_bm_srv_borrow_##name(shm_reqtok_t reqtok, shm_objid_t objid);	\
-	static inline void *       shm_bm_srv_transfer_##name(shm_reqtok_t reqtok, shm_objid_t objid);	\
-	static inline void         shm_bm_free_##name(void *ptr);                                                                                         
+#define __SHM_BM_DEFINE_FCNS(name)                                                                  \
+    static inline cbuf_t       shm_bm_clt_create_##name(shm_bm_t *shm);                             \
+    static inline void *       shm_bm_clt_alloc_##name(shm_bm_t shm, shm_objid_t *objid);           \
+    static inline shm_reqtok_t shm_bm_srv_map_##name(cbuf_t id);                                    \
+    static inline void *       shm_bm_srv_take_##name(shm_reqtok_t reqtok, shm_objid_t objid);      \
+    static inline void *       shm_bm_srv_borrow_##name(shm_reqtok_t reqtok, shm_objid_t objid);    \
+    static inline void *       shm_bm_srv_transfer_##name(shm_reqtok_t reqtok, shm_objid_t objid);  \
+    static inline void         shm_bm_free_##name(void *ptr);                                                                                         
 
-#define __SHM_BM_CREATE_FCNS(name, objsz, nobjs)											\
-	static inline cbuf_t																	\
-	shm_bm_clt_create_##name(shm_bm_t *shm)													\
-	{																						\
-		return __shm_bm_clt_create(shm, objsz, nobjs);										\
-	}																						\
-	static inline void *																	\
-	shm_bm_clt_alloc_##name(shm_bm_t shm, shm_objid_t *objid)								\
-	{																						\
-		return __shm_bm_clt_alloc(shm, objid, objsz, nobjs);								\
-	}																						\
-	static inline shm_reqtok_t																\
-	shm_bm_srv_map_##name(cbuf_t id)														\
-	{																						\
-		extern struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];	\
-		extern shm_reqtok_t               nxt_reqtok_##name;								\
-		return __shm_bm_srv_map(service_tbl_##name, &nxt_reqtok_##name, id);				\
-	}																						\
-	static inline void *																	\
-	shm_bm_srv_take_##name(shm_reqtok_t reqtok, shm_objid_t objid)							\
-	{																						\
-		extern struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];	\
-		return __shm_bm_srv_take(service_tbl_##name, reqtok, objid, objsz, nobjs);			\
-	}																						\
-	static inline void *																	\
-	shm_bm_srv_borrow_##name(shm_reqtok_t reqtok, shm_objid_t objid)						\
-	{																						\
-		extern struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];	\
-		return __shm_bm_srv_take_norefcnt(service_tbl_##name, reqtok, objid, objsz, nobjs);	\
-	}																						\
-	static inline void *																	\
-	shm_bm_srv_transfer_##name(shm_reqtok_t reqtok, shm_objid_t objid)						\
-	{																						\
-		extern struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];	\
-		return __shm_bm_srv_take_norefcnt(service_tbl_##name, reqtok, objid, objsz, nobjs);	\
-	}																						\
-	static inline void																		\
-	shm_bm_free_##name(void *ptr)															\
-	{																						\
-		__shm_bm_ptr_free(ptr, objsz, nobjs);												\
-	}
+#define __SHM_BM_CREATE_FCNS(name, objsz, nobjs)                                            \
+    static inline cbuf_t                                                                    \
+    shm_bm_clt_create_##name(shm_bm_t *shm)                                                 \
+    {                                                                                       \
+        return __shm_bm_clt_create(shm, objsz, nobjs);                                      \
+    }                                                                                       \
+    static inline void *                                                                    \
+    shm_bm_clt_alloc_##name(shm_bm_t shm, shm_objid_t *objid)                               \
+    {                                                                                       \
+        return __shm_bm_clt_alloc(shm, objid, objsz, nobjs);                                \
+    }                                                                                       \
+    static inline shm_reqtok_t                                                              \
+    shm_bm_srv_map_##name(cbuf_t id)                                                        \
+    {                                                                                       \
+        extern struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];    \
+        extern shm_reqtok_t               nxt_reqtok_##name;                                \
+        return __shm_bm_srv_map(service_tbl_##name, &nxt_reqtok_##name, id);                \
+    }                                                                                       \
+    static inline void *                                                                    \
+    shm_bm_srv_take_##name(shm_reqtok_t reqtok, shm_objid_t objid)                          \
+    {                                                                                       \
+        extern struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];    \
+        return __shm_bm_srv_take(service_tbl_##name, reqtok, objid, objsz, nobjs);          \
+    }                                                                                       \
+    static inline void *                                                                    \
+    shm_bm_srv_borrow_##name(shm_reqtok_t reqtok, shm_objid_t objid)                        \
+    {                                                                                       \
+        extern struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];    \
+        return __shm_bm_srv_take_norefcnt(service_tbl_##name, reqtok, objid, objsz, nobjs); \
+    }                                                                                       \
+    static inline void *                                                                    \
+    shm_bm_srv_transfer_##name(shm_reqtok_t reqtok, shm_objid_t objid)                      \
+    {                                                                                       \
+        extern struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];    \
+        return __shm_bm_srv_take_norefcnt(service_tbl_##name, reqtok, objid, objsz, nobjs); \
+    }                                                                                       \
+    static inline void                                                                      \
+    shm_bm_free_##name(void *ptr)                                                           \
+    {                                                                                       \
+        __shm_bm_ptr_free(ptr, objsz, nobjs);                                               \
+    }
 
-#define SHM_BM_INTERFACE_CREATE(name, objsz, nobj)											\
-	__SHM_BM_DEFINE_FCNS(name)																\
-	__SHM_BM_CREATE_FCNS(name, objsz, nobj) 
+#define SHM_BM_INTERFACE_CREATE(name, objsz, nobj)                                          \
+    __SHM_BM_DEFINE_FCNS(name)                                                              \
+    __SHM_BM_CREATE_FCNS(name, objsz, nobj) 
 
-#define SHM_BM_SERVER_INIT(name) 															\
-	shm_reqtok_t               nxt_reqtok_##name = 0;										\
-	struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];
+#define SHM_BM_SERVER_INIT(name)                                                            \
+    shm_reqtok_t               nxt_reqtok_##name = 0;                                       \
+    struct shm_service_tbl_ent service_tbl_##name[SHM_BM_SERVICE_TABLE_SIZE];
 
 #endif
