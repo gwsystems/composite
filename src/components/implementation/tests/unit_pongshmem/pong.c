@@ -4,9 +4,9 @@
 #include <shm_bm.h>
 #include <string.h>
 
-shm_bm_t shm;
+SHM_BM_SERVER_INIT(testobj);
 
-SHM_BM_CREATE(test, sizeof(struct obj_test), BENCH_ITER)
+shm_bm_t shm;
 
 char *ping_test_strings[] = {
 	"PING TEST 1",
@@ -22,21 +22,22 @@ char *pong_test_strings[] = {
 	"PONG TEST 4",
 };
 
-void 
+shm_reqtok_t 
 pongshmem_test_map(cbuf_t shmid)
 {
-	int ret = shm_bm_map_test(shmid);
-	PRINTLOG(PRINT_DEBUG, "%s: Shared memory mapped in pong\n", (ret == 0) ? "FAILURE" : "SUCCESS");
+	shm_reqtok_t ret = shm_bm_srv_map_testobj(shmid);
+	PRINTLOG(PRINT_DEBUG, "%s: Shared memory mapped in pong\n", (ret == -1) ? "FAILURE" : "SUCCESS");
+	return ret;
 }
 
 void
-pongshmem_test_objread(shm_objid_t objid, int test_string)
+pongshmem_test_objread(shm_reqtok_t reqtok, shm_objid_t objid, int test_string)
 {
 	struct obj_test *obj;
 	int              failure; 
 
 	/* get a reference to shared object sent from ping */
-	obj = (struct obj_test *) shm_bm_obj_use_test(objid);
+	obj = (struct obj_test *) shm_bm_srv_use_testobj(reqtok, objid);
 	PRINTLOG(PRINT_DEBUG, "%s: (%d) Pong can get shared object from buffer\n", (obj == 0) ? "FAILURE" : "SUCCESS", test_string+1);
 	
 	/* verify that we can read data from ping */
@@ -48,24 +49,24 @@ pongshmem_test_objread(shm_objid_t objid, int test_string)
 }
 
 void
-pongshmem_test_refcnt(shm_objid_t objid)
+pongshmem_test_refcnt(shm_reqtok_t reqtok, shm_objid_t objid)
 {
 	struct obj_test *obj;
 	int              failure; 
 	const char      *teststr = "test string";
 
 	/* get a reference to shared object sent from ping */
-	obj = (struct obj_test *) shm_bm_obj_use_test(objid);
+	obj = (struct obj_test *) shm_bm_srv_use_testobj(reqtok, objid);
 	if (obj == 0) 
 		PRINTLOG(PRINT_DEBUG, "FAILURE: Pong can get shared object from buffer\n");
 
-	shm_bm_obj_free_test(obj);
+	shm_bm_ptr_free_testobj(obj);
 }
 
-void 
+shm_reqtok_t 
 pongshmem_bench_map(cbuf_t shmid)
 {
-	shm_bm_map_test(shmid);
+	return shm_bm_srv_map_testobj(shmid);
 }
 
 void 
@@ -93,12 +94,11 @@ pongshmem_bench_objread_nonstatic(shm_bufid_t objid)
 }
 
 void
-pongshmem_bench_objread(shm_objid_t objid)
+pongshmem_bench_objread(shm_reqtok_t reqtok, shm_objid_t objid)
 {
 	struct obj_test *obj;
-
 	/* get a reference to shared object sent from ping */
-	obj = (struct obj_test *) shm_bm_obj_borrow_test(objid);
-	assert(obj->id == objid);
+	obj = (struct obj_test *) shm_bm_srv_borrow_testobj(reqtok, objid);
+	assert(obj->id == (signed int) objid);
 }
 
