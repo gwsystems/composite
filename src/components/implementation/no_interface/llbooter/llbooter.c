@@ -196,6 +196,33 @@ comps_init(void)
 		printc("created component\n");
 	}
 
+	/* allocate an ASID / VAS ns */
+	/* TODO: check # of NSs won't be too many: something like if (crt_nasid() > BOOTER_MAX_) */
+	struct crt_ns_asid *ns_asid = ss_ns_asid_alloc();
+	ss_ns_asid_activate(ns_asid);
+	if(crt_ns_asids_init(ns_asid) != 0) BUG();
+
+	/* TODO: check # of NSs won't be too many: something like if (crt_nvas() > BOOTER_MAX_) */
+	struct crt_ns_vas *ns_vas1 = ss_ns_vas_alloc();
+	ss_ns_vas_activate(ns_vas1);
+	if(crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
+
+	/* FIXME: THIS IS HARD CODED FOR THE ping_pong_shared_vas.toml COMPOSITION SCRIPT */
+	/* component 3 = pong1  */
+	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) != 0) {
+		printc("alloc in for component 3 in ns vas 1 failed\n");
+		BUG();
+	}
+
+	struct cos_aep_info *target_aep = cos_sched_aep_get(boot_comp_get(2)->comp_res);
+	printc("target aep before crt ns vass alloc in : %ld\n", target_aep->thd);
+
+	/* component 2 = pong1 */
+	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) {
+		printc("alloc in for component 2 in ns vas 1 failed\n");
+		BUG();
+	}
+
 	ret = args_get_entry("execute", &comps);
 	assert(!ret);
 	printc("Execution schedule:\n");
@@ -210,6 +237,10 @@ comps_init(void)
 		assert(id != cos_compid());
 		comp = boot_comp_get(id);
 		assert(comp);
+
+		struct cos_aep_info *target_aep = cos_sched_aep_get(comp->comp_res);
+		printc("target aep in llbooter: %ld\n", target_aep->thd);
+
 
 		if (!strcmp(exec_type, "sched")) {
 			struct crt_rcv *r = ss_rcv_alloc();
@@ -310,28 +341,7 @@ comps_init(void)
 	 * those slots for the synchronous invocations.
 	 */
 
-	/* allocate an ASID / VAS ns */
-	/* TODO: check # of NSs won't be too many: something like if (crt_nasid() > BOOTER_MAX_) */
-	struct crt_ns_asid *ns_asid = ss_ns_asid_alloc();
-	ss_ns_asid_activate(ns_asid);
-	if(crt_ns_asids_init(ns_asid) != 0) BUG();
-
-	/* TODO: check # of NSs won't be too many: something like if (crt_nvas() > BOOTER_MAX_) */
-	struct crt_ns_vas *ns_vas1 = ss_ns_vas_alloc();
-	ss_ns_vas_activate(ns_vas1);
-	if(crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
-
-	/* FIXME: THIS IS HARD CODED FOR THE ping_pong_shared_vas.toml COMPOSITION SCRIPT */
-	/* component 3 = pong1  */
-	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) != 0) {
-		printc("alloc in for component 3 in ns vas 1 failed\n");
-		BUG();
-	}
-	/* component 2 = pong1 */
-	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) {
-		printc("alloc in for component 2 in ns vas 1 failed\n");
-		BUG();
-	}
+	
 
 	ret = args_get_entry("sinvs", &comps);
 	assert(!ret);

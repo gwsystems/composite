@@ -190,6 +190,9 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	capid_t captblid_add;
 	vaddr_t kmem;
 
+	struct cos_aep_info *target_aep = cos_sched_aep_get(ci);
+	printc("capid captbl check expand %ld\n", target_aep->thd);
+
 	/* ensure that we have bounded structure, and bounded recursion */
 	assert(__compinfo_metacap(meta) == meta);
 
@@ -722,6 +725,8 @@ cos_comp_alloc_shared(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t entry, st
 	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry);
 	assert(compc);
 
+	printc("cos comp alloc shared, new comp capability = %ld\n", compc);
+	printc("\t pgtbl cap = %ld\n", ptc);
 	ci->comp_cap_shared = compc;
 	ci->pgtbl_cap_shared = ptc;
 

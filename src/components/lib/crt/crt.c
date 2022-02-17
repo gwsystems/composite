@@ -326,6 +326,9 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	 * else --> not possible
 	 */
 
+	struct cos_aep_info *target_aep = cos_sched_aep_get(c->comp_res);
+	printc("target aep in crt ns vas alloc in 330: %ld\n", target_aep->thd);
+
 	int name_index;
 	int mpk_key = c->mpk_key;
 
@@ -383,6 +386,9 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	if(cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl) != 0) {
 		printc("cons failed\n");
 	}
+	// target_aep = cos_sched_aep_get(c->comp_res);
+	// printc("target aep in crt ns vas alloc after cons: %ld\n", target_aep->thd);
+
 
 	return 0;
 
