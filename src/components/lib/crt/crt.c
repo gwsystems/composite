@@ -325,12 +325,9 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	 * is it unreserved but unaliased? --> make aliased & assign MPK key w same properties
 	 * else --> not possible
 	 */
-
-	struct cos_aep_info *target_aep = cos_sched_aep_get(c->comp_res);
-	printc("target aep in crt ns vas alloc in 330: %ld\n", target_aep->thd);
-
 	int name_index;
 	int mpk_key = c->mpk_key;
+	int cons_ret;
 
 	name_index = c->entry_addr / CRT_VAS_NAME_SZ;
 	//printc("comp addr - %lx, name index = %x\n", c->entry_addr, name_index);
@@ -383,12 +380,11 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	vas->mpk_names[mpk_key].allocated = 1;
 
 	/* 4: cons the 2nd level pgtbl node in c into the pgtbl node in vas */
-	if(cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl) != 0) {
-		printc("cons failed\n");
+	cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl);
+	if(cons_ret != 0) {
+		//assert(0);
+		printc("cons failed: %d\n", cons_ret);
 	}
-	// target_aep = cos_sched_aep_get(c->comp_res);
-	// printc("target aep in crt ns vas alloc after cons: %ld\n", target_aep->thd);
-
 
 	return 0;
 
@@ -992,15 +988,13 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 	target_aep = cos_sched_aep_get(c->comp_res);
 
 	assert(target_ci->comp_cap);
-	printc("crt thd create in (component %ld): closure id = %d\n", c->id, closure_id);
 	if (closure_id == 0) {
-		if(target_aep->thd != 0) {
-			printc("\t about to return -1\n");
-			return -1; /* should not allow double initialization */
-		}
+		if(target_aep->thd != 0) return -1; /* should not allow double initialization */
 
 		crt_refcnt_take(&c->refcnt);
 		assert(target_ci->comp_cap);
+		//thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
+		printc("alloc thdcap shared?\n");
 		thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
 		assert(target_aep->thd);
 	} else {

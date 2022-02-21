@@ -190,9 +190,6 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	capid_t captblid_add;
 	vaddr_t kmem;
 
-	struct cos_aep_info *target_aep = cos_sched_aep_get(ci);
-	printc("capid captbl check expand %ld\n", target_aep->thd);
-
 	/* ensure that we have bounded structure, and bounded recursion */
 	assert(__compinfo_metacap(meta) == meta);
 
@@ -1170,6 +1167,7 @@ cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl)
 
 	if(cos_get_second_lvl(ci, &pte_cap, &pgtbl_addr) != 0) {
 		printc("no second level\n");
+		assert(0);
 		return -1;
 	}
 

@@ -214,9 +214,6 @@ comps_init(void)
 		BUG();
 	}
 
-	struct cos_aep_info *target_aep = cos_sched_aep_get(boot_comp_get(2)->comp_res);
-	printc("target aep before crt ns vass alloc in : %ld\n", target_aep->thd);
-
 	/* component 2 = pong1 */
 	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) {
 		printc("alloc in for component 2 in ns vas 1 failed\n");
@@ -237,10 +234,6 @@ comps_init(void)
 		assert(id != cos_compid());
 		comp = boot_comp_get(id);
 		assert(comp);
-
-		struct cos_aep_info *target_aep = cos_sched_aep_get(comp->comp_res);
-		printc("target aep in llbooter: %ld\n", target_aep->thd);
-
 
 		if (!strcmp(exec_type, "sched")) {
 			struct crt_rcv *r = ss_rcv_alloc();
