@@ -283,7 +283,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 	assert(comp_info->cos_this_spd_id == 0);
 	comp_info->cos_this_spd_id = id;
 
-	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(c->ro_sz), COS_PAGE_READABLE | COS_PAGE_WRITABLE)) return -ENOMEM;
+	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(c->ro_sz), COS_PAGE_READABLE)) return -ENOMEM;
 	if (c->rw_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem + round_up_to_page(c->ro_sz), c->tot_sz_mem - round_to_page(c->ro_sz), COS_PAGE_READABLE | COS_PAGE_WRITABLE)) return -ENOMEM;
 
 	/* FIXME: cos_time.h assumes we have access to this... */
@@ -356,7 +356,7 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	c->n_sinvs = 0;
 	memset(c->sinvs, 0, sizeof(c->sinvs));
 
-	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(ro_sz), COS_PAGE_READABLE | COS_PAGE_WRITABLE)) return -ENOMEM;
+	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(ro_sz), COS_PAGE_READABLE)) return -ENOMEM;
 	if (c->rw_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem + round_up_to_page(ro_sz), round_up_to_page(data_sz + bss_sz), COS_PAGE_READABLE | COS_PAGE_WRITABLE)) return -ENOMEM;
 
 	/* FIXME: cos_time.h assumes we have access to this... */
