@@ -283,8 +283,8 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 	assert(comp_info->cos_this_spd_id == 0);
 	comp_info->cos_this_spd_id = id;
 
-	/* FIXME: separate map of RO and RW */
-	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, c->tot_sz_mem)) return -ENOMEM;
+	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(c->ro_sz), COS_PAGE_READABLE | COS_PAGE_WRITABLE)) return -ENOMEM;
+	if (c->rw_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem + round_up_to_page(c->ro_sz), c->tot_sz_mem - round_to_page(c->ro_sz), COS_PAGE_READABLE | COS_PAGE_WRITABLE)) return -ENOMEM;
 
 	/* FIXME: cos_time.h assumes we have access to this... */
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, root_ci, BOOT_CAPTBL_SELF_INITHW_BASE);
@@ -356,8 +356,8 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	c->n_sinvs = 0;
 	memset(c->sinvs, 0, sizeof(c->sinvs));
 
-	/* FIXME: separate map of RO and RW */
-	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, tot_sz)) return -ENOMEM;
+	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(ro_sz), COS_PAGE_READABLE | COS_PAGE_WRITABLE)) return -ENOMEM;
+	if (c->rw_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem + round_up_to_page(ro_sz), round_up_to_page(data_sz + bss_sz), COS_PAGE_READABLE | COS_PAGE_WRITABLE)) return -ENOMEM;
 
 	/* FIXME: cos_time.h assumes we have access to this... */
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, root_ci, BOOT_CAPTBL_SELF_INITHW_BASE);
@@ -1107,7 +1107,7 @@ crt_page_allocn(struct crt_comp *c, u32_t n_pages)
 int
 crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr)
 {
-	*map_addr = cos_mem_aliasn(cos_compinfo_get(c_in->comp_res), cos_compinfo_get(self->comp_res), (vaddr_t)pages, n_pages * PAGE_SIZE);
+	*map_addr = cos_mem_aliasn(cos_compinfo_get(c_in->comp_res), cos_compinfo_get(self->comp_res), (vaddr_t)pages, n_pages * PAGE_SIZE, COS_PAGE_READABLE | COS_PAGE_WRITABLE);
 	if (!*map_addr) return -EINVAL;
 
 	return 0;

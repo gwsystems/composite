@@ -177,7 +177,7 @@ cos_init(void)
 				assert(src_pg);
 				memcpy((void *)src_pg, (void *)(BOOT_MEM_VM_BASE + addr), PAGE_SIZE);
 
-				dst_pg = cos_mem_alias(child_ci, ci, src_pg);
+				dst_pg = cos_mem_alias(child_ci, ci, src_pg, COS_PAGE_READABLE | COS_PAGE_WRITABLE);
 				assert(dst_pg);
 			}
 

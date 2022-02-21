@@ -160,10 +160,10 @@ int cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout, int *rc
 
 int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
 
-vaddr_t cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
-vaddr_t cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz);
-int     cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);
-int     cos_mem_alias_atn(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, size_t sz);
+vaddr_t cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, unsigned long newflags);
+vaddr_t cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz, unsigned long newflags);
+int     cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, unsigned long newflags);
+int     cos_mem_alias_atn(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, size_t sz, unsigned long newflags);
 vaddr_t cos_mem_move(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
 int     cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);
 int     cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
