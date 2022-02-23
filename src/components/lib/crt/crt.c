@@ -993,10 +993,18 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 
 		crt_refcnt_take(&c->refcnt);
 		assert(target_ci->comp_cap);
+		if(target_ci->comp_cap_shared != -1) {
+			/* alloc shared */
+			printc("alloc thdcap shared\n");
+			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap_shared);
+		}
+		else {
+			printc("alloc thdcap unshared\n");
+			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
+		}
 		//thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
-		printc("alloc thdcap shared?\n");
-		thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
 		assert(target_aep->thd);
+		
 	} else {
 		crt_refcnt_take(&c->refcnt);
 		thdcap = cos_thd_alloc_ext(ci, target_ci->comp_cap, closure_id);
