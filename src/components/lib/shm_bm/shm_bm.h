@@ -1,5 +1,5 @@
-#ifndef SHM_BM_CLTSRV_H
-#define SHM_BM_CLTSRV_H
+#ifndef SHM_BM_H
+#define SHM_BM_H
 
 #include <cos_types.h>
 #include <memmgr.h>
