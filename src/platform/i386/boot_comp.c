@@ -169,7 +169,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const
 		u8_t *  p     = kern_vaddr + i * PAGE_SIZE;
 		paddr_t pf    = chal_va2pa(p);
 		unsigned long   mapat = (unsigned long)user_vaddr + i * PAGE_SIZE;
-		u32_t flags = 0;
+		word_t flags = 0;
 
 		if (uvm && pgtbl_mapping_add(pgtbl, mapat, pf, X86_PGTBL_USER_DEF, PAGE_ORDER)) assert(0);
 		if (!uvm && pgtbl_cosframe_add(pgtbl, mapat, pf, X86_PGTBL_COSFRAME, PAGE_ORDER)) assert(0);
@@ -341,8 +341,8 @@ kern_boot_comp(const cpuid_t cpu_id)
 void
 kern_boot_upcall(void)
 {
-	void *entry = (void *)mem_bootc_entry();
-	u32_t flags = 0;
+	void  *entry = (void *)mem_bootc_entry();
+	word_t flags = 0;
 	void *p;
 
 	assert(get_cpuid() >= 0);
