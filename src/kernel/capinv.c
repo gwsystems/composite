@@ -108,7 +108,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
                unsigned long **p_pte, unsigned long *v)
 {
 	struct cap_pgtbl *cap_pt;
-	u32_t             flags, old_v, pa;
+	word_t            flags, old_v, pa;
 	u64_t             curr;
 	int               ret;
 
@@ -225,7 +225,7 @@ err:
  *
  */
 static inline int
-cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, capid_t capin_from, vaddr_t order)
+cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, capid_t capin_from, word_t flags)
 {
 	struct cap_header *ctto, *ctfrom;
 	int                sz, ret;
@@ -283,7 +283,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 		}
 		__cap_capactivate_post(ctto, type);
 	} else if (cap_type == CAP_PGTBL) {
-		ret = chal_pgtbl_cpy(t, cap_to, capin_to, (struct cap_pgtbl*)ctfrom, capin_from, cap_type, order);
+		ret = chal_pgtbl_cpy(t, cap_to, capin_to, (struct cap_pgtbl*)ctfrom, capin_from, cap_type, flags);
 	} else {
 		ret = -EINVAL;
 	}
@@ -308,7 +308,7 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, c
 		return -EPERM;
 	} else if (cap_type == CAP_PGTBL) {
 		unsigned long *f, old_v, *moveto, old_v_to;
-		u32_t          flags;
+		word_t         flags;
 
 		ctto = captbl_lkup(t, cap_to);
 		if (unlikely(!ctto)) return -ENOENT;
@@ -1337,9 +1337,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t source_addr = __userregs_get1(regs);
 			capid_t dest_pt     = __userregs_get2(regs);
 			vaddr_t dest_addr   = __userregs_get3(regs);
-			vaddr_t order       = __userregs_get4(regs);
+			word_t  flags       = __userregs_get4(regs);
 
-			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr, order);
+			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr, flags);
 			break;
 		}
 		case CAPTBL_OP_MEMMOVE: {
@@ -1596,7 +1596,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			paddr_t           pa    = __userregs_get3(regs);
 			struct cap_pgtbl *ptc;
 			unsigned long *   pte;
-			u32_t             flags;
+			word_t            flags;
 
 			/*
 			 * FIXME: This is broken.  It should only be

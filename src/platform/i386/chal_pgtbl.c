@@ -50,6 +50,34 @@ chal_pgtbl_flag(unsigned long input)
 	return PGTBL_FLAG_MASK & input;
 }
 
+unsigned long
+chal_pgtbl_flag_update(unsigned long orig, pgtbl_flags_x86_t new)
+{
+	unsigned long updated;
+	/* 
+	 * This is kind of hacky but we only want the user to be able  
+	 * to change a subset of the original flags when we delegate 
+	 * a pte to another component. Obviously user-level components
+	 * should not change certain bits in the pagetable, but we also
+	 * don't want a component to have upgraded rights to a page that
+	 * they are delegated (e.i. making a RO page RW).
+	 */
+
+	/* first, user-level components can't change most flags*/
+	updated = new | (orig & ~X86_PGTBL_USER_MODIFIABLE);
+
+	/* second, they should not be able to upgrade a page's rights */
+	if (orig & X86_PGTBL_WRITABLE) {
+		updated |= new & PGTBL_WRITABLE;
+	}
+#if defined(__x86_64__)
+	if (!(orig & X86_PGTBL_XDISABLE)) {
+		updated |= new & X86_PGTBL_XDISABLE;
+	}
+#endif
+	return updated; 
+}
+
 int
 chal_pgtbl_kmem_act(pgtbl_t pt, vaddr_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
@@ -60,7 +88,7 @@ chal_pgtbl_kmem_act(pgtbl_t pt, vaddr_t addr, unsigned long *kern_addr, unsigned
 	assert((PGTBL_FLAG_MASK & addr) == 0);
 
 #if defined(__x86_64__)
-	u32_t flags;
+	word_t flags;
 	pte = pgtbl_lkup_lvl(pt, addr, &flags, 0, 1);
 #elif defined(__i386__)	
 	/* Is this place really a pte? If there is a super page, reject the operation now */
@@ -153,7 +181,7 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 {
 	unsigned long *    pte, cosframe, orig_v;
 	struct cap_header *dest_pt_h;
-	u32_t              flags;
+	word_t             flags;
 	int                ret;
 
 	if (unlikely(pt->lvl || (pt->refcnt_flags & CAP_MEM_FROZEN_FLAG))) return -EINVAL;
@@ -281,7 +309,7 @@ err:
 }
 
 void *
-chal_pgtbl_lkup_lvl(pgtbl_t pt, vaddr_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
+chal_pgtbl_lkup_lvl(pgtbl_t pt, vaddr_t addr, word_t *flags, u32_t start_lvl, u32_t end_lvl)
 {
 #if defined(__x86_64__)
 	u32_t i;
@@ -307,14 +335,14 @@ chal_pgtbl_lkup_lvl(pgtbl_t pt, vaddr_t addr, u32_t *flags, u32_t start_lvl, u32
 }
 
 int
-chal_pgtbl_mapping_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32_t order)
+chal_pgtbl_mapping_add(pgtbl_t pt, vaddr_t addr, paddr_t page, word_t flags, u32_t order)
 {
 	int                ret = 0;
 	struct ert_intern *pte = 0;
 	unsigned long      orig_v;
 	u32_t              accum = 0;
 	/* this temp_flag should not be used */
-	u32_t              temp_flag = 0;
+	word_t             temp_flag = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
@@ -354,12 +382,12 @@ chal_pgtbl_mapping_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32_
 }
 
 int
-chal_pgtbl_cosframe_add(pgtbl_t pt, vaddr_t addr, paddr_t page, u32_t flags, u32_t order)
+chal_pgtbl_cosframe_add(pgtbl_t pt, vaddr_t addr, paddr_t page, word_t flags, u32_t order)
 {
 	struct ert_intern *pte;
 	unsigned long      orig_v = 0;
 	u32_t              accum = 0;
-	u32_t              temp_flags = 0;
+	word_t             temp_flags = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
@@ -511,13 +539,13 @@ chal_pgtbl_mapping_scan(struct cap_pgtbl *pt)
 
 
 int
-chal_pgtbl_ispresent(u32_t flags)
+chal_pgtbl_ispresent(word_t flags)
 {
 	return flags & (X86_PGTBL_PRESENT | X86_PGTBL_COSFRAME);
 }
 
 unsigned long *
-chal_pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags)
+chal_pgtbl_lkup(pgtbl_t pt, vaddr_t addr, word_t *flags)
 {
 	void *ret;
 
@@ -528,14 +556,14 @@ chal_pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags)
 }
 
 unsigned long *
-chal_pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags)
+chal_pgtbl_lkup_pte(pgtbl_t pt, vaddr_t addr, word_t *flags)
 {
 	return __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH,
 	                      flags);
 }
 
 unsigned long *
-chal_pgtbl_lkup_pgd(pgtbl_t pt, u32_t addr, u32_t *flags)
+chal_pgtbl_lkup_pgd(pgtbl_t pt, vaddr_t addr, word_t *flags)
 {
 	return __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | X86_PGTBL_PRESENT), addr >> PGTBL_PAGEIDX_SHIFT, 1,
 			      flags);
@@ -544,7 +572,7 @@ chal_pgtbl_lkup_pgd(pgtbl_t pt, u32_t addr, u32_t *flags)
 int
 chal_pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe, vaddr_t *order)
 {
-	u32_t          flags;
+	word_t         flags;
 	unsigned long *pte;
 	paddr_t        v;
 #if defined(__x86_64__)
@@ -657,25 +685,16 @@ chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid
 }
 
 int
-chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pgtbl *ctfrom, capid_t capin_from, cap_t cap_type, vaddr_t order)
+chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pgtbl *ctfrom, capid_t capin_from, cap_t cap_type, word_t flags_in)
 {
 	struct cap_header	*ctto;
 	unsigned long		*f, old_v;
-	u32_t			flags;
+	word_t			     flags;
 
 	ctto = captbl_lkup(t, cap_to);
 	if (unlikely(!ctto)) return -ENOENT;
 	if (unlikely(ctto->type != cap_type)) return -EINVAL;
 	if (unlikely(((struct cap_pgtbl *)ctto)->refcnt_flags & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
-
-	/* 
-	 * See what kind of delegation we are doing. There are 4 kinds of delegations:
-	 * 1. Superpage -> Smallpage [order = 12]
-	 * 2. Superpage -> Superpage [order = 22]
-	 * 3. Smallpage -> Smallpage [order = 12]
-	 * 4. Smallpage -> Superpage [prohibited]
-	 */
-	if (order != PAGE_ORDER) return -EINVAL;
 
 #if defined(__x86_64__)
 	f = pgtbl_lkup_lvl(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags, 0, PGTBL_DEPTH);
@@ -687,7 +706,11 @@ chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pg
 
 	/* Cannot copy frame, or kernel entry. */
 	if (chal_pgtbl_flag_exist(old_v, PGTBL_COSFRAME) || !chal_pgtbl_flag_exist(old_v, PGTBL_USER)) return -EPERM;
-	return pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags, order);
+
+	/* sanitize the input flags */
+	flags = chal_pgtbl_flag_update(flags, flags_in);
+
+	return pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags, PAGE_ORDER);
 }
 
 /* 
@@ -700,7 +723,8 @@ chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pg
 int
 chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandid, unsigned long depth)
 {
-	u32_t flags = 0, refcnt_flags, old_v;
+	word_t flags = 0; 
+	u32_t  refcnt_flags, old_v;
 	unsigned long old_pte, new_pte;
 	unsigned long *    intern;
 	int                ret = 0;
@@ -739,7 +763,7 @@ chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t prune
 	unsigned long *    intern, old_v;
 
 	struct cap_pgtbl *pt = (struct cap_pgtbl *)head;
-	u32_t             flags;
+	word_t            flags;
 	if (lvl <= pt->lvl) return -EINVAL;
 	intern = pgtbl_lkup_lvl(pt->pgtbl, pruneid, &flags, pt->lvl, lvl);
 
@@ -766,7 +790,7 @@ int
 chal_pgtbl_introspect(struct cap_header *ch, vaddr_t addr)
 {
 	unsigned long *pte;
-	u32_t          flags;
+	word_t         flags;
 	int            ret = 0;
 	/* Is this a pte or a pgd? */
 	pte = pgtbl_lkup_pgd(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);

@@ -5,17 +5,19 @@
 /* Page table platform-dependent definitions */
 #define PGTBL_PAGEIDX_SHIFT (12)
 #define PGTBL_FRAME_BITS (32 - PGTBL_PAGEIDX_SHIFT)
-#define PGTBL_FLAG_MASK ((1 << PGTBL_PAGEIDX_SHIFT) - 1)
-#define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
 
 #if defined(__x86_64__)
 #define PGTBL_ENTRY_ADDR_MASK 0xfffffffffffff000
 #define PGTBL_DEPTH 4
 #define PGTBL_ENTRY_ORDER 9
+#define PGTBL_FLAG_MASK 0xf800000000000fff
+#define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
 #elif defined(__i386__)
 #define PGTBL_ENTRY_ADDR_MASK 0xfffff000
 #define PGTBL_DEPTH 2
 #define PGTBL_ENTRY_ORDER 10
+#define PGTBL_FLAG_MASK ((1 << PGTBL_PAGEIDX_SHIFT) - 1)
+#define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
 #endif
 
 #define PGTBL_ENTRY (1 << PGTBL_ENTRY_ORDER)

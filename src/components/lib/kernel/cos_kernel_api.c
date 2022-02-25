@@ -1062,7 +1062,7 @@ cos_rcv(arcvcap_t rcv, rcv_flags_t flags, int *rcvd)
 }
 
 vaddr_t
-cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz)
+cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz, unsigned long perm_flags)
 {
 	size_t i;
 	vaddr_t dst, first_dst;
@@ -1075,30 +1075,30 @@ cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t s
 	first_dst = dst;
 
 	for (i = 0; i < sz; i += PAGE_SIZE, src += PAGE_SIZE, dst += PAGE_SIZE) {
-		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, PAGE_ORDER)) return 0;
+		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, perm_flags)) return 0;
 	}
 
 	return first_dst;
 }
 
 vaddr_t
-cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src)
+cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, unsigned long perm_flags)
 {
-	return cos_mem_aliasn(dstci, srcci, src, PAGE_SIZE);
+	return cos_mem_aliasn(dstci, srcci, src, PAGE_SIZE, perm_flags);
 }
 
 int
-cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src)
+cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, unsigned long perm_flags)
 {
 	assert(srcci && dstci);
 
-	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, PAGE_ORDER)) BUG();
+	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src, dstci->pgtbl_cap, dst, perm_flags)) BUG();
 
 	return 0;
 }
 
 int
-cos_mem_alias_atn(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, size_t sz)
+cos_mem_alias_atn(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, size_t sz, unsigned long perm_flags)
 {
 	size_t i;
 	size_t npages;
@@ -1108,7 +1108,7 @@ cos_mem_alias_atn(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *
 
 	npages = sz / PAGE_SIZE;
 	for (i=0; i < npages; i++) {
-		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src + i * PAGE_SIZE, dstci->pgtbl_cap, dst + i * PAGE_SIZE, PAGE_ORDER)) BUG();
+		if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_CPY, src + i * PAGE_SIZE, dstci->pgtbl_cap, dst + i * PAGE_SIZE, perm_flags)) BUG();
 	}
 
 	return 0;

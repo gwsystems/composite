@@ -16,10 +16,23 @@ typedef enum {
 	X86_PGTBL_COSFRAME   = 1 << 9,
 	X86_PGTBL_COSKMEM    = 1 << 10, /* page activated as kernel object */
 	X86_PGTBL_QUIESCENCE = 1 << 11,
+#if defined(__x86_64__)
+	X86_PGTBL_PKEY0      = 1ul << 59, /* MPK key bits */
+	X86_PGTBL_PKEY1      = 1ul << 60, 
+	X86_PGTBL_PKEY2      = 1ul << 61, 
+	X86_PGTBL_PKEY3      = 1ul << 62, 
+
+	X86_PGTBL_XDISABLE   = 1ul << 63,
+#endif
 	/* Flag bits done. */
 
 	X86_PGTBL_USER_DEF   = X86_PGTBL_PRESENT | X86_PGTBL_USER | X86_PGTBL_ACCESSED | X86_PGTBL_MODIFIED | X86_PGTBL_WRITABLE,
 	X86_PGTBL_INTERN_DEF = X86_PGTBL_USER_DEF,
+#if defined(__x86_64__)
+	X86_PGTBL_USER_MODIFIABLE = X86_PGTBL_WRITABLE | X86_PGTBL_PKEY0 | X86_PGTBL_PKEY1 | X86_PGTBL_PKEY2 | X86_PGTBL_PKEY3 | X86_PGTBL_XDISABLE,
+#elif defined(__i386__)	
+	X86_PGTBL_USER_MODIFIABLE = X86_PGTBL_WRITABLE,
+#endif
 } pgtbl_flags_x86_t;
 
 /**
@@ -142,9 +155,9 @@ pgtbl_alloc(void *page)
 }
 
 static int
-pgtbl_intern_expand(pgtbl_t pt, unsigned long addr, void *pte, u32_t flags)
+pgtbl_intern_expand(pgtbl_t pt, unsigned long addr, void *pte, unsigned long flags)
 {
-	unsigned long accum = (unsigned long)flags;
+	unsigned long accum = flags;
 	int           ret;
 
 	/* NOTE: flags currently ignored. */

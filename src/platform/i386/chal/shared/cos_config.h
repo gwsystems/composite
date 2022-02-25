@@ -164,6 +164,15 @@
                             /* 30/1G   31/2G */ \
                                -1,     -1 \
 
+/* PTE user pagetable modifiable flags */
+#define COS_PAGE_READABLE (0)
+#define COS_PAGE_WRITABLE (1ul << 1)
+#define COS_PAGE_PKEY0    (1ul << 59)
+#define COS_PAGE_PKEY1    (1ul << 60)
+#define COS_PAGE_PKEY2    (1ul << 61)
+#define COS_PAGE_PKEY3    (1ul << 62)
+#define COS_PAGE_XDISABLE (1ul << 63)
+
 #elif defined(__i386__)
 #define COS_PGTBL_DEPTH 2
 #define COS_PGTBL_ORDER_PTE 12
@@ -180,6 +189,9 @@
                                -1,     -1,     1,     -1,     -1,     -1,     -1,     -1,     -1,     -1, \
                             /* 30/1G   31/2G */ \
                                -1,     -1 \
+/* PTE user modifiable flags */
+#define COS_PAGE_READABLE (0)
+#define COS_PAGE_WRITABLE (1ul << 1)
 
 #endif
 #endif /* COS_CONFIG_H */
