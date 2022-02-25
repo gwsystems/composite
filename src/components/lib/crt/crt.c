@@ -1105,12 +1105,18 @@ crt_page_allocn(struct crt_comp *c, u32_t n_pages)
 }
 
 int
-crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr)
+crt_page_aliasn_aligned_in(void *pages, unsigned long align, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr)
 {
-	*map_addr = cos_mem_aliasn(cos_compinfo_get(c_in->comp_res), cos_compinfo_get(self->comp_res), (vaddr_t)pages, n_pages * PAGE_SIZE, COS_PAGE_READABLE | COS_PAGE_WRITABLE);
+	*map_addr = cos_mem_aliasn_aligned(cos_compinfo_get(c_in->comp_res), cos_compinfo_get(self->comp_res), (vaddr_t)pages, n_pages * PAGE_SIZE, align, COS_PAGE_READABLE | COS_PAGE_WRITABLE);
 	if (!*map_addr) return -EINVAL;
 
 	return 0;
+}
+
+int
+crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr)
+{
+	return crt_page_aliasn_aligned_in(pages, PAGE_SIZE, n_pages, self, c_in, map_addr);
 }
 
 /*

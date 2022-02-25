@@ -12,16 +12,27 @@
 #include <cos_component.h>
 #include <cos_stubs.h>
 
-vaddr_t memmgr_heap_page_alloc(void);
+vaddr_t       memmgr_heap_page_alloc(void);
 
-vaddr_t memmgr_heap_page_allocn(unsigned long num_pages);
-vaddr_t COS_STUB_DECL(memmgr_heap_page_allocn)(unsigned long num_pages);
+vaddr_t       memmgr_heap_page_allocn(unsigned long num_pages);
+vaddr_t       COS_STUB_DECL(memmgr_heap_page_allocn)(unsigned long num_pages);
+
+vaddr_t       memmgr_heap_page_allocn_aligned(unsigned long num_pages, unsigned long align);
+vaddr_t       COS_STUB_DECL(memmgr_heap_page_allocn_aligned)(unsigned long num_pages, unsigned long align);
 
 cbuf_t        memmgr_shared_page_alloc(vaddr_t *pgaddr);
 
 cbuf_t        memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr);
 cbuf_t        COS_STUB_DECL(memmgr_shared_page_allocn)(unsigned long num_pages, vaddr_t *pgaddr);
+
+cbuf_t        memmgr_shared_page_allocn_aligned(unsigned long num_pages, unsigned long align, vaddr_t *pgaddr);
+cbuf_t        COS_STUB_DECL(memmgr_shared_page_allocn_aligned)(unsigned long num_pages, unsigned long align, vaddr_t *pgaddr);
+
 unsigned long memmgr_shared_page_map(cbuf_t id, vaddr_t *pgaddr);
 unsigned long COS_STUB_DECL(memmgr_shared_page_map)(cbuf_t id, vaddr_t *pgaddr);
+
+unsigned long memmgr_shared_page_map_aligned(cbuf_t id, unsigned long align, vaddr_t *pgaddr);
+unsigned long COS_STUB_DECL(memmgr_shared_page_map_aligned)(cbuf_t id, unsigned long align, vaddr_t *pgaddr);
+
 
 #endif /* MEMMGR_H */
