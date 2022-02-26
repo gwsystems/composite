@@ -8,24 +8,18 @@
 #include <rte_eal.h>
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
+#include <cos_dpdk_adapter.h>
 
-
-extern struct rte_pci_bus rte_pci_bus;
 void
 cos_init(void)
 {
 	int num = 0;
-	num = rte_str_to_size("666\n");
-	printc("num :%d, %p\n",num, &rte_pci_bus);
-	int argc = 5, ret = -1;
+	int argc = 6, ret = -1;
 
 	/* single core */
-	char arg1[] = "DEBUG", arg2[] = "-l", arg3[] = "0", arg4[] = "--no-shconf", arg5[] = "--no-huge";
-	char *argv[] = {arg1, arg2, arg3, arg4, arg5};
-	ret = rte_eal_init(argc, argv);
+	char arg1[] = "DEBUG", arg2[] = "-l", arg3[] = "0", arg4[] = "--no-shconf", arg5[] = "--no-huge", arg6[] = "--iova-mode=pa";
+	char *argv[] = {arg1, arg2, arg3, arg4, arg5, arg6};
+	ret = cos_dpdk_init(argc, argv);
 	printc("end of init dpdk:%d\n",ret);
-	while (1)
-	{
-		/* code */
-	}
+
 }

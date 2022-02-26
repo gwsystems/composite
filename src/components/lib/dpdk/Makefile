@@ -72,6 +72,10 @@ DPDK_INC = -I$(shell pwd)
 
 SHLIB_FILE=$(if $(LIBRARY_OUTPUT), lib$(LIBRARY_OUTPUT).a)
 
+%.o:%.c
+	$(info |     [CC]   Compiling C file $^ into $@)
+	$(CC) $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -Idpdk/build/install/include -c -o $@ $^
+
 config:
 	$(info Configing DPDK)
 #	TODO: make this copy more generic so that it can be applied to different OS platforms like Fedora
