@@ -37,13 +37,22 @@ test_run_unit_kernel(void)
         /* Kernel Tests */
 	printc("\n");
         PRINTC("Unit Test Started:\n\n");
+        PRINTC("timer:\n");
         test_timer();
+        PRINTC("test_tcap_budgets: \n");
         test_tcap_budgets();
+        PRINTC("2timers:\n");
         test_2timers();
+        test_2timers();
+        PRINTC("thds:\n");
         test_thds();
+        PRINTC("mem_alloc:\n");
         test_mem_alloc();
+        PRINTC("endpoints:\n");
         test_async_endpoints();
+        PRINTC("inv:\n");
         test_inv();
+        PRINTC("captbl_expands:\n");
         test_captbl_expands();
 }
 
@@ -53,7 +62,7 @@ main(void)
         int i;
 
         PRINTC("Kernel Tests\n");
-        termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
+        termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL, 0, 0);
         assert(termthd[cos_cpuid()]);
 
         cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);

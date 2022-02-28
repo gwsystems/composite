@@ -36,7 +36,7 @@ cos_init(void)
 
         while (!init_done);
 
-        termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
+        termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL, 0, 0);
         assert(termthd[cos_cpuid()]);
         if (cos_cpuid() == 0) PRINTC("Micro Booter Xcore started.\n");
 

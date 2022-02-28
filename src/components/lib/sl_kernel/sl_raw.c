@@ -11,6 +11,7 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 #include <bitmap.h>
+#include <cos_dcb.h>
 
 extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_no_cs(struct sl_thd *t);
@@ -30,8 +31,8 @@ sl_shm_map(cbuf_t id)
 void
 sl_xcpu_asnd_alloc(void)
 {
-        struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-        struct cos_compinfo    *ci  = cos_compinfo_get(dci);
+    struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+    struct cos_compinfo    *ci  = cos_compinfo_get(dci);
 	int i;
 
 	for (i = 0; i < NUM_CPU; i++) {
@@ -47,7 +48,7 @@ sl_xcpu_asnd_alloc(void)
 }
 
 struct sl_thd *
-sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps)
+sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t prps, struct cos_dcb_info *dcb)
 {
 	struct sl_thd_policy *tp = NULL;
 	struct sl_thd        *t  = NULL;
@@ -57,6 +58,7 @@ sl_thd_alloc_init(struct cos_aep_info *aep, asndcap_t sndcap, sl_thd_property_t 
 	if (!tp) goto done;
 	t  = sl_mod_thd_get(tp);
 
+	t->dcb            = dcb;
 	t->properties     = prps;
 	t->aepinfo        = aep;
 	t->sndcap         = sndcap;
@@ -84,15 +86,21 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
 	struct sl_thd          *t   = NULL;
 	struct cos_aep_info    *aep = NULL;
+	struct cos_dcb_info    *dcb = NULL;
+	dcbcap_t dcap;
+	dcboff_t doff;
 
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
+	dcap = cos_dcb_info_alloc_curr(&doff, (vaddr_t *)&dcb);
+	assert(dcap);
 
-	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data);
+	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data, dcap, doff);
 	if (!aep->thd) goto done;
 	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	if (!aep->tid) goto done;
-	t = sl_thd_alloc_init(aep, 0, 0);
+
+	t = sl_thd_alloc_init(aep, 0, 0, dcb);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -118,7 +126,7 @@ sl_thd_comp_init_no_cs(struct cos_defcompinfo *comp, sl_thd_property_t prps, asn
 		assert(snd);
 	}
 
-	t = sl_thd_alloc_init(aep, snd, prps);
+	t = sl_thd_alloc_init(aep, snd, prps, NULL);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -126,7 +134,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx)
+sl_thd_alloc_ext_dcb_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx, dcbcap_t dcbcap, dcboff_t dcboff)
 {
 	struct cos_defcompinfo *dci    = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci     = cos_compinfo_get(dci);
@@ -139,16 +147,16 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 		aep = sl_thd_alloc_aep_backend();
 		if (!aep) goto done;
 
-		aep->thd = cos_thd_alloc_ext(ci, compci->comp_cap, idx);
+		aep->thd = cos_thd_alloc_ext(ci, compci->comp_cap, idx, dcbcap, dcboff);
 		if (!aep->thd) goto done;
 		aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 		if (!aep->tid) goto done;
 
-		t = sl_thd_alloc_init(aep, 0, 0);
+		t = sl_thd_alloc_init(aep, 0, 0, NULL);
 		sl_mod_thd_create(sl_mod_thd_policy_get(t));
 	} else {
 		assert(idx == 0);
-		ret = cos_initaep_alloc(comp, NULL, 0);
+		ret = cos_initaep_alloc(comp, NULL, 0, dcbcap);
 		if (ret) goto done;
 
 		t = sl_thd_comp_init_no_cs(comp, 0, 0);
@@ -159,23 +167,28 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
+sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, cos_channelkey_t key)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct sl_thd          *t   = NULL;
 	struct cos_aep_info    *aep = NULL;
+	struct cos_dcb_info    *dcb = NULL;
 	int                     ret;
+	dcbcap_t dcap;
+	dcboff_t doff;
 
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
+	dcap = cos_dcb_info_alloc_curr(&doff, (vaddr_t *)&dcb);
+	assert(dcap);
 
 	/* NOTE: Cannot use stack-allocated cos_aep_info struct here */
-	if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data);
+	if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data, dcap, doff);
 	else                                 ret = cos_aep_tcap_alloc(aep, sl_thd_aepinfo(sl__globals_cpu()->sched_thd)->tc,
-			                                              fn, data);
+			                                              fn, data, dcap, doff);
 	if (ret) goto done;
 
-	t = sl_thd_alloc_init(aep, 0, prps);
+	t = sl_thd_alloc_init(aep, 0, prps, dcb);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 done:
@@ -183,7 +196,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, thdclosure_index_t idx, sl_thd_property_t prps, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
+sl_thd_aep_alloc_ext_dcb_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, thdclosure_index_t idx, sl_thd_property_t prps, cos_channelkey_t key, dcbcap_t dcap, dcboff_t doff, arcvcap_t *extrcv)
 {
 	struct cos_aep_info *aep = NULL;
 	struct sl_thd       *t   = NULL;
@@ -191,11 +204,11 @@ sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, t
 	int                  ret = 0;
 
 	if (prps & SL_THD_PROPERTY_SEND) {
-		assert(sched);
+		assert(sched && !doff);
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) {
-			ret = cos_initaep_alloc(comp, sl_thd_aepinfo(sched), prps & SL_THD_PROPERTY_SEND);
+			ret = cos_initaep_alloc(comp, sl_thd_aepinfo(sched), prps & SL_THD_PROPERTY_SEND, dcap);
 		} else {
-			ret = cos_initaep_tcap_alloc(comp, sl_thd_tcap(sched), sl_thd_aepinfo(sched));
+			ret = cos_initaep_tcap_alloc(comp, sl_thd_tcap(sched), sl_thd_aepinfo(sched), dcap);
 		}
 		if (ret) goto done;
 
@@ -207,13 +220,13 @@ sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, t
 		if (!aep) goto done;
 
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) {
-			ret = cos_aep_alloc_ext(aep, comp, sl_thd_aepinfo(sched), idx);
+			ret = cos_aep_alloc_ext(aep, comp, sl_thd_aepinfo(sched), idx, dcap, doff);
 		} else {
-			ret = cos_aep_tcap_alloc_ext(aep, comp, sl_thd_aepinfo(sched), sl_thd_tcap(sched), idx);
+			ret = cos_aep_tcap_alloc_ext(aep, comp, sl_thd_aepinfo(sched), sl_thd_tcap(sched), idx, dcap, doff);
 		}
 		if (ret) goto done;
 
-		t = sl_thd_alloc_init(aep, 0, prps);
+		t = sl_thd_alloc_init(aep, 0, prps, NULL);
 		sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
 		if (extrcv) *extrcv = sl_thd_rcvcap(t);
@@ -236,12 +249,12 @@ sl_thd_alloc(cos_thd_fn_t fn, void *data)
 }
 
 struct sl_thd *
-sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
+sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_channelkey_t key)
 {
 	struct sl_thd *t = NULL;
 
 	sl_cs_enter();
-	t = sl_thd_aep_alloc_no_cs(fn, data, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, 0, ipiwin, ipimax);
+	t = sl_thd_aep_alloc_no_cs(fn, data, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, 0);
 	sl_cs_exit();
 
 	return t;
@@ -263,23 +276,39 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 }
 
 struct sl_thd *
-sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
+sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, vaddr_t *dcbaddr)
+{
+	PRINTC("UNIMPLEMENTED: Using RAW API which cannot manage DCB resource for child components\n");
+
+	return NULL;
+}
+
+struct sl_thd *
+sl_thd_initaep_alloc_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, dcbcap_t dcap)
 {
 	struct sl_thd *t = NULL;
 
 	if (!comp) return NULL;
 
 	sl_cs_enter();
-	if (!is_sched) t = sl_thd_alloc_ext_no_cs(comp, 0);
-	else           t = sl_thd_aep_alloc_ext_no_cs(comp, sched_thd, 0, (is_sched ? SL_THD_PROPERTY_SEND : 0)
-						      | (own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0), key, ipiwin, ipimax, NULL);
+	if (!is_sched) t = sl_thd_alloc_ext_dcb_no_cs(comp, 0, dcap, 0);
+	else           t = sl_thd_aep_alloc_ext_dcb_no_cs(comp, sched_thd, 0, (is_sched ? SL_THD_PROPERTY_SEND : 0)
+							  | (own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0), key, dcap, 0, NULL);
 	sl_cs_exit();
 
 	return t;
 }
 
 struct sl_thd *
-sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
+sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, vaddr_t *dcbaddr, arcvcap_t *extrcv)
+{
+	PRINTC("UNIMPLEMENTED: Using RAW API which cannot manage DCB resource for child components\n");
+
+	return NULL;
+}
+
+struct sl_thd *
+sl_thd_aep_alloc_ext_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, dcbcap_t dcap, dcboff_t doff, arcvcap_t *extrcv)
 {
 	struct sl_thd *t = NULL;
 
@@ -287,9 +316,9 @@ sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thd
 	sl_cs_enter();
 	if (!is_aep) own_tcap = 0;
 	if (is_aep) {
-		t = sl_thd_aep_alloc_ext_no_cs(comp, sched_thd, idx, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, key, ipiwin, ipimax, extrcv);
+		t = sl_thd_aep_alloc_ext_dcb_no_cs(comp, sched_thd, idx, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, key, dcap, doff, extrcv);
 	} else {
-		t = sl_thd_alloc_ext_no_cs(comp, idx);
+		t = sl_thd_alloc_ext_dcb_no_cs(comp, idx, dcap, doff);
 	}
 	sl_cs_exit();
 
@@ -310,7 +339,7 @@ sl_thd_init_ext(struct cos_aep_info *aepthd, struct sl_thd *sched)
 
 	*aep = *aepthd;
 	/* TODO: use sched info for parent -> child notifications */
-	t = sl_thd_alloc_init(aep, 0, 0);
+	t = sl_thd_alloc_init(aep, 0, 0, NULL);
 
 done:
 	sl_cs_exit();

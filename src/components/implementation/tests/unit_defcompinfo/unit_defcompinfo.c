@@ -137,7 +137,7 @@ cos_init(void)
 			cos_meminfo_init(&(child_ci->mi), BOOT_MEM_KM_BASE, CHILD_UNTYPED_SIZE, child_utpt);
 			//cos_defcompinfo_child_alloc(&child_defci[id], (vaddr_t)&__cosrt_upcall_entry,
 			//                            (vaddr_t)BOOT_MEM_VM_BASE, BOOT_CAPTBL_FREE, is_sched);
-			cos_defcompinfo_child_alloc(&child_defci[id], (vaddr_t)&cosrt_upcall_entry,
+			cos_defcompinfo_child_alloc(&child_defci[id], (vaddr_t)&__cosrt_upcall_entry,
 			                            (vaddr_t)BOOT_MEM_VM_BASE, BOOT_CAPTBL_FREE, is_sched, &dcbaddr);
 
 			printc("\t\tCopying new capabilities\n");

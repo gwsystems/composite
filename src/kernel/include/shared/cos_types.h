@@ -96,6 +96,7 @@ typedef enum {
 	CAPTBL_OP_THDACTIVATE,
 	CAPTBL_OP_THDDEACTIVATE,
 	CAPTBL_OP_THDTLSSET,
+	CAPTBL_OP_THDMIGRATE,
 	CAPTBL_OP_COMPACTIVATE,
 	CAPTBL_OP_COMPDEACTIVATE,
 	CAPTBL_OP_SINVACTIVATE,
@@ -142,7 +143,7 @@ typedef enum {
 	CAPTBL_OP_HW_L1FLUSH,
 	CAPTBL_OP_HW_TLBFLUSH,
 	CAPTBL_OP_HW_TLBSTALL,
-	CAPTBL_OP_HW_TLBSTALL_RECOUNT
+	CAPTBL_OP_HW_TLBSTALL_RECOUNT,
 
 	CAPTBL_OP_SCB_ACTIVATE,
 	CAPTBL_OP_SCB_DEACTIVATE,
@@ -291,9 +292,8 @@ enum
 	/*
 	 * NOTE: kernel doesn't support sharing a cache-line across cores,
 	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU
-	 * Update: add per-core INIT DCB cap in to the same cache-line.
 	 */
-	BOOT_CAPTBL_SELF_INITTCAP_BASE = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_SELF_INITTCAP_BASE = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU * CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU * CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
 
 	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
@@ -313,6 +313,16 @@ enum
 #define BOOT_CAPTBL_SELF_INITRCV_CPU_BASE (BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cos_cpuid()))
 #define BOOT_CAPTBL_SELF_INITDCB_CPU_BASE (BOOT_CAPTBL_SELF_INITDCB_BASE_CPU(cos_cpuid()))
 
+enum llboot_scb_dcb_caps
+{
+	LLBOOT_CAPTBL_SCB     = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
+	LLBOOT_CAPTBL_INITDCB = LLBOOT_CAPTBL_SCB + CAP32B_IDSZ,
+	LLBOOT_CAPTBL_FREE    = round_up_to_pow2(LLBOOT_CAPTBL_INITDCB + (CAP32B_IDSZ * NUM_CPU), CAPMAX_ENTRY_SZ),
+};
+
+#define LLBOOT_CAPTBL_INITDCB_CPU(cpuid) (LLBOOT_CAPTBL_INITDCB + (CAP32B_IDSZ * cpuid))
+#define LLBOOT_CAPTBL_CPU_INITDCB        (LLBOOT_CAPTBL_INITDCB_CPU(cos_cpuid()))
+
 /*
  * The half of the first page of init captbl is devoted to root node. So, the
  * first page of captbl can contain 128 caps, and every extra page can hold 256
@@ -327,6 +337,8 @@ enum
 {
 	/* thread id */
 	THD_GET_TID,
+	THD_GET_DCB_IP,
+	THD_GET_DCB_SP,
 };
 
 enum
@@ -341,6 +353,12 @@ enum
 	ARCV_GET_CPUID,
 	/* TID of the thread arcv is associated with */
 	ARCV_GET_THDID,
+};
+
+enum
+{
+	/* get current thread info from scb */
+	COMP_GET_SCB_CURTHD,
 };
 
 /* Macro used to define per core variables */
@@ -434,6 +452,31 @@ struct cos_stack_freelists {
 /* #error "Assembly in <fill in file name here> requires that COMP_INFO_STACK_FREELISTS != 1 ||
  * COMP_INFO_TMEM_STK_RELINQ != 0.  Change the defines, or change the assembly" */
 /* #endif */
+/*struct cos_scb_info {
+	capid_t     curr_thd;
+	cycles_t    timer_next;
+	sched_tok_t sched_tok;
+} CACHE_ALIGNED;
+
+struct cos_dcb_info {
+	unsigned long ip;
+	unsigned long sp;
+} __attribute__((packed));*/
+
+/*
+ * This is the "ip" the kernel uses to update the thread when it sees that the
+ * thread is still in user-level dispatch routine.
+ * This is the offset of instruction after resetting the "next" thread's "sp" to zero
+ * in a purely user-level dispatch.
+ *
+ * Whenever kernel is switching to a thread which has "sp" non-zero, it would switch
+ * to the "ip" saved in the dcb_info and reset the "sp" of the thread that the kernel
+ * is dispatching to!
+ * This is necessary because, if the kernel is dispatching to a thread that was in the
+ * user-level dispatch routine before, then the only registers that it can restore are
+ * "ip" and "sp", everything else is either clobbered or saved/loaded at user-level.
+ */
+#define DCB_IP_KERN_OFF 8
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;

@@ -214,5 +214,6 @@ void    cos_hw_shutdown(hwcap_t hwc);
 
 
 capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
+vaddr_t cos_page_bump_intern_valloc(struct cos_compinfo *ci, size_t sz);
 
 #endif /* COS_KERNEL_API_H */

@@ -85,6 +85,94 @@ done:
 	return 0;
 }
 
+/* TODO: inline fast path and force non-inlined slow-path */
+static inline struct thread *
+cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, int interrupt, struct comp_info **ci_ptr)
+{
+	struct thread       *thd = thd_current(cos_info);
+	struct cap_thd      *ch_ult = NULL;
+	struct thread       *ulthd = NULL;
+	capid_t              ultc = 0;
+	int                  invstk_top = 0;
+	struct cos_scb_info *scb_core = NULL; /* per-core scb_info */
+
+	*ci_ptr = thd_invstk_current_compinfo(thd, cos_info, &invstk_top);
+
+	assert(*ci_ptr && (*ci_ptr)->captbl);
+
+	if (unlikely(!(*ci_ptr)->scb_data)) goto done;
+	scb_core = (((*ci_ptr)->scb_data) + get_cpuid());
+	ultc     = scb_core->curr_thd;
+	/* reset inconsistency from user-level thd! */
+	scb_core->curr_thd = 0;
+	if (!ultc && !interrupt) goto done;
+
+	if (likely(ultc)) {
+		ch_ult = (struct cap_thd *)captbl_lkup((*ci_ptr)->captbl, ultc);
+		if (unlikely(!CAP_TYPECHK_CORE(ch_ult, CAP_THD))) ch_ult = NULL;
+		else                                              ulthd = ch_ult->t;
+	}
+
+	if (unlikely(interrupt)) {
+		struct thread *fixthd = thd;
+
+		assert(scb_core->sched_tok < ~0U);
+		cos_faa((int *)&(scb_core->sched_tok), 1);
+
+		if (ulthd) fixthd = ulthd;
+
+		if (unlikely(fixthd->dcbinfo && fixthd->dcbinfo->sp)) {
+			regs->ip = fixthd->dcbinfo->ip + DCB_IP_KERN_OFF;
+			regs->sp = fixthd->dcbinfo->sp;
+			regs->dx = 0; /* sched token is in edx! */
+
+			fixthd->dcbinfo->sp = 0;
+		}
+	}
+	if (unlikely(!ultc || !ulthd || ulthd->dcbinfo == NULL)) goto done;
+	if (ulthd == thd) goto done;
+	/* check if kcurr and ucurr threads are both in the same page-table(component) */
+	if (thd_current_pgtbl(ulthd) != thd_current_pgtbl(thd)) goto done;
+	thd_current_update(ulthd, thd, cos_info);
+	thd = ulthd;
+
+done:
+	return thd;
+}
+
+void
+cos_cap_ipi_handling(void)
+{
+	int                         idx, end;
+	struct IPI_receiving_rings *receiver_rings;
+	struct xcore_ring *         ring;
+
+	receiver_rings = &IPI_cap_dest[get_cpuid()];
+
+	/* We need to scan the entire buffer once. */
+	idx                   = receiver_rings->start;
+	end                   = receiver_rings->start - 1; // end is int type. could be -1.
+	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
+
+	/* scan the first half */
+	for (; idx < NUM_CPU; idx++) {
+		ring = &receiver_rings->IPI_source[idx];
+		if (ring->sender != ring->receiver) {
+			process_ring(ring);
+		}
+	}
+
+	/* and scan the second half */
+	for (idx = 0; idx <= end; idx++) {
+		ring = &receiver_rings->IPI_source[idx];
+		if (ring->sender != ring->receiver) {
+			process_ring(ring);
+		}
+	}
+
+	return;
+}
+
 void
 kmem_unalloc(unsigned long *pte)
 {
@@ -248,6 +336,8 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 		type = ctfrom->type;
 		sz   = __captbl_cap2bytes(type);
 
+		/* don't allow cap copy on SCB/DCB */
+		if (type == CAP_SCB || type == CAP_DCB) return -EINVAL;
 		ctto = __cap_capactivate_pre(t, cap_to, capin_to, type, &ret);
 		if (!ctto) return -EINVAL;
 
@@ -464,7 +554,7 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, 
 {
 	struct thread *next;
 
-	thd_rcvcap_pending_inc(rcv_thd);
+	thd_rcvcap_pending_set(rcv_thd);
 	next = notify_process(rcv_thd, thd, rcv_tcap, tcap, tcap_next, yield);
 
 	/*
@@ -550,11 +640,20 @@ cap_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struc
 static int
 cap_sched_tok_validate(struct thread *rcvt, sched_tok_t usr_tok, struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
+	assert(ci->scb_data);
+	struct cos_scb_info *scb_core = ci->scb_data + get_cpuid();
+
 	assert(rcvt && usr_tok < ~0U);
 
-	/* race-condition check for user-level thread switches */
-	if (thd_rcvcap_get_counter(rcvt) > usr_tok) return -EAGAIN;
-	thd_rcvcap_set_counter(rcvt, usr_tok);
+	/*
+	 * Kernel increments the sched_tok on preemption only.
+	 * The rest is all co-operative, so if sched_tok in scb page
+	 * increments after someone fetching a tok, then check for that!
+	 *
+	 * FIXME: make sure we're checking the scb of the scheduling component and not in any other component.
+	 *        I don't know if the comp_info here is of the scheduling component!
+	 */
+	if (unlikely(scb_core->sched_tok != usr_tok)) return -EAGAIN;
 
 	return 0;
 }
@@ -583,6 +682,10 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	int          ret;
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
+	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
+		assert((unsigned long)regs->cx == thd->dcbinfo->ip + DCB_IP_KERN_OFF);
+		assert((unsigned long)regs->bp == thd->dcbinfo->sp);
+	}
 
 	if (arcv) {
 		struct cap_arcv *arcv_cap;
@@ -619,7 +722,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		if (!tcap_rcvcap_thd(tcap)) return -EINVAL;
 		if (unlikely(!tcap_is_active(tcap))) return -EPERM;
 	}
-
 	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
 	if (tc && tcap_current(cos_info) == tcap) tcap_setprio(tcap, prio);
 
@@ -651,13 +753,11 @@ cap_ipi_process(struct pt_regs *regs)
 	struct tcap 		   *tcap_curr, *tcap_next;
 	struct comp_info 	   *ci;
 	int                         i, scan_base;
-	unsigned long               ip, sp;
 
-	thd_curr       = thd_next = thd_current(cos_info);
+	thd_next       = thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &ci);
+	assert(ci && ci->captbl);
 	receiver_rings = &IPI_cap_dest[get_cpuid()];
 	tcap_curr      = tcap_next = tcap_current(cos_info);
-	ci             = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
-	assert(ci && ci->captbl);
 
 	scan_base = receiver_rings->start;
 	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
@@ -765,12 +865,11 @@ int
 cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 {
 	int                        curr_cpu = get_cpuid();
-	struct cap_arcv *          arcv;
+	struct cap_arcv           *arcv;
 	struct cos_cpu_local_info *cos_info;
-	struct thread *            rcv_thd, *next, *thd;
-	struct tcap *              rcv_tcap, *tcap, *tcap_next;
-	struct comp_info *         ci;
-	unsigned long              ip, sp;
+	struct thread             *rcv_thd, *next, *thd;
+	struct tcap               *rcv_tcap, *tcap, *tcap_next;
+	struct comp_info          *ci;
 
 	if (!CAP_TYPECHK(asnd, CAP_ASND)) return 1;
 	assert(asnd->arcv_capid);
@@ -786,12 +885,10 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
-	thd  = thd_current(cos_info);
-	tcap = tcap_current(cos_info);
-	assert(thd);
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
-	assert(ci && ci->captbl);
+	thd = cap_ulthd_lazyupdate(regs, cos_info, 1, &ci);
+	assert(thd && ci && ci->captbl);
 	assert(!(thd->state & THD_STATE_PREEMPTED));
+	tcap = tcap_current(cos_info);
 	rcv_thd  = arcv->thd;
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
@@ -834,16 +931,13 @@ int
 timer_process(struct pt_regs *regs)
 {
 	struct cos_cpu_local_info *cos_info;
-	struct thread *            thd_curr;
-	struct comp_info *         comp;
-	unsigned long              ip, sp;
-	cycles_t                   now;
+	struct thread             *thd_curr;
+	struct comp_info          *comp = NULL;
 
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
-	thd_curr = thd_current(cos_info);
+	thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &comp);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
-	comp = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
 	assert(comp);
 
 	return expended_process(regs, thd_curr, comp, cos_info, 1);
@@ -859,14 +953,14 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 	rcv_flags_t          rflags      = __userregs_get1(regs);
 	tcap_time_t          swtimeout   = TCAP_TIME_NIL;
 	tcap_time_t          timeout     = __userregs_get2(regs);
-	int                  all_pending = (!!(rflags & RCV_ALL_PENDING));
+	//int                  all_pending = (!!(rflags & RCV_ALL_PENDING));
 
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
 
 	/* deliver pending notifications? */
 	if (thd_rcvcap_pending(thd)) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-		thd_rcvcap_all_pending_set(thd, all_pending);
+		//thd_rcvcap_all_pending_set(thd, all_pending);
 		thd_rcvcap_pending_deliver(thd, regs);
 
 		return 0;
@@ -910,7 +1004,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 	if (likely(thd != next)) {
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state |= THD_STATE_RCVING;
-		thd_rcvcap_all_pending_set(thd, all_pending);
+		//thd_rcvcap_all_pending_set(thd, all_pending);
 		thd->timeout = timeout;
 	}
 
@@ -931,6 +1025,8 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 		return tcap_introspect(((struct cap_tcap *)ch)->tcap, op, retval);
 	case CAP_ARCV:
 		return arcv_introspect(((struct cap_arcv *)ch), op, retval);
+	case CAP_COMP:
+		return comp_introspect(((struct cap_comp *)ch), op, retval);
 	default:
 		return -EINVAL;
 	}
@@ -947,7 +1043,6 @@ composite_syscall_handler(struct pt_regs *regs)
 	struct comp_info * ci;
 	struct thread *    thd;
 	capid_t            cap;
-	unsigned long      ip, sp;
 
 	/*
 	 * We lookup this struct (which is on stack) only once, and
@@ -957,8 +1052,15 @@ composite_syscall_handler(struct pt_regs *regs)
 	int                        ret        = -ENOENT;
 	int                        thd_switch = 0;
 
+	/* Definitely do it for all the fast-path calls. */
+	thd = cap_ulthd_lazyupdate(regs, cos_info, 0, &ci);
+	assert(thd);
 	cap = __userregs_getcap(regs);
-	thd = thd_current(cos_info);
+
+	/* printk("thd %d calling cap %d (ip %x, sp %x), operation %d: %x, %x, %x, %x\n", thd->tid, cap,
+	 *        __userregs_getip(regs), __userregs_getsp(regs), __userregs_getop(regs),
+	 *        __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs));
+	 */
 
 	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
@@ -973,14 +1075,12 @@ composite_syscall_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
-	assert(ci && ci->captbl);
-
 	/*
 	 * We don't check the liveness of the current component
 	 * because it's guaranteed by component quiescence period,
 	 * which is at timer tick granularity.
 	 */
+	assert(ci && ci->captbl);
 	ch = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
 		printk("cos: cap %d not found!\n", (int)cap);
@@ -1147,22 +1247,38 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_THDACTIVATE: {
-			thdclosure_index_t init_data  = __userregs_get1(regs) >> 16;
-			capid_t thd_cap               = __userregs_get1(regs) & 0xFFFF;
-			capid_t pgtbl_cap             = __userregs_get2(regs);
-			capid_t pgtbl_addr            = __userregs_get3(regs);
-			capid_t compcap               = __userregs_get4(regs);
+			u32_t              reg3         = __userregs_get3(regs);
+			u32_t              reg4         = __userregs_get4(regs);
+			capid_t            pgtbl_addr   = __userregs_get2(regs);
+			thdclosure_index_t init_data    = (reg4 << 16) >> 16;
+			capid_t            thd_cap      = (capin >> 16);
+			capid_t            pgtbl_cap    = (capin << 16) >> 16;
+			capid_t            compcap      = (reg3 >> 16);
+			capid_t            dcb_cap      = (reg3 << 16) >> 16;
+			unsigned short     dcboff       = reg4 >> 16;
+			unsigned long     *tpte = NULL, flags;
+			struct thread     *thd;
+			struct cap_header *ctfrom;
 
-			struct thread *thd;
-			unsigned long *pte = NULL;
-
-			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd, &pte);
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd, &tpte);
 			if (unlikely(ret)) cos_throw(err, ret);
-			assert(thd && pte);
+			assert(thd && tpte);
 
 			/* ret is returned by the overall function */
-			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data);
-			if (ret) kmem_unalloc(pte);
+			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, dcb_cap, dcboff);
+			if (ret) kmem_unalloc(tpte);
+
+			break;
+		}
+		case CAPTBL_OP_THDMIGRATE: {
+			u32_t reg2 = __userregs_get2(regs);
+			u32_t reg3 = __userregs_get3(regs);
+
+			if (reg3) {
+				ret = thd_migrate_cap(ct, capin);
+			} else {
+				ret = thd_migrate(ct, capin, reg2);
+			}
 
 			break;
 		}
@@ -1184,7 +1300,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_THDDEACTIVATE: {
 			livenessid_t lid = __userregs_get2(regs);
 
-			ret = thd_deactivate(ct, op_cap, capin, lid, 0, 0, 0);
+			ret = thd_deactivate(ct, op_cap, capin, lid, 0, 0, 0, 0);
 			break;
 		}
 		case CAPTBL_OP_THDTLSSET: {
@@ -1200,7 +1316,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t      pgtbl_cap     = __userregs_get3(regs);
 			capid_t      cosframe_addr = __userregs_get4(regs);
 
-			ret = thd_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr, 1);
+			ret = thd_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr, 0, 1);
 			break;
 		}
 		case CAPTBL_OP_CAPKMEM_FREEZE: {
@@ -1212,9 +1328,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_COMPACTIVATE: {
 			capid_t      captbl_cap = __userregs_get2(regs) >> 16;
 			capid_t      pgtbl_cap  = __userregs_get2(regs) & 0xFFFF;
-			livenessid_t lid        = (capin >> 16);
+			livenessid_t lid        = capin >> 16;
 			capid_t      comp_cap   = (capin << 16) >> 16;
-			vaddr_t      scb_uaddr  = __userregs_get3(regs) | ~((1 << 12) - 1);
+			vaddr_t      scb_uaddr  = __userregs_get3(regs) & (~0 << 12);
 			vaddr_t      entry_addr = __userregs_get4(regs);
 			capid_t      scb_cap    = __userregs_get3(regs) & ((1 << 12) - 1);
 
@@ -1351,36 +1467,41 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			break;
 		}
-//		case CAPTBL_OP_DCB_ACTIVATE: {
-//			u32_t        r1      = __userregs_get1(regs);
-//			u32_t        r2      = __userregs_get2(regs);
-//			u32_t        r3      = __userregs_get3(regs);
-//			u32_t        r4      = __userregs_get4(regs);
-//			capid_t      dcbcap  = r1 >> 16;
-//			capid_t      ptcap   = (r1 << 16) >> 16;
-//			livenessid_t lid     = r2 >> 16;
-//			capid_t      ptcapin = (r2 << 16) >> 16;
-//			vaddr_t      kaddr   = r3;
-//			vaddr_t      uaddrin = r4;
-//
-//			ret = dcb_activate(ct, cap, dcbcap, ptcap, kaddr, lid, ptcapin, uaddr);
-//
-//			break;
-//		}
-//		case CAPTBL_OP_DCB_DEACTIVATE: {
-//			u32_t        r2      = __userregs_get2(regs);
-//			u32_t        r3      = __userregs_get3(regs);
-//			u32_t        r4      = __userregs_get4(regs);
-//			livenessid_t lid     = r2 >> 16;
-//			capid_t      ptcap   = (r2 << 16) >> 16;
-//			vaddr_t      cf_addr = r3 & (~0 << 12);
-//			vaddr_t      uaddrin = r4 & (~0 << 12);
-//			capid_t      ptcapin = (r4 << 20) >> 12 | ((r3 << 20) >> 20);
-//
-//			ret = dcb_deactivate(ct, capin, lid, ptcap, cf_addr, ptcapin, uaddrin);
-//
-//			break;
-//		}
+		case CAPTBL_OP_DCB_ACTIVATE: {
+			u32_t        r1      = __userregs_get1(regs);
+			u32_t        r2      = __userregs_get2(regs);
+			u32_t        r3      = __userregs_get3(regs);
+			u32_t        r4      = __userregs_get4(regs);
+			capid_t      dcbcap  = r1 >> 16;
+			capid_t      ptcap   = r2 >> 16;
+			livenessid_t lid     = (r1 << 16) >> 16;
+			capid_t      ptcapin = (r2 << 16) >> 16;
+			vaddr_t      kaddr   = r3;
+			vaddr_t      uaddrin = r4;
+			struct cos_dcb_info *dcb;
+			unsigned long *pte;
+
+			ret = cap_kmem_activate(ct, ptcap, kaddr, (unsigned long *)&dcb, &pte);
+			if (ret) cos_throw(err, ret);
+
+			ret = dcb_activate(ct, cap, dcbcap, (vaddr_t)dcb, lid, ptcapin, uaddrin);
+
+			break;
+		}
+		case CAPTBL_OP_DCB_DEACTIVATE: {
+			u32_t        r2      = __userregs_get2(regs);
+			u32_t        r3      = __userregs_get3(regs);
+			u32_t        r4      = __userregs_get4(regs);
+			livenessid_t lid     = r2 >> 16;
+			capid_t      ptcap   = (r2 << 16) >> 16;
+			vaddr_t      cf_addr = r3 & (~0 << 12);
+			vaddr_t      uaddrin = r4 & (~0 << 12);
+			capid_t      ptcapin = (r4 << 20) >> 12 | ((r3 << 20) >> 20);
+
+			ret = dcb_deactivate(op_cap, capin, lid, ptcap, cf_addr, ptcapin, uaddrin);
+
+			break;
+		}
 		default:
 			goto err;
 		}

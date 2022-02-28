@@ -12,6 +12,7 @@
 #include "captbl.h"
 #include "pgtbl.h"
 #include "cap_ops.h"
+#include "shared/cos_sched.h"
 
 /* 24B */
 struct comp_info {
@@ -122,6 +123,19 @@ static void
 comp_init(void)
 {
 	assert(sizeof(struct cap_comp) <= __captbl_cap2bytes(CAP_COMP));
+}
+
+static inline int
+comp_introspect(struct cap_comp *t, unsigned long op, unsigned long *retval)
+{
+	switch (op) {
+	case COMP_GET_SCB_CURTHD:
+		*retval = t->info.scb_data->curr_thd;
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
 }
 
 #endif /* COMPONENT_H */

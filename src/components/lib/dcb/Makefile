@@ -2,13 +2,13 @@
 # for many of these to be empty.
 #
 # The library names associated with .a files output that are linked
-# (via, for example, -lsl_capmgr) into dependents. This list should be
-# "sl_capmgr" for output files such as libsl_capmgr.a.
-LIBRARY_OUTPUT = sl_capmgr
+# (via, for example, -ldcb) into dependents. This list should be
+# "dcb" for output files such as libdcb.a.
+LIBRARY_OUTPUT = dcb
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,
-# sl_capmgr) which will generate sl_capmgr.lib.o. Do NOT include the list of .o
+# dcb) which will generate dcb.lib.o. Do NOT include the list of .o
 # files here. Please note that using this list is *very rare* and
 # should only be used when the .a support above is not appropriate.
 OBJECT_OUTPUT =
@@ -18,10 +18,10 @@ OBJECT_OUTPUT =
 INCLUDE_PATHS = .
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES = capmgr memmgr
+INTERFACE_DEPENDENCIES =
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = component ps sl kernel util dcb
+LIBRARY_DEPENDENCIES = component
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this

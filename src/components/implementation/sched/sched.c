@@ -88,7 +88,7 @@ sched_thd_create_closure(thdclosure_index_t idx)
 	dci = sched_child_defci_get(sched_childinfo_find(c));
 	if (!dci) return 0;
 
-	t = sl_thd_aep_alloc_ext(dci, NULL, idx, 0, 0, 0, 0, 0, NULL);
+	t = sl_thd_aep_alloc_ext(dci, NULL, idx, 0, 0, 0, 0, 0, NULL, NULL);
 	if (!t) return 0;
 
 	return sl_thd_thdid(t);
@@ -105,7 +105,7 @@ sched_aep_create_closure(thdclosure_index_t id, int owntc, cos_channelkey_t key,
 	dci = sched_child_defci_get(sched_childinfo_find(c));
 	if (!dci) return 0;
 
-	t = sl_thd_aep_alloc_ext(dci, NULL, id, 1, owntc, key, ipiwin, ipimax, rcv);
+	t = sl_thd_aep_alloc_ext(dci, NULL, id, 1, owntc, key, ipiwin, ipimax, NULL, rcv);
 	if (!t) return 0;
 
 	return sl_thd_thdid(t);
