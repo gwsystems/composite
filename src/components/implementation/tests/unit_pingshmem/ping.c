@@ -19,6 +19,16 @@ char *pong_test_strings[] = {
 
 shm_bm_t shm;
 
+static unsigned long 
+rdpmc (unsigned long cntr)
+{
+	unsigned int low, high;
+
+	asm volatile("rdpmc" : "=a" (low), "=d" (high) : "c" (cntr));
+
+	return low | ((unsigned long)high) << 32;
+}
+
 void 
 ping_test_objread(void)
 {
@@ -296,14 +306,28 @@ main(void)
 	shm_bm_init_testobj(shm);
 	pongshmem_test_map(id);
 
+	printc("Counter: %lu\n", rdpmc(0));
+
 	ping_test_objread();
+	printc("Counter: %lu\n", rdpmc(0));
+
 	ping_test_bigalloc();
+	printc("Counter: %lu\n", rdpmc(0));
+
 	ping_test_objfree();
+	printc("Counter: %lu\n", rdpmc(0));
+
 	ping_test_bigfree();
+	printc("Counter: %lu\n", rdpmc(0));
+
 	ping_test_refcnt();
+	printc("Counter: %lu\n", rdpmc(0));
+
 
 	ping_bench_syncinv();
 	ping_bench_msgpassing();
+	printc("Counter: %lu\n", rdpmc(0));
+
 
 
 	return 0;

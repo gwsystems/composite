@@ -12,6 +12,11 @@
 #define PGTBL_ENTRY_ORDER 9
 #define PGTBL_FLAG_MASK 0xf800000000000fff
 #define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
+
+#define MAX_ASID_BITS 12
+#define MAX_NUM_ASID (1<<MAX_ASID_BITS)
+
+#define CR3_NO_FLUSH (1ul << 63)
 #elif defined(__i386__)
 #define PGTBL_ENTRY_ADDR_MASK 0xfffff000
 #define PGTBL_DEPTH 2
@@ -50,12 +55,18 @@ struct cap_pgtbl {
 static inline void
 chal_pgtbl_update(struct pgtbl_info *pt)
 {
-	asm volatile("mov %0, %%cr3" : : "r"(pt->pgtbl));
+	unsigned long cr3 = (unsigned long)pt->pgtbl | pt->asid;
+	asm volatile("mov %0, %%cr3" : : "r"(cr3));
 }
 
+extern asid_t free_asid;
 static inline asid_t
 chal_asid_alloc(void)
-{ return 0; }
+{ 
+	return 0;
+	// if (unlikely(free_asid >= MAX_NUM_ASID)) assert(0);
+	// return cos_faa((int *)&free_asid, 1);
+}
 
 #endif /* CHAL_PROTO_H */
 
