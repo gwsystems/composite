@@ -31,8 +31,8 @@ sl_shm_map(cbuf_t id)
 void
 sl_xcpu_asnd_alloc(void)
 {
-    struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-    struct cos_compinfo    *ci  = cos_compinfo_get(dci);
+        struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+        struct cos_compinfo    *ci  = cos_compinfo_get(dci);
 	int i;
 
 	for (i = 0; i < NUM_CPU; i++) {
@@ -93,7 +93,7 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 	dcap = cos_dcb_info_alloc_curr(&doff, (vaddr_t *)&dcb);
-	assert(dcap);
+	if (dcb && doff) assert(dcap);
 
 	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data, dcap, doff);
 	if (!aep->thd) goto done;
@@ -167,7 +167,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, cos_channelkey_t key)
+sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
 {
 	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
 	struct sl_thd          *t   = NULL;
@@ -180,7 +180,7 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 	dcap = cos_dcb_info_alloc_curr(&doff, (vaddr_t *)&dcb);
-	assert(dcap);
+	if (dcb && doff) assert(dcap);
 
 	/* NOTE: Cannot use stack-allocated cos_aep_info struct here */
 	if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data, dcap, doff);
@@ -196,7 +196,7 @@ done:
 }
 
 static struct sl_thd *
-sl_thd_aep_alloc_ext_dcb_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, thdclosure_index_t idx, sl_thd_property_t prps, cos_channelkey_t key, dcbcap_t dcap, dcboff_t doff, arcvcap_t *extrcv)
+sl_thd_aep_alloc_ext_dcb_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, thdclosure_index_t idx, sl_thd_property_t prps, cos_channelkey_t key, dcbcap_t dcap, dcboff_t doff, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
 {
 	struct cos_aep_info *aep = NULL;
 	struct sl_thd       *t   = NULL;
@@ -249,12 +249,12 @@ sl_thd_alloc(cos_thd_fn_t fn, void *data)
 }
 
 struct sl_thd *
-sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_channelkey_t key)
+sl_thd_aep_alloc(cos_aepthd_fn_t fn, void *data, int own_tcap, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
 {
 	struct sl_thd *t = NULL;
 
 	sl_cs_enter();
-	t = sl_thd_aep_alloc_no_cs(fn, data, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, 0);
+	t = sl_thd_aep_alloc_no_cs(fn, data, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, 0, ipiwin, ipimax);
 	sl_cs_exit();
 
 	return t;
@@ -276,7 +276,7 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 }
 
 struct sl_thd *
-sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, vaddr_t *dcbaddr)
+sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, vaddr_t *dcbaddr)
 {
 	PRINTC("UNIMPLEMENTED: Using RAW API which cannot manage DCB resource for child components\n");
 
@@ -284,7 +284,7 @@ sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int
 }
 
 struct sl_thd *
-sl_thd_initaep_alloc_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, dcbcap_t dcap)
+sl_thd_initaep_alloc_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, dcbcap_t dcap, microsec_t ipiwin, u32_t ipimax)
 {
 	struct sl_thd *t = NULL;
 
@@ -293,14 +293,14 @@ sl_thd_initaep_alloc_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd,
 	sl_cs_enter();
 	if (!is_sched) t = sl_thd_alloc_ext_dcb_no_cs(comp, 0, dcap, 0);
 	else           t = sl_thd_aep_alloc_ext_dcb_no_cs(comp, sched_thd, 0, (is_sched ? SL_THD_PROPERTY_SEND : 0)
-							  | (own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0), key, dcap, 0, NULL);
+							  | (own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0), key, dcap, 0, ipiwin, ipimax, NULL);
 	sl_cs_exit();
 
 	return t;
 }
 
 struct sl_thd *
-sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, vaddr_t *dcbaddr, arcvcap_t *extrcv)
+sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, vaddr_t *dcbaddr, arcvcap_t *extrcv)
 {
 	PRINTC("UNIMPLEMENTED: Using RAW API which cannot manage DCB resource for child components\n");
 
@@ -308,7 +308,7 @@ sl_thd_aep_alloc_ext(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thd
 }
 
 struct sl_thd *
-sl_thd_aep_alloc_ext_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, dcbcap_t dcap, dcboff_t doff, arcvcap_t *extrcv)
+sl_thd_aep_alloc_ext_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, dcbcap_t dcap, dcboff_t doff, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
 {
 	struct sl_thd *t = NULL;
 
@@ -316,7 +316,7 @@ sl_thd_aep_alloc_ext_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd,
 	sl_cs_enter();
 	if (!is_aep) own_tcap = 0;
 	if (is_aep) {
-		t = sl_thd_aep_alloc_ext_dcb_no_cs(comp, sched_thd, idx, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, key, dcap, doff, extrcv);
+		t = sl_thd_aep_alloc_ext_dcb_no_cs(comp, sched_thd, idx, own_tcap ? SL_THD_PROPERTY_OWN_TCAP : 0, key, dcap, doff, ipiwin, ipimax, extrcv);
 	} else {
 		t = sl_thd_alloc_ext_dcb_no_cs(comp, idx, dcap, doff);
 	}
@@ -348,9 +348,11 @@ done:
 }
 
 struct sl_thd *
-sl_thd_retrieve(thdid_t tid)
+sl_thd_retrieve_lazy(thdid_t tid)
 {
-	return sl_mod_thd_get(sl_thd_lookup_backend(tid));
+	/* without capmgr, there is no lazy retrieval of threads! */
+	assert(0);
+	return NULL;
 }
 
 void
@@ -362,3 +364,40 @@ sl_thd_free(struct sl_thd *t)
 	sl_thd_free_no_cs(t);
 	sl_cs_exit();
 }
+
+int
+sl_thd_migrate_no_cs(struct sl_thd *t, cpuid_t core)
+{
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = cos_compinfo_get(dci);
+	struct sl_thd_policy   *x = NULL;
+	int ret;
+
+	if (t->properties) return -1;
+	if (t->state != SL_THD_RUNNABLE) return -1;
+	ret = cos_thd_migrate(ci, sl_thd_thdcap(t), core);
+	if (ret) return -1;
+	sl_mod_thd_delete(sl_mod_thd_policy_get(t));
+	//ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), -1);
+
+	x = sl_thd_migrate_backend(sl_mod_thd_policy_get(t), core);
+	if (!x) return -1;
+
+	return 0;
+}
+
+int
+sl_thd_migrate(thdid_t tid, cpuid_t core)
+{
+	int ret;
+	struct sl_thd *c = sl_thd_curr(), *t = sl_thd_lkup(tid);
+
+	if (core == cos_cpuid()) return -1;
+	assert(c != t);
+	sl_cs_enter();
+	ret = sl_thd_migrate_no_cs(t, core);
+	sl_cs_exit();
+
+	return ret;
+}
+

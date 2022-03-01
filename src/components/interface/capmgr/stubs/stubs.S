@@ -7,6 +7,9 @@
 
 #include <cos_asm_stubs.h>
 
+cos_asm_stub_indirect(capmgr_thd_retrieve)
+cos_asm_stub_indirect(capmgr_thd_retrieve_next)
+
 cos_asm_stub_indirect(capmgr_initthd_create)
 cos_asm_stub_indirect(capmgr_thd_create_thunk)
 cos_asm_stub_indirect(capmgr_thd_create_ext)

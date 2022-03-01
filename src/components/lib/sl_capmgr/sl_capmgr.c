@@ -274,7 +274,7 @@ sl_thd_comp_init(struct cos_defcompinfo *comp, int is_sched)
 }
 
 struct sl_thd *
-sl_thd_initaep_alloc_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, dcbcap_t dcap)
+sl_thd_initaep_alloc_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int is_sched, int own_tcap, cos_channelkey_t key, dcbcap_t dcap, microsec_t ipiwin, u32_t ipimax)
 {
 	PRINTC("UNIMPLEMENTED: Using CAPMGR API which should manage the DCB capabilities\n");
 
@@ -302,7 +302,7 @@ sl_thd_initaep_alloc(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, int
 
 
 struct sl_thd *
-sl_thd_aep_alloc_ext_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, dcbcap_t dcap, dcboff_t doff, arcvcap_t *extrcv)
+sl_thd_aep_alloc_ext_dcb(struct cos_defcompinfo *comp, struct sl_thd *sched_thd, thdclosure_index_t idx, int is_aep, int own_tcap, cos_channelkey_t key, dcbcap_t dcap, dcboff_t doff, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
 {
 	PRINTC("UNIMPLEMENTED: Using CAPMGR API which should manage the DCB capabilities\n");
 
@@ -414,4 +414,40 @@ sl_thd_free(struct sl_thd *t)
 	sl_cs_enter();
 	sl_thd_free_no_cs(t);
 	sl_cs_exit();
+}
+
+int
+sl_thd_migrate_no_cs(struct sl_thd *t, cpuid_t core)
+{
+	struct sl_thd_policy *x = NULL;
+	int ret;
+
+	if (t->properties) return -1;
+	if (t->state != SL_THD_RUNNABLE) return -1;
+	/* capmgr should migrate the thdcap as well */
+	ret = capmgr_thd_migrate(sl_thd_thdid(t), sl_thd_thdcap(t), core);
+	if (ret) return -1;
+	sl_mod_thd_delete(sl_mod_thd_policy_get(t));
+	//ps_faa(&(sl__globals()->nthds_running[cos_cpuid()]), -1);
+
+	x = sl_thd_migrate_backend(sl_mod_thd_policy_get(t), core);
+	if (!x) return -1;
+
+	return 0;
+}
+
+int
+sl_thd_migrate(thdid_t tid, cpuid_t core)
+{
+	int ret;
+	struct sl_thd *c = sl_thd_curr(), *t = sl_thd_lkup(tid);
+
+	if (core == cos_cpuid()) return -1;
+	if (sl_thd_rcvcap(t) || sl_thd_tcap(t)) return -1;
+	assert(c != t);
+	sl_cs_enter();
+	ret = sl_thd_migrate_no_cs(t, core);
+	sl_cs_exit();
+
+	return ret;
 }

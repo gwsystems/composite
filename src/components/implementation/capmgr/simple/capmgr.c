@@ -530,7 +530,7 @@ capmgr_initthd_create(spdid_t client, thdid_t *tid)
 thdcap_t  capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret) { BUG(); return 0; }
 
 thdcap_t
-capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid)
+capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info **dcb)
 {
 	compid_t client = (compid_t)cos_inv_token();
 	struct cm_thd *t;

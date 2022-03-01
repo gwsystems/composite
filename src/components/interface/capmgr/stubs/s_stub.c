@@ -13,14 +13,37 @@ COS_SERVER_3RET_STUB(arcvcap_t, capmgr_rcv_create)
 	return capmgr_rcv_create(child, tid, key, ipiwin, ipimax);
 }
 
-
-COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_create_thunk)
+COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_retrieve)
 {
 	thdid_t retthd = 0;
 	thdcap_t ret;
 
-	ret = capmgr_thd_create_thunk(p0, &retthd);
+	ret = capmgr_thd_retrieve(p0, p1, &retthd);
 	*r1 = retthd;
+
+	return ret;
+}
+
+COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_retrieve_next)
+{
+	thdid_t retthd = 0;
+	thdcap_t ret;
+
+	ret = capmgr_thd_retrieve_next(p0, &retthd);
+	*r1 = retthd;
+
+	return ret;
+}
+
+COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_create_thunk)
+{
+	thdid_t retthd = 0;
+	struct cos_dcb_info *retdcb;
+	thdcap_t ret;
+
+	ret = capmgr_thd_create_thunk(p0, &retthd, &retdcb);
+	*r1 = retthd;
+	*r2 = &retdcb;
 
 	return ret;
 }
@@ -28,10 +51,12 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_create_thunk)
 COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_create_ext)
 {
 	thdid_t retthd = 0;
+	struct cos_dcb_info *retdcb;
 	thdcap_t ret;
 
-	ret = capmgr_thd_create_ext(p0, p1, &retthd);
+	ret = capmgr_thd_create_ext(p0, p1, &retthd, &retdcb);
 	*r1 = retthd;
+	*r2 = &retdcb;
 
 	return ret;
 }
@@ -73,14 +98,15 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_aep_create_thunk)
 	u32_t                   ipimax = (p1 << 16) >> 16;
 	u32_t                ipiwin32b = (u32_t)p2;
 	struct cos_aep_info     aep;
+	struct cos_dcb_info    *dcb;
 	asndcap_t               snd;
-	thdcap_t                thd;
+	thdcap_t                thdtidret;
 
-	thd = capmgr_aep_create_thunk(&aep, thunk, owntc, key, ipimax, ipiwin32b);
-	*r1 = aep.tid;
+	thdtidret = capmgr_aep_create_thunk(&aep, thunk, owntc, key, ipimax, ipiwin32b, &dcb);
+	*r1 = &dcb;
 	*r2 = (aep.rcv << 16) | aep.tc;
 
-	return thd;
+	return thdtidret;
 }
 
 COS_SERVER_3RET_STUB(thdcap_t, capmgr_aep_create_ext)
@@ -93,9 +119,10 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_aep_create_ext)
 	microsec_t ipiwin = p3;
 	u32_t ipimax = ((p2 << 16) >> 16);
 	arcvcap_t extrcv = 0;
+	struct cos_dcb_info *dcbret;
 	thdcap_t ret;
 
-	ret = capmgr_aep_create_ext(child, &aep, idx, owntc, key, ipiwin, ipimax, &extrcv);
+	ret = capmgr_aep_create_ext(child, &aep, idx, owntc, key, ipiwin, ipimax, &dcbret, &extrcv);
 	*r1 = aep.tid | (extrcv << 16);
 	*r2 = (aep.rcv << 16) | aep.tc;
 
