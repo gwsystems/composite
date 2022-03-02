@@ -73,12 +73,19 @@ pong_ret(void)
 {
 	return 42;
 }
-
-int
-pong_arg(int p1)
+int 
+pong_arg(int *p1) 
 {
-	return p1;
+	printc("pong arg p1 = %d\n", *p1);
+	*p1 = *p1 + 10;
+	return 1;
 }
+
+// int
+// pong_arg(int p1)
+// {
+// 	return p1;
+// }
 
 int
 pong_args(int p1, int p2, int p3, int p4)
@@ -109,4 +116,10 @@ pong_ids(compid_t *client, compid_t *serv)
 	*serv   = cos_compid();
 
 	return cos_thdid();
+}
+
+void
+pong_foo(int *p1) {
+	printc("pong_foo, p1 = %d\n", *p1);
+	*p1 = *p1 + 10;
 }

@@ -55,7 +55,7 @@ void
 pong_call(void)
 {
 	assert(state >= PONG_PARINIT);
-	// printc("in pong call, compid = %ld\n", cos_compid());
+	//printc("in pong call, compid = %ld\n", cos_compid());
 	return;
 }
 
@@ -72,11 +72,12 @@ pong_ret(void)
 }
 
 // int
-// pong_arg(int * p1)
+// pong_arg(int p1)
 // {
-// 	printc("hello pong arg , cos compid = %ld, *arg = %d\n", cos_compid(), *p1);
-// 	*p1 = 52;
-// 	return 42;
+// 	// printc("hello pong arg , cos compid = %ld, *arg = %d\n", cos_compid(), *p1);
+// 	// *p1 = 52;
+// 	// return 42;
+// 	return p1;
 // }
 
 int

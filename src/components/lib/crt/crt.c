@@ -230,6 +230,7 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids)
 {
 	u64_t i;
+	int cons_ret;
 
 	/* error check that new has no allocations (?) */
 	if(new == NULL || new->names == NULL) {
@@ -246,7 +247,7 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 	}
 
 	for(i = 0; i < CRT_VAS_NUM_NAMES; i++) {
-		/* if a name is allocated in existing, it should not be reserved in new */
+		/* if a name is allocated in existing, the component there should automatically be aliased into new */
 		/* by default via init everything else will go to:
 		 * 		reserved  = 1
 		 *      allocated = 0
@@ -254,6 +255,21 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 		 */
 		if(existing->names[i].allocated == 1) {
 			new->names[i].reserved = 0;
+			new->names[i].aliased = 1;
+			new->names[i].comp = existing->names[i].comp;
+
+			/* FIXME: alias questions
+			 * allocate another component capability? --> no?
+			 * cons into new's top level? --> yes?
+			 * do we need to do this for all ancestors or just with components allocated in existing? --> yes?
+			*/
+			printc("aliasing at index %lld\n", i);
+			// cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(new->names[i].comp->comp_res), new->top_lvl_pgtbl);
+			// if(cons_ret != 0) {
+			// 	//assert(0);
+			// 	printc("cons failed: %d\n", cons_ret);
+			// }
+
 		}
 		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 
 		 * NOTE: this means no further allocations can be made in existing
@@ -330,12 +346,9 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	int cons_ret;
 
 	name_index = c->entry_addr / CRT_VAS_NAME_SZ;
-	//printc("comp addr - %lx, name index = %x\n", c->entry_addr, name_index);
 	assert(name_index < CRT_VAS_NUM_NAMES);
 
-	//printc("vas->names[%d].reserved = %d, .allocated = %d, .aliased = %d\n", name_index, vas->names[name_index].reserved, vas->names[name_index].allocated, vas->names[name_index].aliased);
-
-	/* 0: make sure that in the bitmap, this comp is either unallocated or unaliased */
+	/* 0: make sure that in the bitmap, this name is either unallocated or unaliased */
 	if(vas->names[name_index].allocated || vas->names[name_index].aliased) {
 		/* if there's something already allocated or already aliased here, can't complete this operation */
 		printc("Index %d has something already allocated/aliased\n", name_index);
@@ -363,12 +376,14 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 		}
 
 	}
-	/* 2b: it's not reserved and not aliased  and comp is in an NS that's an ancestor of vas --> alias! */
-	else if(!vas->names[name_index].reserved && !vas->names[name_index].aliased && vas_ancestor(vas->parent, c, name_index)) {
-		printc("Index %d : aliasing\n", name_index);
-		vas->names[name_index].aliased = 1;
-		vas->names[name_index].comp = c;
-	}
+	/* 2b: it's not reserved and not aliased and comp is in an NS that's an ancestor of vas --> alias! */
+	/* FIXME: would this ever even happen with aliasing all components on split? */	
+	// else if(!vas->names[name_index].reserved && !vas->names[name_index].aliased && vas_ancestor(vas->parent, c, name_index)) {
+	// 	printc("Index %d : aliasing\n", name_index);
+	// 	vas->names[name_index].aliased = 1;
+	// 	vas->names[name_index].comp = c;
+	// }
+
 	/* 2c: can't be aliased bc of ancestry */
 	else {
 		printc("Index %d : can't allocate or alias\n", name_index);
@@ -993,7 +1008,7 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 
 		crt_refcnt_take(&c->refcnt);
 		assert(target_ci->comp_cap);
-		if(target_ci->comp_cap_shared != -1) {
+		if(target_ci->comp_cap_shared != 0) {
 			/* alloc shared */
 			printc("alloc thdcap shared\n");
 			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap_shared);

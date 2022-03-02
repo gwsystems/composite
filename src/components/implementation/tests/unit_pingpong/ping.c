@@ -21,34 +21,38 @@ cos_init(void)
 
 	pong_call();
 
+	int a = 42;
+	pong_arg(&a);
+	printc("ping, a = %d\n", a);
+
 	// void (*pong_ptr)(void) = pong_ret();
 	// printc("pong ptr in ping = %p\n", pong_ptr);
 	// (*pong_ptr)();
 	// printc("after (non sinv?) pong call\n");
 
 	
-	assert(pong_ret() == 42);
-	assert(pong_arg(1024) == 1024);
-	assert(pong_args(1, 2, 3, 4) == 10);
-	assert(pong_argsrets(4, 3, 2, 1, &r0, &r1) == 3);
-	assert(r0 == 4 && r1 == 3);
-	assert(pong_subset(8, 16, &r3) == -24 && r3 == 24);
-	tid = pong_ids(&us, &them);
-	assert(cos_thdid() == tid && us != them && us == cos_compid());
+	// assert(pong_ret() == 42);
+	// assert(pong_arg(1024) == 1024);
+	// assert(pong_args(1, 2, 3, 4) == 10);
+	// assert(pong_argsrets(4, 3, 2, 1, &r0, &r1) == 3);
+	// assert(r0 == 4 && r1 == 3);
+	// assert(pong_subset(8, 16, &r3) == -24 && r3 == 24);
+	// tid = pong_ids(&us, &them);
+	// assert(cos_thdid() == tid && us != them && us == cos_compid());
 
-	begin = ps_tsc();
-	for (i = 0; i < ITER; i++) {
-		pong_call();
-	}
-	end = ps_tsc();
-	fast_path = (end - begin)/ITER;
+	// begin = ps_tsc();
+	// for (i = 0; i < ITER; i++) {
+	// 	pong_call();
+	// }
+	// end = ps_tsc();
+	// fast_path = (end - begin)/ITER;
 
-	begin = ps_tsc();
-	for (i = 0; i < ITER; i++) {
-		pong_argsrets(0, 0, 0, 0, &r0, &r1);
-	}
-	end = ps_tsc();
-	all_args = (end - begin)/ITER;
+	// begin = ps_tsc();
+	// for (i = 0; i < ITER; i++) {
+	// 	pong_argsrets(0, 0, 0, 0, &r0, &r1);
+	// }
+	// end = ps_tsc();
+	// all_args = (end - begin)/ITER;
 
 	return;
 }

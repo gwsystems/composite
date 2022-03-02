@@ -207,16 +207,24 @@ comps_init(void)
 	ss_ns_vas_activate(ns_vas1);
 	if(crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
 
-	/* FIXME: THIS IS HARD CODED FOR THE ping_pong_shared_vas.toml COMPOSITION SCRIPT */
-	/* component 3 = pong1  */
-	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) != 0) {
-		printc("alloc in for component 3 in ns vas 1 failed\n");
+	/* FIXME: THIS IS HARD CODED FOR THE ping_pong_alias.toml COMPOSITION SCRIPT */
+	
+	/* component 2 = pong = index 5 */
+	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) {
+		printc("alloc in for component 2 in ns vas 1 failed\n");
 		BUG();
 	}
 
-	/* component 2 = pong1 */
-	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) {
-		printc("alloc in for component 2 in ns vas 1 failed\n");
+	struct crt_ns_vas *ns_vas2 = ss_ns_vas_alloc();
+	ss_ns_vas_activate(ns_vas2);
+	if(crt_ns_vas_split(ns_vas2, ns_vas1, ns_asid) != 0) {
+		printc("split failed\n");
+		BUG();
+	}
+
+	/* component 3 = ping with index 6 --> allocated */
+	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) != 0) {
+		printc("alloc in for component 3 in ns vas 2 failed\n");
 		BUG();
 	}
 
