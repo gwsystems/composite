@@ -11,9 +11,17 @@ sudo apt-get -y install build-essential
 sudo apt-get -y install xorriso  
 sudo apt-get -y install curl  
 sudo apt-get -y install python
-sudo apt-get -y install cargo
 sudo apt-get -y install gdb
 ```
+
+[Install Rust and Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html):
+
+```
+curl https://sh.rustup.rs -sSf | sh
+```
+
+You might need to restart your shell to be able to use cargo.
+
 If you want or need Rust on composite, also follow the steps in `rust_with_composite.md`
 ## Getting and building
 
