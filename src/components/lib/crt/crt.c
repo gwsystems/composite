@@ -264,11 +264,11 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 			 * do we need to do this for all ancestors or just with components allocated in existing? --> yes?
 			*/
 			printc("aliasing at index %lld\n", i);
-			// cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(new->names[i].comp->comp_res), new->top_lvl_pgtbl);
-			// if(cons_ret != 0) {
-			// 	//assert(0);
-			// 	printc("cons failed: %d\n", cons_ret);
-			// }
+			cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(new->names[i].comp->comp_res), new->top_lvl_pgtbl);
+			if(cons_ret != 0) {
+				//assert(0);
+				printc("cons failed: %d\n", cons_ret);
+			}
 
 		}
 		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 

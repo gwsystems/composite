@@ -21,9 +21,8 @@ cos_init(void)
 
 	pong_call();
 
-	int a = 42;
-	pong_arg(&a);
-	printc("ping, a = %d\n", a);
+	unsigned long * a = pong_arg();
+	printc("ping (client), received %lu from server\n", *a);
 
 	// void (*pong_ptr)(void) = pong_ret();
 	// printc("pong ptr in ping = %p\n", pong_ptr);

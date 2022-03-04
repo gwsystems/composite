@@ -223,7 +223,7 @@ comps_init(void)
 	}
 
 	/* component 3 = ping with index 6 --> allocated */
-	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) != 0) {
+	if(crt_ns_vas_alloc_in(ns_vas2, boot_comp_get(3)) != 0) {
 		printc("alloc in for component 3 in ns vas 2 failed\n");
 		BUG();
 	}

@@ -73,12 +73,13 @@ pong_ret(void)
 {
 	return 42;
 }
-int 
-pong_arg(int *p1) 
+unsigned long shared = 42;
+
+unsigned long *
+pong_arg(void) 
 {
-	printc("pong arg p1 = %d\n", *p1);
-	*p1 = *p1 + 10;
-	return 1;
+	printc("pong arg (server) --> sending %lu to client\n", shared);
+	return &shared;
 }
 
 // int
