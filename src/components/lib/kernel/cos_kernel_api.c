@@ -1310,3 +1310,15 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 
 	return (void *)va;
 }
+
+int
+cos_pmu_program_event_counter(hwcap_t hwc, u8_t cntr, u8_t evnt, u8_t umask)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_PMU_PROG_EVT_CNTR, cntr, evnt, umask, 0);
+}
+
+int
+cos_pmu_enable_fixed_counter(hwcap_t hwc, u8_t cntr)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_PMU_EN_FIXED_CNTR, cntr, 0, 0, 0);
+}

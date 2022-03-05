@@ -15,6 +15,7 @@
 #include "include/tcap.h"
 #include "include/chal/defs.h"
 #include "include/hw.h"
+#include "include/pmu.h"
 #include "include/chal/chal_proto.h"
 
 #define COS_DEFAULT_RET_CAP 0
@@ -1650,6 +1651,22 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		}
 		case CAPTBL_OP_HW_TLBSTALL_RECOUNT: {
 			ret = chal_tlbstall_recount(0);
+			break;
+		}
+		case CAPTBL_OP_HW_PMU_PROG_EVT_CNTR: {
+			u8_t cntr  = __userregs_get1(regs);
+			u8_t evt   = __userregs_get2(regs);
+			u8_t umask = __userregs_get2(regs);
+
+			if ((ret = pmu_event_cntr_enable(cntr))) {
+				goto err;
+			}
+			ret = pmu_event_cntr_program(cntr, evt, umask);
+			break;
+		}
+		case CAPTBL_OP_HW_PMU_EN_FIXED_CNTR: {
+			u8_t cntr  = __userregs_get1(regs);
+			ret = pmu_fixed_cntr_enable(cntr);
 			break;
 		}
 		default:

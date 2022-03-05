@@ -10,6 +10,8 @@ char         timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 extern void *cos_kmem, *cos_kmem_base;
 u32_t        chal_msr_mhz = 0;
 
+u8_t         processor_num_pmc;
+
 paddr_t chal_kernel_mem_pa;
 
 void *
@@ -131,6 +133,11 @@ chal_init(void)
 		printk("\tCPUID base frequency: %d (* 1Mhz)\n", a);
 		printk("\tCPUID max  frequency: %d (* 1Mhz)\n", (b << 16) >> 16);
 	}
+
+	/* Get the number of PMCs available */
+	chal_cpuid(0x0a, &a, &b, &c, &d);
+	processor_num_pmc = (a >> 8) & 0xFF;
+	
 
 	/* FIXME: on x86_64, cannot get platform info on qemu */
 	readmsr(MSR_PLATFORM_INFO, &a, &b);

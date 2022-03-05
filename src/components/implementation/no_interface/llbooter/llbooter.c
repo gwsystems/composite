@@ -514,6 +514,7 @@ cos_init(void)
 {
 	booter_init();
 	comps_init();
+	
 }
 
 void

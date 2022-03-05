@@ -201,6 +201,9 @@ int     cos_hw_tlbstall(hwcap_t hwc);
 int     cos_hw_tlbstall_recount(hwcap_t hwc);
 void    cos_hw_shutdown(hwcap_t hwc);
 
+int     cos_pmu_enable_fixed_counter(hwcap_t hwc, u8_t cntr);
+int     cos_pmu_program_event_counter(hwcap_t hwc, u8_t cntr, u8_t evnt, u8_t umask);
+
 
 capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
 

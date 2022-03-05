@@ -5,7 +5,6 @@
 #include "boot_comp.h"
 #include "mem_layout.h"
 #include "chal_cpu.h"
-#include "chal_pmu.h"
 
 #include <captbl.h>
 #include <retype_tbl.h>
@@ -186,7 +185,6 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
-	chal_pmu_init();
 
 	kern_boot_upcall();
 
