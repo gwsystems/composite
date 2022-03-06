@@ -2,7 +2,7 @@
 #define PCI_H
 
 #define PCI_BUS_MAX        255
-#define PCI_DEVICE_MAX     32
+#define PCI_DEVICE_MAX     256
 #define PCI_FUNC_MAX       7
 #define PCI_DEVICE_NUM     128
 #define PCI_CONFIG_ADDRESS 0xCF8

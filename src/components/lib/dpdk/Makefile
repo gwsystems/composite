@@ -74,7 +74,7 @@ SHLIB_FILE=$(if $(LIBRARY_OUTPUT), lib$(LIBRARY_OUTPUT).a)
 
 %.o:%.c
 	$(info |     [CC]   Compiling C file $^ into $@)
-	$(CC) $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -Idpdk/build/install/include -c -o $@ $^
+	$(CC) $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -Idpdk/build/install/include -I/usr/lib/gcc/x86_64-linux-gnu/9/include/ -c -o $@ $^
 
 config:
 	$(info Configing DPDK)
@@ -88,7 +88,7 @@ config:
 	-Dmachine=default -Dc_args="-nostdlib -nostdinc -DDPDK_COMPOSITE $(DPDK_INC)" -Ddefault_library=static -Dbuildtype=debug \
 	-Ddebug=true -Doptimization=0 -Dincludedir=$(shell pwd)/$(DPDKBUILD)/install/include \
 	-Dprefix=$(shell pwd)/$(DPDKBUILD)/install \
-	-Ddisable_drivers=common/mvep,common/mlx5,af_xdp,net/ipn3ke,net/mlx4,net/mlx5,net/mvneta,net/mvpp2,net/nfb,net/szedata2,raw/ifpga,crypto/aesni_gcm,crypto/aesni_mb,crypto/ccp,crypto/kasumi,crypto/mvsam,crypto/openssl,crypto/snow3g,crypto/zuc,compress/isal,crypto/bcmfs,crypto/caam_jr,crypto/cnxk,crypto/dpaa_sec,crypto/dpaa2_sec,crypto/nitrox,crypto/null,crypto/octeontx,crypto/octeontx2,crypto/scheduler,crypto/virtio,compress/octeontx,compress/zlib,regex/octeontx2,vdpa/ifc,event/cnxk,event/dlb2,event/dsw,event/opdl,event/skeleton,event/sw,baseband/acc100,baseband/fpga_5gnr_fec,baseband/fpga_lte_fec,baseband/null,baseband/turbo_sw,raw/cnxk_bphy,raw/dpaa2_cmdif,raw/dpaa2_qdma,raw/ioat,raw/ntb,raw/octeontx2_dma,raw/octeontx2_ep,raw/skeleton,common/cpt,common/dpaax,common/iavf,common/octeontx,common/octeontx2,common/cnxk,common/qat,common/sfc_efx,bus/auxiliary,bus/dpaa,bus/fslmc,bus/ifpga,bus/vmbus,mempool/bucket,mempool/cnxk,mempool/dpaa,mempool/dpaa2,mempool/octeontx,mempool/octeontx2,mempool/ring,mempool/stack,net/af_packet,net/ark,net/atlantic,net/avp,net/axgbe,net/bnx2x,net/bnxt,net/bond,net/cxgbe,net/ena,net/enic,net/failsafe,net/fm10k,net/hinic,net/hns3,net/i40e,net/igc,net/ionic,net/ixgbe,net/kni,net/liquidio,net/memif,net/nfp,net/ngbe,net/null,net/pcap,net/qede,net/ring,net/softnic,net/tap,net/thunderx,net/txgbe,net/vdev_netvsc,baseband/la12xx,dma/idxd,dma/ioat,dma/skeleton,net/octeontx_ep,net/virtio
+	-Ddisable_drivers=common/mvep,common/mlx5,af_xdp,net/ipn3ke,net/mlx4,net/mlx5,net/mvneta,net/mvpp2,net/nfb,net/szedata2,raw/ifpga,crypto/aesni_gcm,crypto/aesni_mb,crypto/ccp,crypto/kasumi,crypto/mvsam,crypto/openssl,crypto/snow3g,crypto/zuc,compress/isal,crypto/bcmfs,crypto/caam_jr,crypto/cnxk,crypto/dpaa_sec,crypto/dpaa2_sec,crypto/nitrox,crypto/null,crypto/octeontx,crypto/octeontx2,crypto/scheduler,crypto/virtio,compress/octeontx,compress/zlib,regex/octeontx2,vdpa/ifc,event/cnxk,event/dlb2,event/dsw,event/opdl,event/skeleton,event/sw,baseband/acc100,baseband/fpga_5gnr_fec,baseband/fpga_lte_fec,baseband/null,baseband/turbo_sw,raw/cnxk_bphy,raw/dpaa2_cmdif,raw/dpaa2_qdma,raw/ioat,raw/ntb,raw/octeontx2_dma,raw/octeontx2_ep,raw/skeleton,common/cpt,common/dpaax,common/iavf,common/octeontx,common/octeontx2,common/cnxk,common/qat,common/sfc_efx,bus/auxiliary,bus/dpaa,bus/fslmc,bus/ifpga,net/af_packet,net/ark,net/atlantic,net/avp,net/axgbe,net/bnx2x,net/bnxt,net/bond,net/cxgbe,net/ena,net/enic,net/failsafe,net/fm10k,net/hinic,net/hns3,net/i40e,net/igc,net/ionic,net/ixgbe,net/kni,net/liquidio,net/memif,net/nfp,net/ngbe,net/null,net/pcap,net/qede,net/softnic,net/thunderx,net/txgbe,net/vdev_netvsc,baseband/la12xx,dma/idxd,dma/ioat,dma/skeleton,net/octeontx_ep,
 
 build:
 	$(info Building DPDK)
