@@ -228,7 +228,7 @@ chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap,
 }
 
 int
-chal_pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl)
+chal_pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl, asid_t asid)
 {
 	struct cap_pgtbl *pt;
 	int               ret;
@@ -236,6 +236,7 @@ chal_pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pg
 	pt = (struct cap_pgtbl *)__cap_capactivate_pre(t, cap, capin, CAP_PGTBL, &ret);
 	if (unlikely(!pt)) return ret;
 	pt->pgtbl = pgtbl;
+	pt->asid  = asid;
 
 	pt->refcnt_flags = 1;
 	pt->parent       = NULL; /* new cap has no parent. only copied cap has. */
@@ -650,7 +651,7 @@ chal_pgtbl_init_pte(void *pte)
 }
 
 int
-chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_lvl)
+chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_lvl, asid_t asid)
 {
 	pgtbl_t        new_pt, curr_pt;
 	vaddr_t        kmem_addr = 0;
@@ -660,7 +661,11 @@ chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid
 	ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr, &pte);
 	if (unlikely(ret)) return ret;
 	assert(kmem_addr && pte);
- 
+#if defined(__i386__)	
+	/* x86-32 does not support PCID :( */
+	if (asid != 0) return -EINVAL;
+#endif
+
 	if (pgtbl_lvl == 0) {
 		/* PGD */
 		struct cap_pgtbl *cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
@@ -670,14 +675,14 @@ chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid
 		assert(curr_pt);
 
 		new_pt = pgtbl_create((void *)kmem_addr, curr_pt);
-		ret    = pgtbl_activate(ct, cap, pt_entry, new_pt, 0);
+		ret    = pgtbl_activate(ct, cap, pt_entry, new_pt, 0, asid);
 	} else if (pgtbl_lvl < 0 || pgtbl_lvl > 3 ) {
 		/* Not supported yet. */
 		printk("cos: warning - PGTBL level greater than 4 not supported yet. \n");
 		ret = -1;
 	} else {
 		pgtbl_init_pte((void *)kmem_addr);
-		ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, pgtbl_lvl);
+		ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, pgtbl_lvl, asid);
 	}
 
 	if (ret) kmem_unalloc(pte);

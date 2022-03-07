@@ -131,7 +131,7 @@ cos_init(void)
 			struct cos_compinfo *child_ci = cos_compinfo_get(&child_defci[id]);
 
 			printc("\tCreating new %s component [%d]\n", is_sched ? "scheduler" : "simple", id);
-			child_utpt = cos_pgtbl_alloc(ci);
+			child_utpt = cos_pgtbl_alloc(ci, (asid_t)0);
 			assert(child_utpt);
 
 			cos_meminfo_init(&(child_ci->mi), BOOT_MEM_KM_BASE, CHILD_UNTYPED_SIZE, child_utpt);

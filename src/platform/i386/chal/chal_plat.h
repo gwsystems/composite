@@ -31,8 +31,6 @@ __invpcid(u64_t pcid, u64_t addr, unsigned long type)
 	asm volatile("invpcid %0, %1" : : "m"(desc), "r"(type) : "memory");
 }
 
-#endif
-
 static inline unsigned long
 __readcr3(void)
 {

@@ -266,7 +266,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 		assert(inv.server->id != chkpt->c->id);
 	}
 
-	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, (asid_t)0, root_ci);
 	assert(!ret);
 
 	mem = cos_page_bump_allocn(root_ci, chkpt->tot_sz_mem);
@@ -312,6 +312,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
  *
  * @return: 0 on success, != 0 on error.
  */
+int next_asid = 1; /* FIXME: This is to test ASID Effectivness. Replace with namespace implementation */
 int
 crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info)
 {
@@ -333,7 +334,8 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	printc("\t\t elf obj: ro [0x%lx, 0x%lx), data [0x%lx, 0x%lx), bss [0x%lx, 0x%lx).\n",
 	       c->ro_addr, c->ro_addr + ro_sz, c->rw_addr, c->rw_addr + data_sz, c->rw_addr + data_sz, c->rw_addr + data_sz + bss_sz);
 
-	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
+	/* FIXME: Replace next_asid with namespace implementation */
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, next_asid++, root_ci);
 	assert(!ret);
 
 	tot_sz = round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz);
@@ -1082,7 +1084,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		if (crt_comp_alias_in(c, c, &compres, CRT_COMP_ALIAS_PGTBL | CRT_COMP_ALIAS_COMP)) BUG();
 
 		/* Set up the untyped memory in the new component */
-		utpt = cos_pgtbl_alloc(ci);
+		utpt = cos_pgtbl_alloc(ci, (asid_t)0);
 		assert(utpt);
 		cos_meminfo_init(&(target_ci->mi), BOOT_MEM_KM_BASE, ctxt->memsz, utpt);
 		cos_meminfo_alloc(target_ci, BOOT_MEM_KM_BASE, ctxt->memsz);

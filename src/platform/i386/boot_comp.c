@@ -110,7 +110,7 @@ boot_pgtbl_expand(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char 
 	unsigned int      nptes = 0, lvl, i;
 	struct cap_pgtbl *pte_cap, *pgd_cap;
 
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, ptecap, NULL, 1)) assert(0);
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, ptecap, NULL, 1, (asid_t)0)) assert(0);
 	for (lvl = 1; lvl < PGTBL_DEPTH; lvl++) {
 		nptes = boot_nptes(user_vaddr, range, lvl);
 		ptes  = mem_boot_alloc(nptes);
@@ -292,7 +292,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	assert(boot_vm_pgd);
 	memcpy((void *)boot_vm_pgd + KERNEL_PGD_REGION_OFFSET, (void *)(&boot_comp_pgd) + KERNEL_PGD_REGION_OFFSET,
 	       KERNEL_PGD_REGION_SIZE);
-	if (pgtbl_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (pgtbl_t)chal_va2pa(boot_vm_pgd), 0)) assert(0);
+	if (pgtbl_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, (pgtbl_t)chal_va2pa(boot_vm_pgd), 0, (asid_t)0)) assert(0);
 
 	/* Map in the virtual memory */
 	ret = boot_elf_process(glb_boot_ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, "booter VM",
@@ -312,7 +312,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	 * Need to account for the pages that will be allocated as
 	 * PTEs
 	 */
-	if (pgtbl_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_UNTYPED_PT, pgtbl, 0)) assert(0);
+	if (pgtbl_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_UNTYPED_PT, pgtbl, 0, (asid_t)0)) assert(0);
 
 	boot_pgtbl_expand(glb_boot_ct, BOOT_CAPTBL_SELF_UNTYPED_PT, BOOT_CAPTBL_KM_PTE, "untyped memory",
 			  BOOT_MEM_KM_BASE, mem_utmem_end() - mem_boot_end());

@@ -1123,9 +1123,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t pt_entry  = __userregs_get1(regs);
 			capid_t pgtbl_cap = __userregs_get2(regs);
 			vaddr_t kmem_cap  = __userregs_get3(regs);
-			capid_t pgtbl_lvl = __userregs_get4(regs);
-			/* FIXME: change lvl to order */
-			ret = chal_pgtbl_pgtblactivate(ct, cap, pt_entry, pgtbl_cap, kmem_cap, pgtbl_lvl);
+			capid_t pgtbl_lvl = __userregs_get4(regs) & 0xFFFF;
+			asid_t  asid      = __userregs_get4(regs) >> 16;
+			
+			ret = chal_pgtbl_pgtblactivate(ct, cap, pt_entry, pgtbl_cap, kmem_cap, pgtbl_lvl, asid);
 
 			break;
 		}
@@ -1666,6 +1667,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		}
 		case CAPTBL_OP_HW_PMU_EN_FIXED_CNTR: {
 			u8_t cntr  = __userregs_get1(regs);
+			
 			ret = pmu_fixed_cntr_enable(cntr);
 			break;
 		}

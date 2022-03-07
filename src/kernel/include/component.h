@@ -59,7 +59,7 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 
 	compc->entry_addr           = entry_addr;
 	compc->info.pgtblinfo.pgtbl = ptc->pgtbl;
-	compc->info.pgtblinfo.asid  = chal_asid_alloc();
+	compc->info.pgtblinfo.asid  = ptc->asid;
 	compc->info.captbl          = ctc->captbl;
 	compc->pgd                  = ptc;
 	compc->ct_top               = ctc;

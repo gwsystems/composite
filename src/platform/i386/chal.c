@@ -9,10 +9,12 @@ asid_t       free_asid = 1;
 char         timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 extern void *cos_kmem, *cos_kmem_base;
 u32_t        chal_msr_mhz = 0;
-
 u8_t         processor_num_pmc;
 
 paddr_t chal_kernel_mem_pa;
+
+/* maps asids with the pgtbl they are identifying in the tlb */
+pgtbl_t tlb_asid_active[NUM_CPU][NUM_ASID_MAX];
 
 void *
 chal_alloc_kern_mem(int order)

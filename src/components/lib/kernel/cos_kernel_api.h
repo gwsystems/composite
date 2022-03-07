@@ -107,10 +107,10 @@ int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vadd
  * This uses the next three functions to allocate a new component and
  * correctly populate ci (allocating all resources from ci_resources).
  */
-int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
+int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry, asid_t asid,
                                struct cos_compinfo *ci_resources);
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
-pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
+pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci, asid_t asid);
 compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry);
 void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier);
 

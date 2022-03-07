@@ -13,8 +13,8 @@
 #define PGTBL_FLAG_MASK 0xf800000000000fff
 #define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
 
-#define MAX_ASID_BITS 12
-#define MAX_NUM_ASID (1<<MAX_ASID_BITS)
+#define NUM_ASID_BITS 12
+#define NUM_ASID_MAX (1<<NUM_ASID_BITS)-1
 
 #elif defined(__i386__)
 #define PGTBL_ENTRY_ADDR_MASK 0xfffff000
@@ -36,7 +36,7 @@
 typedef struct pgtbl *pgtbl_t;
 
 struct pgtbl_info {
-	asid_t  asid; /* Unused */
+	asid_t  asid;
 	pgtbl_t pgtbl;
 } __attribute__((packed));
 
@@ -45,28 +45,42 @@ struct cap_pgtbl {
 	struct cap_header h;
 	u32_t             refcnt_flags; /* includes refcnt and flags */
 	pgtbl_t           pgtbl;
-	u32_t             lvl;       /* what level are the pgtbl nodes at? */
-	struct cap_pgtbl *parent;    /* if !null, points to parent cap */
-	u64_t             frozen_ts; /* timestamp when frozen is set. */
+	u32_t             lvl;          /* what level are the pgtbl nodes at? */
+	asid_t            asid;         /* hardware context identifier */
+	struct cap_pgtbl *parent;       /* if !null, points to parent cap */
+	u64_t             frozen_ts;    /* timestamp when frozen is set. */
 } __attribute__((packed));
+
+extern pgtbl_t tlb_asid_active[NUM_CPU][NUM_ASID_MAX];
 
 /* Update the page table */
 static inline void
 chal_pgtbl_update(struct pgtbl_info *pt)
-{
-	__writecr3((unsigned long)pt->pgtbl | pt->asid | CR3_NO_FLUSH);
+{	
+	pgtbl_t *curr_cached = &tlb_asid_active[get_cpuid()][pt->asid];
+
+	/* currently cached pgtbl is this pgtbl */
+	if (*curr_cached == pt->pgtbl) {
+		__writecr3((unsigned long)pt->pgtbl | pt->asid | CR3_NO_FLUSH);
+		return;
+	}
+
+	/* no pgtbl cached for this asid */
+	if (*curr_cached == 0) {
+		__writecr3((unsigned long)pt->pgtbl | pt->asid | CR3_NO_FLUSH);
+	}
+	/* different pgtbl cached for this asid, need to invalidate asid */
+	else {
+		__writecr3((unsigned long)pt->pgtbl | pt->asid);
+	}
+
+	*curr_cached = pt->pgtbl;
 }
 
-extern asid_t free_asid;
 static inline asid_t
 chal_asid_alloc(void)
 { 
-#if defined(__x86_64__)
-	if (unlikely(free_asid >= MAX_NUM_ASID)) assert(0);
-	return cos_faa((int *)&free_asid, 1);
-#elif defined(__i386__)
 	return 0;
-#endif
 }
 
 #endif /* CHAL_PROTO_H */

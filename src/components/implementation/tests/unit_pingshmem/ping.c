@@ -276,6 +276,14 @@ ping_bench_msgpassing(void)
 	/* reset memory for test */
 	shm_bm_init_testobj(shm);
 
+	/*
+	 * Counting seems to slowdown execution by a not-significant amount of cycles.
+	 * Not sure if this is a hardware thing of has to do with the virtualization of 
+	 * the PMU.
+	 * Comment out this line for a more consistant tsc read.
+	 */ 
+	cos_pmu_program_event_counter(BOOT_CAPTBL_SELF_INITHW_BASE, 0, 0x49, 0x0E);
+
 	begin = ps_tsc();
 	for (i = 0; i < BENCH_ITER; i++) {
 		/* allocate an obj from shared mem */
@@ -286,7 +294,7 @@ ping_bench_msgpassing(void)
 	}
 	end = ps_tsc();
 	bench = (end - begin) / BENCH_ITER;
-	printc("BENCHMARK Message passing: %llu cycles\n", bench);
+	printc("BENCHMARK Message passing: %llu cycles, DTLB misses: %lu\n", bench, rdpmc(0));
 }
 
 int
@@ -306,22 +314,11 @@ main(void)
 	shm_bm_init_testobj(shm);
 	pongshmem_test_map(id);
 
-	printc("Counter: %lu\n", rdpmc(0));
-
 	ping_test_objread();
-	printc("Counter: %lu\n", rdpmc(0));
-
 	ping_test_bigalloc();
-	printc("Counter: %lu\n", rdpmc(0));
-
 	ping_test_objfree();
-	printc("Counter: %lu\n", rdpmc(0));
-
 	ping_test_bigfree();
-	printc("Counter: %lu\n", rdpmc(0));
-
 	ping_test_refcnt();
-	printc("Counter: %lu\n", rdpmc(0));
 
 
 	ping_bench_syncinv();

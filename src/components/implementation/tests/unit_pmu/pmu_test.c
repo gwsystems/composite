@@ -3,7 +3,7 @@
 #include <pong.h>
 #include <memmgr.h>
 
-#define NUM_PAGES 100
+#define NUM_PAGES 1000
 
 static unsigned long 
 rdpmc (unsigned long cntr)
@@ -18,8 +18,10 @@ rdpmc (unsigned long cntr)
 int
 main(void)
 {
+	/* cheaty way to test PMU counters; should figure out a better API */                        
 	cos_pmu_enable_fixed_counter(BOOT_CAPTBL_SELF_INITHW_BASE, 0);
 	cos_pmu_enable_fixed_counter(BOOT_CAPTBL_SELF_INITHW_BASE, 1);
+	/* enable architecture specific counter events (reference https://perfmon-events.intel.com/) */
 	cos_pmu_program_event_counter(BOOT_CAPTBL_SELF_INITHW_BASE, 0, 0x49, 0x0E);
 	cos_pmu_program_event_counter(BOOT_CAPTBL_SELF_INITHW_BASE, 1, 0xC5, 0x11);
 
