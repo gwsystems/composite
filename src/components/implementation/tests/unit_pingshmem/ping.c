@@ -323,7 +323,6 @@ main(void)
 
 	ping_bench_syncinv();
 	ping_bench_msgpassing();
-	printc("Counter: %lu\n", rdpmc(0));
 
 
 
