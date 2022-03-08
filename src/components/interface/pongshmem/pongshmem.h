@@ -4,7 +4,7 @@
 #include <cos_component.h>
 #include <shm_bm.h>
 
-#define BENCH_ITER 1024
+#define BENCH_ITER 2048
 
 struct obj_test {
 	int  id;

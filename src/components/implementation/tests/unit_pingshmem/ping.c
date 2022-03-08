@@ -277,10 +277,10 @@ ping_bench_msgpassing(void)
 	shm_bm_init_testobj(shm);
 
 	/*
-	 * Counting seems to slowdown execution by a not-significant amount of cycles.
+	 * Counting seems to slowdown execution by a non-zero amount of cycles.
 	 * Not sure if this is a hardware thing of has to do with the virtualization of 
 	 * the PMU.
-	 * Comment out this line for a more consistant tsc read.
+	 * Comment out this line for a more consistent tsc read.
 	 */ 
 	cos_pmu_program_event_counter(BOOT_CAPTBL_SELF_INITHW_BASE, 0, 0x49, 0x0E);
 

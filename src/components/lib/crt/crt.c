@@ -293,6 +293,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 	return 0;
 }
 
+int next_asid = 1; /* FIXME: This is to test ASID effectiveness. Replace with namespace implementation */
 /**
  * Create the component from the elf object including all the resource
  * tables, and memory.
@@ -312,7 +313,6 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
  *
  * @return: 0 on success, != 0 on error.
  */
-int next_asid = 1; /* FIXME: This is to test ASID Effectivness. Replace with namespace implementation */
 int
 crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info)
 {
