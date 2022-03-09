@@ -802,7 +802,7 @@ cos_captbl_alloc(struct cos_compinfo *ci)
 }
 
 pgtblcap_t
-cos_pgtbl_alloc(struct cos_compinfo *ci)
+cos_pgtbl_alloc(struct cos_compinfo *ci, asid_t asid)
 {
 	vaddr_t kmem;
 	capid_t cap;
@@ -812,7 +812,7 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 	assert(ci);
 
 	if (__alloc_mem_cap(ci, CAP_PGTBL, &kmem, &cap)) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, asid << 16))
 		BUG();
 
 	return cap;
@@ -845,7 +845,7 @@ cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t
 
 int
 cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
-                   struct cos_compinfo *ci_resources)
+                   asid_t asid, struct cos_compinfo *ci_resources)
 {
 	pgtblcap_t  ptc;
 	captblcap_t ctc;
@@ -854,7 +854,7 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 
 	printd("cos_compinfo_alloc\n");
 
-	ptc = cos_pgtbl_alloc(ci_resources);
+	ptc = cos_pgtbl_alloc(ci_resources, asid);
 	assert(ptc);
 	ctc = cos_captbl_alloc(ci_resources);
 	assert(ctc);
@@ -1309,4 +1309,16 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 	}
 
 	return (void *)va;
+}
+
+int
+cos_pmu_program_event_counter(hwcap_t hwc, u8_t cntr, u8_t evnt, u8_t umask)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_PMU_PROG_EVT_CNTR, cntr, evnt, umask, 0);
+}
+
+int
+cos_pmu_enable_fixed_counter(hwcap_t hwc, u8_t cntr)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_PMU_EN_FIXED_CNTR, cntr, 0, 0, 0);
 }

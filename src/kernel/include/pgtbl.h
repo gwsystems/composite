@@ -66,7 +66,7 @@ unsigned long *pgtbl_lkup_pgd(pgtbl_t pt, vaddr_t addr, word_t *flags);
 int            pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe, vaddr_t *order);
 vaddr_t        pgtbl_translate(pgtbl_t pt, vaddr_t addr, word_t *flags);
 pgtbl_t        pgtbl_create(void *page, void *curr_pgtbl);
-int            pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
+int            pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl, asid_t asid);
 int            pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
                                 capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
 int            pgtbl_mapping_scan(struct cap_pgtbl *pt);
@@ -105,7 +105,7 @@ unsigned long  chal_pgtbl_flag(unsigned long input);
 int            chal_pgtbl_kmem_act(pgtbl_t pt, vaddr_t addr, unsigned long *kern_addr, unsigned long **pte_ret);
 int            chal_tlb_quiescence_check(u64_t timestamp);
 int            chal_cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr, vaddr_t order);
-int            chal_pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
+int            chal_pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl, asid_t asid);
 int            chal_pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin,
                                      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
 
@@ -127,7 +127,7 @@ int            chal_pgtbl_quie_check(u32_t orig_v);
 void           chal_pgtbl_init_pte(void *pte);
 
 /* Creation of the table object - not to be confused with activation of cap */
-int            chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_lvl);
+int            chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid_t pgtbl_cap, vaddr_t kmem_cap, capid_t pgtbl_lvl, asid_t asid);
 /* Deactivate */
 int            chal_pgtbl_deact_pre(struct cap_header *ch, u32_t pa);
 /* Page mapping */

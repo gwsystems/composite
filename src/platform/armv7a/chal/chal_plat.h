@@ -22,6 +22,11 @@ chal_flush_tlb(void)
 {
 }
 
+static inline void
+chal_flush_tlb_asid(asid_t asid)
+{
+}
+
 static inline void *
 chal_pa2va(paddr_t address)
 {

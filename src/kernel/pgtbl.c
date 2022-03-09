@@ -25,9 +25,9 @@ cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capi
 }
 
 int
-pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl)
+pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl, asid_t asid)
 {
-	return chal_pgtbl_activate(t, cap, capin, pgtbl, lvl);
+	return chal_pgtbl_activate(t, cap, capin, pgtbl, lvl, asid);
 }
 
 int

@@ -19,6 +19,16 @@ char *pong_test_strings[] = {
 
 shm_bm_t shm;
 
+static unsigned long 
+rdpmc (unsigned long cntr)
+{
+	unsigned int low, high;
+
+	asm volatile("rdpmc" : "=a" (low), "=d" (high) : "c" (cntr));
+
+	return low | ((unsigned long)high) << 32;
+}
+
 void 
 ping_test_objread(void)
 {
@@ -302,8 +312,10 @@ main(void)
 	ping_test_bigfree();
 	ping_test_refcnt();
 
+
 	ping_bench_syncinv();
 	ping_bench_msgpassing();
+
 
 
 	return 0;
