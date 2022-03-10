@@ -203,6 +203,7 @@ int crt_thd_alias_in(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resou
 
 void *crt_page_allocn(struct crt_comp *c, u32_t n_pages);
 int crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr);
+int crt_page_aliasn_aligned_in(void *pages, unsigned long align, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr);
 
 /**
  * Initialization API to automate the coordination necessary for
@@ -233,24 +234,35 @@ int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
  * name sz = 2^22
  * 2^32 / 2^22 = 2^10 = 1024 names
  * 2^10 / 2 to ensure the array fits into a page = 512 names
+ * #define CRT_VAS_NAME_SZ (1 << 22)
+ * #define CRT_VAS_NUM_NAMES 512
+ * #define CRT_MPK_NUM_NAMES 16
+ * #define CRT_ASID_NUM_NAMES 1024
+ * 
+ * for 64 bit:
+ * name sz = 2^39 
+ * 2^48 / 2^39 = 2^9 = 512 names
+ * 2^9 / 2 to ensure the array fites into a page = 256 names
+ * also: more ASIDs available in 64 bit
  */
-#define CRT_VAS_NAME_SZ (1 << 22)
-#define CRT_VAS_NUM_NAMES 512
-#define CRT_MPK_NUM_NAMES 16
-#define CRT_ASID_NUM_NAMES 1024
+
+#define CRT_VAS_NAME_SZ (1 << 39)
+#define CRT_VAS_NUM_NAMES 256
+#define CRT_MPK_NUM_NAMES 15
+#define CRT_ASID_NUM_NAMES 4096
 
 /* is reserved the right verbiage here? */
 struct crt_vas_name {
 	/* can change this to be just the crt comp and use the LSB for the reserved/allocated stuff */
-	unsigned int reserved  : 1;
-	unsigned int allocated : 1;
-	unsigned int aliased   : 1;
+	u32_t reserved  : 1;
+	u32_t allocated : 1;
+	u32_t aliased   : 1;
 	struct crt_comp *comp;
 };
 
 struct crt_asid_mpk_name {
-	unsigned int reserved  : 1;
-	unsigned int allocated : 1;
+	u32_t reserved  : 1;
+	u32_t allocated : 1;
 	/* id is index into the name array */
 };
 

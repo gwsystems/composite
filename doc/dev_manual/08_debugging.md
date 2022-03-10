@@ -123,3 +123,92 @@ Two specific cases, and their cause:
 	If you're using a library that relies on TLS in a service (not an application) component, support might be quite involved.
 	If you can disable TLS through the configuration of the library, that is the first priority.
 	Otherwise, talk to the core Composite team.
+
+## GDB and QEMU debugging
+
+Using GDB with QEMU, we can step through the kernel code line by line and check its memory status efficiently.
+
+To start to use GDB, we should add `-S` and `-s` options to QEMU, `-S` make QEMU stop when startup,
+and `-s` open the `gdbserver` for QEMU on TCP port 1234. After that, we then can start GDB by typing `gdb` in the command line to open it.
+
+After GDB starts, it will prompt the banner and gdb command line:  
+(Hint: steps below have been automatically done by our `cos` command, you can use `./cos debug_run $your_build_name` and `./cos gdb` to bgein gdb debug in Qemu)
+```bash
+GNU gdb (Ubuntu 8.1.1-0ubuntu1) 8.1.1
+Copyright (C) 2018 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "x86_64-linux-gnu".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+<http://www.gnu.org/software/gdb/bugs/>.
+Find the GDB manual and other documentation resources online at:
+<http://www.gnu.org/software/gdb/documentation/>.
+For help, type "help".
+Type "apropos word" to search for commands related to "word".
+(gdb)
+```
+
+We need to add symbol table first by `file`:
+
+```
+(gdb) file system_binaries/cos_build-test/cos.img
+Reading symbols from system_binaries/cos_build-test/cos.img...done.
+(gdb)
+```
+
+And connect to QEMU gdbserver by `target`:
+
+```
+(gdb) target remote :1234
+Remote debugging using :1234
+0x0000fff0 in ?? ()
+(gdb)
+```
+
+Setup a breakpoint to stopped, we choose `kmain()` as the breakpoint:
+
+```
+(gdb) b kmain
+Note: breakpoint 1 also set at pc 0xc0107291.
+Breakpoint 10 at 0xc0107291: file kernel.c, line 104.
+```
+
+And enter `c` (continue) to start CPU, it should then stop at `kmain()`:
+
+```
+(gdb) c
+Continuing.
+
+Breakpoint 1, kmain (mboot=<unavailable>, mboot_magic=<unavailable>,
+    esp=<unavailable>) at kernel.c:104
+104	{
+(gdb)
+```
+
+We can open GNU TUI by entering `ctrl-x a` to track the code line by line:
+
+```
+   ┌──kernel.c─────────────────────────────────────────────────────────────────┐
+   │99              assert(STK_INFO_SZ == sizeof(struct cos_cpu_local_info));  │
+   │100     }                                                                  │
+   │101                                                                        │
+   │102     void                                                               │
+   │103     kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)       │
+B+>│104     {                                                                  │
+   │105     #define MAX(X, Y) ((X) > (Y) ? (X) : (Y))                          │
+   │106             unsigned long max;                                         │
+   │107                                                                        │
+   │108             tss_init(INIT_CORE);                                       │
+   │109             gdt_init(INIT_CORE);                                       │
+   │110             idt_init(INIT_CORE);                                       │
+   │111                                                                        │
+   └───────────────────────────────────────────────────────────────────────────┘
+remote Thread 1 In: kmain                                  L104  PC: 0xc0107291
+(gdb)
+```
+
+By typing `s` (step) or `n` (next), we can stepping into next line and function,
+or to run through next line.

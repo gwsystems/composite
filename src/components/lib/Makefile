@@ -79,29 +79,57 @@ MAKEOPTIONS=-I$(shell pwd)
 .PHONY: all clean init distclean
 
 all:
-	$(info ***********************************************)
-	$(info ************[ Building Libraries ]*************)
-	$(info ***********************************************)
+	$(info **************************************************)
+	$(info ***********[Explicit ps initialization]***********)
+	$(info **************************************************)
+	@echo "*************************[TASK START]*************************"
+	@echo "                    [ Explicit building ps ]                  "
+	$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C ps  || exit $$?
+	@echo "*************************[TASK  STOP]*************************"
+	@echo ""
+	$(info **************************************************)
+	$(info **************[ Building Libraries ]**************)
+	$(info **************************************************)
 	@for dir in $(SUBDIRS) ; do \
-		$(MAKE) $(MAKEOPTIONS) -C $$dir ; \
+		echo "*************************[TASK START]*************************";\
+		echo "                    [ Building $$dir ]";\
+		$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C $$dir  || exit $$?; \
+		echo "*************************[TASK  STOP]*************************";\
+		echo ""; \
 	done
 
 clean:
 	$(info |     [RM]   Cleaning up library directories)
 	@for dir in $(SUBDIRS) ; do \
-		$(MAKE) $(MAKEOPTIONS) -C $$dir clean ; \
+		echo "*************************[TASK START]*************************";\
+		echo "                    [ Cleaning $$dir ]";\
+		$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C $$dir clean || exit $$?; \
+		echo "*************************[TASK  STOP]*************************";\
+		echo ""; \
 	done
 
 init: clean
-	$(info ***********************************************)
-	$(info **********[ Initializing Libraries ]***********)
-	$(info ***********************************************)
+	$(info **************************************************)
+	$(info **********[Explicit libc initialization]**********)
+	$(info **************************************************)
+	$(MAKE) $(MAKEOPTIONS) -C libc init
+	$(info **************************************************)
+	$(info ************[ Initializing Libraries ]************)
+	$(info **************************************************)
 	@for dir in $(SUBDIRS) ; do \
-		$(MAKE) $(MAKEOPTIONS) -C $$dir init ; \
+		echo "*************************[TASK START]*************************";\
+		echo "                    [ Initializing $$dir ]";\
+		$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C $$dir init || exit $$?; \
+		echo "*************************[TASK  STOP]*************************";\
+		echo ""; \
 	done
 
 distclean:
 	$(info |     [RM]   Distribution cleaning up library directories)
 	@for dir in $(SUBDIRS) ; do \
-		$(MAKE) $(MAKEOPTIONS) -C $$dir distclean ; \
+		echo "*************************[TASK START]*************************";\
+		echo "                    [ Distcleaning $$dir ]";\
+		$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C $$dir distclean ; \
+		echo "*************************[TASK  STOP]*************************";\
+		echo ""; \
 	done

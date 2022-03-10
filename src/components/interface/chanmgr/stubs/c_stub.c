@@ -3,8 +3,9 @@
 #include <chanmgr.h>
 #include <memmgr.h>
 
-COS_CLIENT_STUB(int, chanmgr_sync_resources)(struct usr_inv_cap *uc, chan_id_t id, sched_blkpt_id_t *full, sched_blkpt_id_t *empty)
+COS_CLIENT_STUB(int, chanmgr_sync_resources, chan_id_t id, sched_blkpt_id_t *full, sched_blkpt_id_t *empty)
 {
+	COS_CLIENT_INVCAP;
 	word_t f, e;
 	int ret;
 
@@ -15,8 +16,9 @@ COS_CLIENT_STUB(int, chanmgr_sync_resources)(struct usr_inv_cap *uc, chan_id_t i
 	return ret;
 }
 
-COS_CLIENT_STUB(int, chanmgr_mem_resources)(struct usr_inv_cap *uc, chan_id_t id, cbuf_t *cb, void **mem)
+COS_CLIENT_STUB(int, chanmgr_mem_resources, chan_id_t id, cbuf_t *cb, void **mem)
 {
+	COS_CLIENT_INVCAP;
 	word_t c, _tmp;
 	int ret;
 

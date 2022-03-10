@@ -154,6 +154,9 @@ unsigned int chan_mem_sz(unsigned int item_sz, unsigned int slots);
  * be called on the receiver side as we only currently support adding
  * receivers into an event set. `disassociate` removes the previous
  * association.
+ * All associations are for the receiver endpoint, even if the sender
+ * did this with chan_snd_evt_associate (in which case it helps the
+ * receiver to set up the association).
  *
  * - @c      - channel to add to the event set
  * - @eid    - the event resource id to be triggered
@@ -163,8 +166,16 @@ unsigned int chan_mem_sz(unsigned int item_sz, unsigned int slots);
  *     - `-n` for error with `n` being an errno value
  */
 int chan_evt_associate(struct chan *c, evt_res_id_t eid);
+int chan_rcv_evt_associate(struct chan_rcv *r, evt_res_id_t eid);
+int chan_snd_evt_associate(struct chan_snd *s, evt_res_id_t eid);
+
 evt_res_id_t chan_evt_associated(struct chan *c);
+evt_res_id_t chan_rcv_evt_associated(struct chan_rcv *r);
+evt_res_id_t chan_snd_evt_associated(struct chan_snd *s);
+
 int chan_evt_disassociate(struct chan *c);
+int chan_rcv_evt_disassociate(struct chan_rcv *r);
+int chan_snd_evt_disassociate(struct chan_snd *s);
 
 /**
  * The following are the APIs for dynamic memory allocation of

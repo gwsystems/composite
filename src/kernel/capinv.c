@@ -15,6 +15,7 @@
 #include "include/tcap.h"
 #include "include/chal/defs.h"
 #include "include/hw.h"
+#include "include/chal/chal_proto.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -44,7 +45,7 @@ printfn(struct pt_regs *regs)
 	int   len;
 	char  kern_buf[MAX_LEN];
 
-	str = (char *)__userregs_get1(regs);
+	str = (char *)(word_t)__userregs_get1(regs);
 	len = __userregs_get2(regs);
 
 	if (len < 1) goto done;
@@ -82,7 +83,7 @@ done:
 	return 0;
 }
 
-static void
+void
 kmem_unalloc(unsigned long *pte)
 {
 	/*
@@ -93,9 +94,9 @@ kmem_unalloc(unsigned long *pte)
 	 */
 	unsigned long old = *pte;
 
-	assert(old & PGTBL_COSKMEM);
-	retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
-	*pte = old & ~PGTBL_COSKMEM;
+	assert(chal_pgtbl_flag_exist(old, PGTBL_COSKMEM));
+	retypetbl_deref((void *)(old & PGTBL_FRAME_MASK), PAGE_ORDER);
+	*pte = chal_pgtbl_flag_clr(*pte, PGTBL_COSKMEM);
 }
 
 /*
@@ -107,7 +108,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
                unsigned long **p_pte, unsigned long *v)
 {
 	struct cap_pgtbl *cap_pt;
-	u32_t             flags, old_v, pa;
+	word_t            flags, old_v, pa;
 	u64_t             curr;
 	int               ret;
 
@@ -123,8 +124,8 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 	old_v = *v = **p_pte;
 
 	pa = old_v & PGTBL_FRAME_MASK;
-	if (!(old_v & PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
-	assert(!(old_v & PGTBL_QUIESCENCE));
+	 if (!chal_pgtbl_flag_exist(old_v, PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
+	 assert(!chal_pgtbl_flag_exist(old_v, PGTBL_QUIESCENCE)); 
 
 	/* Scan the page to make sure there's nothing left. */
 	if (ch->type == CAP_CAPTBL) {
@@ -152,7 +153,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 		}
 
 		/* set the scan flag to avoid concurrent scanning. */
-		if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS)
+		if (cos_cas_32((u32_t*)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS)
 			return -ECASFAIL;
 
 		/*
@@ -167,58 +168,14 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 
 		if (ret) {
 			/* unset scan and frozen bits. */
-			cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
+			cos_cas_32((u32_t *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
 			        l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
 			cos_throw(err, ret);
 		}
-		cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, l);
+		cos_cas_32((u32_t *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, l);
 	} else if (ch->type == CAP_PGTBL) {
-		struct cap_pgtbl *deact_cap = (struct cap_pgtbl *)ch;
-		void *            page      = deact_cap->pgtbl;
-		u32_t             l         = deact_cap->refcnt_flags;
-
-		if (chal_pa2va((paddr_t)pa) != page) cos_throw(err, -EINVAL);
-
-		/* Require freeze memory and wait for quiescence
-		 * first! */
-		if (!(l & CAP_MEM_FROZEN_FLAG)) {
-			cos_throw(err, -EQUIESCENCE);
-		}
-
-		/* Quiescence check! */
-		if (deact_cap->lvl == 0) {
-			/* top level has tlb quiescence period. */
-			if (!tlb_quiescence_check(deact_cap->frozen_ts)) return -EQUIESCENCE;
-		} else {
-			/* other levels have kernel quiescence
-			 * period. (but the mapping scan will ensure
-			 * tlb quiescence implicitly). */
-			rdtscll(curr);
-			if (!QUIESCENCE_CHECK(curr, deact_cap->frozen_ts, KERN_QUIESCENCE_CYCLES)) return -EQUIESCENCE;
-		}
-
-		/* set the scan flag to avoid concurrent scanning. */
-		if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS)
-			return -ECASFAIL;
-
-		if (deact_cap->lvl == 0) {
-			/* PGD: only scan user mapping. */
-			ret = kmem_page_scan(page, PAGE_SIZE - KERNEL_PGD_REGION_SIZE);
-		} else if (deact_cap->lvl == PGTBL_DEPTH - 1) {
-			/* Leaf level, scan mapping. */
-			ret = pgtbl_mapping_scan(deact_cap);
-		} else {
-			/* don't have this with 2-level pgtbl. */
-			ret = kmem_page_scan(page, PAGE_SIZE);
-		}
-
-		if (ret) {
-			/* unset scan and frozen bits. */
-			cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
-			        l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
-			cos_throw(err, ret);
-		}
-		cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, l);
+		ret = chal_pgtbl_deact_pre(ch, pa);
+		if (ret) cos_throw(err, ret);
 	} else {
 		/* currently only captbl and pgtbl pages need to be
 		 * scanned before deactivation. */
@@ -240,13 +197,13 @@ int
 kmem_deact_post(unsigned long *pte, unsigned long old_v)
 {
 	int   ret;
-	u32_t new_v;
-
+	word_t new_v;
 	/* Unset coskmem bit. Release the kmem frame. */
-	new_v = old_v & (~PGTBL_COSKMEM);
+	new_v = chal_pgtbl_flag_clr(old_v, PGTBL_COSKMEM);
+
 	if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
-	ret = retypetbl_deref((void *)(old_v & PGTBL_FRAME_MASK));
+	ret = retypetbl_kern_deref((void *)(old_v & PGTBL_FRAME_MASK), PAGE_ORDER);
 	if (ret) {
 		/* FIXME: handle this case? */
 		cos_cas(pte, new_v, old_v);
@@ -264,9 +221,11 @@ err:
  * Copy a capability from a location in one captbl/pgtbl to a location
  * in the other.  Fundamental operation used to delegate capabilities.
  * TODO: should limit the types of capabilities this works on.
+ * The order is the power of 2 of the size of the (sub)page delegated.
+ *
  */
 static inline int
-cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, capid_t capin_from)
+cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, capid_t capin_from, word_t flags)
 {
 	struct cap_header *ctto, *ctfrom;
 	int                sz, ret;
@@ -305,7 +264,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 			if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 			if ((l & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
 
-			cos_cas((unsigned long *)&(parent->refcnt_flags), old_v, l + 1);
+			cos_cas_32((u32_t *)&(parent->refcnt_flags), old_v, l + 1);
 
 			child->refcnt_flags = 1;
 			child->parent       = parent;
@@ -317,28 +276,14 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 			if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 			if ((l & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
 
-			cos_cas((unsigned long *)&(parent->refcnt_flags), old_v, l + 1);
+			cos_cas_32((u32_t *)&(parent->refcnt_flags), old_v, l + 1);
 
 			child->refcnt_flags = 1;
 			child->parent       = parent;
 		}
 		__cap_capactivate_post(ctto, type);
 	} else if (cap_type == CAP_PGTBL) {
-		unsigned long *f, old_v;
-		u32_t          flags;
-
-		ctto = captbl_lkup(t, cap_to);
-		if (unlikely(!ctto)) return -ENOENT;
-		if (unlikely(ctto->type != cap_type)) return -EINVAL;
-		if (unlikely(((struct cap_pgtbl *)ctto)->refcnt_flags & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
-		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
-		if (!f) return -ENOENT;
-		old_v = *f;
-
-		/* Cannot copy frame, or kernel entry. */
-		if ((old_v & PGTBL_COSFRAME) || !(old_v & PGTBL_USER)) return -EPERM;
-		/* TODO: validate the type is appropriate given the value of *flags */
-		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags);
+		ret = chal_pgtbl_cpy(t, cap_to, capin_to, (struct cap_pgtbl*)ctfrom, capin_from, cap_type, flags);
 	} else {
 		ret = -EINVAL;
 	}
@@ -363,23 +308,32 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, c
 		return -EPERM;
 	} else if (cap_type == CAP_PGTBL) {
 		unsigned long *f, old_v, *moveto, old_v_to;
-		u32_t          flags;
+		word_t         flags;
 
 		ctto = captbl_lkup(t, cap_to);
 		if (unlikely(!ctto)) return -ENOENT;
 		if (unlikely(ctto->type != cap_type)) return -EINVAL;
 		if (unlikely(((struct cap_pgtbl *)ctto)->refcnt_flags & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
+	#if defined(__x86_64__)
+		f = pgtbl_lkup_lvl(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags, 0, PGTBL_DEPTH);
+	#else
 		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+	#endif
 		if (!f) return -ENOENT;
 		old_v = *f;
 
+	#if defined(__x86_64__)
+		moveto = pgtbl_lkup_lvl(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, &flags, 0, PGTBL_DEPTH);
+	#else
 		moveto = pgtbl_lkup_pte(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, &flags);
+	#endif
 		if (!moveto) return -ENOENT;
 		old_v_to = *moveto;
 
 		cos_mem_fence();
-		if ((old_v & PGTBL_COSFRAME) == 0) return -EPERM;
-		if (old_v_to & (PGTBL_COSFRAME | PGTBL_PRESENT)) return -EPERM;
+		if (!chal_pgtbl_flag_exist(old_v, PGTBL_COSFRAME)) return -EPERM;
+		if (chal_pgtbl_flag_exist(old_v_to, PGTBL_COSFRAME | PGTBL_PRESENT)) return -EPERM;
+
 		ret = pgtbl_quie_check(old_v_to);
 		if (ret) return ret;
 
@@ -436,7 +390,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	}
 
 	thd_current_update(next, curr, cos_info);
-	if (likely(ci->pgtbl != next_ci->pgtbl)) pgtbl_update(next_ci->pgtbl);
+	if (likely(ci->pgtblinfo.pgtbl != next_ci->pgtblinfo.pgtbl)) pgtbl_update(&next_ci->pgtblinfo);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
 	if (next->tls != curr->tls) chal_tls_update(next->tls);
@@ -608,6 +562,12 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
            struct cos_cpu_local_info *cos_info)
 {
 	struct thread *next        = thd_cap->t;
+#if defined(__WORD_SIZE_64__)
+	capid_t        arcv        = __userregs_get3(regs);
+	capid_t        tc          = __userregs_getop(regs);
+	tcap_prio_t    prio        = __userregs_get2(regs);
+	sched_tok_t    usr_counter = __userregs_get1(regs);
+#else
 	capid_t        arcv        = (__userregs_get1(regs) << 16) >> 16;
 	capid_t        tc          = __userregs_get1(regs) >> 16;
 	u32_t          prio_higher = __userregs_get3(regs);
@@ -615,6 +575,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	tcap_prio_t    prio        = (tcap_prio_t)(prio_higher >> 16) << 32 | (tcap_prio_t)prio_lower;
 	sched_tok_t    usr_counter = (((sched_tok_t)__userregs_get3(regs) << 16) >> 16)
 	                          | ((sched_tok_t)__userregs_getop(regs) << 16); /* op holds MSB of counter */
+#endif
 	tcap_time_t  timeout = (tcap_time_t)__userregs_get4(regs);
 	struct tcap *tcap    = tcap_current(cos_info);
 	int          ret;
@@ -1162,39 +1123,8 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t pgtbl_cap = __userregs_get2(regs);
 			vaddr_t kmem_cap  = __userregs_get3(regs);
 			capid_t pgtbl_lvl = __userregs_get4(regs);
-
-			pgtbl_t        new_pt, curr_pt;
-			vaddr_t        kmem_addr = 0;
-			unsigned long *pte       = NULL;
-
-			ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr, &pte);
-			if (unlikely(ret)) cos_throw(err, ret);
-			assert(kmem_addr && pte);
-
-			if (pgtbl_lvl == 0) {
-				/* PGD */
-				struct cap_pgtbl *cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
-				if (!CAP_TYPECHK(cap_pt, CAP_PGTBL)) {
-					ret = -EINVAL;
-					break;
-				}
-
-				curr_pt = cap_pt->pgtbl;
-				assert(curr_pt);
-
-				new_pt = pgtbl_create((void *)kmem_addr, curr_pt);
-				ret    = pgtbl_activate(ct, cap, pt_entry, new_pt, 0);
-			} else if (pgtbl_lvl == 1) {
-				/* PTE */
-				pgtbl_init_pte((void *)kmem_addr);
-				ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, 1);
-			} else {
-				/* Not supported yet. */
-				printk("cos: warning - PGTBL level greater than 2 not supported yet. \n");
-				ret = -1;
-			}
-
-			if (ret) kmem_unalloc(pte);
+			/* FIXME: change lvl to order */
+			ret = chal_pgtbl_pgtblactivate(ct, cap, pt_entry, pgtbl_cap, kmem_cap, pgtbl_lvl);
 
 			break;
 		}
@@ -1283,7 +1213,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			livenessid_t lid        = __userregs_get3(regs);
 			vaddr_t      entry_addr = __userregs_get4(regs);
 
-			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr, NULL);
+			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr);
 			break;
 		}
 		case CAPTBL_OP_COMPDEACTIVATE: {
@@ -1320,7 +1250,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t rcv_captbl = __userregs_get2(regs);
 			capid_t rcv_cap    = __userregs_get3(regs);
 
-			ret = asnd_activate(ct, cap, capin, rcv_captbl, rcv_cap, 0, 0);
+			ret = asnd_activate(ct, cap, capin, rcv_captbl, rcv_cap);
 			break;
 		}
 		case CAPTBL_OP_ASNDDEACTIVATE: {
@@ -1350,7 +1280,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t dest_captbl = __userregs_get2(regs);
 			capid_t dest_cap    = __userregs_get3(regs);
 
-			ret = cap_cpy(ct, dest_captbl, dest_cap, from_captbl, from_cap);
+			ret = cap_cpy(ct, dest_captbl, dest_cap, from_captbl, from_cap, 0);
 			break;
 		}
 		case CAPTBL_OP_CONS: {
@@ -1407,9 +1337,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t source_addr = __userregs_get1(regs);
 			capid_t dest_pt     = __userregs_get2(regs);
 			vaddr_t dest_addr   = __userregs_get3(regs);
+			word_t  flags       = __userregs_get4(regs);
 
-			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr);
-
+			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr, flags);
 			break;
 		}
 		case CAPTBL_OP_MEMMOVE: {
@@ -1442,13 +1372,13 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_MEMACTIVATE: {
-			/* This takes cosframe as input and constructs
-			 * mapping in pgtbl. */
+			/* This takes cosframe as input and constructs mapping in pgtbl. */
 			capid_t frame_cap = __userregs_get1(regs);
 			capid_t dest_pt   = __userregs_get2(regs);
 			vaddr_t vaddr     = __userregs_get3(regs);
+			vaddr_t order     = __userregs_get4(regs);
 
-			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr);
+			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr, order);
 
 			break;
 		}
@@ -1465,48 +1395,47 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_MEM_RETYPE2USER: {
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
+			vaddr_t order;
 
-			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
+			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
-			ret = retypetbl_retype2user((void *)frame);
+			if (__userregs_get2(regs) != 0) order = __userregs_get2(regs);
+			ret = retypetbl_retype2user((void *)frame, order);
 
 			break;
 		}
 		case CAPTBL_OP_MEM_RETYPE2KERN: {
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
+			vaddr_t order;
 
-			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
+			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
+
 			if (ret) cos_throw(err, ret);
 
-			ret = retypetbl_retype2kern((void *)frame);
+			if (__userregs_get2(regs) != 0) order = __userregs_get2(regs);
+			ret = retypetbl_retype2kern((void *)frame, order);
 
 			break;
 		}
 		case CAPTBL_OP_MEM_RETYPE2FRAME: {
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
+			vaddr_t order;
 
-			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
+			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame, &order);
 			if (ret) cos_throw(err, ret);
 
-			ret = retypetbl_retype2frame((void *)frame);
+			if (__userregs_get2(regs) != 0) order = __userregs_get2(regs);
+			ret = retypetbl_retype2frame((void *)frame, order);
 
 			break;
 		}
 		case CAPTBL_OP_INTROSPECT: {
 			vaddr_t        addr = __userregs_get1(regs);
-			unsigned long *pte;
-			u32_t          flags;
 
-			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
-
-			if (pte)
-				ret = *pte;
-			else
-				ret = 0;
-
+			ret = chal_pgtbl_introspect(ch, addr);
 			break;
 		}
 		/* case CAPTBL_OP_MAPPING_MOD: */
@@ -1667,7 +1596,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			paddr_t           pa    = __userregs_get3(regs);
 			struct cap_pgtbl *ptc;
 			unsigned long *   pte;
-			u32_t             flags;
+			word_t            flags;
 
 			/*
 			 * FIXME: This is broken.  It should only be
@@ -1682,7 +1611,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			pte = pgtbl_lkup_pte(ptc->pgtbl, va, &flags);
 			if (!pte) cos_throw(err, -EINVAL);
 			if (*pte & PGTBL_FRAME_MASK) cos_throw(err, -ENOENT);
-			*pte = (PGTBL_FRAME_MASK & pa) | PGTBL_USER_DEF;
+			*pte = chal_pgtbl_flag_add(chal_pgtbl_frame(pa), PGTBL_USER_DEF);
 
 			ret = 0;
 			break;
@@ -1698,6 +1627,29 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_HW_SHUTDOWN: {
 			chal_khalt();
 			ret = 0;
+			break;
+		}
+		case CAPTBL_OP_HW_TLB_LOCKDOWN: {
+			unsigned long entryid = __userregs_get1(regs);
+			unsigned long vaddr = __userregs_get2(regs);
+			unsigned long paddr = __userregs_get3(regs);
+			ret = chal_tlb_lockdown(entryid, vaddr, paddr);
+			break;
+		}
+		case CAPTBL_OP_HW_L1FLUSH: {
+			ret = chal_l1flush();
+			break;
+		}
+		case CAPTBL_OP_HW_TLBFLUSH: {
+			ret = chal_tlbflush(0);
+			break;
+		}
+		case CAPTBL_OP_HW_TLBSTALL: {
+			ret = chal_tlbstall();
+			break;
+		}
+		case CAPTBL_OP_HW_TLBSTALL_RECOUNT: {
+			ret = chal_tlbstall_recount(0);
 			break;
 		}
 		default:

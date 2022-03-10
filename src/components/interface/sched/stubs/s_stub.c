@@ -3,9 +3,11 @@
 
 COS_SERVER_3RET_STUB(int, sched_thd_block_timeout)
 {
-	cycles_t elapsed = 0;
+	cycles_t elapsed = 0, abs_timeout;
 
-	elapsed = sched_thd_block_timeout((thdid_t)p0, ((cycles_t)p1 << 32 | (cycles_t)p2));
+	/* works on armv7a too, as we control where hi and lo are passed for timeout */
+	COS_ARG_WORDS_TO_DWORD(p1, p2, abs_timeout);
+	elapsed = sched_thd_block_timeout((thdid_t)p0, abs_timeout);
 	*r1 = (elapsed >> 32);
 	*r2 = (elapsed << 32) >> 32;
 

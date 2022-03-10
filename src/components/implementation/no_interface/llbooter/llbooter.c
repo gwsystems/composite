@@ -140,7 +140,6 @@ comps_init(void)
 	 * components we are set to create, and that we get it from
 	 * mkimg.
 	 */
-	printc("comps init?\n");
 	if (cos_compid_uninitialized()) {
 		int booter_id;
 
@@ -161,17 +160,17 @@ comps_init(void)
 		vaddr_t info = atol(args_get_from("info", &curr));
 		const char *root = "binaries/";
 		int   len  = strlen(root);
-		char  path[INITARGS_MAX_PATHNAME];
+		char  path[INITARGS_MAX_PATHNAME + 1];
 
 		printc("%s: %lu\n", name, id);
 
 		assert(id < MAX_NUM_COMPS && id > 0 && name);
 
-		memset(path, 0, INITARGS_MAX_PATHNAME);
-		strncat(path, root, len);
+		memset(path, 0, INITARGS_MAX_PATHNAME + 1);
+		strncat(path, root, len + 1);
 		assert(path[len] == '\0');
 		strncat(path, name, INITARGS_MAX_PATHNAME - len);
-		assert(path[INITARGS_MAX_PATHNAME - 1] == '\0'); /* no truncation allowed */
+		assert(path[INITARGS_MAX_PATHNAME] == '\0'); /* no truncation allowed */
 
 		comp = boot_comp_get(id);
 		assert(comp);
@@ -210,21 +209,21 @@ comps_init(void)
 	/* FIXME: THIS IS HARD CODED FOR THE ping_pong_alias.toml COMPOSITION SCRIPT */
 	
 	/* component 2 = pong = index 5 */
-	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) {
-		printc("alloc in for component 2 in ns vas 1 failed\n");
+	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) != 0) {
+		printc("alloc in for component 3 in ns vas 1 failed\n");
 		BUG();
 	}
 
-	struct crt_ns_vas *ns_vas2 = ss_ns_vas_alloc();
-	ss_ns_vas_activate(ns_vas2);
-	if(crt_ns_vas_split(ns_vas2, ns_vas1, ns_asid) != 0) {
-		printc("split failed\n");
-		BUG();
-	}
+	// struct crt_ns_vas *ns_vas2 = ss_ns_vas_alloc();
+	// ss_ns_vas_activate(ns_vas2);
+	// if(crt_ns_vas_split(ns_vas2, ns_vas1, ns_asid) != 0) {
+	// 	printc("split failed\n");
+	// 	BUG();
+	// }
 
 	/* component 3 = ping with index 6 --> allocated */
-	if(crt_ns_vas_alloc_in(ns_vas2, boot_comp_get(3)) != 0) {
-		printc("alloc in for component 3 in ns vas 2 failed\n");
+	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) {
+		printc("alloc in for component 2 in ns vas 1 failed\n");
 		BUG();
 	}
 
@@ -356,8 +355,8 @@ comps_init(void)
 
 		sinv = ss_sinv_alloc();
 		assert(sinv);
-		if((serv_id == 3 && cli_id == 4) || (serv_id == 2 && cli_id == 3)) {
-		// if(check_comp_shared_vas(serv, cli)) {
+		// if((serv_id == 3 && cli_id == 4) || (serv_id == 2 && cli_id == 3)) {
+		if(check_comp_shared_vas(serv, cli)) {
 			crt_sinv_create_shared(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
 				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));

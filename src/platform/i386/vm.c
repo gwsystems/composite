@@ -7,6 +7,7 @@
 #include "isr.h"
 #include "chal_cpu.h"
 #include "mem_layout.h"
+#include "chal_pgtbl.h"
 
 #define LARGE_BSS __attribute__((section(".largebss,\"aw\",@nobits#")))
 
@@ -14,12 +15,12 @@ struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED LARGE_BSS;
 struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED LARGE_BSS;
 
 #define KERN_INIT_PGD_IDX (COS_MEM_KERN_START_VA >> PGD_SHIFT)
-u32_t boot_comp_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER,
-                                                               [KERN_INIT_PGD_IDX] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE
-                                                                                     | PGTBL_SUPER};
-u32_t boot_ap_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER,
-                                                               [KERN_INIT_PGD_IDX] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE
-                                                                                     | PGTBL_SUPER};
+u32_t boot_comp_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
+                                                               [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
+                                                                                       | X86_PGTBL_SUPER};
+u32_t boot_ap_pgd[PAGE_SIZE / sizeof(u32_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
+                                                             [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
+                                                                                     | X86_PGTBL_SUPER};
 
 void
 kern_retype_initial(void)
@@ -29,7 +30,7 @@ kern_retype_initial(void)
 	assert((int)mem_bootc_start() % RETYPE_MEM_NPAGES == 0);
 	assert((int)mem_bootc_end() % RETYPE_MEM_NPAGES == 0);
 	for (k = mem_bootc_start(); k < mem_bootc_end(); k += PAGE_SIZE * RETYPE_MEM_NPAGES) {
-		if (retypetbl_retype2user((void *)(chal_va2pa(k)))) assert(0);
+		if (retypetbl_retype2user((void *)chal_va2pa(k), PAGE_ORDER)) assert(0);
 	}
 }
 
@@ -44,8 +45,7 @@ u8_t *mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 	assert(glb_memlayout.kern_boot_heap <= mem_kmem_end());
 	for (i = (unsigned long)r; i < (unsigned long)glb_memlayout.kern_boot_heap; i += PAGE_SIZE) {
 		if ((unsigned long)i % RETYPE_MEM_NPAGES == 0) {
-			if (retypetbl_retype2kern((void *)chal_va2pa((void *)i))) {
-				die("Retyping to kernel on boot-time heap allocation failed @ 0x%x.\n", i);
+			if (retypetbl_retype2kern((void *)chal_va2pa((void *)i), PAGE_ORDER)) {
 			}
 		}
 	}
@@ -77,9 +77,10 @@ kern_setup_image(void)
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end);
 	     i += PGD_RANGE, j++) {
 		assert(j != KERN_INIT_PGD_IDX
-		       || ((boot_comp_pgd[j] | PGTBL_GLOBAL) & ~(PGTBL_MODIFIED | PGTBL_ACCESSED))
-		       == (i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL));
-		boot_comp_pgd[j]             = i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
+			/* FIXME: should make a higher-level macro definition to summarize these default settings... */
+		       || ((boot_comp_pgd[j] | X86_PGTBL_GLOBAL) & ~(X86_PGTBL_MODIFIED | X86_PGTBL_ACCESSED))
+		            == (i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL));
+		boot_comp_pgd[j]             = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 		boot_comp_pgd[i / PGD_RANGE] = 0; /* unmap lower addresses */
 	}
 
@@ -169,7 +170,7 @@ device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags)
 	/* Allocate a PGD region, and map it in */
 	assert(off < PAGE_SIZE / sizeof(unsigned long));
 	rounded = round_up_to_pgd_page(dev_addr) - PGD_RANGE;
-	boot_comp_pgd[off] = rounded | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL | pt_extra_flags;
+	boot_comp_pgd[off] = rounded | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL | pt_extra_flags;
 	dev_mem[dev_map_off] = (struct dev_map) {
 		.physaddr = rounded,
 		.virtaddr = (void *)(off * PGD_RANGE)
@@ -192,12 +193,12 @@ kern_paging_map_init(void *pa)
 	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA / PGD_RANGE;
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end); i += PGD_RANGE, j++) {
 		assert(j != KERN_INIT_PGD_IDX
-		       || ((boot_comp_pgd[j] | PGTBL_GLOBAL) & ~(PGTBL_MODIFIED | PGTBL_ACCESSED))
-		            == (i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL));
+		       || ((boot_comp_pgd[j] | X86_PGTBL_GLOBAL) & ~(X86_PGTBL_MODIFIED | X86_PGTBL_ACCESSED))
+		            == (i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL));
 		/* lower mapping */
-		boot_comp_pgd[i / PGD_RANGE] = i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
+		boot_comp_pgd[i / PGD_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 		/* higher mapping */
-		boot_comp_pgd[j] = i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
+		boot_comp_pgd[j] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 	}
 }
 

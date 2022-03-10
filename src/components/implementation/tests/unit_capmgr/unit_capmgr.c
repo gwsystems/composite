@@ -27,7 +27,7 @@ __test_thd_fn(void *d)
 static void
 test_thds(void)
 {
-	int i = 0;
+	word_t i = 0;
 	thdid_t tid;
 	int failure = 0;
 

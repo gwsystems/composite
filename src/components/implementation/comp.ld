@@ -10,8 +10,6 @@ SECTIONS
 
 	. = SIZEOF_HEADERS;
 
-	.interp : { *(.interp) } :interp
-
 	/* start the text/read-only sections */
 	.text : ALIGN(4096) { *(.text*) } :text
 	.rodata : { *(.rodata*) }

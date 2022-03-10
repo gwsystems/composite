@@ -1,0 +1,32 @@
+%rename cpp_options old_cpp_options
+
+*cpp_options:
+-nostdinc -isystem /home/ldierksheide/composite/src/components/lib/libc/musl-1.1.11/include -isystem include%s %(old_cpp_options)
+
+*cc1:
+%(cc1_cpu) -nostdinc -isystem /home/ldierksheide/composite/src/components/lib/libc/musl-1.1.11/include -isystem include%s
+
+*link_libgcc:
+-L/home/ldierksheide/composite/src/components/lib/libc/musl-1.1.11/lib -L .%s
+
+*libgcc:
+libgcc.a%s %:if-exists(libgcc_eh.a%s)
+
+*startfile:
+%{!shared: /home/ldierksheide/composite/src/components/lib/libc/musl-1.1.11/lib/%{pie:S}crt1.o} /home/ldierksheide/composite/src/components/lib/libc/musl-1.1.11/lib/crti.o %{shared|pie:crtbeginS.o%s;:crtbegin.o%s}
+
+*endfile:
+%{shared|pie:crtendS.o%s;:crtend.o%s} /home/ldierksheide/composite/src/components/lib/libc/musl-1.1.11/lib/crtn.o
+
+*link:
+-dynamic-linker /lib/ld-musl-i386.so.1 -nostdlib %{shared:-shared} %{static:-static} %{rdynamic:-export-dynamic}
+
+*esp_link:
+
+
+*esp_options:
+
+
+*esp_cpp_options:
+
+

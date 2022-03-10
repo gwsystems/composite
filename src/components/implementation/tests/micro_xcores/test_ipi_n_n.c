@@ -17,8 +17,8 @@ static volatile int       test_thd_blkd[NUM_CPU][NUM_CPU];
 static void
 test_ipi_fn(void *d)
 {
-        asndcap_t snd = test_asnds[cos_cpuid()][(int)d];
-        arcvcap_t rcv = test_rcvs[cos_cpuid()][(int)d];
+        asndcap_t snd = test_asnds[cos_cpuid()][(word_t)d];
+        arcvcap_t rcv = test_rcvs[cos_cpuid()][(word_t)d];
 
         assert(snd && rcv);
         while (1) {
@@ -34,7 +34,7 @@ test_ipi_fn(void *d)
 static void
 test_rcv_crt(void)
 {
-        int i;
+        word_t i;
         static volatile int rcv_crt[NUM_CPU] = { 0 };
 
         memset((void *)test_rcvs[cos_cpuid()], 0, NUM_CPU * sizeof(arcvcap_t));
@@ -48,7 +48,7 @@ test_rcv_crt(void)
                 arcvcap_t rcv = 0;
                 asndcap_t snd = 0;
 
-                if (cos_cpuid() == i) continue;
+                if ((word_t)cos_cpuid() == i) continue;
                 thd = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_ipi_fn, (void *)i);
                 assert(thd);
 
