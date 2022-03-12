@@ -3,7 +3,7 @@
 
 /* clang-format off */
 #define COS_ASM_GET_STACK_BASIC             \
-	mov $cos_static_stack, %rsp;	    \
+	movabs $cos_static_stack, %rsp;	    \
 	mov %rax, %rdx;		    \
 	andq $0xffff, %rax;		    \
 	shl $MAX_STACK_SZ_BYTE_ORDER, %rax; \
