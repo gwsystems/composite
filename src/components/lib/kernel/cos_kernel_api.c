@@ -776,7 +776,6 @@ cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *da
 
 	if (idx < 1) return 0;
 	ret = __cos_thd_alloc(ci, comp, idx, dc, off);
-	printc("__cos_thd_alloc success: %d\n", ret);
 	if (!ret) cos_thd_init_free(idx);
 
 	return ret;

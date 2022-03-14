@@ -12,7 +12,6 @@
 #include <inv.h>
 #include <hw.h>
 #include <scb.h>
-#include <dcb.h>
 #include <shared/elf_loader.h>
 #include <shared/cos_config.h>
 
@@ -324,8 +323,8 @@ kern_boot_comp(const cpuid_t cpu_id)
 	unsigned int   i;
 	u8_t *         boot_comp_captbl;
 	pgtbl_t        pgtbl     = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
-	
 	u32_t          hw_bitmap = ~0;
+	vaddr_t        scb_uaddr = 0, scb_kaddr = 0;
 
 	assert(cpu_id >= 0);
 	if (NUM_CPU > 1 && cpu_id > 0) {
@@ -351,6 +350,9 @@ kern_boot_comp(const cpuid_t cpu_id)
 		ret = captbl_expand(glb_boot_ct, i / CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + i + PAGE_SIZE / 2);
 		assert(!ret);
 	}
+
+	scb_kaddr = (vaddr_t)mem_boot_alloc(1);
+	assert(scb_kaddr);
 
 	for (i = 0; i < NUM_CPU; i++) {
 		thd_mem[i]  = mem_boot_alloc(1);
@@ -382,6 +384,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	ret = boot_elf_process(glb_boot_ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, "booter VM",
 			       mem_bootc_start(), mem_bootc_end() - mem_bootc_start());
 	assert(ret == 0);
+	scb_uaddr = (vaddr_t)mem_bootc_end();
 
 	/*
 	 * Map in the untyped memory.  This is more complicated as we
@@ -407,13 +410,14 @@ kern_boot_comp(const cpuid_t cpu_id)
 
 	assert(ret == 0);
 
-	/* Shut off further bump allocations */
-	glb_memlayout.allocs_avail = 0;
-	//if (scb_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_SCB, scb_kaddr, 0)) assert(0);
 	printk("\tCapability table and page-table created.\n");
 
+	/* Shut off further bump allocations */
+	glb_memlayout.allocs_avail = 0;
+	if (scb_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, LLBOOT_CAPTBL_SCB, scb_kaddr, 0)) assert(0);
+
 	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT,
-	                  0, 0, (vaddr_t)mem_bootc_entry(), 0))
+	                  LLBOOT_CAPTBL_SCB, 0, (vaddr_t)mem_bootc_entry(), scb_uaddr))
 		assert(0);
 
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
