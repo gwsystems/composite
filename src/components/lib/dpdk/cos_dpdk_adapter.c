@@ -10,16 +10,42 @@
 #include <rte_ethdev.h>
 #include <rte_ether.h>
 
-
 #include "cos_dpdk_adapter.h"
 
 DECLARE_COS_PMD(e1000);
 DECLARE_COS_PMD(mempool_ring)
+
+#define RX_RING_SIZE    32
+#define TX_RING_SIZE    128
+#define BURST_SIZE 32
+#define NUM_MBUFS (1024)
+#define MBUF_CACHE_SIZE 512
+#define BURST_SIZE 32
+#define IP_PROTOCOL_TCP 6
+#define IP_PROTOCOL_UDP 17
+#define RX_RING_SIZE    512
+#define TX_RING_SIZE    256
+#define RX_MBUF_DATA_SIZE 1024
+#define RX_MBUF_SIZE (RX_MBUF_DATA_SIZE + RTE_PKTMBUF_HEADROOM + sizeof(struct rte_mbuf))
+
+typedef uint16_t portid_t;
+
+struct rte_port *ports;
+portid_t ports_ids[32];
+char name[16];
+struct rte_mempool *mbuf_pool;
+struct rte_mempool *rx_mbuf_pool;
+
+
 extern struct rte_pci_bus rte_pci_bus;
 
 struct pci_dev cos_pci_devices[PCI_DEVICE_MAX];
 int pci_dev_nb = 0;
 
+struct rte_mempool *tx_mbuf_pool;
+
+static const struct rte_eth_conf port_conf_default = {
+};
 int
 cos_printc(const char *fmt, va_list ap)
 {
@@ -62,16 +88,29 @@ int
 cos_pci_write_config(const struct rte_pci_device *device,
 		const void *buf, size_t len, off_t offset)
 {
-	const uint32_t *buffer;
-	unsigned int w;
+	uint32_t buffer = 0, w = 0, w_once;
+	int _len = (int)len;
+	(uint32_t)offset;
 
 	if (!buf) return -1;
-	buffer = (const uint32_t *)buf;
 
-	for (w = 0; w <= len - 4; w += 4) {
+	do
+	{
+		buffer = pci_config_read(device->addr.bus, device->addr.devid,
+				device->addr.function, offset);
+
+		w_once = _len > COS_PCI_IO_SIZE ? COS_PCI_IO_SIZE:_len;
+		memcpy(&buffer, buf, w_once);
+
 		pci_config_write(device->addr.bus, device->addr.devid,
-				device->addr.function, (uint32_t)offset + w, *buffer);
-	}
+				device->addr.function, offset, buffer);
+
+		w	+= w_once;
+		offset	+= COS_PCI_IO_SIZE;
+		_len	-= COS_PCI_IO_SIZE;
+		buf	+= w_once;
+	} while (_len > 0);
+
 	return w;
 }
 
@@ -79,16 +118,23 @@ int
 cos_pci_read_config(const struct rte_pci_device *device,
 		void *buf, size_t len, off_t offset)
 {
-	uint32_t *buffer;
-	unsigned int r;
+	uint32_t buffer, r = 0, r_once;
+	int _len = (int)len;
 
 	if (!buf) return -1;
-	buffer = (uint32_t *)buf;
 
-	for (r = 0; r <= len - 4; r += 4) {
-		*buffer = pci_config_read(device->addr.bus, device->addr.devid,
-				device->addr.function, (uint32_t)offset + r);
-	}
+	do
+	{
+		buffer = pci_config_read(device->addr.bus, device->addr.devid,
+				device->addr.function, (uint32_t)offset);
+		r_once = _len > COS_PCI_IO_SIZE ? COS_PCI_IO_SIZE:_len;
+		memcpy(buf, &buffer, r_once);
+
+		r +=	r_once;
+		offset	+= COS_PCI_IO_SIZE;
+		_len	-= COS_PCI_IO_SIZE;
+	} while (_len > 0);
+	
 	return r;
 }
 
@@ -140,7 +186,7 @@ int cos_pci_scan(void)
 		rte_dev->kdrv = RTE_PCI_KDRV_UIO_GENERIC;
 		pci_name_set(rte_dev);
 		rte_pci_add_device(rte_dev);
-	}	
+	}
 
 	return 0;
 }
@@ -165,63 +211,25 @@ cos_map_virt_to_phys(void *addr)
 	return ret & 0x00007ffffffff000;
 }
 
-#define RX_RING_SIZE    512
-#define TX_RING_SIZE    64
 
-static const struct rte_eth_conf port_conf_default = {
-	.rxmode = { .mtu = 1518 }
-};
 
 void
-check_all_ports_link_status(uint8_t port_num, uint32_t port_mask)
+print_ether_addr(struct rte_mbuf *m)
 {
-#define CHECK_INTERVAL 100 /* 100ms */
-#define MAX_CHECK_TIME 90 /* 9s (90 * 100ms) in total */
-	uint8_t portid, count, all_ports_up, print_flag = 0;
-	struct rte_eth_link link;
+	struct rte_ether_hdr *eth_hdr;
+	char buf[RTE_ETHER_ADDR_FMT_SIZE];
 
-	/* printc("\nChecking link status"); */
-	for (count = 0; count <= MAX_CHECK_TIME; count++) {
-		all_ports_up = 1;
-		for (portid = 0; portid < port_num; portid++) {
-			memset(&link, 0, sizeof(link));
-			rte_eth_link_get_nowait(portid, &link);
-			/* print link status if flag set */
-			if (print_flag == 1) {
-				if (link.link_status) {
-					printc("Port %d Link Up - speed %u "
-					       "Mbps - %s\n", (uint8_t)portid,
-					       (unsigned)link.link_speed,
-					       (link.link_duplex == ETH_LINK_FULL_DUPLEX) ?
-					       ("full-duplex") : ("half-duplex\n"));
-				} else {
-					printc("Port %d Link Down\n", (uint8_t)portid);
-				}
-				continue;
-			}
-			/* clear all_ports_up flag if any link down */
-			if (link.link_status == ETH_LINK_DOWN) {
-				all_ports_up = 0;
-				break;
-			}
-		}
-		/* after finally printing all link status, get out */
-		if (print_flag == 1) break;
+	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
-		if (all_ports_up == 0) {
-			printc(".");
-			rte_delay_ms(CHECK_INTERVAL);
-		}
-
-		/* set the print_flag if all ports up or timeout */
-		if (all_ports_up == 1 || count == (MAX_CHECK_TIME - 1)) {
-			print_flag = 1;
-			printc("done\n");
-		}
-	}
+	unsigned char *c = (char*)&(eth_hdr->ether_type);
+	rte_ether_format_addr(buf, RTE_ETHER_ADDR_FMT_SIZE, &eth_hdr->src_addr);
+	printc("src MAX: %s ", buf);
+	rte_ether_format_addr(buf, RTE_ETHER_ADDR_FMT_SIZE, &eth_hdr->dst_addr);
+	printc("dst MAC: %s\n" ,buf);
+	printc("ether type:%02X%02X\n",*c, *(c+1));
 }
 
-static inline int
+static int
 port_init(uint8_t port, struct rte_mempool *mbuf_pool)
 {
 	struct rte_eth_conf port_conf = port_conf_default;
@@ -287,33 +295,40 @@ rte_eth_dev_cos_setup_ports(unsigned nb_ports,
 	return 0;
 }
 
-void
-print_ether_addr(struct rte_mbuf *m)
+
+static void
+process_batch(int port, struct rte_mbuf **mbufs, int cnt)
 {
-	struct rte_ether_hdr *eth_hdr;
-	char buf[RTE_ETHER_ADDR_FMT_SIZE];
+	struct rte_mbuf *tx_mbufs[32];
+	int i;
 
-	eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	if (rte_pktmbuf_alloc_bulk(tx_mbuf_pool, tx_mbufs, cnt)) {
+		assert(0);
+	}
+	/* cnt = 0; */
+	for(i=0; i<cnt; i++) {
+		tx_mbufs[i]->buf_addr     = mbufs[i]->buf_addr;
+		tx_mbufs[i]->buf_iova = mbufs[i]->buf_iova;
+		tx_mbufs[i]->data_len = mbufs[i]->data_len; 
+	}
 
-	unsigned char *c = (char*)&(eth_hdr->ether_type);
-	rte_ether_format_addr(buf, RTE_ETHER_ADDR_FMT_SIZE, &eth_hdr->src_addr);
-	printc("src MAX: %s ", buf);
-	rte_ether_format_addr(buf, RTE_ETHER_ADDR_FMT_SIZE, &eth_hdr->dst_addr);
-	printc("dst MAC: %s\n" ,buf);
-	printc("ether type:%02X%02X\n",*c, *(c+1));
+	rte_eth_tx_burst(port, 0, tx_mbufs, cnt);
 }
 
-#define BURST_SIZE 32
 static void
-ninf_bride(void)
+pkt_burst_test(void)
 {
 	struct rte_mbuf *mbufs[BURST_SIZE];
 	u8_t port;
 	int tot_rx = 0, tot_tx = 0;
+	
 
 	while (1) {
 		for(port=0; port<1; port++) {
+			struct rte_eth_stats stats;
 			u16_t nb_rx = rte_eth_rx_burst(port, 0, mbufs, BURST_SIZE);
+			rte_eth_stats_get(0,&stats);
+			cos_printf("stats:%d,bytes:%d, missed:%d, err1:%d, err2:%d,tx:%d\n",stats.ipackets,stats.ibytes,stats.imissed, stats.ierrors, stats.rx_nombuf,stats.opackets);
 			tot_rx += nb_rx;
 
 			if (nb_rx) {
@@ -322,29 +337,22 @@ ninf_bride(void)
 				cos_printf("Total RX: %d \n", tot_rx);
 				print_ether_addr(mbufs[0]);
 				cos_printf("burst packets :%d\n",nb_rx);
-			}
+				struct rte_ether_hdr *eth_hdr;
+				eth_hdr = rte_pktmbuf_mtod(mbufs[0], struct rte_ether_hdr *);
+				eth_hdr->src_addr.addr_bytes[0] = 1;
+				eth_hdr->src_addr.addr_bytes[1] = 1;
+				eth_hdr->src_addr.addr_bytes[2] = 1;
+				eth_hdr->src_addr.addr_bytes[3] = 1;
+				eth_hdr->src_addr.addr_bytes[4] = 1;
+				eth_hdr->src_addr.addr_bytes[5] = 1;
+				process_batch(port, mbufs, nb_rx);
+			}	
 		}
 	}
 	printc("going to SPIN\n");
 }
 
-typedef uint16_t portid_t;
 
-struct rte_port *ports;
-portid_t ports_ids[32];
-char name[16];
-static struct rte_mbuf *rx_batch_mbufs[32];
-struct rte_mempool *mbuf_pool;
-struct rte_mempool *rx_mbuf_pool;
-#define NUM_MBUFS (1024)
-#define MBUF_CACHE_SIZE 512
-#define BURST_SIZE 32
-#define IP_PROTOCOL_TCP 6
-#define IP_PROTOCOL_UDP 17
-#define RX_RING_SIZE    512
-#define TX_RING_SIZE    256
-#define RX_MBUF_DATA_SIZE 512
-#define RX_MBUF_SIZE (RX_MBUF_DATA_SIZE + RTE_PKTMBUF_HEADROOM + sizeof(struct rte_mbuf))
 int
 cos_dpdk_init(int argc, char **argv)
 {	
@@ -382,8 +390,10 @@ cos_dpdk_init(int argc, char **argv)
 	}
 
 	rx_mbuf_pool = rte_pktmbuf_pool_create("RX_MBUF_POOL", NUM_MBUFS * 1, MBUF_CACHE_SIZE, 0, RX_MBUF_SIZE, -1);
-	printc("pktmbuf_pool created: %d\n", rx_mbuf_pool);
-	if(!rx_mbuf_pool) {
+	tx_mbuf_pool = rte_pktmbuf_pool_create("TX_MBUF_POOL", NUM_MBUFS * 1, MBUF_CACHE_SIZE, 0, RX_MBUF_SIZE, -1);
+
+	printc("pktmbuf_pool created: %p, %p\n", rx_mbuf_pool, tx_mbuf_pool);
+	if(!rx_mbuf_pool|| !tx_mbuf_pool) {
 		assert(0);
 	}
 
@@ -399,10 +409,11 @@ cos_dpdk_init(int argc, char **argv)
 				cos_printf("\t%s\n", link_status_text);
 		}
 	}
+	
 	if (rte_eth_dev_cos_setup_ports(1, rx_mbuf_pool) < 0)
 		return -1;
 
-	ninf_bride();
-	if (!rx_mbuf_pool) return -1;
+	pkt_burst_test();
+
 	return ret;
 }
