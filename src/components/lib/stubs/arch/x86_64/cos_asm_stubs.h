@@ -113,7 +113,7 @@ __cosrt_s_##name:				\
 .align 8 ;					\
 name:						\
 __cosrt_extern_##name:				\
-	mov $__cosrt_ucap_##name, %rax ;	\
+	movabs $__cosrt_ucap_##name, %rax ;	\
 	jmp *INVFN(%rax) ;			\
 						\
 .section .ucap, "a", @progbits ;		\

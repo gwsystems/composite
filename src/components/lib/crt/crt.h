@@ -246,7 +246,7 @@ int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
  * also: more ASIDs available in 64 bit
  */
 
-#define CRT_VAS_NAME_SZ (1 << 39)
+#define CRT_VAS_NAME_SZ (1ULL << 39)
 #define CRT_VAS_NUM_NAMES 256
 #define CRT_MPK_NUM_NAMES 15
 #define CRT_ASID_NUM_NAMES 4096

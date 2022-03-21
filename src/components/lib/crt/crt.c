@@ -342,12 +342,11 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	 * else --> not possible
 	 */
 	//u64_t name_index;
-	unsigned long long crt_vas_name_sz = (1 << 39);
 	int name_index;
 	int mpk_key = c->mpk_key;
 	int cons_ret;
 
-	name_index = c->entry_addr / crt_vas_name_sz;
+	name_index = c->entry_addr / CRT_VAS_NAME_SZ;
 	//name_index = c->entry_addr / CRT_VAS_NAME_SZ;
 	printc("entry addr = %lx, name index = %d\n", c->entry_addr, name_index);
 	assert(name_index < CRT_VAS_NUM_NAMES);
