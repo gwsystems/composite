@@ -20,18 +20,18 @@ cos_init(void)
 	long long b = (long long)4 << 32 | (long long)2;
 	int ret;
 	long long ret_ll;
+	unsigned long * shared;
 
 	printc("Ping component %ld: cos_init execution\n", cos_compid());
 
 	pong_call();
 
-	unsigned long * shared = pong_arg();
-	printc("ping (client), received %lu from server\n", *shared);
-
+	shared = pong_send();
+	assert(*shared == 42);
 	ret = pong_ret();
 	assert(ret == 42);
-	// ret = pong_arg(1024);
-	// assert(ret == 1024);
+	ret = pong_arg(1024);
+	assert(ret == 1024);
 	ret = pong_args(1, 2, 3, 4);
 	assert(ret == 10);
 	ret = pong_argsrets(4, 3, 2, 1, &r0, &r1);

@@ -111,9 +111,7 @@ crt_ns_asids_init(struct crt_ns_asid *asids)
 {
 	int i;
 
-	printc("asids init\n");
-
-	for(i = 0; i < CRT_ASID_NUM_NAMES; i++) {
+	for(i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
 		asids->names[i].reserved = 1;
 		asids->names[i].allocated = 0;
 	}
@@ -126,17 +124,21 @@ crt_ns_asids_init(struct crt_ns_asid *asids)
 /*
  * Create a asid namespace from the names "left over" in `existing`,
  * i.e. those that have not been `crt_ns_vas_alloc_in`ed.
+ * 
+ * Return values:
+ *    0: success
+ *   -1: new is unallocated/null or initialization fails
+ *   -2: new already has allocations 
  */
 int 
 crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 {
 	int i;
 
-	/* error check that new has no allocations (?) */
 	if(new == NULL || new->names == NULL) {
 		return -1;
 	}
-	for(i = 0; i < CRT_ASID_NUM_NAMES; i++) {
+	for(i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
 		if(new->names[i].allocated == 1) {
 			return -2;
 		} 
@@ -146,7 +148,7 @@ crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 		return -1;
 	}
 
-	for(i = 0; i < CRT_ASID_NUM_NAMES; i++) {
+	for(i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
 		/* if a name is allocated in existing, it should not be reserved in new */
 		/* by default via init everything else will go to:
 		 * 		reserved  = 1
@@ -167,10 +169,13 @@ crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 	return 0;
 }
 
+/* 
+ * Return the index of the first available ASID name
+ * Retunr -1 if there are none available
+ */
 int crt_asid_available_name(struct crt_ns_asid *asids) {
 	int asid_index = 0;
 
-	/* allocate an asid name for new */
 	while(asid_index < CRT_ASID_NUM_NAMES) {
 		if(asids->names[asid_index].reserved == 1 && asids->names[asid_index].allocated == 0) {
 			return asid_index;
@@ -182,40 +187,48 @@ int crt_asid_available_name(struct crt_ns_asid *asids) {
 
 /*
  * Initialize a new vas namespace, pulling a name from the `asids`
+ * Return values:
+ *   0: success
+ *  -1: new/asids not set up correctly, or no available ASID names, or pgtbl node allocation failed
  */
 int 
 crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 {
 	int asid_index = 0;
 	int i = 0;
-	/* This must be the booter CI */
+	pgtblcap_t top_lvl_pgtbl;
+	/* FIXME: verify this is the booter CI */
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
-	/* TODO: add error check that new and asids are sufficiently allocated */
+	if(new == NULL || new->names == NULL || asids == NULL || asids->names == NULL) {
+		return -1;
+	}		
 
-	/* allocate an asid name for new */
+	/* find an asid name for new */
 	asid_index = crt_asid_available_name(asids);
 	if(asid_index == -1) {
-		/* no available ASID names! */
+		return -1;
+	}
+
+	/* allocate top level pgtbl node for the VAS */
+	if((top_lvl_pgtbl = cos_pgtbl_alloc(ci)) == 0) {
 		return -1;
 	}
 
 	new->asid_name = asid_index;
+	new->top_lvl_pgtbl = top_lvl_pgtbl;
+	new->parent = NULL;
 
 	/* initialize the names in new */
-	for(i = 0; i < CRT_VAS_NUM_NAMES; i++) {
+	for(i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
 		new->names[i].reserved = 1;
 		new->names[i].allocated = 0;
 		new->names[i].aliased = 0;
 		new->names[i].comp = NULL;
 	}
 
-	new->top_lvl_pgtbl = cos_pgtbl_alloc(ci);
-
-	new->parent = NULL;
-
 	/* initialize an MPK NS for new */
-	for(i = 0; i < CRT_VAS_NUM_NAMES; i++) {
+	for(i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
 		new->mpk_names[i].reserved = 1;
 		new->mpk_names[i].allocated = 0;
 	}
@@ -223,20 +236,28 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 	return 0;
 
 }
+
 /*
  * Create a new vas namespace from the names "left over" in
  * `existing`, i.e. those that have not been `crt_ns_vas_alloc_in`ed
+ * 
+ * Automatically alias all names from existing into new
+ * 
+ * Return values:
+ *   0: success
+ *  -1: new is null/not allocated correctly, or initialization fails
+ *  -2: new already has allocations
  */
 int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids)
 {
-	u64_t i;
+	int i;
 	int cons_ret;
 
-	/* error check that new has no allocations (?) */
+	/* verify that `new` has no existing allocations */
 	if(new == NULL || new->names == NULL) {
 		return -1;
 	}
-	for(i = 0; i < CRT_VAS_NUM_NAMES; i++) {
+	for(i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
 		if(new->names[i].allocated == 1) {
 			return -2;
 		} 
@@ -246,7 +267,7 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 		return -1;
 	}
 
-	for(i = 0; i < CRT_VAS_NUM_NAMES; i++) {
+	for(i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
 		/* if a name is allocated in existing, the component there should automatically be aliased into new */
 		/* by default via init everything else will go to:
 		 * 		reserved  = 1
@@ -263,11 +284,10 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 			 * cons into new's top level? --> yes?
 			 * do we need to do this for all ancestors or just with components allocated in existing? --> yes?
 			*/
-			printc("aliasing at index %lld\n", i);
 			cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(new->names[i].comp->comp_res), new->top_lvl_pgtbl);
 			if(cons_ret != 0) {
-				//assert(0);
 				printc("cons failed: %d\n", cons_ret);
+				assert(0);
 			}
 
 		}
@@ -279,8 +299,8 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 		}
 	}
 
-	/* init mpk namespace */
-	for(i = 0; i < CRT_MPK_NUM_NAMES; i++) {
+	/* initialize the mpk namespace within new */
+	for(i = 0 ; i < CRT_MPK_NUM_NAMES ; i++) {
 		if(existing->mpk_names[i].allocated == 1) {
 			new->mpk_names[i].reserved = 0;
 		}
@@ -288,14 +308,16 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 			existing->mpk_names[i].reserved = 0;
 		}
 	}
-
 	new->parent = existing;
 
 	return 0;
 }
 
 
-/* helper function */
+/* 
+ * helper function:
+ * returns the first available MPK name within vas, or -1 if none available
+ */
 int
 crt_mpk_available_name(struct crt_ns_vas *vas)
 {
@@ -312,21 +334,25 @@ crt_mpk_available_name(struct crt_ns_vas *vas)
 	return -1;
 }
 
-int
-vas_ancestor(struct crt_ns_vas *vas, struct crt_comp *c, int name_index)
-{
-	/* FIXME: check for null first */
-	printc("In vas ancestor, vas->names[%d].comp->id = %ld, c->id = %ld\n", name_index, vas->names[name_index].comp->id, c->id);
-	if(vas->names[name_index].comp->id == c->id) {
-		return 1;
-	}
+// /* 
+//  * helper function
+//  * returns 1 if c 
+//  */
+// int
+// vas_ancestor(struct crt_ns_vas *vas, struct crt_comp *c, int name_index)
+// {
+// 	/* FIXME: check for null first */
+// 	if(vas )
+// 	if(vas->names[name_index].comp->id == c->id) {
+// 		return 1;
+// 	}
 
-	if(vas->parent != NULL) {
-		return vas_ancestor(vas->parent, c, name_index);
-	}
+// 	if(vas->parent != NULL) {
+// 		return vas_ancestor(vas->parent, c, name_index);
+// 	}
 
-	return 0;
-}
+// 	return 0;
+// }
 
 /*
  * VAS name mapping/allocation. This function allocates `c` into `vas`
@@ -338,76 +364,39 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	/* 
 	 * find the name at the entry addr for the elf object for c
 	 * is it reserved but unallocated? --> make allocated & assign MPK key w same properties
-	 * is it unreserved but unaliased? --> make aliased & assign MPK key w same properties
 	 * else --> not possible
 	 */
-	//u64_t name_index;
 	int name_index;
 	int mpk_key = c->mpk_key;
 	int cons_ret;
 
 	name_index = c->entry_addr / CRT_VAS_NAME_SZ;
-	//name_index = c->entry_addr / CRT_VAS_NAME_SZ;
-	printc("entry addr = %lx, name index = %d\n", c->entry_addr, name_index);
 	assert(name_index < CRT_VAS_NUM_NAMES);
 
-	/* 0: make sure that in the bitmap, this name is either unallocated or unaliased */
-	if(vas->names[name_index].allocated || vas->names[name_index].aliased) {
-		/* if there's something already allocated or already aliased here, can't complete this operation */
-		printc("Index %d has something already allocated/aliased\n", name_index);
+	if(vas->names[name_index].allocated || vas->names[name_index].aliased || !vas->names[name_index].reserved) {
 		return -1;
 	}
-
-	/* 1: make sure there's an available mpk name */
 	if(mpk_key == 0 && ((mpk_key = crt_mpk_available_name(vas)) == -1)) {
-		printc("No mpk names left\n");
-		return -1;
-	}
-	
-	/* 2: add comp to namespace  */
-	/* 2a: it's reserved and unallocated --> allocate! */
-	if(vas->names[name_index].reserved && !vas->names[name_index].allocated) {
-		printc("Index %d : allocating\n", name_index);
-		vas->names[name_index].allocated = 1;
-		vas->names[name_index].comp = c;
-
-		/* initialize the 2nd compinfo to use this pgtbl
-		 * TODO: assumes that component calling this function is the booter (or a component able to allocate capabilities)
-		 */
-		if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
-			printc("allocate comp cap/cap table cap failed\n");
-		}
-
-	}
-	/* 2b: it's not reserved and not aliased and comp is in an NS that's an ancestor of vas --> alias! */
-	/* FIXME: would this ever even happen with aliasing all components on split? */	
-	// else if(!vas->names[name_index].reserved && !vas->names[name_index].aliased && vas_ancestor(vas->parent, c, name_index)) {
-	// 	printc("Index %d : aliasing\n", name_index);
-	// 	vas->names[name_index].aliased = 1;
-	// 	vas->names[name_index].comp = c;
-	// }
-
-	/* 2c: can't be aliased bc of ancestry */
-	else {
-		printc("Index %d : can't allocate or alias\n", name_index);
 		return -1;
 	}
 
-	/* 3: mark allocated for MPK key (if it already had one this just re-assigns) */
-	c->mpk_key = mpk_key;
-	vas->mpk_names[mpk_key].allocated = 1;
-
-	printc("about to cons\n");
-
-	/* 4: cons the 2nd level pgtbl node in c into the pgtbl node in vas */
+	/* FIXME: assumes that component calling this function is the booter (or a component able to allocate capabilities) */
+	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
+		printc("allocate comp cap/cap table cap failed\n");
+		return -1;
+	}
 	cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl);
 	if(cons_ret != 0) {
-		//assert(0);
 		printc("cons failed: %d\n", cons_ret);
+		assert(0);
 	}
 
-	return 0;
+	vas->names[name_index].allocated = 1;
+	vas->names[name_index].comp = c;	
+	vas->mpk_names[mpk_key].allocated = 1;
+	c->mpk_key = mpk_key;
 
+	return 0;
 }
 
 static inline int

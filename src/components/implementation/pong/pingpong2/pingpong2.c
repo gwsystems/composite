@@ -55,30 +55,14 @@ void
 pong_call(void)
 {
 	assert(state >= PONG_PARINIT);
-	//printc("in pong call, compid = %ld\n", cos_compid());
 	return;
 }
-
-// void *
-// pong_ret(void)
-// {
-// 	return &pong_call;
-// }
 
 int
 pong_ret(void)
 {
 	return 42;
 }
-
-// int
-// pong_arg(int p1)
-// {
-// 	// printc("hello pong arg , cos compid = %ld, *arg = %d\n", cos_compid(), *p1);
-// 	// *p1 = 52;
-// 	// return 42;
-// 	return p1;
-// }
 
 int
 pong_args(int p1, int p2, int p3, int p4)
