@@ -268,22 +268,17 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 	}
 
 	for(i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
-		/* if a name is allocated in existing, the component there should automatically be aliased into new */
+		/* if a name is allocated or aliased in existing, the component there should automatically be aliased into new */
 		/* by default via init everything else will go to:
 		 * 		reserved  = 1
 		 *      allocated = 0
 		 *      aliased   = 0
 		 */
-		if(existing->names[i].allocated == 1) {
+		if(existing->names[i].allocated || existing->names[i].aliased) {
 			new->names[i].reserved = 0;
 			new->names[i].aliased = 1;
 			new->names[i].comp = existing->names[i].comp;
 
-			/* FIXME: alias questions
-			 * allocate another component capability? --> no?
-			 * cons into new's top level? --> yes?
-			 * do we need to do this for all ancestors or just with components allocated in existing? --> yes?
-			*/
 			cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(new->names[i].comp->comp_res), new->top_lvl_pgtbl);
 			if(cons_ret != 0) {
 				printc("cons failed: %d\n", cons_ret);
@@ -333,26 +328,6 @@ crt_mpk_available_name(struct crt_ns_vas *vas)
 
 	return -1;
 }
-
-// /* 
-//  * helper function
-//  * returns 1 if c 
-//  */
-// int
-// vas_ancestor(struct crt_ns_vas *vas, struct crt_comp *c, int name_index)
-// {
-// 	/* FIXME: check for null first */
-// 	if(vas )
-// 	if(vas->names[name_index].comp->id == c->id) {
-// 		return 1;
-// 	}
-
-// 	if(vas->parent != NULL) {
-// 		return vas_ancestor(vas->parent, c, name_index);
-// 	}
-
-// 	return 0;
-// }
 
 /*
  * VAS name mapping/allocation. This function allocates `c` into `vas`
