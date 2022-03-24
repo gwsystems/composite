@@ -473,8 +473,6 @@ crt_comp_init(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_
 		.elf_hdr    = elf_hdr,
 		.entry_addr = elf_hdr ? elf_entry_addr(elf_hdr) : 0,
 		.comp_res   = &c->comp_res_mem,
-		/* FIXME: IS THIS OK? */
-		//.comp_res_shared = &c->comp_res_mem,
 		.info       = info,
 		.refcnt     = CRT_REFCNT_INITVAL,
 
@@ -674,7 +672,6 @@ int
 crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
 {
 	assert(c && name);
-	printc("booter create\n");
 
 	*c = (struct crt_comp) {
 		.flags      = CRT_COMP_BOOTER,
@@ -1002,18 +999,14 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 
 		crt_refcnt_take(&c->refcnt);
 		assert(target_ci->comp_cap);
+		/* FIXME: assumes comp cap shared would be originally initialized to 0 */
 		if(target_ci->comp_cap_shared != 0) {
-			/* alloc shared */
-			printc("alloc thdcap shared\n");
 			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap_shared);
 		}
 		else {
-			printc("alloc thdcap unshared\n");
 			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
 		}
-		//thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
 		assert(target_aep->thd);
-		
 	} else {
 		crt_refcnt_take(&c->refcnt);
 		thdcap = cos_thd_alloc_ext(ci, target_ci->comp_cap, closure_id);

@@ -1,9 +1,7 @@
-## tests
-
-This is the skeleton interface used by the `mkcomponent.sh` script to aid in the creation of a new component.
-It provides no functionality, and should never be depended on!
-This documentation should be *replaced* in the documentation for a new component.
+## VAS namespaces component
 
 ### Description
+This is a very simple component that just prints hello world in initialization/main
 
 ### Usage and Assumptions
+Useful for testing the basic vas namespaces functionality via `vas_ns_many_comp.toml`

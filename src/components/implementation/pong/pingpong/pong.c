@@ -115,12 +115,6 @@ pong_ids(compid_t *client, compid_t *serv)
 	return cos_thdid();
 }
 
-void
-pong_foo(int *p1) {
-	printc("pong_foo, p1 = %d\n", *p1);
-	*p1 = *p1 + 10;
-}
-
 unsigned long *
 pong_send(void) 
 {

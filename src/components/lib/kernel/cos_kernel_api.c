@@ -460,12 +460,9 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 	 * 2. We should clean up by deactivating the pgtbl we just
 	 *    activated...or at least cache it for future use.
 	 */
-	int cons_ret = call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, mem_ptr, 0, 0);
-	
-	//printc("return from cons = %d: pte_cap = %lu, mem_ptr = %lx, level = %d\n", cons_ret, pte_cap, mem_ptr, lvl);
+	call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, mem_ptr, 0, 0);
 
-
-	/* second level was allocated, so current level would be 0 (?) */
+	/* second level was allocated (implies current level = 0) */
 	if(lvl == 0) {
 		ci->mi.second_lvl_pgtbl_cap = pte_cap;
 		ci->mi.second_lvl_pgtbl_addr = mem_ptr;
@@ -538,7 +535,6 @@ error:
 	ps_lock_release(&ci->va_lock);
 	return 0;
 }
-
 
 int
 cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem)
@@ -862,14 +858,11 @@ cos_comp_alloc_shared(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t entry, st
 	captblcap_t ctc = ci->captbl_cap;
 
 	printd("cos_compinfo_alloc_shared\n");
-
 	assert(ptc);
 	assert(ctc);
 	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry);
 	assert(compc);
 
-	printc("cos comp alloc shared, new comp capability = %lu\n", compc);
-	printc("\t pgtbl cap = %lu\n", ptc);
 	ci->comp_cap_shared = compc;
 	ci->pgtbl_cap_shared = ptc;
 
@@ -1353,7 +1346,7 @@ cos_get_second_lvl(struct cos_compinfo *ci, capid_t *pgtbl_cap, vaddr_t *pgtbl_a
 	if(!ci->mi.second_lvl_pgtbl_flag) {
 		return -1;
 	}
-	/* probably don't need flag -- can just check if the capability is 0 */
+	/* FIXME: probably don't need flag -- can just check if the capability is 0 */
 	*pgtbl_cap = ci->mi.second_lvl_pgtbl_cap;
 	*pgtbl_addr = ci->mi.second_lvl_pgtbl_addr;
 
@@ -1368,16 +1361,10 @@ cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl)
 	int ret;
 
 	if(cos_get_second_lvl(ci, &pte_cap, &pgtbl_addr) != 0) {
-		printc("no second level\n");
-		assert(0);
 		return -1;
 	}
 
-	printc("top level pgtbl cap: %lu\n", top_lvl);
-	printc("second level acquired, pte cap = %lu, pgtbl_addr = %lx\n", pte_cap, pgtbl_addr);
-
-	if ((ret = call_cap_op(top_lvl, CAPTBL_OP_CONS, pte_cap, pgtbl_addr, 0, 0))) {
-		printc("call cap op cons failed, returned, ret = %d\n", ret);
+	if (call_cap_op(top_lvl, CAPTBL_OP_CONS, pte_cap, pgtbl_addr, 0, 0)) {
 		assert(0); /* race? */
 		return -1;
 	}

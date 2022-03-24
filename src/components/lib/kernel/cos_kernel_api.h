@@ -110,13 +110,7 @@ pgtblcap_t cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int
  */
 int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem);
 
-/* 
- * Connect a new pgtbl capability (allocated via pgtbl_intern_expand) to a shared pgtbl
- */
-int cos_shared_pgtbl_connect(pgtblcap_t top_lvl, pgtblcap_t intern, vaddr_t mem);
-
 int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources);
-
 
 /*
  * This uses the next three functions to allocate a new component and

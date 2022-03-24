@@ -106,7 +106,7 @@ ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
 	int found1 = 0;
 	int found2 = 0;
 	struct crt_ns_vas *curr_vas;
-	/* FIXME: track total number of allocations */
+
 	for(i = 1 ; i <= BOOTER_MAX_NS_VAS ; i++) {
 		curr_vas = ss_ns_vas_get(i);
 		found1 = 0;
@@ -186,7 +186,6 @@ comps_init(void)
 			assert(!elf_hdr);
 			ret = crt_booter_create(comp, name, id, info);
 			assert(ret == 0);
-			
 		} else {
 			assert(elf_hdr);
 			if (crt_comp_create(comp, name, id, elf_hdr, info)) {
@@ -195,10 +194,9 @@ comps_init(void)
 			}
 		}
 		assert(comp->refcnt != 0);
-		printc("created component\n");
 	}
 
-	/* allocate, initialize namespaces & put components into namespaces */
+	/* allocate, initialize, and add components to namespaces */
 	struct crt_ns_asid *ns_asid = ss_ns_asid_alloc();
 	assert(ns_asid);
 	ss_ns_asid_activate(ns_asid);
@@ -347,9 +345,6 @@ comps_init(void)
 	 * for the hard-coded capabilities as we don't want to use up
 	 * those slots for the synchronous invocations.
 	 */
-
-	
-
 	ret = args_get_entry("sinvs", &comps);
 	assert(!ret);
 	printc("Synchronous invocations (%d):\n", args_len(&comps));

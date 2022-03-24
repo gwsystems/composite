@@ -729,16 +729,10 @@ chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandi
 	unsigned long *    intern;
 	int                ret = 0;
 
-	//printk("expandid = %lx, depth = %lu\n", expandid, depth);
-
 	intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
 	if (!intern) return -ENOENT;
-	//printk("*intern = %lx\n", *intern);
 	old_pte = *intern;
-	if (pgtbl_ispresent(old_pte)) {
-		printk("pgtbl is present, returning %d\n", -EPERM);
-		return -EPERM;
-	}
+	if (pgtbl_ispresent(old_pte)) return -EPERM;
 	old_v = refcnt_flags = ((struct cap_pgtbl *)ctsub)->refcnt_flags;
 	if (refcnt_flags & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 	if ((refcnt_flags & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
