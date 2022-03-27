@@ -513,7 +513,7 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 		return cos_syscalls[syscall_num](a, b, c, d, e, f);
 	}
 }
-
+/* TODO: init tls when creating components */
 char tls_space[8192] = {0};
 void tls_init()
 {
@@ -521,11 +521,16 @@ void tls_init()
 	*tls_addr 			= (vaddr_t)&tls_space;
 	call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDTLSSET, BOOT_CAPTBL_SELF_INITTHD_BASE, (word_t)tls_addr, 0, 0);
 }
+
+/* override musl-libc's init_tls() */
+void __init_tls(size_t *auxv)
+{
+}
+
 void
 libc_initialization_handler()
 {
 	printc("libc_init\n");
+	libc_init();
 	tls_init();
-	/* libc_init() need to be commented before use posix in composite */
-	//libc_init();
 }

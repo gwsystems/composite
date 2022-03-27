@@ -19,4 +19,5 @@ void *cos_map_phys_to_virt(void *paddr, unsigned int size);
 void *cos_map_virt_to_phys(void *addr);
 
 int cos_dpdk_init(int argc, char **argv);
+
 #endif /* COS_DPDK_ADAPTER_H */
