@@ -22,10 +22,12 @@ cos_init(void)
 	long long ret_ll;
 	unsigned long * shared;
 
-	printc("Ping component %ld: cos_init execution\n", cos_compid());
+	printc("Shared VAS Ping component %ld: cos_init execution\n", cos_compid());
 
 	pong_call();
 
+	shared = pong_send();
+	assert(*shared == 42);
 	ret = pong_ret();
 	assert(ret == 42);
 	ret = pong_arg(1024);
@@ -70,7 +72,7 @@ cos_init(void)
 int
 main(void)
 {
-	printc("Ping component %ld: main execution\n", cos_compid());
+	printc("Shared VAS Ping component %ld: main execution\n", cos_compid());
 	printc("Fast-path invocation: %llu cycles\n", fast_path);
 	printc("Three return value invocation: %llu cycles\n", all_args);
 

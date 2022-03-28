@@ -197,7 +197,6 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 	int asid_index = 0;
 	int i = 0;
 	pgtblcap_t top_lvl_pgtbl;
-	/* FIXME: verify this is the booter CI */
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 	if(new == NULL || new->names == NULL || asids == NULL || asids->names == NULL) {
@@ -341,11 +340,10 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	 * is it reserved but unallocated? --> make allocated & assign MPK key w same properties
 	 * else --> not possible
 	 */
-	int name_index;
+	int name_index = c->entry_addr / CRT_VAS_NAME_SZ;
 	int mpk_key = c->mpk_key;
 	int cons_ret;
 
-	name_index = c->entry_addr / CRT_VAS_NAME_SZ;
 	assert(name_index < CRT_VAS_NUM_NAMES);
 
 	if(vas->names[name_index].allocated || vas->names[name_index].aliased || !vas->names[name_index].reserved) {
@@ -354,12 +352,11 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	if(mpk_key == 0 && ((mpk_key = crt_mpk_available_name(vas)) == -1)) {
 		return -1;
 	}
-
-	/* FIXME: assumes that component calling this function is the booter (or a component able to allocate capabilities) */
 	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
 		printc("allocate comp cap/cap table cap failed\n");
 		return -1;
 	}
+
 	cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl);
 	if(cons_ret != 0) {
 		printc("cons failed: %d\n", cons_ret);
@@ -771,7 +768,7 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 
 	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap_shared, sinv->s_fn_addr, client->id);
 	assert(sinv->sinv_cap);
-	printc("SHARED sinv %s cap %ld\n", name, sinv->sinv_cap);
+	printc("shared sinv %s cap %ld\n", name, sinv->sinv_cap);
 
 	/* poor-mans virtual address translation from client VAS -> our ptrs */
 	assert(sinv->c_ucap_addr - sinv->client->ro_addr > 0);
