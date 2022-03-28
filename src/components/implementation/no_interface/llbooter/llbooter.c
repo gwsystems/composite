@@ -55,12 +55,12 @@ static struct crt_comp boot_comps[MAX_NUM_COMPS];
 static const  compid_t sched_root_id  = 2;
 static        long     boot_id_offset = -1;
 
-SS_STATIC_SLAB(sinv,   struct crt_sinv,   	BOOTER_MAX_SINV);
-SS_STATIC_SLAB(thd,    struct crt_thd,    	BOOTER_MAX_INITTHD);
-SS_STATIC_SLAB(rcv,    struct crt_rcv,    	BOOTER_MAX_SCHED);
-SS_STATIC_SLAB(chkpt,  struct crt_chkpt,  	BOOTER_MAX_CHKPT);
+SS_STATIC_SLAB(sinv,   	struct crt_sinv,   	BOOTER_MAX_SINV);
+SS_STATIC_SLAB(thd,    	struct crt_thd,    	BOOTER_MAX_INITTHD);
+SS_STATIC_SLAB(rcv,    	struct crt_rcv,    	BOOTER_MAX_SCHED);
+SS_STATIC_SLAB(chkpt,  	struct crt_chkpt,  	BOOTER_MAX_CHKPT);
 SS_STATIC_SLAB(ns_asid, struct crt_ns_asid, BOOTER_MAX_NS_ASID);
-SS_STATIC_SLAB(ns_vas, struct crt_ns_vas, 	BOOTER_MAX_NS_VAS);
+SS_STATIC_SLAB(ns_vas, 	struct crt_ns_vas, 	BOOTER_MAX_NS_VAS);
 
 /*
  * Assumptions: the component with the lowest id *must* be the one
@@ -209,7 +209,7 @@ comps_init(void)
 
 	if(crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
 
-	/* FIXME: THIS IS HARD CODED FOR THE ping_pong.toml COMPOSITION SCRIPT */
+	/* FIXME: THIS IS HARD CODED FOR THE ping_pong_shared_vas.toml COMPOSITION SCRIPT */
 	
 	/* pong (server)  */
 	if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) {
