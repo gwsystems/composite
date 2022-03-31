@@ -16,6 +16,7 @@
 #include <sl.h>
 #include <initargs.h>
 #include <addr.h>
+#include <dcb.h>
 
 struct cm_rcv {
 	struct crt_rcv rcv;
@@ -39,6 +40,11 @@ struct cm_thd {
 
 struct cm_asnd {
 	struct crt_asnd asnd;
+};
+
+struct cm_dcb {
+	dcbcap_t dcb_cap;
+	vaddr_t  dcb_addr;
 };
 
 /*
@@ -75,6 +81,9 @@ SS_STATIC_SLAB(asnd, struct cm_asnd, MAX_NUM_THREADS);
 #define MM_NPAGES (MB2PAGES(64))
 SS_STATIC_SLAB(page, struct mm_page, MM_NPAGES);
 SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
+
+#define MAX_DCB_NUM PAGE_SIZE/sizeof(struct cos_dcb_info)
+SS_STATIC_SLAB(dcb, struct cm_dcb, MAX_DCB_NUM);
 
 static struct cm_comp *
 cm_self(void)
@@ -153,6 +162,18 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, thdclosure_index_t clo
 	/* FIXME: should take a reference to the scheduler */
 
 	return t;
+}
+
+struct cm_dcb *
+cm_dcb_alloc_in(struct cm_comp *sched)
+{
+	compid_t       id = (compid_t)cos_inv_token();
+	struct cm_dcb *d = ss_dcb_alloc_at_id(id);
+
+	d->dcb_cap = crt_dcb_create_in(sched, &d->dcb_addr);
+
+	ss_dcb_activate(d);
+	return d;
 }
 
 /**
@@ -339,6 +360,24 @@ capmgr_comp_sched_get(compid_t cid)
 	return atoi(sched);
 }
 
+extern scbcap_t scb_mapping(compid_t id);
+
+int
+capmgr_scb_mapping(void)
+{
+	compid_t schedid = (compid_t)cos_inv_token();
+	printc("\tschedid: %d\n", schedid);
+	struct cm_comp *s;
+	struct cos_compinfo *ci;
+
+	s = ss_comp_get(schedid);
+	assert(s);
+
+	ci = cos_compinfo_get(s->comp.comp_res);
+	assert(ci);
+	return scb_mapping(schedid);
+}
+
 static void
 capmgr_comp_init(void)
 {
@@ -500,6 +539,7 @@ capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 	compid_t schedid = (compid_t)cos_inv_token();
 	struct cm_thd *t;
 	struct cm_comp *s, *c;
+	struct cm_dcb *d;
 
 	if (schedid != capmgr_comp_sched_get(client)) {
 		/* don't have permission to create execution in that component. */
@@ -510,6 +550,9 @@ capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 
 	c = ss_comp_get(client);
 	s = ss_comp_get(schedid);
+
+	d = cm_dcb_alloc_in(s);
+
 	if (!c || !s) return 0;
 	t = cm_thd_alloc_in(c, s, idx);
 	if (!t) {
@@ -530,20 +573,25 @@ capmgr_initthd_create(spdid_t client, thdid_t *tid)
 thdcap_t  capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret) { BUG(); return 0; }
 
 thdcap_t
-capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info **dcb)
+capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info *dcb)
 {
 	compid_t client = (compid_t)cos_inv_token();
-	struct cm_thd *t;
+	struct cm_thd  *t;
 	struct cm_comp *c;
+	struct cm_dcb  *d;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = ss_comp_get(client);
+	d = cm_dcb_alloc_in(c);
+	assert(d);
 	t = cm_thd_alloc_in(c, c, idx);
+
 	if (!t) {
 		/* TODO: release resources */
 		return 0;
 	}
 	*tid = t->thd.tid;
+	dcb = (struct cos_dcb_info *)d->dcb_addr;
 
 	return t->aliased_cap;
 }
@@ -581,8 +629,10 @@ cos_init(void)
 	if (!cm_comp_self_alloc("capmgr")) BUG();
 
 	/* Initialize the other component's for which we're responsible */
+	scbcap_t scbc = cos_scb_alloc(ci);
+	assert(scbc);
+	if (cos_scb_mapping(ci, ci->comp_cap, ci->pgtbl_cap, scbc)) BUG();
 	capmgr_comp_init();
-
 	sl_init(SL_MIN_PERIOD_US);
 
 	return;

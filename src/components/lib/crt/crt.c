@@ -217,7 +217,7 @@ crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_com
 	if (crt_comp_init(c, name, id, NULL, r->info)) BUG();
 
 	cos_compinfo_init(cos_compinfo_get(c->comp_res),
-			  r->ptc, r->ctc, r->compc, r->heap_ptr, r->captbl_frontier,
+			  r->ptc, r->ctc, r->compc, 0, r->heap_ptr, r->captbl_frontier,
 			  cos_compinfo_get(cos_defcompinfo_curr_get()));
 	return 0;
 }
@@ -332,8 +332,10 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 
 	printc("\t\t elf obj: ro [0x%lx, 0x%lx), data [0x%lx, 0x%lx), bss [0x%lx, 0x%lx).\n",
 	       c->ro_addr, c->ro_addr + ro_sz, c->rw_addr, c->rw_addr + data_sz, c->rw_addr + data_sz, c->rw_addr + data_sz + bss_sz);
-
-	ret = cos_compinfo_alloc(ci, 0, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
+	
+	/* FIXME: This is a hack making every component has SCB by default. */
+	scbcap_t scbc = cos_scb_alloc(root_ci);
+	ret = cos_compinfo_alloc(ci, scbc, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
 	assert(!ret);
 
 	tot_sz = round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz);
@@ -362,6 +364,8 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	/* FIXME: cos_time.h assumes we have access to this... */
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, root_ci, BOOT_CAPTBL_SELF_INITHW_BASE);
 	assert(ret == 0);
+	//ret = cos_scb_mapping(ci, ci->comp_cap, ci->pgtbl_cap, scbc);
+	//assert(ret == 0);
 
 	return 0;
 }
@@ -1303,3 +1307,18 @@ crt_compinit_exit(struct crt_comp *c, int retval)
 	while (1) ;
 }
 
+dcbcap_t
+crt_dcb_create_in(struct crt_comp *c, vaddr_t *dcb_addr)
+{
+	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci        = cos_compinfo_get(defci);
+	struct cos_compinfo    *target_ci = cos_compinfo_get(c->comp_res);
+	dcbcap_t                dcb_cap;
+
+	dcb_addr = cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
+	assert(dcb_addr);
+	dcb_cap = cos_dcb_alloc(ci, target_ci->pgtbl_cap, dcb_addr);
+	assert(dcb_cap);
+
+	return dcb_cap;
+}

@@ -11,7 +11,7 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 #include <bitmap.h>
-#include <cos_dcb.h>
+#include <dcb.h>
 
 extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_no_cs(struct sl_thd *t);
@@ -92,7 +92,7 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
-	dcap = cos_dcb_info_alloc_curr(&doff, (vaddr_t *)&dcb);
+	//dcap = cos_dcb_info_alloc_curr(&doff, (vaddr_t *)&dcb);
 	if (dcb && doff) assert(dcap);
 
 	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data, dcap, doff);
@@ -179,7 +179,7 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
-	dcap = cos_dcb_info_alloc_curr(&doff, (vaddr_t *)&dcb);
+	//dcap = cos_dcb_info_alloc_curr(&doff, (vaddr_t *)&dcb);
 	if (dcb && doff) assert(dcap);
 
 	/* NOTE: Cannot use stack-allocated cos_aep_info struct here */
@@ -353,6 +353,12 @@ sl_thd_retrieve_lazy(thdid_t tid)
 	/* without capmgr, there is no lazy retrieval of threads! */
 	assert(0);
 	return NULL;
+}
+
+struct sl_thd *
+sl_thd_retrieve(thdid_t tid)
+{
+	return sl_mod_thd_get(sl_thd_lookup_backend(tid));
 }
 
 void

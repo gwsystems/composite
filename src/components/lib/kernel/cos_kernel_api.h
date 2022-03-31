@@ -68,7 +68,7 @@ struct cos_meminfo {
 /* Component captbl/pgtbl allocation information */
 struct cos_compinfo {
 	/* capabilities to higher-order capability tables (or -1) */
-	capid_t pgtbl_cap, captbl_cap, comp_cap;
+	capid_t pgtbl_cap, captbl_cap, comp_cap, scb_cap;
 	/* the frontier of unallocated caps, and the allocated captbl range */
 	capid_t cap_frontier, caprange_frontier;
 	/* the frontier for each of the various sizes of capability per core! */
@@ -85,7 +85,7 @@ struct cos_compinfo {
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
-                       vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);/*
+                       scbcap_t scb_cap, vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);/*
  * This only needs be called on compinfos that are managing resources
  * (i.e. likely only one).  All of the capabilities will be relative
  * to this component's captbls.
@@ -114,9 +114,10 @@ int         cos_compinfo_alloc(struct cos_compinfo *ci, scbcap_t sc, vaddr_t hea
                                struct cos_compinfo *ci_resources);
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
-compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, scbcap_t scbc, vaddr_t entry,
-                           vaddr_t scb_addr);
+compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, scbcap_t scbc, vaddr_t entry);
 scbcap_t    cos_scb_alloc(struct cos_compinfo *ci);
+int         cos_scb_mapping(struct cos_compinfo *ci, compcap_t comp, pgtblcap_t ptc, scbcap_t scbc);
+
 dcbcap_t    cos_dcb_alloc(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t dcb_uaddr);
 void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier);
 

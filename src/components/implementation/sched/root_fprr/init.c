@@ -73,6 +73,8 @@ static compid_t init_schedule[MAX_NUM_COMPS] = { 0 };
 /* internalizer threads simply orchestrate the initialization */
 static struct sl_thd *__initializer_thd[NUM_CPU] CACHE_ALIGNED;
 
+extern int capmgr_scb_mapping(void);
+
 void
 schedinit_next(compid_t cid)
 {
@@ -233,6 +235,7 @@ cos_init(void)
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
 	cos_init_args_cpubmp(cpubmp);
+	if (capmgr_scb_mapping()) BUG();
 }
 
 void

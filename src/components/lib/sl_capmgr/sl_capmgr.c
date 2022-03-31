@@ -14,7 +14,7 @@
 #include "../../interface/capmgr/memmgr.h"
 #include <bitmap.h>
 #include <sl_child.h>
-#include <cos_dcb.h>
+#include <dcb.h>
 
 extern void sl_thd_event_info_reset(struct sl_thd *t);
 extern void sl_thd_free_no_cs(struct sl_thd *t);
@@ -392,7 +392,8 @@ sl_thd_retrieve(thdid_t tid)
 		/* sl_cs_enter(); */
 	}
 
-	aep.thd = capmgr_thd_retrieve(client, tid, &itid);
+	assert(0);
+	//aep.thd = capmgr_thd_retrieve(client, tid, &itid);
 	assert(aep.thd && itid); /* this thread must be a child thread and capmgr must know it! */
 	/* "client"'s initthd must be initialized! */
 	it = sl_thd_try_lkup(itid);
@@ -416,7 +417,7 @@ sl_thd_free(struct sl_thd *t)
 	sl_cs_exit();
 }
 
-int
+/*int
 sl_thd_migrate_no_cs(struct sl_thd *t, cpuid_t core)
 {
 	struct sl_thd_policy *x = NULL;
@@ -424,7 +425,7 @@ sl_thd_migrate_no_cs(struct sl_thd *t, cpuid_t core)
 
 	if (t->properties) return -1;
 	if (t->state != SL_THD_RUNNABLE) return -1;
-	/* capmgr should migrate the thdcap as well */
+	// capmgr should migrate the thdcap as well
 	ret = capmgr_thd_migrate(sl_thd_thdid(t), sl_thd_thdcap(t), core);
 	if (ret) return -1;
 	sl_mod_thd_delete(sl_mod_thd_policy_get(t));
@@ -450,4 +451,4 @@ sl_thd_migrate(thdid_t tid, cpuid_t core)
 	sl_cs_exit();
 
 	return ret;
-}
+}*/

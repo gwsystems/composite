@@ -34,7 +34,7 @@ struct cap_comp {
 
 static int
 comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, capid_t pgtbl_cap, capid_t scbcap,
-	      livenessid_t lid, vaddr_t entry_addr, vaddr_t scb_uaddr)
+	      livenessid_t lid, vaddr_t entry_addr)
 {
 	struct cap_comp   *compc;
 	struct cap_pgtbl  *ptc;
@@ -66,7 +66,7 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	if (!compc) cos_throw(undo_ctc, ret);
 
 	if (likely(scbc)) {
-		ret = scb_comp_update(t, scbc, compc, ptc, scb_uaddr);
+		ret = scb_comp_update(t, scbc, compc);
 		if (ret) cos_throw(undo_capact, ret);
 	}
 

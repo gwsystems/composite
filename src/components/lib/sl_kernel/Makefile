@@ -15,7 +15,7 @@ OBJECT_OUTPUT =
 # The path within this directory that holds the .h files for
 # dependents to compile with (./ by default). Will be fed into the -I
 # compiler arguments.
-INCLUDE_PATHS =
+INCLUDE_PATHS = .
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
 INTERFACE_DEPENDENCIES =

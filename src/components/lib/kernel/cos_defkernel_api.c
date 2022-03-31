@@ -59,7 +59,7 @@ cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rc
 
 	if (curr_defci_init_status == INITIALIZED) return;
 
-	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, comp_cap, heap_ptr, cap_frontier, ci);
+	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, comp_cap, 0, heap_ptr, cap_frontier, ci);
 	curr_defci_init_status = INITIALIZED;
 	cos_defcompinfo_sched_init_ext(sched_tc, sched_thd, sched_rcv);
 }

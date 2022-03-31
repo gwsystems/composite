@@ -17,6 +17,7 @@
 
 #include <init.h>
 #include <addr.h>
+#include <scb_mapping.h>
 
 #ifndef BOOTER_MAX_SINV
 #define BOOTER_MAX_SINV 256
@@ -411,6 +412,21 @@ addr_get(compid_t id, addr_t type)
 	}
 }
 
+int
+scb_mapping(compid_t id)
+{
+	struct cos_compinfo *ci;
+	struct crt_comp     *target;
+
+	target = boot_comp_get(id);
+
+	ci = cos_compinfo_get(target->comp_res);
+
+	if (cos_scb_mapping(ci, ci->comp_cap, ci->pgtbl_cap, ci->scb_cap)) BUG();
+	return 0;
+}
+
+
 static void
 booter_init(void)
 {
@@ -418,7 +434,7 @@ booter_init(void)
 
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
-
+	if (cos_scb_mapping(boot_info, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_PT, LLBOOT_CAPTBL_SCB)) BUG();
 	cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 }
 

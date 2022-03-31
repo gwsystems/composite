@@ -1054,6 +1054,7 @@ composite_syscall_handler(struct pt_regs *regs)
 
 	/* Definitely do it for all the fast-path calls. */
 	thd = cap_ulthd_lazyupdate(regs, cos_info, 0, &ci);
+
 	assert(thd);
 	cap = __userregs_getcap(regs);
 
@@ -1330,11 +1331,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t      pgtbl_cap  = __userregs_get2(regs) & 0xFFFF;
 			livenessid_t lid        = capin >> 16;
 			capid_t      comp_cap   = (capin << 16) >> 16;
-			vaddr_t      scb_uaddr  = __userregs_get3(regs) & (~0 << 12);
+			capid_t      scb_cap    = __userregs_get3(regs);
 			vaddr_t      entry_addr = __userregs_get4(regs);
-			capid_t      scb_cap    = __userregs_get3(regs) & ((1 << 12) - 1);
 
-			ret = comp_activate(ct, cap, comp_cap, captbl_cap, pgtbl_cap, scb_cap, lid, entry_addr, scb_uaddr);
+			ret = comp_activate(ct, cap, comp_cap, captbl_cap, pgtbl_cap, scb_cap, lid, entry_addr);
 			break;
 		}
 		case CAPTBL_OP_COMPDEACTIVATE: {
@@ -1444,18 +1444,53 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_SCB_ACTIVATE: {
+			capid_t      scbcap = __userregs_get1(regs);
 			capid_t      ptcap  = __userregs_get2(regs);
-			livenessid_t lid    = __userregs_get3(regs);
-			vaddr_t      addr   = __userregs_get4(regs);
+			vaddr_t      addr   = __userregs_get3(regs);
+			livenessid_t lid    = __userregs_get4(regs);
+
 			unsigned long *pte;
 			struct cos_scb_info *scb;
+			struct cap_scb      *scbc;
 
 			ret = cap_kmem_activate(ct, ptcap, addr, (unsigned long *)&scb, &pte);
 			if (ret) cos_throw(err, ret);
 
 			ret = scb_activate(ct, cap, capin, (vaddr_t)scb, lid);
 
+			scbc = (struct cap_scb *)captbl_lkup(ci->captbl, scbcap);
+			if (unlikely(!scbc || scbc->h.type != CAP_SCB)) return -EINVAL;
+
+
 			break;
+		}
+		case CAPTBL_OP_SCB_MAPPING: {
+			capid_t      comp_cap  = __userregs_get1(regs);
+			capid_t      ptcap     = __userregs_get2(regs);
+			capid_t      scbcap    = __userregs_get3(regs);
+			vaddr_t      scb_uaddr = __userregs_get4(regs);
+
+			struct cap_scb *scbc = NULL;
+			struct cap_comp *compc = NULL;
+			struct cap_pgtbl *ptc = NULL;
+
+			//struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
+			//struct thread *thd = thd_current(cos_info);
+			//int invstk_top = 0;
+			//struct comp_info *ci_ptr = thd_invstk_current_compinfo(thd, cos_info, &invstk_top);
+
+			scbc = (struct cap_scb *)captbl_lkup(ct, scbcap);
+			if ((unlikely(!scbc || scbc->h.type != CAP_SCB))) assert(0); // return -EINVAL;
+
+			compc = (struct cap_comp *)captbl_lkup(ct, comp_cap);
+			assert(compc);
+
+			ptc = (struct cap_pgtbl *)captbl_lkup(ct, ptcap);
+			assert(ptc);
+
+			ret = scb_mapping(ct, scbc, ptc, compc, scb_uaddr);
+
+			return ret;
 		}
 		case CAPTBL_OP_SCB_DEACTIVATE: {
 			u32_t        r2      = __userregs_get2(regs);
