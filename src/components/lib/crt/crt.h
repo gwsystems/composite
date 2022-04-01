@@ -315,10 +315,10 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c);
 /*
  * A `crt_comp_create` replacement if you want to create a component
- * in a vas directly. Might be forgetting arguments. Note that, the
+ * in a vas directly. Note that, the
  * `crt_comp_create` likely needs to take the asid namespace as well.
  */
-int crt_comp_create_in_vas(struct crt_comp *c, struct crt_ns_vas *vas, struct crt_ns_asid * asids);
+int crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct crt_ns_vas *vas);
 
 
 

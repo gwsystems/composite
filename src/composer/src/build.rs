@@ -158,9 +158,11 @@ fn constructor_serialize_args(
         ids.push(cinfo)
     });
 
+    let ids_copy: Vec<ArgsKV> = ids.into_iter().rev().collect();
+    
     let mut topkv = Vec::new();
     topkv.push(ArgsKV::new_arr(String::from("sinvs"), sinvs));
-    topkv.push(ArgsKV::new_arr(String::from("components"), ids));
+    topkv.push(ArgsKV::new_arr(String::from("components"), ids_copy));
     s.get_param_id(&id)
         .param_list()
         .iter()

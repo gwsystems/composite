@@ -28,6 +28,9 @@ cos_init(void)
 
 	shared = pong_send();
 	assert(*shared == 42);
+	pong_rcv_and_update(shared);
+	assert(*shared == 52);
+
 	ret = pong_ret();
 	assert(ret == 42);
 	ret = pong_arg(1024);

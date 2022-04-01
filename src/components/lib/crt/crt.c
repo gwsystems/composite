@@ -371,6 +371,53 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	return 0;
 }
 
+/*
+ * A `crt_comp_create` replacement if you want to create a component
+ * in a vas directly. 
+ */
+int
+crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct crt_ns_vas *vas)
+{
+	/* 
+	 * find the name at the entry addr for the elf object for c
+	 * is it reserved but unallocated? --> make allocated & assign MPK key w same properties
+	 * else --> not possible
+	 */
+	int name_index =  (elf_hdr ? elf_entry_addr(elf_hdr) : 0) / CRT_VAS_NAME_SZ;
+	int mpk_key = 0;
+	int cons_ret;
+
+	assert(name_index < CRT_VAS_NUM_NAMES);
+
+	if(vas->names[name_index].allocated || vas->names[name_index].aliased || !vas->names[name_index].reserved) {
+		return -1;
+	}
+	if((mpk_key = crt_mpk_available_name(vas)) == -1) {
+		return -1;
+	}
+
+	c->mpk_key = mpk_key;
+	crt_comp_create(c, name, id, elf_hdr, info);
+
+	/* FIXME: if these fail, should that component ^ be reset or something? */
+	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
+		printc("allocate comp cap/cap table cap failed\n");
+		return -1;
+	}
+
+	cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl);
+	if(cons_ret != 0) {
+		printc("cons failed: %d\n", cons_ret);
+		assert(0);
+	}
+
+	vas->names[name_index].allocated = 1;
+	vas->names[name_index].comp = c;	
+	vas->mpk_names[mpk_key].allocated = 1;
+
+	return 0;
+}
+
 static inline int
 crt_refcnt_alive(crt_refcnt_t *r)
 {
