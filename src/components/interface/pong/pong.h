@@ -13,6 +13,4 @@ long long pong_widerets(long long p1, long long p3);
 int pong_subset(unsigned long p0, unsigned long p1, unsigned long *r0);
 thdid_t pong_ids(compid_t *client, compid_t *serv);
 
-unsigned long * pong_send(void);
-void pong_rcv_and_update(unsigned long *shared);
 #endif /* PONG_H */

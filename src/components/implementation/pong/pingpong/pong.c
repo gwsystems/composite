@@ -114,15 +114,3 @@ pong_ids(compid_t *client, compid_t *serv)
 
 	return cos_thdid();
 }
-
-unsigned long *
-pong_send(void) 
-{
-	return &shared;
-}
-
-void
-pong_rcv_and_update(unsigned long *shared)
-{
-	*shared += 10;
-}

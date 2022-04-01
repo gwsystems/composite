@@ -11,8 +11,6 @@ cos_asm_stub(pong_call)
 cos_asm_stub(pong_ret)
 cos_asm_stub(pong_arg)
 cos_asm_stub(pong_args)
-cos_asm_stub(pong_send)
-cos_asm_stub(pong_rcv_and_update)
 
 cos_asm_stub_indirect(pong_wideargs)
 cos_asm_stub_indirect(pong_argsrets)

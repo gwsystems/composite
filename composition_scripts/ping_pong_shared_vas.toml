@@ -11,15 +11,15 @@ constructor = "kernel"
 [[components]]
 name = "ping"
 img  = "tests.unit_pingshvas"
-deps = [{srv = "pong", interface = "pong"},
+deps = [{srv = "pongshvas", interface = "pongshvas"},
         {srv = "booter", interface = "init"}]
 baseaddr = "0x40000000"
 constructor = "booter"
 
 [[components]]
-name = "pong"
-img  = "pong.pingpong"
+name = "pongshvas"
+img  = "tests.unit_pongshvas"
 deps = [{srv = "booter", interface = "init"}]
-implements = [{interface = "pong"}]
+implements = [{interface = "pongshvas"}]
 baseaddr = "0x10000000000"
 constructor = "booter"
