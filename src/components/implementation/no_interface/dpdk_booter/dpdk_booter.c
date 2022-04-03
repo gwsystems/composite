@@ -14,11 +14,13 @@ void
 cos_init(void)
 {
 	int num = 0;
-	int argc = 6, ret = -1;
+	int argc = 8, ret = -1;
 
-	/* single core */
-	char arg1[] = "DEBUG", arg2[] = "-l", arg3[] = "0", arg4[] = "--no-shconf", arg5[] = "--no-huge", arg6[] = "--iova-mode=pa";
-	char *argv[] = {arg1, arg2, arg3, arg4, arg5, arg6};
+	/* single core, the first arg is program name */
+	char arg1[] = "COS_DPDK_BOOTER", arg2[] = "-l", arg3[] = "0", arg4[] = "--no-shconf", arg5[] = "--no-huge", arg6[] = "--iova-mode=pa";
+	/* log level can be changed to *debug* if needed, this will print lots of information */
+	char arg7[] = "--log-level", arg8[] = "*:info";
+	char *argv[] = {arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8};
 	ret = cos_dpdk_init(argc, argv);
 	printc("end of init dpdk:%d\n",ret);
 
