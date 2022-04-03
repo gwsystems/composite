@@ -4,9 +4,6 @@ DPDK_INSTALL_DIR	= $(DPDK_BUILD_DIR)/install
 DPDK_INC_DIR		= $(DPDK_INSTALL_DIR)/include
 DPDK_LIBS_DIR		= $(DPDK_INSTALL_DIR)/lib
 
-# Even though we have MUSL, DPDK still rely on some definitions from the GNU lib
-SYS_INC = /usr/lib/gcc/x86_64-linux-gnu/9/include/
-
 LIBRARY_OUTPUT = dpdk
 
 OBJECT_OUTPUT =
@@ -25,7 +22,6 @@ SFILES+=$(wildcard adapter/*.S)
 OBJS+=$(DPDK_LIBS_DIR)/*.a
 
 CINC+=$(foreach I, $(INCLUDE_PATHS), -I$(I))
-CINC+=-I$(SYS_INC)
 
 .PHONY: all config install clean distclean init build 
 
@@ -49,6 +45,9 @@ MUSL_BIN_PATH = PATH=$(shell pwd)/../libc/musl-1.2.0/bin/:$(PATH)
 config: 
 	$(info Configing DPDK)
 #	TODO: make this copy more generic so that it can be applied to different OS platforms like Fedora
+	@mkdir -p $(DPDK_INC_DIR);
+#	Even though we have MUSL, DPDK still rely on some definitions from the GNU lib
+	@find /usr/lib/gcc/x86_64-linux-gnu/9/include/ -iname *.h | grep -v "std.*" | xargs cp -rft $(DPDK_INC_DIR)
 	@cd ../libc/musl-1.2.0/include; \
 	cp -rf /usr/include/linux/ ./; \
 	cp -rf /usr/include/asm-generic/ ./; \
@@ -75,6 +74,6 @@ $(SHLIB_FILE): build
 init: config build
 
 distclean:
-	cd $(DPDK_BUILD) ninja clean
+	cd $(DPDK_BUILD_DIR) ninja clean
 	cd $(DPDK_DIR); rm -rf build
 clean:
