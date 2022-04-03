@@ -23,8 +23,8 @@ $(SHLIB_BIN): $(OBJS)
 	@$(LD) $(LDFLAGS) -r -o $@ $^
 
 $(SHLIB_FILE): $(OBJS)
-	$(info |     [AR]   Creating library file $@ from $^)
-	@$(AR) cr $@ $^
+	$(info |     [AR]   Creating library file $@ from $(OBJS))
+	@$(AR) crT $@ $(OBJS)
 
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)

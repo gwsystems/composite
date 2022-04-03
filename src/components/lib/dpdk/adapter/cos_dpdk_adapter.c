@@ -12,8 +12,8 @@
 
 #include "cos_dpdk_adapter.h"
 
-DECLARE_COS_PMD(e1000);
-DECLARE_COS_PMD(mempool_ring)
+COS_DECLARE_MODULE(e1000);
+COS_DECLARE_MODULE(mempool_ring)
 
 #define RX_RING_SIZE    32
 #define TX_RING_SIZE    128
@@ -191,17 +191,17 @@ int cos_pci_scan(void)
 	return 0;
 }
 
-void *
-cos_map_phys_to_virt(void *paddr, unsigned int size)
+cos_vaddr_t
+cos_map_phys_to_virt(paddr_t paddr, size_t size)
 {
-	return (void *)cos_hw_map(cos_compinfo_get(cos_defcompinfo_curr_get()), BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)paddr, size);
+	return (cos_vaddr_t)cos_hw_map(cos_compinfo_get(cos_defcompinfo_curr_get()), BOOT_CAPTBL_SELF_INITHW_BASE, paddr, size);
 }
 
-void *
-cos_map_virt_to_phys(void *addr)
+cos_paddr_t
+cos_map_virt_to_phys(cos_vaddr_t addr)
 {
 	unsigned long ret;
-	vaddr_t vaddr = (vaddr_t)addr;
+	cos_vaddr_t vaddr = addr;
 
 	assert((vaddr & 0xfff) == 0);
 
