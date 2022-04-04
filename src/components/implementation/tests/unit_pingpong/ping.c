@@ -20,12 +20,10 @@ cos_init(void)
 	long long b = (long long)4 << 32 | (long long)2;
 	int ret;
 	long long ret_ll;
-	unsigned long * shared;
 
 	printc("Ping component %ld: cos_init execution\n", cos_compid());
 
 	pong_call();
-
 	ret = pong_ret();
 	assert(ret == 42);
 	ret = pong_arg(1024);

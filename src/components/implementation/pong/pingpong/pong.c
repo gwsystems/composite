@@ -18,7 +18,6 @@ volatile pong_init_state_t state = PONG_UNINIT;
 struct simple_barrier init_barrier = SIMPLE_BARRIER_INITVAL;
 volatile coreid_t initcore;
 struct simple_barrier main_barrier = SIMPLE_BARRIER_INITVAL;
-unsigned long shared = 42;
 
 void
 cos_init(void)

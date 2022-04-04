@@ -111,7 +111,7 @@ crt_ns_asids_init(struct crt_ns_asid *asids)
 {
 	int i;
 
-	for(i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
+	for (i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
 		asids->names[i].reserved = 1;
 		asids->names[i].allocated = 0;
 	}
@@ -135,33 +135,30 @@ crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 {
 	int i;
 
-	if(new == NULL || new->names == NULL) {
-		return -1;
-	}
-	for(i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
-		if(new->names[i].allocated == 1) {
+	for (i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
+		if (new->names[i].allocated == 1) {
 			return -2;
 		} 
 	}
 
-	if(crt_ns_asids_init(new)) {
+	if (crt_ns_asids_init(new)) {
 		return -1;
 	}
 
-	for(i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
+	for (i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
 		/* if a name is allocated in existing, it should not be reserved in new */
 		/* by default via init everything else will go to:
-		 * 		reserved  = 1
-		 *      allocated = 0
-		 *      aliased   = 0
+		 *	reserved  = 1
+		 *	allocated = 0
+		 *	aliased   = 0
 		 */
-		if(existing->names[i].allocated == 1) {
+		if (existing->names[i].allocated == 1) {
 			new->names[i].reserved = 0;
 		}
 		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 
 		 * NOTE: this means no further allocations can be made in existing
 		 */
-		if(existing->names[i].reserved == 1) {
+		if (existing->names[i].reserved == 1) {
 			existing->names[i].reserved = 0;
 		}
 	}
@@ -171,13 +168,15 @@ crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 
 /* 
  * Return the index of the first available ASID name
- * Retunr -1 if there are none available
+ * Return -1 if there are none available
  */
-int crt_asid_available_name(struct crt_ns_asid *asids) {
+static int
+crt_asid_available_name(struct crt_ns_asid *asids)
+{
 	int asid_index = 0;
 
 	while(asid_index < CRT_ASID_NUM_NAMES) {
-		if(asids->names[asid_index].reserved == 1 && asids->names[asid_index].allocated == 0) {
+		if (asids->names[asid_index].reserved == 1 && asids->names[asid_index].allocated == 0) {
 			return asid_index;
 		}
 		asid_index++;
@@ -197,29 +196,22 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 	int asid_index = 0;
 	int i = 0;
 	pgtblcap_t top_lvl_pgtbl;
-	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-
-	if(new == NULL || new->names == NULL || asids == NULL || asids->names == NULL) {
-		return -1;
-	}		
+	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());	
 
 	/* find an asid name for new */
 	asid_index = crt_asid_available_name(asids);
-	if(asid_index == -1) {
-		return -1;
-	}
+	if (asid_index == -1) return -1;
 
-	/* allocate top level pgtbl node for the VAS */
-	if((top_lvl_pgtbl = cos_pgtbl_alloc(ci)) == 0) {
-		return -1;
-	}
+	if ((top_lvl_pgtbl = cos_pgtbl_alloc(ci)) == 0) return -1;
 
 	new->asid_name = asid_index;
+	asids->names[asid_index].allocated = 1;
+
 	new->top_lvl_pgtbl = top_lvl_pgtbl;
 	new->parent = NULL;
 
 	/* initialize the names in new */
-	for(i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
+	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
 		new->names[i].reserved = 1;
 		new->names[i].allocated = 0;
 		new->names[i].aliased = 0;
@@ -227,7 +219,7 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 	}
 
 	/* initialize an MPK NS for new */
-	for(i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
+	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
 		new->mpk_names[i].reserved = 1;
 		new->mpk_names[i].allocated = 0;
 	}
@@ -246,40 +238,40 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
  *   0: success
  *  -1: new is null/not allocated correctly, or initialization fails
  *  -2: new already has allocations
+ * 
+ * NOTE: after this call, no further allocations can be made in existing 
  */
-int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids)
+int 
+crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids)
 {
 	int i;
 	int cons_ret;
 
 	/* verify that `new` has no existing allocations */
-	if(new == NULL || new->names == NULL) {
-		return -1;
-	}
-	for(i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
-		if(new->names[i].allocated == 1) {
+	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
+		if (new->names[i].allocated == 1) {
 			return -2;
 		} 
 	}
 
-	if(crt_ns_vas_init(new, asids)) {
+	if (crt_ns_vas_init(new, asids)) {
 		return -1;
 	}
 
-	for(i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
+	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
 		/* if a name is allocated or aliased in existing, the component there should automatically be aliased into new */
 		/* by default via init everything else will go to:
 		 * 		reserved  = 1
 		 *      allocated = 0
 		 *      aliased   = 0
 		 */
-		if(existing->names[i].allocated || existing->names[i].aliased) {
+		if (existing->names[i].allocated || existing->names[i].aliased) {
 			new->names[i].reserved = 0;
 			new->names[i].aliased = 1;
 			new->names[i].comp = existing->names[i].comp;
 
 			cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(new->names[i].comp->comp_res), new->top_lvl_pgtbl);
-			if(cons_ret != 0) {
+			if (cons_ret != 0) {
 				printc("cons failed: %d\n", cons_ret);
 				assert(0);
 			}
@@ -288,17 +280,17 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 
 		 * NOTE: this means no further allocations can be made in existing
 		 */
-		if(existing->names[i].reserved == 1 && existing->names[i].allocated == 0) {
+		if (existing->names[i].reserved == 1 && existing->names[i].allocated == 0) {
 			existing->names[i].reserved = 0;
 		}
 	}
 
 	/* initialize the mpk namespace within new */
-	for(i = 0 ; i < CRT_MPK_NUM_NAMES ; i++) {
-		if(existing->mpk_names[i].allocated == 1) {
+	for (i = 0 ; i < CRT_MPK_NUM_NAMES ; i++) {
+		if (existing->mpk_names[i].allocated == 1) {
 			new->mpk_names[i].reserved = 0;
 		}
-		if(existing->mpk_names[i].reserved == 1 && existing->mpk_names[i].allocated == 0) {
+		else if (existing->mpk_names[i].reserved == 1 && existing->mpk_names[i].allocated == 0) {
 			existing->mpk_names[i].reserved = 0;
 		}
 	}
@@ -312,14 +304,13 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
  * helper function:
  * returns the first available MPK name within vas, or -1 if none available
  */
-int
+static int
 crt_mpk_available_name(struct crt_ns_vas *vas)
 {
-	/* we're looking for an MPK name that's not allocated */
 	int i = 0;
 
 	while(i < CRT_MPK_NUM_NAMES) {
-		if(vas->mpk_names[i].reserved == 1 && vas->mpk_names[i].allocated == 0) {
+		if (vas->mpk_names[i].reserved == 1 && vas->mpk_names[i].allocated == 0) {
 			return i;
 		}
 		i++;
@@ -333,7 +324,8 @@ crt_mpk_available_name(struct crt_ns_vas *vas)
  * by tracking which names (MPK & VAS) are dedicated to `c`. A
  * component can only be allocated into a *single* vas.
  */
-int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
+int
+crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 {
 	/* 
 	 * find the name at the entry addr for the elf object for c
@@ -346,19 +338,19 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 
 	assert(name_index < CRT_VAS_NUM_NAMES);
 
-	if(vas->names[name_index].allocated || vas->names[name_index].aliased || !vas->names[name_index].reserved) {
+	if (vas->names[name_index].allocated || vas->names[name_index].aliased || !vas->names[name_index].reserved) {
 		return -1;
 	}
-	if(mpk_key == 0 && ((mpk_key = crt_mpk_available_name(vas)) == -1)) {
+	if (mpk_key == 0 && ((mpk_key = crt_mpk_available_name(vas)) == -1)) {
 		return -1;
 	}
-	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
+	if (cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
 		printc("allocate comp cap/cap table cap failed\n");
 		return -1;
 	}
 
 	cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl);
-	if(cons_ret != 0) {
+	if (cons_ret != 0) {
 		printc("cons failed: %d\n", cons_ret);
 		assert(0);
 	}
@@ -389,10 +381,10 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 
 	assert(name_index < CRT_VAS_NUM_NAMES);
 
-	if(vas->names[name_index].allocated || vas->names[name_index].aliased || !vas->names[name_index].reserved) {
+	if (vas->names[name_index].allocated || vas->names[name_index].aliased || !vas->names[name_index].reserved) {
 		return -1;
 	}
-	if((mpk_key = crt_mpk_available_name(vas)) == -1) {
+	if ((mpk_key = crt_mpk_available_name(vas)) == -1) {
 		return -1;
 	}
 
@@ -400,13 +392,13 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	crt_comp_create(c, name, id, elf_hdr, info);
 
 	/* FIXME: if these fail, should that component ^ be reset or something? */
-	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
+	if (cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
 		printc("allocate comp cap/cap table cap failed\n");
 		return -1;
 	}
 
 	cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl);
-	if(cons_ret != 0) {
+	if (cons_ret != 0) {
 		printc("cons failed: %d\n", cons_ret);
 		assert(0);
 	}
@@ -571,7 +563,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 	/* re-work the sinvs with the right IDs */
 	memcpy(c->sinvs, chkpt->c->sinvs, sizeof(c->sinvs));
 	c->n_sinvs = chkpt->c->n_sinvs;
-	for(u32_t i = 0; i < c->n_sinvs; i++) {
+	for (u32_t i = 0; i < c->n_sinvs; i++) {
 		struct crt_sinv inv = chkpt->c->sinvs[i];
 
 		assert(inv.client->id == chkpt->c->id);
@@ -1014,12 +1006,12 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 
 	assert(target_ci->comp_cap);
 	if (closure_id == 0) {
-		if(target_aep->thd != 0) return -1; /* should not allow double initialization */
+		if (target_aep->thd != 0) return -1; /* should not allow double initialization */
 
 		crt_refcnt_take(&c->refcnt);
 		assert(target_ci->comp_cap);
-		/* FIXME: assumes comp cap shared would be originally initialized to 0 */
-		if(target_ci->comp_cap_shared != 0) {
+
+		if (target_ci->comp_cap_shared != 0) {
 			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap_shared);
 		}
 		else {

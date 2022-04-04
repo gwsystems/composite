@@ -63,7 +63,6 @@ struct cos_meminfo {
 
 	capid_t	   second_lvl_pgtbl_cap;
 	vaddr_t	   second_lvl_pgtbl_addr;
-	u32_t      second_lvl_pgtbl_flag;
 };
 
 /* Component captbl/pgtbl allocation information */
