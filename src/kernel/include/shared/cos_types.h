@@ -381,6 +381,13 @@ struct usr_inv_cap {
 	void         *data;
 };
 
+/* same size as usr_in_cap but stores callgate addr instead*/
+struct usr_inv_cap_shared {
+	vaddr_t       invocation_fn;
+	vaddr_t       callgate_addr;
+	void         *data;
+};
+
 #define COMP_INFO_POLY_NUM 10
 #define COMP_INFO_INIT_STR_LEN 128
 /* For multicore system, we should have 1 freelist per core. */

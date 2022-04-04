@@ -11,6 +11,8 @@
 
 #define COS_CLIENT_INVCAP register struct usr_inv_cap *uc asm ("rax");
 
+#define COS_CLIENT_INVCAP_SHARED register struct usr_inv_cap_shared *uc asm ("rax");
+
 /*
  * We marshal and demarshal double word arguments..
  * Nothing special to do for this architecture.

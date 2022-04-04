@@ -390,7 +390,10 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	}
 
 	thd_current_update(next, curr, cos_info);
-	if (likely(ci->pgtblinfo.pgtbl != next_ci->pgtblinfo.pgtbl)) pgtbl_update(&next_ci->pgtblinfo);
+	if (likely(ci->pgtblinfo.pgtbl != next_ci->pgtblinfo.pgtbl)) {
+		pgtbl_update(&next_ci->pgtblinfo);
+		pkey_enable(next_ci->mpk_key);
+	}
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
 	if (next->tls != curr->tls) chal_tls_update(next->tls);
@@ -1210,10 +1213,11 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_COMPACTIVATE: {
 			capid_t      captbl_cap = __userregs_get2(regs) >> 16;
 			capid_t      pgtbl_cap  = __userregs_get2(regs) & 0xFFFF;
-			livenessid_t lid        = __userregs_get3(regs);
+			u32_t        mpk_key    = __userregs_get3(regs) >> 60;
+			livenessid_t lid        = __userregs_get3(regs) & 0x0FFFFFFFFFFFFFFF;
 			vaddr_t      entry_addr = __userregs_get4(regs);
 
-			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr);
+			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr, mpk_key);
 			break;
 		}
 		case CAPTBL_OP_COMPDEACTIVATE: {

@@ -13,7 +13,8 @@ typedef enum {
 	CR4_PCE    = 1 << 8,  /* user-level access to performance counters enabled (rdpmc) */
 	CR4_OSFXSR = 1 << 9,  /* floating point enabled */
 	CR4_SMEP   = 1 << 20, /* Supervisor Mode Execution Protection Enable */
-	CR4_SMAP   = 1 << 21  /* Supervisor Mode Access Protection Enable */
+	CR4_SMAP   = 1 << 21, /* Supervisor Mode Access Protection Enable */
+	CR4_PKE    = 1 << 22,
 } cr4_flags_t;
 
 enum
@@ -120,7 +121,7 @@ chal_cpu_init(void)
 #if defined(__x86_64__)
 	u32_t low = 0, high = 0;
 
-	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
+	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_PKE);
 
 	readmsr(MSR_IA32_EFER, &low, &high);
 	writemsr(MSR_IA32_EFER,low | 0x1, high);

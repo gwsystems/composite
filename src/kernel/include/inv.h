@@ -264,6 +264,29 @@ arcv_introspect(struct cap_arcv *r, unsigned long op, unsigned long *retval)
 	return 0;
 }
 
+/* FIXME: this is super temporary, find a better place for it */
+static inline void
+wrpkru(u32_t pkru)
+{
+	asm volatile (
+		"xor %%rcx, %%rcx\n\t"
+		"xor %%rdx, %%rdx\n\t"
+		"mov %0,    %%eax\n\t"
+		"wrpkru\n\t"
+		: : "r" (pkru)
+	);
+}
+
+static inline void
+pkey_enable(u32_t mpk_key)
+{
+	/* 
+	 * spicy bit twiddling to set all keys except
+	 * the inputted key and key 0 to WD/AD
+	 */
+	wrpkru(~(0b11 << 2 * mpk_key) &~0b11);
+}
+
 /*
  * Invocation (call and return) fast path.  We want this to be as
  * optimized as possible.  The only two optimizations not yet
@@ -302,6 +325,8 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	}
 
 	pgtbl_update(&sinvc->comp_info.pgtblinfo);
+	/* FIXME: need an architecture agnostic solution for this */ 
+	pkey_enable(sinvc->comp_info.mpk_key);
 
 	/* TODO: test this before pgtbl update...pre- vs. post-serialization */
 	__userregs_sinvupdate(regs);
@@ -331,6 +356,9 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	}
 
 	pgtbl_update(&ci->pgtblinfo);
+	/* FIXME: need an architecture agnostic solution for this */ 
+	pkey_enable(ci->mpk_key);
+
 	/* Set return sp and ip and function return value in eax */
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);
 }

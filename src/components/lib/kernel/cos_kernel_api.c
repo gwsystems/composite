@@ -827,15 +827,15 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 }
 
 int
-cos_comp_alloc_with(struct cos_compinfo *ci, compcap_t comp, u32_t lid, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry)
+cos_comp_alloc_with(struct cos_compinfo *ci, compcap_t comp, u32_t lid, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, u32_t mpk_key)
 {
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, comp, (ctc << 16) | ptc, lid, entry)) return 1;
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, comp, (ctc << 16) | ptc, ((u64_t)mpk_key << 60) | lid, entry)) return 1;
 
 	return 0;
 }
 
 compcap_t
-cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry)
+cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, u32_t mpk_key)
 {
 	capid_t cap;
 	u32_t   lid = livenessid_bump_alloc();
@@ -846,13 +846,13 @@ cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t
 
 	cap = __capid_bump_alloc(ci, CAP_COMP);
 	if (!cap) return 0;
-	if (cos_comp_alloc_with(ci, cap, lid, ctc, ptc, entry)) BUG();
+	if (cos_comp_alloc_with(ci, cap, lid, ctc, ptc, entry, mpk_key)) BUG();
 
 	return cap;
 }
 
 int
-cos_comp_alloc_shared(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources)
+cos_comp_alloc_shared(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources, u32_t mpk_key)
 {
 	compcap_t   compc;
 	captblcap_t ctc = ci->captbl_cap;
@@ -860,7 +860,7 @@ cos_comp_alloc_shared(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t entry, st
 	printd("cos_compinfo_alloc_shared\n");
 	assert(ptc);
 	assert(ctc);
-	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry);
+	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry, mpk_key);
 	assert(compc);
 
 	ci->comp_cap_shared = compc;
@@ -872,7 +872,7 @@ cos_comp_alloc_shared(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t entry, st
 
 int
 cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
-                   struct cos_compinfo *ci_resources)
+                   struct cos_compinfo *ci_resources, u32_t mpk_key)
 {
 	pgtblcap_t  ptc;
 	captblcap_t ctc;
@@ -885,7 +885,7 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 	assert(ptc);
 	ctc = cos_captbl_alloc(ci_resources);
 	assert(ctc);
-	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry);
+	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry, mpk_key);
 	assert(compc);
 
 	cos_compinfo_init(ci, ptc, ctc, compc, heap_ptr, cap_frontier, ci_resources);

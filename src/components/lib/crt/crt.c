@@ -316,7 +316,7 @@ int
 crt_mpk_available_name(struct crt_ns_vas *vas)
 {
 	/* we're looking for an MPK name that's not allocated */
-	int i = 0;
+	int i = 1;
 
 	while(i < CRT_MPK_NUM_NAMES) {
 		if(vas->mpk_names[i].reserved == 1 && vas->mpk_names[i].allocated == 0) {
@@ -352,7 +352,7 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	if(mpk_key == 0 && ((mpk_key = crt_mpk_available_name(vas)) == -1)) {
 		return -1;
 	}
-	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
+	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get()), c->mpk_key) != 0) {
 		printc("allocate comp cap/cap table cap failed\n");
 		return -1;
 	}
@@ -397,10 +397,10 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	}
 
 	c->mpk_key = mpk_key;
-	crt_comp_create(c, name, id, elf_hdr, info);
+	crt_comp_create(c, name, id, elf_hdr, info, mpk_key);
 
 	/* FIXME: if these fail, should that component ^ be reset or something? */
-	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
+	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get()), c->mpk_key) != 0) {
 		printc("allocate comp cap/cap table cap failed\n");
 		return -1;
 	}
@@ -412,7 +412,7 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	}
 
 	vas->names[name_index].allocated = 1;
-	vas->names[name_index].comp = c;	
+	vas->names[name_index].comp = c;
 	vas->mpk_names[mpk_key].allocated = 1;
 
 	return 0;
@@ -579,7 +579,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 		assert(inv.server->id != chkpt->c->id);
 	}
 
-	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, c->mpk_key);
 	assert(!ret);
 
 	mem = cos_page_bump_allocn(root_ci, chkpt->tot_sz_mem);
@@ -626,7 +626,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
  * @return: 0 on success, != 0 on error.
  */
 int
-crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info)
+crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, u32_t mpk_key)
 {
 	struct cos_compinfo *ci, *root_ci;
 	struct cos_component_information *comp_info;
@@ -641,12 +641,14 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	ci      = cos_compinfo_get(c->comp_res);
 	root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
+	c->mpk_key = mpk_key;
+
 	if (elf_load_info(c->elf_hdr, &c->ro_addr, &ro_sz, &ro_src, &c->rw_addr, &data_sz, &data_src, &bss_sz)) return -EINVAL;
 
 	printc("\t\t elf obj: ro [0x%lx, 0x%lx), data [0x%lx, 0x%lx), bss [0x%lx, 0x%lx).\n",
 	       c->ro_addr, c->ro_addr + ro_sz, c->rw_addr, c->rw_addr + data_sz, c->rw_addr + data_sz, c->rw_addr + data_sz + bss_sz);
 
-	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, c->mpk_key);
 	assert(!ret);
 
 	tot_sz = round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz);
@@ -669,8 +671,10 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	c->n_sinvs = 0;
 	memset(c->sinvs, 0, sizeof(c->sinvs));
 
-	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(ro_sz), COS_PAGE_READABLE)) return -ENOMEM;
-	if (c->rw_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem + round_up_to_page(ro_sz), round_up_to_page(data_sz + bss_sz), COS_PAGE_READABLE | COS_PAGE_WRITABLE)) return -ENOMEM;
+	unsigned long flags = COS_PAGE_READABLE | ((unsigned long)mpk_key << 59);
+
+	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(ro_sz), flags)) return -ENOMEM;
+	if (c->rw_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem + round_up_to_page(ro_sz), round_up_to_page(data_sz + bss_sz), flags | COS_PAGE_WRITABLE)) return -ENOMEM;
 
 	/* FIXME: cos_time.h assumes we have access to this... */
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, root_ci, BOOT_CAPTBL_SELF_INITHW_BASE);
@@ -781,7 +785,55 @@ crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp_res
 	return 0;
 }
 
+static int
+crt_jitutils_search(u8_t *src, u8_t *pat, size_t len, size_t max)
+{
+	unsigned int i, j;
 
+	/* naive pattern search */
+	for (i = 0; i < max; i++) {
+        for (j = 0; j < len; j++) {
+            if (src[i + j] != pat[j]) break;
+		}
+ 
+        if (j == len) return i;
+	}
+
+	return -1;
+}
+
+static int 
+crt_jitutils_replace(u8_t *src, u8_t *orig, u8_t *replace, size_t len, size_t max)
+{
+	unsigned int i;
+	int pos;
+
+	pos = crt_jitutils_search(src, orig, len, max);
+	if (pos == -1) return 0;
+
+	for (i = 0; i < len; i++) {
+		src[pos + i] = replace[i];
+	}
+	
+	return pos;
+}
+
+#define CRT_JIT_TOK_PLACEHOLDER 0xdeadbeefdeadbeeful;
+#define CRT_JIT_MPK_PLACEHOLDER 0xfffffffeu;
+
+static void
+crt_jitcallgate(vaddr_t callgate, u32_t cli_pkey, u32_t srv_pkey, u64_t cli_tok, u64_t srv_tok)
+{
+	u64_t tok_placeholder = CRT_JIT_TOK_PLACEHOLDER;
+	u32_t mpk_placeholder = CRT_JIT_MPK_PLACEHOLDER;
+
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&cli_tok, sizeof(u64_t), 256)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&cli_tok, sizeof(u64_t), 256)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), 256)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), 256)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&srv_pkey, sizeof(u32_t), 256)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&cli_pkey, sizeof(u32_t), 256)) BUG();
+}
 
 int
 crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client,
@@ -789,8 +841,10 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 {
 	struct cos_compinfo *cli;
 	struct cos_compinfo *srv;
-	unsigned int ucap_off;
-	struct usr_inv_cap *ucap;
+	unsigned int ucap_off, callgate_off;
+	struct usr_inv_cap_shared *ucap;
+	u64_t   client_auth_tok, server_auth_tok;
+	vaddr_t callgate_addr;
 	
 	assert(sinv && name && server && client);
 
@@ -813,17 +867,22 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 		.s_fn_addr   = s_fn_addr
 	};
 
-	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap_shared, sinv->s_fn_addr, client->id);
-	assert(sinv->sinv_cap);
-	printc("shared sinv %s cap %ld\n", name, sinv->sinv_cap);
+	/* values set for debugging; we need to implement a CSPRNG */
+	client_auth_tok = 0xfefefefefefefefe; /* = CSPRNG() */
+	server_auth_tok = 0xabababababababab; /* = CSPRNG() */
+
+	callgate_off  = s_fn_addr - sinv->server->ro_addr;
+	callgate_addr = (vaddr_t)sinv->server->mem + callgate_off;
+	crt_jitcallgate(callgate_addr, sinv->client->mpk_key, sinv->server->mpk_key, client_auth_tok, server_auth_tok);
+	printc("shared sinv %s\n", name);
 
 	/* poor-mans virtual address translation from client VAS -> our ptrs */
 	assert(sinv->c_ucap_addr - sinv->client->ro_addr > 0);
 	ucap_off = sinv->c_ucap_addr - sinv->client->ro_addr;
-	ucap = (struct usr_inv_cap *)(sinv->client->mem + ucap_off);
-	*ucap = (struct usr_inv_cap) {
+	ucap = (struct usr_inv_cap_shared *)(sinv->client->mem + ucap_off);
+	*ucap = (struct usr_inv_cap_shared) {
 		.invocation_fn = sinv->c_fn_addr,
-		.cap_no        = sinv->sinv_cap,
+		.callgate_addr = sinv->s_fn_addr,
 		.data          = NULL
 	};
 

@@ -49,6 +49,7 @@ parallel_main(coreid_t cid)
 unsigned long *
 pongshvas_send(void) 
 {
+	printc("IN PONG\n");
 	return &shared;
 }
 

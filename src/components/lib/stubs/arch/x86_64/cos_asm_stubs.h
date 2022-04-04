@@ -38,6 +38,59 @@ __cosrt_s_##name:						\
 	COS_ASM_RET_STACK					\
 	syscall;
 
+#define cos_asm_stub_shared(name)				\
+.globl __cosrt_s_##name;					\
+.type  __cosrt_s_##name, @function ;				\
+.align 16 ;							\
+__cosrt_s_##name:						\
+	/* TODO: save stack on inv stack */			\
+	movq    %rsp, %r14;					\
+	movq    $0xdeadbeefdeadbeef, %r15; 			\
+								\
+	/* switch to server execution stack */			\
+	COS_ASM_GET_STACK_INVTOKEN				\
+								\
+	/* TODO: ULK */						\
+								\
+	/* switch to server protection domain */		\
+	movl    $0xfffffffe, %eax;				\
+	xor     %rcx, %rcx;					\
+	xor     %rdx, %rdx;					\
+	wrpkru;  						\
+								\
+	/* check client token */				\
+	movq    $0xdeadbeefdeadbeef, %rax;			\
+	cmp     %rax, %r15;					\
+	/* TODO: jne     bad */					\
+								\
+	/* ABI mandate a 16-byte alignment stack pointer*/	\
+	and 	$~0xf, %rsp;					\
+	xor 	%rbp, %rbp;					\
+	callq   name;						\
+	movq	%rax, %r8;					\
+								\
+	/* save server authentication token */			\
+	movq    $0xdeadbeefdeadbeef, %r15;			\
+								\
+	/* TODO: ULK */						\
+								\
+	/* switch back to client protection domain */		\
+	movl    $0xfffffffe, %eax;					\
+	xor     %rcx, %rcx;					\
+	xor     %rdx, %rdx;					\
+	wrpkru;							\
+								\
+	/* TODO: restore stack from inv stack */		\
+	movq	%r14, %rsp;					\
+								\
+	/* check server token */				\
+	movq    $0xdeadbeefdeadbeef, %rax;			\
+	cmp     %rax, %r15;					\
+	/* TODO: jne     bad */					\
+								\
+	movq    %r8, %rax;						\
+	retq;							\
+
 /*
  * This stub enables three return values (%ecx, %esi, %edi), AND
  * requires that you provide separate stub functions that are
@@ -125,6 +178,28 @@ __cosrt_ucap_##name:				\
 .text /* start out in the text segment, and always return there */
 
 #define cos_asm_stub_indirect(name) cos_asm_stub(name)
+
+#define cos_asm_stub_shared(name)		\
+.text;						\
+.weak name;					\
+.globl __cosrt_extern_##name;			\
+.type  name, @function;				\
+.type  __cosrt_extern_##name, @function;	\
+.align 8 ;					\
+name:						\
+__cosrt_extern_##name:				\
+	movabs $__cosrt_ucap_##name, %rax ;	\
+	callq *INVFN(%rax) ;			\
+	retq ;					\
+						\
+.section .ucap, "a", @progbits ;		\
+.globl __cosrt_ucap_##name ;			\
+__cosrt_ucap_##name:				\
+	.rep UCAP_SZ ;				\
+	.quad 0 ;				\
+	.endr ;					\
+.text /* start out in the text segment, and always return there */
+
 #endif
 
 .text

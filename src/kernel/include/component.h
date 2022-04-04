@@ -18,6 +18,7 @@ struct comp_info {
 	struct liveness_data liveness;
 	struct pgtbl_info    pgtblinfo;
 	struct captbl *      captbl;
+	u32_t				 mpk_key;
 } __attribute__((packed));
 
 struct cap_comp {
@@ -30,7 +31,7 @@ struct cap_comp {
 
 static int
 comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, capid_t pgtbl_cap, livenessid_t lid,
-              vaddr_t entry_addr)
+              vaddr_t entry_addr, u32_t mpk_key)
 {
 	struct cap_comp *  compc;
 	struct cap_pgtbl * ptc;
@@ -61,6 +62,7 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	compc->info.pgtblinfo.pgtbl = ptc->pgtbl;
 	compc->info.pgtblinfo.asid  = chal_asid_alloc();
 	compc->info.captbl          = ctc->captbl;
+	compc->info.mpk_key         = mpk_key;
 	compc->pgd                  = ptc;
 	compc->ct_top               = ctc;
 	ltbl_get(lid, &compc->info.liveness);
