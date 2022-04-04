@@ -3,7 +3,7 @@ description = "Simple system: the ping pong test for IPC and shared VAS"
 
 [[components]]
 name = "booter"
-img  = "no_interface.llbooter"
+img  = "no_interface.llbooter_shvas"
 implements = [{interface = "init"}]
 deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
 constructor = "kernel"

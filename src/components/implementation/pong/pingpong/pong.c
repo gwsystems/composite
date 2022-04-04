@@ -54,6 +54,7 @@ void
 pong_call(void)
 {
 	assert(state >= PONG_PARINIT);
+
 	return;
 }
 
