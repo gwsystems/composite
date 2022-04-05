@@ -36,7 +36,7 @@ $(SHLIB_FILE): $(OBJS)
 
 clean:
 	$(info |     [RM]   Cleaning up library $(LIBNAME)'s directory)
-	@rm -f *.o *.a *.d *~
+	@rm -f *.a *.d *~ $(OBJS)
 
 init:
 distclean: clean

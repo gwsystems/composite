@@ -33,6 +33,4 @@ int cos_pci_read_config(const struct rte_pci_device *device, void *buf, size_t l
 cos_vaddr_t cos_map_phys_to_virt(cos_paddr_t paddr, size_t size);
 cos_paddr_t cos_map_virt_to_phys(cos_vaddr_t addr);
 
-int cos_dpdk_init(int argc, char **argv);
-
 #endif /* COS_DPDK_ADAPTER_H */

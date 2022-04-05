@@ -47,7 +47,7 @@ config:
 #	TODO: make this copy more generic so that it can be applied to different OS platforms like Fedora
 	@mkdir -p $(DPDK_INC_DIR);
 #	Even though we have MUSL, DPDK still rely on some definitions from the GNU lib
-	@find /usr/lib/gcc/x86_64-linux-gnu/9/include/ -iname *.h | grep -v "std.*" | xargs cp -rft $(DPDK_INC_DIR)
+	@find /usr/lib/gcc/x86_64-linux-gnu/9/include/ -iname "*.h" | grep -v "std.*" | xargs cp -rft $(DPDK_INC_DIR)
 	@cd ../libc/musl-1.2.0/include; \
 	cp -rf /usr/include/linux/ ./; \
 	cp -rf /usr/include/asm-generic/ ./; \
@@ -69,7 +69,7 @@ build:
 	meson install >> /dev/null;
 	@rm libdpdk.a || true
 
-$(SHLIB_FILE): build
+$(SHLIB_FILE): build $(OBJS)
 
 init: config build
 
