@@ -1,7 +1,8 @@
-#include<llprint.h>
-#include<pci.h>
-#include<io.h>
-#include<cos_kernel_api.h>
+#include <llprint.h>
+#include <pci.h>
+#include <io.h>
+#include <cos_kernel_api.h>
+#include <cos_defkernel_api.h>
 
 #include<rte_bus_pci.h>
 
@@ -105,8 +106,12 @@ cos_pci_read_config(const struct rte_pci_device *device,
 	
 	return r;
 }
+/* declare dpdk private functions to avoid compiler warnings */
+void rte_pci_add_device(struct rte_pci_device *pci_dev);
+void pci_name_set(struct rte_pci_device *dev);
 
-int cos_pci_scan(void)
+int
+cos_pci_scan(void)
 {
 	int i, j;
 	struct rte_pci_device *pci_device_list, *rte_dev;

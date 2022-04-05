@@ -159,7 +159,8 @@ cos_create_pkt_mbuf_pool(const char *name, size_t nb_mbufs)
 int
 cos_free_packet(cos_mbuf_t packet)
 {
-
+	/* TODO: add free logic */
+	return 0;
 }
 
 /*
@@ -356,24 +357,20 @@ cos_dev_port_set_promiscuous_mode(cos_portid_t port_id, bool mode)
 {
 	int ret;
 	cos_portid_t real_port_id = ports_ids[port_id];
-	switch (mode)
-	{
-	case COS_DPDK_SWITCH_ON:
+	if(mode == COS_DPDK_SWITCH_ON) {
 		ret = rte_eth_promiscuous_enable(real_port_id);
 		if (ret != 0)
 			rte_exit(EXIT_FAILURE,
 				"rte_eth_promiscuous_enable:err=%s, port=%u\n",
 				rte_strerror(-ret), port_id);
-		break;
-	case COS_DPDK_SWITCH_OFF:
+	} else if (mode == COS_DPDK_SWITCH_OFF){
 		ret = rte_eth_promiscuous_disable(real_port_id);
 		if (ret != 0)
 			rte_exit(EXIT_FAILURE,
 				"rte_eth_promiscuous_disable:err=%s, port=%u\n",
 				rte_strerror(-ret), port_id);
-		break;	
-	default:
-		break;
+	} else {
+		rte_exit(EXIT_FAILURE, "invalid mode\n");
 	}
 
 	COS_DPDK_APP_LOG(NOTICE, "cos_dev_port_set_promiscuous_mode success, "
@@ -398,7 +395,7 @@ uint16_t
 cos_dev_port_rx_burst(cos_portid_t port_id, uint16_t queue_id,
 		 cos_mbuf_t *rx_pkts, const uint16_t nb_pkts)
 {
-	return rte_eth_rx_burst(ports_ids[port_id], queue_id, rx_pkts, nb_pkts);
+	return rte_eth_rx_burst(ports_ids[port_id], queue_id, (struct rte_mbuf **)rx_pkts, nb_pkts);
 }
 
 /*
@@ -416,7 +413,7 @@ uint16_t
 cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
 		 cos_mbuf_t *tx_pkts, const uint16_t nb_pkts)
 {
-	return rte_eth_tx_burst(ports_ids[port_id], queue_id, tx_pkts, nb_pkts);
+	return rte_eth_tx_burst(ports_ids[port_id], queue_id, (struct rte_mbuf **)tx_pkts, nb_pkts);
 }
 
 /*
