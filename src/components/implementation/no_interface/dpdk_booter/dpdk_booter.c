@@ -32,10 +32,15 @@ cos_dpdk_demo(void)
 	#define MAX_PKT_BURST 32
 
 	const char *mpool_name = "cos_app_pool";
-	const size_t max_mbufs = 1024;
 	uint16_t nb_ports, i;
 	uint16_t nb_rx_desc = NB_RX_DESC_DEFAULT;
 	uint16_t nb_tx_desc = NB_TX_DESC_DEFAULT;
+
+	/*
+	 * set max_mbufs 2 times than nb_rx_desc, so that there is enough room
+	 * to store packets, or this will fail if nb_rx_desc <= max_mbufs.
+	 */
+	const size_t max_mbufs = 2 * nb_rx_desc;
 
 	char *argv[] =	{
 			"COS_DPDK_BOOTER", /* single core, the first argument has to be the program name */
@@ -47,7 +52,7 @@ cos_dpdk_demo(void)
 			"--log-level",
 			"*:info", /* log level can be changed to *debug* if needed, this will print lots of information */
 			"-m",
-			"30" /* total memory used by dpdk memory subsystem, such as mempool */
+			"64" /* total memory used by dpdk memory subsystem, such as mempool */
 			};
 
 	argc = ARRAY_SIZE(argv);
@@ -87,7 +92,6 @@ cos_dpdk_demo(void)
 		for (i = 0;i < nb_ports; i++) {
 			/* process rx */
 			nb_pkts = cos_dev_port_rx_burst(i, 0, rx_packets, MAX_PKT_BURST);
-			printc("rx pkts:%d\n", nb_pkts);
 			if (nb_pkts != 0) {
 				/* in this demo, packets will be modified and sent out directly */
 				process_packets(i, rx_packets, nb_pkts);

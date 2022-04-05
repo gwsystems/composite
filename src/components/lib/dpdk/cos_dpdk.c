@@ -144,7 +144,7 @@ cos_create_pkt_mbuf_pool(const char *name, size_t nb_mbufs)
 	#define MEMPOOL_CACHE_SIZE 256
 	return rte_pktmbuf_pool_create(name, nb_mbufs,
 		MEMPOOL_CACHE_SIZE, 0, COS_MBUF_DEFAULT_BUF_SIZE,
-		-1);
+		rte_socket_id());
 }
 
 /*
@@ -437,7 +437,7 @@ cos_parse_pkts(cos_mbuf_t mbuf)
 	rte_ether_format_addr(buf, RTE_ETHER_ADDR_FMT_SIZE, &eth_hdr->dst_addr);
 	COS_DPDK_APP_LOG(NOTICE, "dst mac_addr: %s\n" ,buf);
 
-	COS_DPDK_APP_LOG(NOTICE, "ether type:%04x\n", ntohl(eth_hdr->ether_type));
+	COS_DPDK_APP_LOG(NOTICE, "ether type:%04x\n", ntohs(eth_hdr->ether_type));
 
 	/* modify packets src mac addr to test the tx path */
 	eth_hdr->src_addr.addr_bytes[0] = 1;
