@@ -59,7 +59,6 @@ cos_pci_write_config(const struct rte_pci_device *device,
 {
 	uint32_t buffer = 0, w = 0, w_once;
 	int _len = (int)len;
-	(uint32_t)offset;
 
 	if (!buf) return -1;
 
@@ -133,8 +132,8 @@ int cos_pci_scan(void)
 		rte_dev->id.class_id = cos_dev->classcode;
 		rte_dev->id.vendor_id = cos_dev->vendor;
 		rte_dev->id.device_id = cos_dev->device;
-		rte_dev->id.subsystem_vendor_id = PCI_ANY_ID;
-		rte_dev->id.subsystem_device_id = PCI_ANY_ID;
+		rte_dev->id.subsystem_vendor_id = RTE_PCI_ANY_ID;
+		rte_dev->id.subsystem_device_id = RTE_PCI_ANY_ID;
 		for (j = 0; j < PCI_MAX_RESOURCE; j++) {
 			rte_dev->mem_resource[j].phys_addr = cos_dev->bar[j].raw & 0xFFFFFFF0;
 			if (!cos_dev->bar[j].raw) continue;
@@ -180,4 +179,11 @@ cos_map_virt_to_phys(cos_vaddr_t addr)
 	ret = call_cap_op(ci->pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
 
 	return ret & USER_ADDR_SPACE_MASK;
+}
+
+/* Fixme: need to replace this later because a normal compoent with DPDK does not have hw capability */
+unsigned long
+cos_get_tsc_freq(void)
+{
+	return cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE) * 1000000;
 }
