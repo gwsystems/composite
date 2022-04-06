@@ -44,6 +44,7 @@ __cosrt_s_##name:						\
 .align 16 ;							\
 __cosrt_s_##name:						\
 	/* callee saved */					\
+	pushq	%rbp;						\
 	pushq	%r14;						\
 	pushq	%r15;						\
 								\
@@ -96,8 +97,9 @@ __cosrt_s_##name:						\
 	movq    %r8, %rax;					\
 								\
 	/* callee saved */					\
-	popq	%r14;						\
 	popq	%r15;						\
+	popq	%r14;						\
+	popq	%rbp;						\
 	retq;							\
 
 /*

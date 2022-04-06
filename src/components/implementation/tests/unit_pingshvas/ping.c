@@ -27,8 +27,14 @@ cos_init(void)
 	 * access pong's memory even though they are in the same VAS
 	 * because of MPK
 	 */
-	rcv = pongshvas_send();
-	assert(rcv == 42);
+	begin = ps_tsc();
+	for (i = 0; i < ITER; i++) {
+		rcv = pongshvas_send();
+		assert(rcv == 42);
+	}
+	end = ps_tsc();
+	printc("UL Invocation: %llu cycles\n", (end-begin)/ITER);
+	
 	/* this is left commented out bc in the current booter format client and server aren't in shared VAS (so rcv_and_update would crash)
 	 * pongshvas_rcv_and_update(shared);
 	 * assert(*shared == 52);
