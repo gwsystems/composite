@@ -45,6 +45,7 @@ __cosrt_s_##name:						\
 __cosrt_s_##name:						\
 	/* callee saved */					\
 	pushq	%rbp;						\
+	pushq	%r13;						\
 	pushq	%r14;						\
 	pushq	%r15;						\
 	/* TODO: save stack ptr on inv stack */			\
@@ -53,20 +54,20 @@ __cosrt_s_##name:						\
 	/* thread ID */						\
 	movq    %rsp, %rdx;					\
 	addq    $0xfffffffffffff000, %rdx;			\
-	movzwq  0xff0(%rdx), %rax;				\
+	movzwq  0xff0(%rdx), %r13;				\
 	/* invocation token */					\
 	movabs  $0x0123456789abcdef, %rbp;			\
+	/* switch to server protection domain */		\
+	movl    $0xfffffffe, %eax;				\
+	xor     %rcx, %rcx;					\
+	xor     %rdx, %rdx;					\
+	wrpkru;							\
+	movq    %r13, %rax;					\
 	/* switch to server execution stack */			\
 	COS_ASM_GET_STACK_INVTOKEN				\
 	/* ABI mandate a 16-byte alignment stack pointer*/	\
 	and 	$~0xf, %rsp;					\
 	xor 	%rbp, %rbp;					\
-	/* TODO: ULK */						\
-	/* switch to server protection domain */		\
-	movl    $0xfffffffe, %eax;				\
-	xor     %rcx, %rcx;					\
-	xor     %rdx, %rdx;					\
-	wrpkru;  						\
 	/* check client token */				\
 	movq    $0xdeadbeefdeadbeef, %rax;			\
 	cmp     %rax, %r15;					\
@@ -91,6 +92,7 @@ __cosrt_s_##name:						\
 	/* callee saved */					\
 	popq	%r15;						\
 	popq	%r14;						\
+	popq	%r13;						\
 	popq	%rbp;						\
 	retq;
 

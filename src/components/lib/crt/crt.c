@@ -307,7 +307,7 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 static int
 crt_mpk_available_name(struct crt_ns_vas *vas)
 {
-	int i = 0;
+	int i = 2;
 
 	while(i < CRT_MPK_NUM_NAMES) {
 		if (vas->mpk_names[i].reserved == 1 && vas->mpk_names[i].allocated == 0) {
