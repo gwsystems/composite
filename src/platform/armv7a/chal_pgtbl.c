@@ -817,6 +817,8 @@ chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandi
 	new_pte = (u32_t)chal_va2pa((void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK))
 	          | CAV7_1M_INTERN_DEF;
 
+	/* printk("expandid %x, depth %x, new_pte %x\n", expandid, depth, new_pte); */
+
 	ret = cos_cas(intern, old_pte, new_pte);
 	if (ret != CAS_SUCCESS) {
 		/* decrement to restore the refcnt on failure. */

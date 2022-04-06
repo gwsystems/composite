@@ -177,10 +177,12 @@ cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t cap
 	ci->memsrc = ci_resources;
 	assert(ci_resources->memsrc == ci_resources); /* prevent infinite data-structs */
 
-	ci->pgtbl_cap    = pgtbl_cap;
-	ci->captbl_cap   = captbl_cap;
-	ci->comp_cap     = comp_cap;
-	ci->cap_frontier = 0;
+	ci->pgtbl_cap    		= pgtbl_cap;
+	ci->captbl_cap   		= captbl_cap;
+	ci->comp_cap     		= comp_cap;
+	ci->cap_frontier 		= 0;
+	ci->comp_cap_shared 	= 0;
+	ci->pgtbl_cap_shared 	= 0;
 	cos_vasfrontier_init(ci, heap_ptr);
 	cos_capfrontier_init(ci, cap_frontier);
 
@@ -466,7 +468,6 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 	if(lvl == 0) {
 		ci->mi.second_lvl_pgtbl_cap = pte_cap;
 		ci->mi.second_lvl_pgtbl_addr = mem_ptr;
-		ci->mi.second_lvl_pgtbl_flag = 1;
 	}
 
 	return pte_cap;
@@ -822,7 +823,6 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, 0))
 		BUG();
 
-	ci->mi.second_lvl_pgtbl_flag = 0;
 	return cap;
 }
 
@@ -1343,10 +1343,9 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 int
 cos_get_second_lvl(struct cos_compinfo *ci, capid_t *pgtbl_cap, vaddr_t *pgtbl_addr)
 {
-	if(!ci->mi.second_lvl_pgtbl_flag) {
+	if(ci->mi.second_lvl_pgtbl_cap == 0) {
 		return -1;
 	}
-	/* FIXME: probably don't need flag -- can just check if the capability is 0 */
 	*pgtbl_cap = ci->mi.second_lvl_pgtbl_cap;
 	*pgtbl_addr = ci->mi.second_lvl_pgtbl_addr;
 

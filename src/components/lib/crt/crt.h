@@ -242,13 +242,13 @@ int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
  * for 64 bit:
  * name sz = 2^39 
  * 2^48 / 2^39 = 2^9 = 512 names
- * 2^9 / 2 to ensure the array fites into a page = 256 names
+ * 2^9 / 2 to ensure the array fits into a page = 256 names
  * also: more ASIDs available in 64 bit
  */
 
 #define CRT_VAS_NAME_SZ (1ULL << 39)
 #define CRT_VAS_NUM_NAMES 256
-#define CRT_MPK_NUM_NAMES 15
+#define CRT_MPK_NUM_NAMES 14
 #define CRT_ASID_NUM_NAMES 4096
 
 /* is reserved the right verbiage here? */

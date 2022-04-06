@@ -115,19 +115,19 @@ struct crt_ns_vas *ns_vas1;
 struct crt_ns_vas *ns_vas2;
 
 /* initialize ASID NS, VAS NS, allocate components 2 and 3 within it */
-if(crt_ns_asids_init(ns_asid1) != 0) BUG();
+if (crt_ns_asids_init(ns_asid1) != 0) BUG();
 
-if(crt_ns_vas_init(ns_vas1, ns_asid1) != 0) BUG();
+if (crt_ns_vas_init(ns_vas1, ns_asid1) != 0) BUG();
 
-if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) != 0) BUG();
-if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) BUG();
+if (crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(3)) != 0) BUG();
+if (crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(2)) != 0) BUG();
 
 /* Create new ASID NS and VAS NS via split */
-if(ss_ns_asid_split(ns_asid2, ns_asid1) != 0) BUG();
-if(ss_ns_vas_split(ns_vas2, ns_vas1, ns_asid2) != 0) BUG();
+if (ss_ns_asid_split(ns_asid2, ns_asid1) != 0) BUG();
+if (ss_ns_vas_split(ns_vas2, ns_vas1, ns_asid2) != 0) BUG();
 
 /* Allocate component 4 as normal, within ns_vas2 */
-if(crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(4)) != 0) BUG();
+if (crt_ns_vas_alloc_in(ns_vas1, boot_comp_get(4)) != 0) BUG();
 
 
 ```

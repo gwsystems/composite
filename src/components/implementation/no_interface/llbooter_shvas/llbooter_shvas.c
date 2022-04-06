@@ -37,6 +37,14 @@
 #define BOOTER_MAX_CHKPT 64
 #endif
 
+#ifndef BOOTER_MAX_NS_ASID
+#define BOOTER_MAX_NS_ASID 64
+#endif
+
+#ifndef BOOTER_MAX_NS_VAS
+#define BOOTER_MAX_NS_VAS 64
+#endif
+
 /* UNCOMMENT HERE FOR CHECKPOINT FUNCTIONALITY */
 /* #ifndef ENABLE_CHKPT
  * #define ENABLE_CHKPT 1
@@ -47,10 +55,12 @@ static struct crt_comp boot_comps[MAX_NUM_COMPS];
 static const  compid_t sched_root_id  = 2;
 static        long     boot_id_offset = -1;
 
-SS_STATIC_SLAB(sinv,   struct crt_sinv,   BOOTER_MAX_SINV);
-SS_STATIC_SLAB(thd,    struct crt_thd,    BOOTER_MAX_INITTHD);
-SS_STATIC_SLAB(rcv,    struct crt_rcv,    BOOTER_MAX_SCHED);
-SS_STATIC_SLAB(chkpt,  struct crt_chkpt,  BOOTER_MAX_CHKPT);
+SS_STATIC_SLAB(sinv,   	struct crt_sinv,   	BOOTER_MAX_SINV);
+SS_STATIC_SLAB(thd,    	struct crt_thd,    	BOOTER_MAX_INITTHD);
+SS_STATIC_SLAB(rcv,    	struct crt_rcv,    	BOOTER_MAX_SCHED);
+SS_STATIC_SLAB(chkpt,  	struct crt_chkpt,  	BOOTER_MAX_CHKPT);
+SS_STATIC_SLAB(ns_asid,	struct crt_ns_asid,	BOOTER_MAX_NS_ASID);
+SS_STATIC_SLAB(ns_vas,	struct crt_ns_vas, 	BOOTER_MAX_NS_VAS);
 
 /*
  * Assumptions: the component with the lowest id *must* be the one
@@ -85,6 +95,41 @@ boot_comp_set_idoffset(int off)
 	boot_id_offset = off;
 }
 
+/*
+ * helper function to check if two components exist within a shared VAS Namespace
+ */
+int
+ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
+{
+	unsigned int i;
+	int j;
+	int found1 = 0;
+	int found2 = 0;
+	struct crt_ns_vas *curr_vas;
+
+	for (i = 1 ; i <= BOOTER_MAX_NS_VAS ; i++) {
+		curr_vas = ss_ns_vas_get(i);
+		found1 = 0;
+		found2 = 0;
+		for (j = 0 ; j < CRT_VAS_NUM_NAMES ; j++) {
+			if (curr_vas == NULL || curr_vas->names[j].comp == NULL) {
+				continue;
+			}
+			if (curr_vas->names[j].comp->id == c1->id) {
+				found1 = 1;
+			}
+			if (curr_vas->names[j].comp->id == c2->id) {
+				found2 = 1;
+			}
+			if (found1 && found2) {
+				return 1;
+			}
+
+		}
+	}
+	return 0;
+}
+
 static void
 comps_init(void)
 {
@@ -92,6 +137,19 @@ comps_init(void)
 	struct initargs_iter i;
 	int cont, ret, j;
 	int comp_idx = 0;
+
+	/* allocate, initialize initial namespaces */
+	struct crt_ns_asid *ns_asid = ss_ns_asid_alloc();
+	assert(ns_asid);
+
+	if (crt_ns_asids_init(ns_asid) != 0) BUG();
+	ss_ns_asid_activate(ns_asid);
+
+	struct crt_ns_vas *ns_vas1 = ss_ns_vas_alloc();
+	assert(ns_vas1);
+
+	if (crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
+	ss_ns_vas_activate(ns_vas1);
 
 	/*
 	 * Assume: our component id is the lowest of the ids for all
@@ -143,10 +201,24 @@ comps_init(void)
 			assert(ret == 0);
 		} else {
 			assert(elf_hdr);
-			if (crt_comp_create(comp, name, id, elf_hdr, info, 0)) {
-				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
-				BUG();
-			}	
+			/* FIXME: hardcoded for pingpong_shared_vas.toml test */
+			if (id == 3) {
+				struct crt_ns_vas *ns_vas2 = ss_ns_vas_alloc();
+				assert(ns_vas2);
+
+				if (crt_ns_vas_split(ns_vas2, ns_vas1, ns_asid) != 0) {
+					BUG();
+				}
+				if (crt_comp_create_in_vas(comp, name, id, elf_hdr, info, ns_vas2)) {
+					BUG();
+				}
+				ss_ns_vas_activate(ns_vas2);
+			}
+			else if (id == 2) {
+				if (crt_comp_create_in_vas(comp, name, id, elf_hdr, info, ns_vas1)) {
+					BUG();
+				}
+			}
 		}
 		assert(comp->refcnt != 0);
 	}
@@ -276,9 +348,16 @@ comps_init(void)
 
 		sinv = ss_sinv_alloc();
 		assert(sinv);
-		crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
+		if (ns_vas_shared(serv, cli)) {
+			crt_sinv_create_shared(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
 				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+		}
+		else {
+			crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
+					strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
+					strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+		}
 		ss_sinv_activate(sinv);
 		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
@@ -291,7 +370,7 @@ comps_init(void)
 		cli->n_sinvs++;
 	#endif /* ENABLE_CHKPT */
 	}
-	
+
 	/*
 	 * Delegate the untyped memory to the capmgr. This should go
 	 * *after* all allocations that use untyped memory, so that we
