@@ -46,11 +46,10 @@ parallel_main(coreid_t cid)
 	state = PONG_PARMAIN;
 }
 
-unsigned long *
+unsigned long
 pongshvas_send(void) 
 {
-	printc("IN PONG\n");
-	return &shared;
+	return 42;
 }
 
 void

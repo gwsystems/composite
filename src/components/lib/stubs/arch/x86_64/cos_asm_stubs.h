@@ -43,12 +43,13 @@ __cosrt_s_##name:						\
 .type  __cosrt_s_##name, @function ;				\
 .align 16 ;							\
 __cosrt_s_##name:						\
+	/* callee saved */					\
+	pushq	%r14;						\
+	pushq	%r15;						\
+								\
 	/* TODO: save stack on inv stack */			\
 	movq    %rsp, %r14;					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
-								\
-	/* switch to server execution stack */			\
-	COS_ASM_GET_STACK_INVTOKEN				\
 								\
 	/* TODO: ULK */						\
 								\
@@ -57,6 +58,10 @@ __cosrt_s_##name:						\
 	xor     %rcx, %rcx;					\
 	xor     %rdx, %rdx;					\
 	wrpkru;  						\
+								\
+	/* switch to server execution stack */			\
+	movq    %r8, %rax;					\
+	COS_ASM_GET_STACK_INVTOKEN				\
 								\
 	/* check client token */				\
 	movq    $0xdeadbeefdeadbeef, %rax;			\
@@ -75,7 +80,7 @@ __cosrt_s_##name:						\
 	/* TODO: ULK */						\
 								\
 	/* switch back to client protection domain */		\
-	movl    $0xfffffffe, %eax;					\
+	movl    $0xfffffffe, %eax;				\
 	xor     %rcx, %rcx;					\
 	xor     %rdx, %rdx;					\
 	wrpkru;							\
@@ -88,7 +93,11 @@ __cosrt_s_##name:						\
 	cmp     %rax, %r15;					\
 	/* TODO: jne     bad */					\
 								\
-	movq    %r8, %rax;						\
+	movq    %r8, %rax;					\
+								\
+	/* callee saved */					\
+	popq	%r14;						\
+	popq	%r15;						\
 	retq;							\
 
 /*
@@ -188,6 +197,10 @@ __cosrt_ucap_##name:				\
 .align 8 ;					\
 name:						\
 __cosrt_extern_##name:				\
+	/* get invocation token	*/		\
+	movabs	$__cosrt_comp_info, %rax;	\
+	movq	0x40(%rax), %r8;		\
+						\
 	movabs $__cosrt_ucap_##name, %rax ;	\
 	callq *INVFN(%rax) ;			\
 	retq ;					\

@@ -398,7 +398,6 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 
 	c->mpk_key = mpk_key;
 	crt_comp_create(c, name, id, elf_hdr, info, mpk_key);
-
 	/* FIXME: if these fail, should that component ^ be reset or something? */
 	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get()), c->mpk_key) != 0) {
 		printc("allocate comp cap/cap table cap failed\n");
@@ -826,13 +825,16 @@ crt_jitcallgate(vaddr_t callgate, u32_t cli_pkey, u32_t srv_pkey, u64_t cli_tok,
 {
 	u64_t tok_placeholder = CRT_JIT_TOK_PLACEHOLDER;
 	u32_t mpk_placeholder = CRT_JIT_MPK_PLACEHOLDER;
+	u32_t pkru_server = ~(0b11 << (2 * srv_pkey)) & ~0b11;
+	u32_t pkru_client = ~(0b11 << (2 * cli_pkey)) & ~0b11;
 
 	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&cli_tok, sizeof(u64_t), 256)) BUG();
 	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&cli_tok, sizeof(u64_t), 256)) BUG();
 	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), 256)) BUG();
 	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), 256)) BUG();
-	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&srv_pkey, sizeof(u32_t), 256)) BUG();
-	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&cli_pkey, sizeof(u32_t), 256)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&pkru_server, sizeof(u32_t), 256)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&pkru_client, sizeof(u32_t), 256)) BUG();
+
 }
 
 int
@@ -875,6 +877,7 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 	callgate_addr = (vaddr_t)sinv->server->mem + callgate_off;
 	crt_jitcallgate(callgate_addr, sinv->client->mpk_key, sinv->server->mpk_key, client_auth_tok, server_auth_tok);
 	printc("shared sinv %s\n", name);
+
 
 	/* poor-mans virtual address translation from client VAS -> our ptrs */
 	assert(sinv->c_ucap_addr - sinv->client->ro_addr > 0);

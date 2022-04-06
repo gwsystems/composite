@@ -284,7 +284,7 @@ pkey_enable(u32_t mpk_key)
 	 * spicy bit twiddling to set all keys except
 	 * the inputted key and key 0 to WD/AD
 	 */
-	wrpkru(~(0b11 << 2 * mpk_key) &~0b11);
+	wrpkru(~(0b11 << (2 * mpk_key)) & ~0b11);
 }
 
 /*

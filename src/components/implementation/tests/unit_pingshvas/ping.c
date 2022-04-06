@@ -19,12 +19,16 @@ cos_init(void)
 	long long b = (long long)4 << 32 | (long long)2;
 	int ret;
 	long long ret_ll;
-	unsigned long * shared;
+	unsigned long rcv;
 
 	printc("Shared VAS Ping component %ld: cos_init execution\n", cos_compid());
 
-	shared = pongshvas_send();
-	assert(*shared == 42);
+	/* this doesnt return a pointer anymore because ping cannot
+	 * access pong's memory even though they are in the same VAS
+	 * because of MPK
+	 */
+	rcv = pongshvas_send();
+	assert(rcv == 42);
 	/* this is left commented out bc in the current booter format client and server aren't in shared VAS (so rcv_and_update would crash)
 	 * pongshvas_rcv_and_update(shared);
 	 * assert(*shared == 52);
