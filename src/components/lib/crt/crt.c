@@ -810,12 +810,14 @@ crt_jitutils_replace(u8_t *src, u8_t *orig, u8_t *replace, size_t len, size_t ma
 }
 
 #define CRT_JIT_TOK_PLACEHOLDER 0xdeadbeefdeadbeeful;
+#define CRT_JIT_INV_PLACEHOLDER 0x0123456789abcdeful;
 #define CRT_JIT_MPK_PLACEHOLDER 0xfffffffeu;
 
 static void
-crt_jitcallgate(vaddr_t callgate, u32_t cli_pkey, u32_t srv_pkey, u64_t cli_tok, u64_t srv_tok)
+crt_jitcallgate(vaddr_t callgate, u32_t cli_pkey, u32_t srv_pkey, u64_t cli_tok, u64_t srv_tok, invtoken_t inv_tok)
 {
 	u64_t tok_placeholder = CRT_JIT_TOK_PLACEHOLDER;
+	u64_t inv_placeholder = CRT_JIT_INV_PLACEHOLDER;
 	u32_t mpk_placeholder = CRT_JIT_MPK_PLACEHOLDER;
 	u32_t pkru_server = ~(0b11 << (2 * srv_pkey)) & ~0b11;
 	u32_t pkru_client = ~(0b11 << (2 * cli_pkey)) & ~0b11;
@@ -824,9 +826,9 @@ crt_jitcallgate(vaddr_t callgate, u32_t cli_pkey, u32_t srv_pkey, u64_t cli_tok,
 	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&cli_tok, sizeof(u64_t), 256)) BUG();
 	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), 256)) BUG();
 	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), 256)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&inv_placeholder, (u8_t *)&inv_tok, sizeof(u64_t), 256)) BUG();
 	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&pkru_server, sizeof(u32_t), 256)) BUG();
 	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&pkru_client, sizeof(u32_t), 256)) BUG();
-
 }
 
 int
@@ -836,7 +838,7 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 	struct cos_compinfo *cli;
 	struct cos_compinfo *srv;
 	unsigned int ucap_off, callgate_off;
-	struct usr_inv_cap_shared *ucap;
+	struct usr_inv_cap *ucap;
 	u64_t   client_auth_tok, server_auth_tok;
 	vaddr_t callgate_addr;
 	
@@ -865,19 +867,22 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 	client_auth_tok = 0xfefefefefefefefe; /* = CSPRNG() */
 	server_auth_tok = 0xabababababababab; /* = CSPRNG() */
 
+	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
+	assert(sinv->sinv_cap);
+
 	callgate_off  = s_fn_addr - sinv->server->ro_addr;
 	callgate_addr = (vaddr_t)sinv->server->mem + callgate_off;
-	crt_jitcallgate(callgate_addr, sinv->client->mpk_key, sinv->server->mpk_key, client_auth_tok, server_auth_tok);
-	printc("shared sinv %s\n", name);
+	crt_jitcallgate(callgate_addr, sinv->client->mpk_key, sinv->server->mpk_key, client_auth_tok, server_auth_tok, client->id);
 
+	printc("sinv %s cap %ld\n", name, sinv->sinv_cap);
 
 	/* poor-mans virtual address translation from client VAS -> our ptrs */
 	assert(sinv->c_ucap_addr - sinv->client->ro_addr > 0);
 	ucap_off = sinv->c_ucap_addr - sinv->client->ro_addr;
-	ucap = (struct usr_inv_cap_shared *)(sinv->client->mem + ucap_off);
-	*ucap = (struct usr_inv_cap_shared) {
-		.invocation_fn = sinv->c_fn_addr,
-		.callgate_addr = sinv->s_fn_addr,
+	ucap = (struct usr_inv_cap *)(sinv->client->mem + ucap_off);
+	*ucap = (struct usr_inv_cap) {
+		.invocation_fn = sinv->s_fn_addr,
+		.cap_no        = sinv->sinv_cap,
 		.data          = NULL
 	};
 
