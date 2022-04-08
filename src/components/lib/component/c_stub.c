@@ -7,12 +7,12 @@ COS_CLIENT_STUB(int, cosrtdefault, word_t p0, word_t p1, word_t p2, word_t p3)
 {
 	COS_CLIENT_INVCAP;
 
-	return cos_sinv(uc->cap_no, p0, p1, p2, p3);
+	return COS_SINV(uc, p0, p1, p2, p3);
 }
 
 COS_CLIENT_STUB(int, cosrtretdefault, word_t p0, word_t p1, word_t p2, word_t p3, word_t *r1, word_t *r2)
 {
 	COS_CLIENT_INVCAP;
 
-	return cos_sinv_2rets(uc->cap_no, p0, p1, p2, p3, r1, r2);
+	return COS_SINV_2RETS(uc, p0, p1, p2, p3, r1, r2);
 }

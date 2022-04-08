@@ -48,12 +48,15 @@ __cosrt_s_##name:						\
 	pushq	%r13;						\
 	pushq	%r14;						\
 	pushq	%r15;						\
+	/* need to save args rcx/rdx since we overwrite them */	\
+	movq    %rcx, %r8;					\
+	movq    %rdx, %r9;					\
 	/* TODO: save stack ptr on inv stack */			\
 	movq    %rsp, %r14;					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	/* thread ID */						\
 	movq    %rsp, %rdx;					\
-	addq    $0xfffffffffffff000, %rdx;			\
+	andq    $0xfffffffffffff000, %rdx;			\
 	movzwq  0xff0(%rdx), %r13;				\
 	/* invocation token */					\
 	movabs  $0x0123456789abcdef, %rbp;			\
@@ -72,6 +75,8 @@ __cosrt_s_##name:						\
 	movq    $0xdeadbeefdeadbeef, %rax;			\
 	cmp     %rax, %r15;					\
 	/* TODO: jne     bad */					\
+	movq    %r8, %rcx;					\
+	movq    %r9, %rdx;					\
 	callq   name;						\
 	movq	%rax, %r8;					\
 	/* save server authentication token */			\
@@ -126,8 +131,86 @@ __cosrt_s_##name:				\
 	mov $RET_CAP, %rax;			\
 	COS_ASM_RET_STACK			\
 	syscall;
-#endif
 
+#define cos_asm_stub_indirect_shared(name)			\
+.globl __cosrt_s_##name;					\
+.type  __cosrt_s_##name, @function ;				\
+.align 16 ;							\
+__cosrt_s_##name:						\
+	/* callee saved */					\
+	pushq	%rbp;						\
+	pushq   %rbx;						\
+	pushq   %r12;						\
+	pushq	%r13;						\
+	pushq	%r14;						\
+	pushq	%r15;						\
+	/* save the two return ptrs in perserved regs */	\
+	movq	%r8, %r12;					\
+	movq	%r9, %r13;					\
+	/* need to save args rcx/rdx since we overwrite them */	\
+	movq    %rcx, %r8;					\
+	movq    %rdx, %r9;					\
+	/* TODO: save stack ptr on inv stack */			\
+	movq    %rsp, %r14;					\
+	movq    $0xdeadbeefdeadbeef, %r15; 			\
+	/* thread ID */						\
+	movq    %rsp, %rdx;					\
+	andq    $0xfffffffffffff000, %rdx;			\
+	movzwq  0xff0(%rdx), %rbx;				\
+	/* invocation token */					\
+	movabs  $0x0123456789abcdef, %rbp;			\
+	/* switch to server protection domain */		\
+	movl    $0xfffffffe, %eax;				\
+	xor     %rcx, %rcx;					\
+	xor     %rdx, %rdx;					\
+	wrpkru;							\
+	movq    %rbx, %rax;					\
+	/* switch to server execution stack */			\
+	COS_ASM_GET_STACK_INVTOKEN				\
+	/* ABI mandate a 16-byte alignment stack pointer*/	\
+	and 	$~0xf, %rsp;					\
+	xor 	%rbp, %rbp;					\
+	/* check client token */				\
+	movq    $0xdeadbeefdeadbeef, %rax;			\
+	cmp     %rax, %r15;					\
+	/* TODO: jne     bad */					\
+	movq    %r8, %rcx;					\
+	movq    %r9, %rdx;					\
+	pushq   $0;						\
+	movq    %rsp, %r8;					\
+	pushq   $0;						\
+	movq    %rsp, %r9;					\
+	callq   __cosrt_s_cstub_##name;				\
+	movq	%rax, %r8;					\
+	popq	%rdi;						\
+	popq	%rsi;						\
+	/* save server authentication token */			\
+	movq    $0xdeadbeefdeadbeef, %r15;			\
+	/* TODO: ULK */						\
+	/* switch back to client protection domain */		\
+	movl    $0xfffffffe, %eax;				\
+	xor     %rcx, %rcx;					\
+	xor     %rdx, %rdx;					\
+	wrpkru;							\
+	/* TODO: restore stack from inv stack */		\
+	movq	%r14, %rsp;					\
+	/* check server token */				\
+	movq    $0xdeadbeefdeadbeef, %rax;			\
+	cmp     %rax, %r15;					\
+	/* TODO: jne     bad */					\
+	movq    %r8, %rax;					\
+	movq	%rsi, (%r12);					\
+	movq	%rdi, (%r13);					\
+	/* callee saved */					\
+	popq	%r15;						\
+	popq	%r14;						\
+	popq	%r13;						\
+	popq	%r12;						\
+	popq	%rbx;						\
+	popq	%rbp;						\
+	retq;
+
+#endif
 #ifdef COS_UCAP_STUBS
 /*
  * This file contains the client-side assembly stubs for a synchronous
@@ -192,10 +275,9 @@ __cosrt_ucap_##name:				\
 .type  __cosrt_extern_##name, @function;			\
 .align 8 ;							\
 name:								\
-__cosrt_c_##name:						\
 __cosrt_extern_##name:						\
-	movabs  $__cosrt_ucap_##name, %rcx;			\
-	callq   *INVFN(%rcx);					\
+	movabs  $__cosrt_ucap_##name, %rax;			\
+	callq   *INVFN(%rax);					\
 	retq;							\
 								\
 .section .ucap, "a", @progbits ;				\
@@ -205,6 +287,8 @@ __cosrt_ucap_##name:						\
 	.quad 0 ;						\
 	.endr ;							\
 .text /* start out in the text segment, and always return there */
+
+#define cos_asm_stub_indirect_shared(name) cos_asm_stub_shared(name)
 
 #endif
 

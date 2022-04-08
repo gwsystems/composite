@@ -9,7 +9,7 @@ deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
 constructor = "kernel"
 
 [[components]]
-name = "ping"
+name = "pingshvas"
 img  = "tests.unit_pingshvas"
 deps = [{srv = "pongshvas", interface = "pongshvas"},
         {srv = "booter", interface = "init"}]

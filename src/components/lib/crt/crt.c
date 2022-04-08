@@ -881,9 +881,9 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 	ucap_off = sinv->c_ucap_addr - sinv->client->ro_addr;
 	ucap = (struct usr_inv_cap *)(sinv->client->mem + ucap_off);
 	*ucap = (struct usr_inv_cap) {
-		.invocation_fn = sinv->s_fn_addr,
+		.invocation_fn = sinv->c_fn_addr,
 		.cap_no        = sinv->sinv_cap,
-		.data          = NULL
+		.data          = (void *)sinv->s_fn_addr
 	};
 
 	return 0;
