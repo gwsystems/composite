@@ -111,16 +111,23 @@ component: clean comp_header $(COMPOBJ)
 
 # see the make manual: create the .d dependencies from include
 # statements.
+# redirect error output to /dev/null so that it will not display
+# errors when cleaning, this does not affect gcc's error output when 
+# building the system because that is in a different target path
 %.d:%.c
-	@set -e; rm -f $@; \
-	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
-	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	@set +e; rm -f $@; \
+	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$ 2>/dev/null; \
+	if [ -s $@.$$$$ ]; then \
+		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	fi; \
 	rm -f $@.$$$$
 
 %.d:%.cc
-	@set -e; rm -f $@; \
-	$(CXX) -M $(INCLUDE) $(LIBSTDCXXINC) $(CXXFLAGS) $< > $@.$$$$; \
-	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	@set +e; rm -f $@; \
+	$(CXX) -M $(INCLUDE) $(LIBSTDCXXINC) $(CXXFLAGS) $< > $@.$$$$ 2>/dev/null; \
+	if [ -s $@.$$$$ ]; then \
+		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	fi; \
 	rm -f $@.$$$$
 
 .PHONY: clean

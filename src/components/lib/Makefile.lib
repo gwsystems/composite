@@ -1,7 +1,7 @@
 include Makefile.src Makefile.comp Makefile.dependencies
 
-CFILES=$(wildcard *.c)
-SFILES=$(wildcard *.S)
+CFILES+=$(wildcard *.c)
+SFILES+=$(wildcard *.S)
 OBJS=$(CFILES:%.c=%.o) $(SFILES:%.S=%.o)
 
 CINC+=$(foreach I, $(FINAL_DEPS), -I$(LIBDIR)/$(I))
@@ -10,6 +10,9 @@ SHLIB_FILE=$(if $(LIBRARY_OUTPUT), lib$(LIBRARY_OUTPUT).a)
 SHLIB_BIN=$(if $(OBJECT_OUTPUT), $(OBJECT_OUTPUT).lib.o)
 
 LIBNAME=$(lastword $(subst /, ,$(shell pwd)))
+
+#NOTE: assembly files don't have dependencies generated for them
+SOURCE_DEPENDENCIES +=$(CFILES:%.c=%.d)
 
 .PHONY: all clean init distclean print
 
@@ -31,12 +34,25 @@ $(SHLIB_FILE): $(OBJS)
 	@$(AS) $(ASFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $^
 
 %.o:%.c
-	$(info |     [CC]   Compiling C file $^ into $@)
-	@$(CC) $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $^
+	$(info |     [CC]   Compiling C file $< into $@)
+	@$(CC) $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $<
+
+# redirect error output to /dev/null so that it will not display
+# errors when cleaning, this does not affect gcc's error output when 
+# building the system because that is in a different target path
+%.d:%.c
+	@set +e; rm -f $@ $@.*; \
+	$(CC) -M $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) $< > $@.$$$$ 2>/dev/null ; \
+	if [ -s $@.$$$$ ]; then \
+		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	fi; \
+	rm -f $@.$$$$
 
 clean:
 	$(info |     [RM]   Cleaning up library $(LIBNAME)'s directory)
-	@rm -f *.a *.d *~ $(OBJS)
+	@rm -f *.a *.d.* *.d *~ $(OBJS) $(SOURCE_DEPENDENCIES) $(SOURCE_DEPENDENCIES:%.d=%.d.*)
 
 init:
 distclean: clean
+
+-include $(SOURCE_DEPENDENCIES)

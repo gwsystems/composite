@@ -31,7 +31,7 @@ comps:
 platclean:
 	$(MAKE) $(MAKEOPTIONS) PLATFORM=$(shell cat $(PLAT_FILE)) -C platform clean
 
-plat: platclean
+plat:
 	$(info )
 	$(info ***********************************************)
 	$(info ***** Building $(shell cat $(PLAT_FILE)) Platform and Kernel *****)

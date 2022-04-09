@@ -66,7 +66,7 @@ OBJS += $(COS_OBJ)
 
 all: $(KERNEL)
 
-$(KERNEL): linker.ld $(DEPS) $(OBJS) loader.o
+$(KERNEL): linker.ld $(OBJS) loader.o
 	$(if $(CONSTRUCTOR_COMP), $(info |     [LD]   Linking in the constructor component $@))
 	$(if $(CONSTRUCTOR_COMP), @cp $(CONSTRUCTOR_COMP) constructor; $(LD) -r -b binary constructor -o constructor.o; objcopy --rename-section .data=.initial_component constructor.o; rm constructor)
 	$(if $(KERNEL_OUTPUT), $(info |     [LD]   Linking $@))
@@ -80,7 +80,12 @@ loader.o: loader.S entry.S
 	@$(CC) -c -I$(INCPATH) loader.S
 
 %.d: %.c
-	@$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@
+	@set +e; rm -f $@; \
+	$(CC) -M $(CFLAGS) $< > $@.$$$$ 2>/dev/null; \
+	if [ -s $@.$$$$ ]; then \
+		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	fi; \
+	rm -f $@.$$$$
 
 pgtbl.o: ../../kernel/pgtbl.c
 	$(info |     [CC]   Compiling $@)
@@ -113,3 +118,5 @@ captbl.o: ../../kernel/captbl.c
 
 clean:
 	@rm -f *.d *.o $(KERNEL)
+
+-include $(DEPS)

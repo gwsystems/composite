@@ -20,10 +20,10 @@ ifneq ($(PLATFORM),x86_64)
 override OBJS =
 endif
 
-include Makefile.lib
-
 CFILES+=$(wildcard adapter/*.c)
 SFILES+=$(wildcard adapter/*.S)
+
+include Makefile.lib
 
 OBJS+=$(DPDK_LIBS_DIR)/*.a
 
