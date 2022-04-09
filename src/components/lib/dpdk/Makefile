@@ -14,6 +14,12 @@ INTERFACE_DEPENDENCIES =
 
 LIBRARY_DEPENDENCIES = component pci
 
+# this is to stop non supported build target
+# this will override $(OBJS) so that compiler will not compile target files under unsupported cases
+ifneq ($(PLATFORM),x86_64)
+override OBJS =
+endif
+
 include Makefile.lib
 
 CFILES+=$(wildcard adapter/*.c)
@@ -64,14 +70,28 @@ config:
 	
 build:
 	$(info Building DPDK)
+ifneq ($(PLATFORM),x86_64)
+	@echo "Platform: $(PLATFORM) is not supported in DPDK"
+else
 	@cd $(DPDK_BUILD_DIR);\
 	$(MUSL_BIN_PATH) ninja -j3;\
 	meson install >> /dev/null;
 	@rm libdpdk.a || true
+endif
 
 $(SHLIB_FILE): build $(OBJS)
 
-init: config build
+
+armv7a_init:
+
+i386_init:
+
+x86_64_init: config build
+
+platform_init:
+	make $(PLATFORM)_init
+
+init: platform_init
 
 distclean:
 	cd $(DPDK_BUILD_DIR) ninja clean
