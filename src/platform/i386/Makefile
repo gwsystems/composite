@@ -64,9 +64,11 @@ DEPS :=$(patsubst %.o, %.d, $(OBJS))
 
 OBJS += $(COS_OBJ)
 
+.PHONY: $(CONSTRUCTOR_COMP)
+
 all: $(KERNEL)
 
-$(KERNEL): linker.ld $(OBJS) loader.o
+$(KERNEL): linker.ld $(OBJS) loader.o $(CONSTRUCTOR_COMP)
 	$(if $(CONSTRUCTOR_COMP), $(info |     [LD]   Linking in the constructor component $@))
 	$(if $(CONSTRUCTOR_COMP), @cp $(CONSTRUCTOR_COMP) constructor; $(LD) -r -b binary constructor -o constructor.o; objcopy --rename-section .data=.initial_component constructor.o; rm constructor)
 	$(if $(KERNEL_OUTPUT), $(info |     [LD]   Linking $@))
