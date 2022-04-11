@@ -123,7 +123,7 @@ crt_ns_asids_init(struct crt_ns_asid *asids)
 
 /*
  * Create a asid namespace from the names "left over" in `existing`,
- * i.e. those that have not been `crt_ns_vas_alloc_in`ed.
+ * i.e. those that have not been marked allocated.
  * 
  * Return values:
  *    0: success
@@ -230,9 +230,8 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 
 /*
  * Create a new vas namespace from the names "left over" in
- * `existing`, i.e. those that have not been `crt_ns_vas_alloc_in`ed
- * 
- * Automatically alias all names from existing into new
+ * `existing`, i.e. those that have not been allocated
+ * and automatically alias all names from existing into new
  * 
  * Return values:
  *   0: success
@@ -320,50 +319,6 @@ crt_mpk_available_name(struct crt_ns_vas *vas)
 }
 
 /*
- * VAS name mapping/allocation. This function allocates `c` into `vas`
- * by tracking which names (MPK & VAS) are dedicated to `c`. A
- * component can only be allocated into a *single* vas.
- */
-int
-crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
-{
-	/* 
-	 * find the name at the entry addr for the elf object for c
-	 * is it reserved but unallocated? --> make allocated & assign MPK key w same properties
-	 * else --> not possible
-	 */
-	int name_index = c->entry_addr / CRT_VAS_NAME_SZ;
-	int mpk_key = c->mpk_key;
-	int cons_ret;
-
-	assert(name_index < CRT_VAS_NUM_NAMES);
-
-	if (vas->names[name_index].allocated || vas->names[name_index].aliased || !vas->names[name_index].reserved) {
-		return -1;
-	}
-	if (mpk_key == 0 && ((mpk_key = crt_mpk_available_name(vas)) == -1)) {
-		return -1;
-	}
-	if (cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
-		printc("allocate comp cap/cap table cap failed\n");
-		return -1;
-	}
-
-	cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl);
-	if (cons_ret != 0) {
-		printc("cons failed: %d\n", cons_ret);
-		assert(0);
-	}
-
-	vas->names[name_index].allocated = 1;
-	vas->names[name_index].comp = c;	
-	vas->mpk_names[mpk_key].allocated = 1;
-	c->mpk_key = mpk_key;
-
-	return 0;
-}
-
-/*
  * A `crt_comp_create` replacement if you want to create a component
  * in a vas directly. 
  */
@@ -406,6 +361,17 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	vas->names[name_index].allocated = 1;
 	vas->names[name_index].comp = c;	
 	vas->mpk_names[mpk_key].allocated = 1;
+
+	return 0;
+}
+
+/*
+ * helper function to check if two components exist within a shared VAS Namespace
+ */
+static int
+crt_ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
+{
+	if(c1->ns_vas == c2->ns_vas) return 1;
 
 	return 0;
 }
@@ -773,55 +739,6 @@ crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp_res
 	return 0;
 }
 
-
-
-int
-crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client,
-		vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr)
-{
-	struct cos_compinfo *cli;
-	struct cos_compinfo *srv;
-	unsigned int ucap_off;
-	struct usr_inv_cap *ucap;
-	
-	assert(sinv && name && server && client);
-
-	cli = cos_compinfo_get(client->comp_res);
-	srv = cos_compinfo_get(server->comp_res);
-
-	assert(crt_refcnt_alive(&server->refcnt) && crt_refcnt_alive(&client->refcnt));
-	crt_refcnt_take(&client->refcnt);
-	crt_refcnt_take(&server->refcnt);
-
-	assert(cli && cli->memsrc && srv && srv->memsrc && srv->comp_cap);
-	assert(!crt_is_booter(client));
-
-	*sinv = (struct crt_sinv) {
-		.name        = name,
-		.server      = server,
-		.client      = client,
-		.c_fn_addr   = c_fn_addr,
-		.c_ucap_addr = c_ucap_addr,
-		.s_fn_addr   = s_fn_addr
-	};
-
-	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap_shared, sinv->s_fn_addr, client->id);
-	assert(sinv->sinv_cap);
-	printc("shared sinv %s cap %ld\n", name, sinv->sinv_cap);
-
-	/* poor-mans virtual address translation from client VAS -> our ptrs */
-	assert(sinv->c_ucap_addr - sinv->client->ro_addr > 0);
-	ucap_off = sinv->c_ucap_addr - sinv->client->ro_addr;
-	ucap = (struct usr_inv_cap *)(sinv->client->mem + ucap_off);
-	*ucap = (struct usr_inv_cap) {
-		.invocation_fn = sinv->c_fn_addr,
-		.cap_no        = sinv->sinv_cap,
-		.data          = NULL
-	};
-
-	return 0;
-}
-
 int
 crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client,
 		vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr)
@@ -836,6 +753,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 	cli = cos_compinfo_get(client->comp_res);
 	srv = cos_compinfo_get(server->comp_res);
 
+
 	assert(crt_refcnt_alive(&server->refcnt) && crt_refcnt_alive(&client->refcnt));
 	crt_refcnt_take(&client->refcnt);
 	crt_refcnt_take(&server->refcnt);
@@ -852,7 +770,11 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 		.s_fn_addr   = s_fn_addr
 	};
 
-	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
+	if(crt_ns_vas_shared(client, server)) 
+		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap_shared, sinv->s_fn_addr, client->id);
+	else 
+		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
+
 	assert(sinv->sinv_cap);
 	printc("sinv %s cap %ld\n", name, sinv->sinv_cap);
 
