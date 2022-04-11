@@ -65,14 +65,12 @@ scb_deactivate(struct cap_captbl *ct, capid_t scbcap, capid_t ptcap, capid_t cos
 static inline int
 scb_comp_update(struct captbl *ct, struct cap_scb *sc, struct cap_comp *compc)
 {
-	//paddr_t pf = chal_va2pa((void *)(sc->kern_addr));
-
 	if (unlikely(!ltbl_isalive(&sc->liveness))) return -EPERM;
 	/* FIXME: hard coded pgtbl order */
-	//if (pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF, 12)) return -EINVAL;
 
-	//sc->compc = compc;
+	sc->compc = compc;
 	compc->info.scb_data = (struct cos_scb_info *)(sc->kern_addr);
+	
 	return 0;
 }
 

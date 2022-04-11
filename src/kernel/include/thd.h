@@ -34,7 +34,7 @@ struct invstk_entry {
  */
 struct rcvcap_info {
 	/* how many other arcv end-points send notifications to this one? */
-	int            isbound, pending, refcnt, is_init;
+	int            isbound, pending, refcnt, is_all_pending, is_init;
 	sched_tok_t    sched_count;
 	struct tcap *  rcvcap_tcap;      /* This rcvcap's tcap */
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
@@ -180,13 +180,13 @@ thd_next_thdinfo_update(struct cos_cpu_local_info *cli, struct thread *thd, stru
 }
 
 static void
-thd_rcvcap_init(struct thread *t, int is_init)
+thd_rcvcap_init(struct thread *t)
 {
 	struct rcvcap_info *rc = &t->rcvcap;
 
 	rc->isbound = rc->pending = rc->refcnt = 0;
+	rc->is_all_pending                     = 0;
 	rc->sched_count                        = 0;
-	rc->is_init                            = is_init;
 	rc->rcvcap_thd_notif                   = NULL;
 }
 
@@ -219,11 +219,36 @@ thd_track_exec(struct thread *t)
 	return !list_empty(&t->event_list);
 }
 
+static void
+thd_rcvcap_all_pending_set(struct thread *t, int val)
+{
+	t->rcvcap.is_all_pending = val;
+}
+
+static int
+thd_rcvcap_all_pending_get(struct thread *t)
+{
+	return t->rcvcap.is_all_pending;
+}
+
+static int
+thd_rcvcap_all_pending(struct thread *t)
+{
+	int pending = t->rcvcap.pending;
+
+	/* receive all pending */
+	t->rcvcap.pending = 0;
+	thd_rcvcap_all_pending_set(t, 0);
+
+	return ((pending << 1) | !list_isempty(&t->event_head));
+}
+
 static int
 thd_rcvcap_pending(struct thread *t)
 {
 	if (t->rcvcap.pending) return t->rcvcap.pending;
 	return !list_isempty(&t->event_head);
+	;
 }
 
 static sched_tok_t
@@ -239,17 +264,20 @@ thd_rcvcap_set_counter(struct thread *t, sched_tok_t cntr)
 }
 
 static void
-thd_rcvcap_pending_set(struct thread *arcvt)
+thd_rcvcap_pending_inc(struct thread *arcvt)
 {
-	if (likely(arcvt->dcbinfo)) arcvt->dcbinfo->pending = 1;
-	else                        arcvt->rcvcap.pending = 1;
+	arcvt->rcvcap.pending++;
 }
 
-static void
-thd_rcvcap_pending_reset(struct thread *arcvt)
+static int
+thd_rcvcap_pending_dec(struct thread *arcvt)
 {
-	arcvt->rcvcap.pending = 0;
-	if (likely(arcvt->dcbinfo)) arcvt->dcbinfo->pending = 0;
+	int pending = arcvt->rcvcap.pending;
+
+	if (pending == 0) return 0;
+	arcvt->rcvcap.pending--;
+
+	return pending;
 }
 
 static inline int
@@ -333,8 +361,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	assert(thd->tid <= MAX_NUM_THREADS);
 	thd_scheduler_set(thd, thd_current(cli));
 
-	/* TODO: fix the way to specify scheduler in a component! */
-	thd_rcvcap_init(thd, !init_data);
+	thd_rcvcap_init(thd);
 	list_head_init(&thd->event_head);
 	list_init(&thd->event_list, thd);
 
@@ -627,18 +654,23 @@ thd_sched_events_produce(struct thread *thd, struct cos_cpu_local_info *cos_info
 static inline void
 thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs)
 {
-	unsigned long thd_state = 0, cycles = 0, timeout = 0;
+	unsigned long thd_state = 0, cycles = 0, timeout = 0, pending = 0;
+	int           all_pending = thd_rcvcap_all_pending_get(thd);
 
 	thd_state_evt_deliver(thd, &thd_state, &cycles, &timeout);
-	thd_rcvcap_pending_reset(thd);
-	thd_sched_events_produce(thd, cos_cpu_local_info());
-	__userregs_setretvals(regs, thd_rcvcap_pending(thd), thd_state, cycles, timeout);
+	if (all_pending) {
+		pending = thd_rcvcap_all_pending(thd);
+	} else {
+		thd_rcvcap_pending_dec(thd);
+		pending = thd_rcvcap_pending(thd);
+	}
+	__userregs_setretvals(regs, pending, thd_state, cycles, timeout);
 }
 
 static inline int
 thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 {
-	int preempt = 0, pending = 0;
+	int preempt = 0;
 
 	/* TODO: check FPU */
 	/* fpu_save(thd); */
@@ -650,7 +682,7 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state &= ~THD_STATE_RCVING;
 		thd_rcvcap_pending_deliver(thd, regs);
-		pending = thd_rcvcap_pending(thd);
+
 		/*
 		 * If a scheduler thread was running using child tcap and blocked on RCVING
 		 * and budget expended logic decided to run the scheduler thread with it's
@@ -666,7 +698,7 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 	}
 
 	if (issame && preempt == 0) {
-		__userregs_set(regs, pending, __userregs_getsp(regs), __userregs_getip(regs));
+		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 	}
 
 	return preempt;

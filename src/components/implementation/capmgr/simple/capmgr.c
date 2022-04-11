@@ -168,11 +168,15 @@ struct cm_dcb *
 cm_dcb_alloc_in(struct cm_comp *sched)
 {
 	compid_t       id = (compid_t)cos_inv_token();
-	struct cm_dcb *d = ss_dcb_alloc_at_id(id);
+	struct cm_dcb *d  = ss_dcb_alloc();
+	dcbcap_t       dcbcap;
+	vaddr_t        dcbaddr = 0;
 
-	d->dcb_cap = crt_dcb_create_in(sched, &d->dcb_addr);
-
+	dcbcap = crt_dcb_create_in(&sched->comp, &dcbaddr);
+	d->dcb_addr = dcbaddr;
+	d->dcb_cap  = dcbcap;
 	ss_dcb_activate(d);
+
 	return d;
 }
 
@@ -360,22 +364,26 @@ capmgr_comp_sched_get(compid_t cid)
 	return atoi(sched);
 }
 
-extern scbcap_t scb_mapping(compid_t id);
+extern scbcap_t scb_mapping(compid_t id, vaddr_t scb_uaddr);
 
 int
 capmgr_scb_mapping(void)
 {
 	compid_t schedid = (compid_t)cos_inv_token();
-	printc("\tschedid: %d\n", schedid);
-	struct cm_comp *s;
 	struct cos_compinfo *ci;
+	struct cm_comp *s;
+	vaddr_t scb_uaddr;
 
 	s = ss_comp_get(schedid);
 	assert(s);
 
 	ci = cos_compinfo_get(s->comp.comp_res);
 	assert(ci);
-	return scb_mapping(schedid);
+
+	scb_uaddr = cos_page_bump_intern_valloc(ci, COS_SCB_SIZE);
+	assert(scb_uaddr);
+
+	return scb_mapping(schedid, scb_uaddr);
 }
 
 static void
@@ -534,7 +542,8 @@ init_exit(int retval)
 }
 
 thdcap_t
-capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
+capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info **dcb)
+//capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 {
 	compid_t schedid = (compid_t)cos_inv_token();
 	struct cm_thd *t;
@@ -560,6 +569,7 @@ capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 		return 0;
 	}
 	*tid = t->thd.tid;
+	*dcb = (struct cos_dcb_info *)d->dcb_addr;
 
 	return t->aliased_cap;
 }
@@ -567,13 +577,15 @@ capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 thdcap_t
 capmgr_initthd_create(spdid_t client, thdid_t *tid)
 {
-	return capmgr_thd_create_ext(client, 0, tid);
+	struct cos_dcb_info *dcb;
+
+	return capmgr_thd_create_ext(client, 0, tid, &dcb);
 }
 
 thdcap_t  capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret) { BUG(); return 0; }
 
 thdcap_t
-capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info *dcb)
+capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info **dcb)
 {
 	compid_t client = (compid_t)cos_inv_token();
 	struct cm_thd  *t;
@@ -591,13 +603,13 @@ capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_inf
 		return 0;
 	}
 	*tid = t->thd.tid;
-	dcb = (struct cos_dcb_info *)d->dcb_addr;
+	*dcb = (struct cos_dcb_info *)d->dcb_addr;
 
 	return t->aliased_cap;
 }
 
-thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }
-thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv) { BUG(); return 0; }
+thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, struct cos_dcb_info **dcb) { BUG(); return 0; }
+thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, struct cos_dcb_info **dcb, arcvcap_t *extrcv) { BUG(); return 0; }
 arcvcap_t capmgr_rcv_create(spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }
 asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t) { BUG(); return 0; }
 asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv) { BUG(); return 0; }
@@ -631,7 +643,8 @@ cos_init(void)
 	/* Initialize the other component's for which we're responsible */
 	scbcap_t scbc = cos_scb_alloc(ci);
 	assert(scbc);
-	if (cos_scb_mapping(ci, ci->comp_cap, ci->pgtbl_cap, scbc)) BUG();
+	vaddr_t scb_uaddr = cos_page_bump_intern_valloc(ci, COS_SCB_SIZE);
+	if (cos_scb_mapping(ci, ci->comp_cap, ci->pgtbl_cap, scbc, scb_uaddr)) BUG();
 	capmgr_comp_init();
 	sl_init(SL_MIN_PERIOD_US);
 

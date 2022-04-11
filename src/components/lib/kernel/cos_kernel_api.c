@@ -873,13 +873,8 @@ cos_scb_alloc(struct cos_compinfo *ci)
 }
 
 int
-cos_scb_mapping(struct cos_compinfo *ci,  compcap_t comp, pgtblcap_t ptc, scbcap_t scbc)
+cos_scb_mapping(struct cos_compinfo *ci,  compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr)
 {
-	vaddr_t scb_uaddr;
-
-	scb_uaddr = cos_page_bump_intern_valloc(ci, COS_SCB_SIZE);
-	assert(scb_uaddr);
-
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_SCB_MAPPING, comp, ptc, scbc, scb_uaddr)) return 1;
 
 	return 0;

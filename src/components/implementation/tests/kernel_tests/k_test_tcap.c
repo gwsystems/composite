@@ -49,7 +49,6 @@ test_timer(void)
         tcap_time_t timer, thd_timeout;
 
         tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL, 0, 0);
-		printc("thd alloc done\n");
         perfdata_init(&result, "COS THD => COS_THD_SWITCH", test_results, ARRAY_SIZE);
 
         for (i = 0; i <= TEST_ITER; i++){

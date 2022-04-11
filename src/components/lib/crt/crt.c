@@ -1314,11 +1314,13 @@ crt_dcb_create_in(struct crt_comp *c, vaddr_t *dcb_addr)
 	struct cos_compinfo    *ci        = cos_compinfo_get(defci);
 	struct cos_compinfo    *target_ci = cos_compinfo_get(c->comp_res);
 	dcbcap_t                dcb_cap;
+	vaddr_t                 dcbaddr;
 
-	dcb_addr = cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
-	assert(dcb_addr);
-	dcb_cap = cos_dcb_alloc(ci, target_ci->pgtbl_cap, dcb_addr);
+	dcbaddr = cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
+	assert(dcbaddr);
+	dcb_cap = cos_dcb_alloc(ci, target_ci->pgtbl_cap, dcbaddr);
 	assert(dcb_cap);
+	*dcb_addr = dcbaddr;
 
 	return dcb_cap;
 }

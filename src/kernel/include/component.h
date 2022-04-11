@@ -131,6 +131,7 @@ comp_introspect(struct cap_comp *t, unsigned long op, unsigned long *retval)
 	switch (op) {
 	case COMP_GET_SCB_CURTHD:
 		*retval = t->info.scb_data->curr_thd;
+
 		break;
 	default:
 		return -EINVAL;

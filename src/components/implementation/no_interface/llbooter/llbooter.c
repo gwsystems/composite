@@ -413,7 +413,7 @@ addr_get(compid_t id, addr_t type)
 }
 
 int
-scb_mapping(compid_t id)
+scb_mapping(compid_t id, vaddr_t scb_uaddr)
 {
 	struct cos_compinfo *ci;
 	struct crt_comp     *target;
@@ -421,8 +421,7 @@ scb_mapping(compid_t id)
 	target = boot_comp_get(id);
 
 	ci = cos_compinfo_get(target->comp_res);
-
-	if (cos_scb_mapping(ci, ci->comp_cap, ci->pgtbl_cap, ci->scb_cap)) BUG();
+	if (cos_scb_mapping(ci, ci->comp_cap, ci->pgtbl_cap, ci->scb_cap, scb_uaddr)) BUG();
 	return 0;
 }
 
@@ -434,7 +433,8 @@ booter_init(void)
 
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
-	if (cos_scb_mapping(boot_info, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_PT, LLBOOT_CAPTBL_SCB)) BUG();
+	vaddr_t scb_uaddr = cos_page_bump_intern_valloc(boot_info, COS_SCB_SIZE);
+	if (cos_scb_mapping(boot_info, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_PT, LLBOOT_CAPTBL_SCB, scb_uaddr)) BUG();
 	cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 }
 

@@ -30,19 +30,29 @@ cos_init(void)
 	//scbcap_t scbc = cos_scb_alloc(&booter_info);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, LLBOOT_CAPTBL_SCB,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
-	cos_scb_mapping(&booter_info, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_PT, LLBOOT_CAPTBL_SCB);
+	vaddr_t scb_uaddr = cos_page_bump_intern_valloc(&booter_info, COS_SCB_SIZE);
+	cos_scb_mapping(&booter_info, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_PT, LLBOOT_CAPTBL_SCB, scb_uaddr);
 }
 
 void
 test_scb(void)
 {
 	thdcap_t thdc;
-	struct cos_scb_info *scb_info = cos_scb_info_get();
+	struct cos_scb_info *scb_info = cos_scb_info_get_core();
 
 	scb_info->curr_thd = BOOT_CAPTBL_SELF_INITTHD_CPU_BASE;
 	thdc = cos_introspect(&booter_info, booter_info.comp_cap, COMP_GET_SCB_CURTHD);
-	if (thdc == (thdcap_t)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE) PRINTC("Success: Kernel and user have consistent thdcap set in SCB\n");
-	else PRINTC("Failure: Kernel and user don't have a consistent thdcap in SCB\n");
+	if (thdc == (thdcap_t)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE) PRINTC("\t%s: \t\t\tSuccess\n", "SCB => Basic test");
+	else PRINTC("\t%s: \t\t\tFail\n", "SCB");
+}
+
+void
+test_dcb(void)
+{
+	struct cos_dcb_info *init_dcbpg = cos_init_dcb_get();
+
+	assert(init_dcbpg);
+	PRINTC("\t%s: \t\t\tSuccess\n", "DCB => Basic test");
 }
 
 void
@@ -52,6 +62,7 @@ test_run_unit_kernel(void)
 	printc("\n");
         PRINTC("Unit Test Started:\n\n");
 		test_scb();
+		test_dcb();
         test_timer();
         test_tcap_budgets();
         test_2timers();

@@ -104,7 +104,6 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	scb_core = (((*ci_ptr)->scb_data) + get_cpuid());
 	ultc     = scb_core->curr_thd;
 	/* reset inconsistency from user-level thd! */
-	scb_core->curr_thd = 0;
 	if (!ultc && !interrupt) goto done;
 
 	if (likely(ultc)) {
@@ -554,7 +553,7 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, 
 {
 	struct thread *next;
 
-	thd_rcvcap_pending_set(rcv_thd);
+	thd_rcvcap_pending_inc(rcv_thd);
 	next = notify_process(rcv_thd, thd, rcv_tcap, tcap, tcap_next, yield);
 
 	/*
@@ -722,6 +721,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		if (!tcap_rcvcap_thd(tcap)) return -EINVAL;
 		if (unlikely(!tcap_is_active(tcap))) return -EPERM;
 	}
+
 	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
 	if (tc && tcap_current(cos_info) == tcap) tcap_setprio(tcap, prio);
 
@@ -953,14 +953,14 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 	rcv_flags_t          rflags      = __userregs_get1(regs);
 	tcap_time_t          swtimeout   = TCAP_TIME_NIL;
 	tcap_time_t          timeout     = __userregs_get2(regs);
-	//int                  all_pending = (!!(rflags & RCV_ALL_PENDING));
+	int                  all_pending = (!!(rflags & RCV_ALL_PENDING));
 
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
 
 	/* deliver pending notifications? */
 	if (thd_rcvcap_pending(thd)) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-		//thd_rcvcap_all_pending_set(thd, all_pending);
+		thd_rcvcap_all_pending_set(thd, all_pending);
 		thd_rcvcap_pending_deliver(thd, regs);
 
 		return 0;
@@ -1004,7 +1004,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 	if (likely(thd != next)) {
 		assert(!(thd->state & THD_STATE_PREEMPTED));
 		thd->state |= THD_STATE_RCVING;
-		//thd_rcvcap_all_pending_set(thd, all_pending);
+		thd_rcvcap_all_pending_set(thd, all_pending);
 		thd->timeout = timeout;
 	}
 
@@ -1518,9 +1518,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			ret = cap_kmem_activate(ct, ptcap, kaddr, (unsigned long *)&dcb, &pte);
 			if (ret) cos_throw(err, ret);
-
 			ret = dcb_activate(ct, cap, dcbcap, (vaddr_t)dcb, lid, ptcapin, uaddrin);
-
 			break;
 		}
 		case CAPTBL_OP_DCB_DEACTIVATE: {
