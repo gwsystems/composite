@@ -113,7 +113,7 @@ crt_ns_asids_init(struct crt_ns_asid *asids)
 
 	for (i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
 		/* set reserved = 1, allocated = 0 */
-		asids->names[i].state |= CRT_NS_STATE_RESERVED;
+		asids->names[i].state = CRT_NS_STATE_RESERVED;
 	}
 
 	asids->parent = NULL;
@@ -208,13 +208,13 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 
 	/* initialize the names in new */
 	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
-		new->names[i].state |= CRT_NS_STATE_RESERVED;
+		new->names[i].state = CRT_NS_STATE_RESERVED;
 		new->names[i].comp = NULL;
 	}
 
 	/* initialize an MPK NS for new */
 	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
-		new->mpk_names[i].state |= CRT_NS_STATE_RESERVED;
+		new->mpk_names[i].state = CRT_NS_STATE_RESERVED;
 	}
 
 	return 0;
