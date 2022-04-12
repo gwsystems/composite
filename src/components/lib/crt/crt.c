@@ -253,8 +253,8 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 		 *      allocated = 0
 		 *      aliased   = 0
 		 */
-		if (((existing->names[i].state & CRT_NS_STATE_ALLOCATED) == CRT_NS_STATE_ALLOCATED) || ((existing->names[i].state & CRT_NS_STATE_ALIASED) == CRT_NS_STATE_ALIASED)) {
-			new->names[i].state |= (CRT_NS_STATE_ALIASED | ~CRT_NS_STATE_RESERVED);
+		if (existing->names[i].state & (CRT_NS_STATE_ALLOCATED | CRT_NS_STATE_ALIASED)) {
+			new->names[i].state = (new->names[i].state & ~CRT_NS_STATE_RESERVED) | CRT_NS_STATE_ALIASED;
 			new->names[i].comp = existing->names[i].comp;
 
 			cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(new->names[i].comp->comp_res), new->top_lvl_pgtbl);
@@ -326,13 +326,11 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	if (!vas->names[name_index].state) return -1;
 	if ((mpk_key = crt_mpk_available_name(vas)) == -1) return -1;
 
-	c->mpk_key = mpk_key;
 	crt_comp_create(c, name, id, elf_hdr, info);
 
-	/* FIXME: if these fail, should that component ^ be reset or something? */
 	if (cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
 		printc("allocate comp cap/cap table cap failed\n");
-		return -1;
+		assert(0);
 	}
 
 	cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl);
