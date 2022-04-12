@@ -248,21 +248,22 @@ int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
  * also: more ASIDs available in 64 bit
  */
 
-#define CRT_VAS_NAME_SZ (1ULL << 39)
-#define CRT_VAS_NUM_NAMES 256
-#define CRT_MPK_NUM_NAMES 14
-#define CRT_ASID_NUM_NAMES 4096
+#define CRT_VAS_NAME_SZ 	(1ULL << 39)
+#define CRT_VAS_NUM_NAMES 	256
+#define CRT_MPK_NUM_NAMES 	14
+#define CRT_ASID_NUM_NAMES 	4096
+
+#define CRT_NS_STATE_RESERVED 	1
+#define CRT_NS_STATE_ALLOCATED 1 << 1
+#define CRT_NS_STATE_ALIASED 	1 << 2
 
 struct crt_vas_name {
-	u32_t reserved  : 1;
-	u32_t allocated : 1;
-	u32_t aliased   : 1;
+	u32_t state : 3;
 	struct crt_comp *comp;
 };
 
 struct crt_asid_mpk_name {
-	u32_t reserved  : 1;
-	u32_t allocated : 1;
+	u32_t state : 3;
 };
 
 struct crt_ns_vas {

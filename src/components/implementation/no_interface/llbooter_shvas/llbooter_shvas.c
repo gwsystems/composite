@@ -179,7 +179,7 @@ comps_init(void)
 				}
 				ss_ns_vas_activate(ns_vas2);
 			}
-			else if (id == 2) {
+			if (id == 2) {
 				if (crt_comp_create_in_vas(comp, name, id, elf_hdr, info, ns_vas1)) {
 					BUG();
 				}

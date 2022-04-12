@@ -112,8 +112,8 @@ crt_ns_asids_init(struct crt_ns_asid *asids)
 	int i;
 
 	for (i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
-		asids->names[i].reserved = 1;
-		asids->names[i].allocated = 0;
+		/* set reserved = 1, allocated = 0 */
+		asids->names[i].state |= CRT_NS_STATE_RESERVED;
 	}
 
 	asids->parent = NULL;
@@ -136,14 +136,10 @@ crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 	int i;
 
 	for (i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
-		if (new->names[i].allocated == 1) {
-			return -2;
-		} 
+		if ((new->names[i].state & CRT_NS_STATE_ALLOCATED) == CRT_NS_STATE_ALLOCATED) return -2;
 	}
 
-	if (crt_ns_asids_init(new)) {
-		return -1;
-	}
+	if (crt_ns_asids_init(new)) return -1;
 
 	for (i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
 		/* if a name is allocated in existing, it should not be reserved in new */
@@ -152,14 +148,14 @@ crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 		 *	allocated = 0
 		 *	aliased   = 0
 		 */
-		if (existing->names[i].allocated == 1) {
-			new->names[i].reserved = 0;
+		if ((existing->names[i].state & CRT_NS_STATE_ALLOCATED) == CRT_NS_STATE_ALLOCATED) {
+			new->names[i].state &= ~CRT_NS_STATE_RESERVED;
 		}
 		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 
 		 * NOTE: this means no further allocations can be made in existing
 		 */
-		if (existing->names[i].reserved == 1) {
-			existing->names[i].reserved = 0;
+		if ((existing->names[i].state & CRT_NS_STATE_RESERVED) == CRT_NS_STATE_RESERVED) {
+			existing->names[i].state &= ~CRT_NS_STATE_RESERVED;
 		}
 	}
 
@@ -173,14 +169,14 @@ crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 static int
 crt_asid_available_name(struct crt_ns_asid *asids)
 {
-	int asid_index = 0;
+	int i;
 
-	while(asid_index < CRT_ASID_NUM_NAMES) {
-		if (asids->names[asid_index].reserved == 1 && asids->names[asid_index].allocated == 0) {
-			return asid_index;
+	for (i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
+		if ((asids->names[i].state & (CRT_NS_STATE_RESERVED | CRT_NS_STATE_ALLOCATED)) == CRT_NS_STATE_RESERVED) {
+			return i;
 		}
-		asid_index++;
 	}
+
 	return -1;
 }
 
@@ -205,23 +201,20 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 	if ((top_lvl_pgtbl = cos_pgtbl_alloc(ci)) == 0) return -1;
 
 	new->asid_name = asid_index;
-	asids->names[asid_index].allocated = 1;
+	asids->names[asid_index].state |= CRT_NS_STATE_ALLOCATED;
 
 	new->top_lvl_pgtbl = top_lvl_pgtbl;
 	new->parent = NULL;
 
 	/* initialize the names in new */
 	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
-		new->names[i].reserved = 1;
-		new->names[i].allocated = 0;
-		new->names[i].aliased = 0;
+		new->names[i].state |= CRT_NS_STATE_RESERVED;
 		new->names[i].comp = NULL;
 	}
 
 	/* initialize an MPK NS for new */
 	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
-		new->mpk_names[i].reserved = 1;
-		new->mpk_names[i].allocated = 0;
+		new->mpk_names[i].state |= CRT_NS_STATE_RESERVED;
 	}
 
 	return 0;
@@ -248,14 +241,10 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 
 	/* verify that `new` has no existing allocations */
 	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
-		if (new->names[i].allocated == 1) {
-			return -2;
-		} 
+		if ((new->names[i].state & CRT_NS_STATE_ALLOCATED) == CRT_NS_STATE_ALLOCATED) return -2;
 	}
 
-	if (crt_ns_vas_init(new, asids)) {
-		return -1;
-	}
+	if (crt_ns_vas_init(new, asids)) return -1;
 
 	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
 		/* if a name is allocated or aliased in existing, the component there should automatically be aliased into new */
@@ -264,9 +253,8 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 		 *      allocated = 0
 		 *      aliased   = 0
 		 */
-		if (existing->names[i].allocated || existing->names[i].aliased) {
-			new->names[i].reserved = 0;
-			new->names[i].aliased = 1;
+		if (((existing->names[i].state & CRT_NS_STATE_ALLOCATED) == CRT_NS_STATE_ALLOCATED) || ((existing->names[i].state & CRT_NS_STATE_ALIASED) == CRT_NS_STATE_ALIASED)) {
+			new->names[i].state |= (CRT_NS_STATE_ALIASED | ~CRT_NS_STATE_RESERVED);
 			new->names[i].comp = existing->names[i].comp;
 
 			cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(new->names[i].comp->comp_res), new->top_lvl_pgtbl);
@@ -279,18 +267,18 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 
 		 * NOTE: this means no further allocations can be made in existing
 		 */
-		if (existing->names[i].reserved == 1 && existing->names[i].allocated == 0) {
-			existing->names[i].reserved = 0;
+		if ((existing->names[i].state & (CRT_NS_STATE_RESERVED | CRT_NS_STATE_ALLOCATED)) == CRT_NS_STATE_RESERVED) {
+			existing->names[i].state &= ~CRT_NS_STATE_RESERVED;
 		}
 	}
 
 	/* initialize the mpk namespace within new */
 	for (i = 0 ; i < CRT_MPK_NUM_NAMES ; i++) {
-		if (existing->mpk_names[i].allocated == 1) {
-			new->mpk_names[i].reserved = 0;
+		if ((existing->mpk_names[i].state & CRT_NS_STATE_ALLOCATED) == CRT_NS_STATE_ALLOCATED) {
+			new->mpk_names[i].state &= ~CRT_NS_STATE_RESERVED;
 		}
-		else if (existing->mpk_names[i].reserved == 1 && existing->mpk_names[i].allocated == 0) {
-			existing->mpk_names[i].reserved = 0;
+		else if ((existing->mpk_names[i].state & (CRT_NS_STATE_RESERVED | CRT_NS_STATE_ALLOCATED)) == CRT_NS_STATE_RESERVED) {
+			existing->mpk_names[i].state &= ~CRT_NS_STATE_RESERVED;
 		}
 	}
 	new->parent = existing;
@@ -306,13 +294,12 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 static int
 crt_mpk_available_name(struct crt_ns_vas *vas)
 {
-	int i = 0;
+	int i;
 
-	while(i < CRT_MPK_NUM_NAMES) {
-		if (vas->mpk_names[i].reserved == 1 && vas->mpk_names[i].allocated == 0) {
+	for (i = 0 ; i < CRT_MPK_NUM_NAMES ; i++) {
+		if ((vas->mpk_names[i].state & (CRT_NS_STATE_RESERVED | CRT_NS_STATE_ALLOCATED)) == CRT_NS_STATE_RESERVED) {
 			return i;
 		}
-		i++;
 	}
 
 	return -1;
@@ -336,12 +323,8 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 
 	assert(name_index < CRT_VAS_NUM_NAMES);
 
-	if (vas->names[name_index].allocated || vas->names[name_index].aliased || !vas->names[name_index].reserved) {
-		return -1;
-	}
-	if ((mpk_key = crt_mpk_available_name(vas)) == -1) {
-		return -1;
-	}
+	if (!vas->names[name_index].state) return -1;
+	if ((mpk_key = crt_mpk_available_name(vas)) == -1) return -1;
 
 	c->mpk_key = mpk_key;
 	crt_comp_create(c, name, id, elf_hdr, info);
@@ -358,9 +341,12 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 		assert(0);
 	}
 
-	vas->names[name_index].allocated = 1;
+	vas->names[name_index].state |= CRT_NS_STATE_ALLOCATED;
+	vas->mpk_names[mpk_key].state |= CRT_NS_STATE_ALLOCATED;
 	vas->names[name_index].comp = c;	
-	vas->mpk_names[mpk_key].allocated = 1;
+
+	c->mpk_key = mpk_key;
+	c->ns_vas = vas;
 
 	return 0;
 }
@@ -371,7 +357,7 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 static int
 crt_ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
 {
-	if(c1->ns_vas == c2->ns_vas) return 1;
+	if (c1->ns_vas == c2->ns_vas) return 1;
 
 	return 0;
 }
@@ -770,7 +756,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 		.s_fn_addr   = s_fn_addr
 	};
 
-	if(crt_ns_vas_shared(client, server)) 
+	if (crt_ns_vas_shared(client, server)) 
 		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap_shared, sinv->s_fn_addr, client->id);
 	else 
 		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);

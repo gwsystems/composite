@@ -29,6 +29,7 @@ cos_init(void)
 	 * pongshvas_rcv_and_update(shared);
 	 * assert(*shared == 52);
 	 */
+	
 	return;
 }
 
