@@ -12,9 +12,12 @@
 #include <cos_component.h>
 #include <cos_defkernel_api.h>
 #include <llprint.h>
+#if 0
 #include <sl.h>
 #include <sl_lock.h>
 #include <sl_thd.h>
+#endif
+#include <ps_list.h>
 
 volatile int* null_ptr = NULL;
 #define ABORT() do {int i = *null_ptr;} while(0)
@@ -30,8 +33,10 @@ libc_syscall_override(cos_syscall_t fn, int syscall_num)
 	printc("Overriding syscall %d\n", syscall_num);
 	cos_syscalls[syscall_num] = fn;
 }
-
+#if 0
 struct sl_lock stdout_lock = SL_LOCK_STATIC_INIT();
+#endif
+struct ps_lock stdout_lock;
 
 ssize_t
 write_bytes_to_stdout(const char *buf, size_t count)
@@ -46,9 +51,9 @@ cos_write(int fd, const void *buf, size_t count)
 {
 	/* You shouldn't write to stdin anyway, so don't bother special casing it */
 	if (fd == 1 || fd == 2) {
-		sl_lock_take(&stdout_lock);
+		ps_lock_take(&stdout_lock);
 		write_bytes_to_stdout((const char *) buf, count);
-		sl_lock_release(&stdout_lock);
+		ps_lock_release(&stdout_lock);
 		return count;
 	} else {
 		printc("fd: %d not supported!\n", fd);
@@ -60,13 +65,13 @@ ssize_t
 cos_writev(int fd, const struct iovec *iov, int iovcnt)
 {
 	if (fd == 1 || fd == 2) {
-		sl_lock_take(&stdout_lock);
+		ps_lock_take(&stdout_lock);
 		int i;
 		ssize_t ret = 0;
 		for(i=0; i<iovcnt; i++) {
 			ret += write_bytes_to_stdout((const void *)iov[i].iov_base, iov[i].iov_len);
 		}
-		sl_lock_release(&stdout_lock);
+		ps_lock_release(&stdout_lock);
 		return ret;
 	} else {
 		printc("fd: %d not supported!\n", fd);
@@ -170,7 +175,7 @@ cos_mprotect(void *addr, size_t len, int prot)
 pid_t
 cos_gettid(void)
 {
-	return (pid_t) sl_thdid();
+	return (pid_t) cos_thdid();
 }
 
 int
@@ -221,6 +226,9 @@ cos_nanosleep(const struct timespec *req, struct timespec *rem)
 		return -1;
 	}
 
+	/* FIXME: call scheduler component to finish this sleep */
+	return 0;
+#if 0
 	wakeup_deadline        = sl_now() + sl_usec2cyc(time_to_microsec(req));
 	completed_successfully = sl_thd_block_timeout(0, wakeup_deadline);
 	wakeup_time   = sl_now();
@@ -240,6 +248,7 @@ cos_nanosleep(const struct timespec *req, struct timespec *rem)
 		}
 		return -1;
 	}
+#endif
 }
 
 
@@ -263,23 +272,26 @@ cos_set_tid_address(int *tidptr)
  * };
  */
 
-void* backing_data[SL_MAX_NUM_THDS];
+void* backing_data[MAX_NUM_THREADS];
 
 static void
-setup_thread_area(struct sl_thd *thread, void* data)
+setup_thread_area(void *thread, void* data)
 {
+#if 0
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 	thdid_t thdid = sl_thd_thdid(thread);
 
 	backing_data[thdid] = data;
 
 	cos_thd_mod(ci, sl_thd_thdcap(thread), &backing_data[thdid]);
+#endif
+	return ;
 }
 
 int
 cos_set_thread_area(void* data)
 {
-	setup_thread_area(sl_thd_curr(), data);
+	setup_thread_area(NULL, data);
 	return 0;
 }
 
@@ -290,12 +302,12 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 		errno = EINVAL;
 		return -1;
 	}
-
-	struct sl_thd * thd = sl_thd_alloc((cos_thd_fn_t)func, arg);
+	/* FIXME: call scheduler component to finish this */
+	//struct sl_thd * thd = sl_thd_alloc((cos_thd_fn_t)(void*)func, arg);
 	if (tls) {
-		setup_thread_area(thd, tls);
+		setup_thread_area(NULL, tls);
 	}
-	return sl_thd_thdid(thd);
+	return 0;
 }
 
 #define FUTEX_WAIT		0
@@ -354,8 +366,9 @@ lookup_futex(int *uaddr)
 
 /* TODO: Cleanup empty futexes */
 
-struct sl_lock futex_lock = SL_LOCK_STATIC_INIT();
+struct ps_lock futex_lock;
 
+#if 0
 /*
  * precondition: futex_lock is taken
  */
@@ -364,8 +377,9 @@ cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct times
 {
 	cycles_t   deadline = 0;
 	microsec_t wait_time;
+	int cyc_per_usec = 2000;
 	struct futex_waiter waiter = (struct futex_waiter) {
-		.thdid = sl_thdid()
+		.thdid = cos_thdid()
 	};
 
 	if (*uaddr != val) return EAGAIN;
@@ -375,20 +389,20 @@ cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct times
 
 	if (timeout != NULL) {
 		wait_time = time_to_microsec(timeout);
-		deadline = sl_now() + sl_usec2cyc(wait_time);
+		deadline = time_now() + wait_time * cyc_per_usec;
 	}
 
 	do {
 		/* No race here, we'll enter the awoken state if things go wrong */
-		sl_lock_release(&futex_lock);
-		if (timeout == NULL) {
-			sl_thd_block(0);
-		} else {
-			sl_thd_block_timeout(0, deadline);
-		}
-		sl_lock_take(&futex_lock);
+		ps_lock_release(&futex_lock);
+		// if (timeout == NULL) {
+		// 	sl_thd_block(0);
+		// } else {
+		// 	sl_thd_block_timeout(0, deadline);
+		// }
+		ps_lock_take(&futex_lock);
 	/* We continue while the waiter is in the list, and the deadline has not elapsed */
-	} while(!ps_list_singleton_d(&waiter) && (timeout == NULL || sl_now() < deadline));
+	} while(!ps_list_singleton_d(&waiter) && (timeout == NULL || time_now() < deadline));
 
 	/* If our waiter is still in the list (meaning we quit because the deadline elapsed),
 	 * then we remove it from the list. */
@@ -414,12 +428,14 @@ int cos_futex_wake(struct futex_data *futex, int wakeup_count)
 	}
 	return awoken;
 }
+#endif
 
 int
 cos_futex(int *uaddr, int op, int val,
           const struct timespec *timeout, /* or: uint32_t val2 */
 		  int *uaddr2, int val3)
 {
+#if 0
 	int result = 0;
 	struct futex_data *futex;
 
@@ -449,6 +465,10 @@ cos_futex(int *uaddr, int op, int val,
 	sl_lock_release(&futex_lock);
 
 	return result;
+#endif
+	printc("futex not implemented\n");
+	errno = ENOSYS;
+	return (void*) -1;
 }
 
 
@@ -457,12 +477,12 @@ pre_syscall_default_setup()
 {
 	printc("pre_syscall_default_setup\n");
 
-	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
+	// struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	// struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
-	cos_defcompinfo_init();
-	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	sl_init(SL_MIN_PERIOD_US);
+	// cos_defcompinfo_init();
+	// cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	// sl_init(SL_MIN_PERIOD_US);
 }
 
 void
@@ -475,36 +495,36 @@ syscall_emulation_setup(void)
 		cos_syscalls[i] = 0;
 	}
 
-	libc_syscall_override((cos_syscall_t)cos_write, __NR_write);
-	libc_syscall_override((cos_syscall_t)cos_writev, __NR_writev);
-	libc_syscall_override((cos_syscall_t)cos_ioctl, __NR_ioctl);
-	libc_syscall_override((cos_syscall_t)cos_brk, __NR_brk);
-	libc_syscall_override((cos_syscall_t)cos_mmap, __NR_mmap2);
-	libc_syscall_override((cos_syscall_t)cos_munmap, __NR_munmap);
-	libc_syscall_override((cos_syscall_t)cos_madvise, __NR_madvise);
-	libc_syscall_override((cos_syscall_t)cos_mremap, __NR_mremap);
+	libc_syscall_override((cos_syscall_t)(void*)cos_write, __NR_write);
+	libc_syscall_override((cos_syscall_t)(void*)cos_writev, __NR_writev);
+	libc_syscall_override((cos_syscall_t)(void*)cos_ioctl, __NR_ioctl);
+	libc_syscall_override((cos_syscall_t)(void*)cos_brk, __NR_brk);
+	libc_syscall_override((cos_syscall_t)(void*)cos_munmap, __NR_munmap);
+	libc_syscall_override((cos_syscall_t)(void*)cos_madvise, __NR_madvise);
+	libc_syscall_override((cos_syscall_t)(void*)cos_mremap, __NR_mremap);
 
-	libc_syscall_override((cos_syscall_t)cos_nanosleep, __NR_nanosleep);
+	libc_syscall_override((cos_syscall_t)(void*)cos_nanosleep, __NR_nanosleep);
 
-	libc_syscall_override((cos_syscall_t)cos_rt_sigprocmask, __NR_rt_sigprocmask);
-	libc_syscall_override((cos_syscall_t)cos_mprotect, __NR_mprotect);
+	libc_syscall_override((cos_syscall_t)(void*)cos_rt_sigprocmask, __NR_rt_sigprocmask);
+	libc_syscall_override((cos_syscall_t)(void*)cos_mprotect, __NR_mprotect);
 
-	libc_syscall_override((cos_syscall_t)cos_gettid, __NR_gettid);
-	libc_syscall_override((cos_syscall_t)cos_tkill, __NR_tkill);
+	libc_syscall_override((cos_syscall_t)(void*)cos_gettid, __NR_gettid);
+	libc_syscall_override((cos_syscall_t)(void*)cos_tkill, __NR_tkill);
+	libc_syscall_override((cos_syscall_t)(void*)cos_mmap, __NR_mmap);
+	libc_syscall_override((cos_syscall_t)(void*)cos_set_thread_area, __NR_set_thread_area);
 #if defined(__x86__)
-	libc_syscall_override((cos_syscall_t)cos_mmap, __NR_mmap);
-	libc_syscall_override((cos_syscall_t)cos_set_thread_area, __NR_set_thread_area);
+	libc_syscall_override((cos_syscall_t)(void*)cos_mmap, __NR_mmap2);
 #endif
-	libc_syscall_override((cos_syscall_t)cos_set_tid_address, __NR_set_tid_address);
-	libc_syscall_override((cos_syscall_t)cos_clone, __NR_clone);
-	libc_syscall_override((cos_syscall_t)cos_futex, __NR_futex);
+	libc_syscall_override((cos_syscall_t)(void*)cos_set_tid_address, __NR_set_tid_address);
+	libc_syscall_override((cos_syscall_t)(void*)cos_clone, __NR_clone);
+	libc_syscall_override((cos_syscall_t)(void*)cos_futex, __NR_futex);
 }
 
 long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f)
 {
 	assert(syscall_num <= SYSCALLS_NUM);
-	/* printc("Making syscall %d\n", syscall_num); */
+	printc("Making syscall %d\n", syscall_num);
 	if (!cos_syscalls[syscall_num]){
 		printc("WARNING: Component %ld calling unimplemented system call %d\n", cos_spd_id(), syscall_num);
 		assert(0);
@@ -513,10 +533,26 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 		return cos_syscalls[syscall_num](a, b, c, d, e, f);
 	}
 }
+/* TODO: init tls when creating components */
+char tls_space[8192] = {0};
+void tls_init()
+{
+	vaddr_t* tls_addr		= (vaddr_t *)&tls_space;
+	*tls_addr 			= (vaddr_t)&tls_space;
+	// call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDTLSSET, BOOT_CAPTBL_SELF_INITTHD_BASE, (word_t)tls_addr, 0, 0);
+}
+
+/* override musl-libc's init_tls() */
+void __init_tls(size_t *auxv)
+{
+}
 
 void
 libc_initialization_handler()
 {
+	ps_lock_init(&stdout_lock);
+	ps_lock_init(&futex_lock);
 	printc("libc_init\n");
 	libc_init();
+	tls_init();
 }

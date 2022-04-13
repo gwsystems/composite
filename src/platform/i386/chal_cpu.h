@@ -7,13 +7,14 @@
 #include "tss.h"
 
 typedef enum {
-	CR4_TSD    = 1 << 2,  /* time stamp (rdtsc) access at user-level disabled */
-	CR4_PSE    = 1 << 4,  /* page size extensions (superpages) */
-	CR4_PGE    = 1 << 7,  /* page global bit enabled */
-	CR4_PCE    = 1 << 8,  /* user-level access to performance counters enabled (rdpmc) */
-	CR4_OSFXSR = 1 << 9,  /* floating point enabled */
-	CR4_SMEP   = 1 << 20, /* Supervisor Mode Execution Protection Enable */
-	CR4_SMAP   = 1 << 21  /* Supervisor Mode Access Protection Enable */
+	CR4_TSD      = 1 << 2,  /* time stamp (rdtsc) access at user-level disabled */
+	CR4_PSE      = 1 << 4,  /* page size extensions (superpages) */
+	CR4_PGE      = 1 << 7,  /* page global bit enabled */
+	CR4_PCE      = 1 << 8,  /* user-level access to performance counters enabled (rdpmc) */
+	CR4_OSFXSR   = 1 << 9,  /* floating point enabled */
+	CR4_FSGSBASE = 1 << 16,
+	CR4_SMEP     = 1 << 20, /* Supervisor Mode Execution Protection Enable */
+	CR4_SMAP     = 1 << 21  /* Supervisor Mode Access Protection Enable */
 } cr4_flags_t;
 
 enum
@@ -87,6 +88,8 @@ chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 #define MSR_STAR 		0xC0000081 
 #define MSR_LSTAR 		0xC0000082
 #define MSR_SFMASK 		0xC0000084
+
+#define MSR_FSBASE		0xC0000100
 #define MSR_USER_GSBASE 	0xC0000101
 #define MSR_KERNEL_GSBASE 	0xC0000102
 #endif
@@ -120,7 +123,7 @@ chal_cpu_init(void)
 #if defined(__x86_64__)
 	u32_t low = 0, high = 0;
 
-	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
+	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_FSGSBASE);
 
 	readmsr(MSR_IA32_EFER, &low, &high);
 	writemsr(MSR_IA32_EFER,low | 0x1, high);

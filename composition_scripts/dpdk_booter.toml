@@ -1,0 +1,8 @@
+[system]
+description = "test dpdk lib"
+
+[[components]]
+name = "dpdk_booter"
+img  = "no_interface.dpdk_booter"
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"

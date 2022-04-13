@@ -17,7 +17,7 @@
 	movl 32(%esp), %edi;	\
 	movl 36(%esp), %edx;	\
 	movl %esp, %ebp;	\
-	movl $ainv_ret, %ecx;	\
+	movabs $ainv_ret, %rcx;	\
 	sysenter;
 
 #define COS_AINV_RET		\

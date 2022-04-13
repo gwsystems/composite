@@ -6,3 +6,7 @@
 	path = src/components/lib/ck/ck
 	url = https://github.com/gwsystems/ck.git
 	branch = cos_profile
+[submodule "src/components/lib/dpdk/dpdk"]
+	path = src/components/lib/dpdk/dpdk
+	url = git@github.com:betahxy/dpdk.git
+	branch = composite
