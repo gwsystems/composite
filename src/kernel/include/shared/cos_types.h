@@ -109,6 +109,9 @@ typedef enum {
 	CAPTBL_OP_MEMACTIVATE,
 	CAPTBL_OP_MEMDEACTIVATE,
 	/* CAPTBL_OP_MAPPING_MOD, */
+	CAPTBL_OP_ISBACTIVATE,
+	CAPTBL_OP_ISBMAP,
+	CAPTBL_OP_ISBDEACTIVATE,
 
 	CAPTBL_OP_MEM_RETYPE2USER,
 	CAPTBL_OP_MEM_RETYPE2KERN,
@@ -160,6 +163,7 @@ typedef enum {
 	CAP_QUIESCENCE, /* when deactivating, set to track quiescence state */
 	CAP_TCAP,       /* tcap captable entry */
 	CAP_HW,         /* hardware (interrupt) */
+	CAP_ISB,        /* UL accessable invocation stack block */
 } cap_t;
 
 /* TODO: pervasive use of these macros */
@@ -217,6 +221,7 @@ __captbl_cap2sz(cap_t c)
 	case CAP_TCAP:
 		return CAP_SZ_16B;
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
+	case CAP_ISB:
 		return CAP_SZ_32B;
 	case CAP_SINV:
 	case CAP_COMP:
@@ -381,13 +386,6 @@ struct usr_inv_cap {
 	void         *data;
 };
 
-/* same size as usr_in_cap but stores callgate addr instead*/
-struct usr_inv_cap_shared {
-	vaddr_t       invocation_fn;
-	vaddr_t       callgate_addr;
-	void         *data;
-};
-
 #define COMP_INFO_POLY_NUM 10
 #define COMP_INFO_INIT_STR_LEN 128
 /* For multicore system, we should have 1 freelist per core. */
@@ -421,6 +419,20 @@ struct cos_stack_freelists {
  * COMP_INFO_TMEM_STK_RELINQ != 0.  Change the defines, or change the assembly" */
 /* #endif */
 
+/* Maybe this should be somewhere else... */
+struct cos_ulinvstk_entry {
+	capid_t sinv_cap;
+	vaddr_t sp;
+} CACHE_ALIGNED;
+
+/* 1 thread's stack = 2 cache lines */
+#define COS_ULK_INVSTK_SZ 7
+
+struct cos_ulinvstk {
+	u64_t top, pad;
+	struct cos_ulinvstk_entry stk[COS_ULK_INVSTK_SZ];
+} CACHE_ALIGNED;
+
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;
 	unsigned long              cos_this_spd_id;
@@ -430,6 +442,7 @@ struct cos_component_information {
 	vaddr_t                    cos_heap_allocated, cos_heap_alloc_extent;
 	vaddr_t                    cos_upcall_entry;
 	vaddr_t                    cos_async_inv_entry;
+	vaddr_t                    cos_isb;
 	//	struct cos_sched_data_area *cos_sched_data_area;
 	vaddr_t                            cos_user_caps;
 	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS / 2];

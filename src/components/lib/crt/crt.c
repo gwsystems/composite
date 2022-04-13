@@ -814,7 +814,7 @@ crt_jitutils_replace(u8_t *src, u8_t *orig, u8_t *replace, size_t len, size_t ma
 #define CRT_JIT_MPK_PLACEHOLDER 0xfffffffeu;
 
 static void
-crt_jitcallgate(vaddr_t callgate, u32_t cli_pkey, u32_t srv_pkey, u64_t cli_tok, u64_t srv_tok, invtoken_t inv_tok)
+crt_jitcallgate(vaddr_t callgate, u32_t cli_pkey, u32_t srv_pkey, u64_t cli_tok, u64_t srv_tok, invtoken_t inv_tok, sinvcap_t cap_no)
 {
 	u64_t tok_placeholder = CRT_JIT_TOK_PLACEHOLDER;
 	u64_t inv_placeholder = CRT_JIT_INV_PLACEHOLDER;
@@ -822,13 +822,14 @@ crt_jitcallgate(vaddr_t callgate, u32_t cli_pkey, u32_t srv_pkey, u64_t cli_tok,
 	u32_t pkru_server = ~(0b11 << (2 * srv_pkey)) & ~0b11;
 	u32_t pkru_client = ~(0b11 << (2 * cli_pkey)) & ~0b11;
 
-	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&cli_tok, sizeof(u64_t), 256)) BUG();
-	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&cli_tok, sizeof(u64_t), 256)) BUG();
-	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), 256)) BUG();
-	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), 256)) BUG();
-	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&inv_placeholder, (u8_t *)&inv_tok, sizeof(u64_t), 256)) BUG();
-	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&pkru_server, sizeof(u32_t), 256)) BUG();
-	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&pkru_client, sizeof(u32_t), 256)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&cli_tok, sizeof(u64_t), 364)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&cli_tok, sizeof(u64_t), 364)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), 364)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), 364)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&inv_placeholder, (u8_t *)&cap_no,  sizeof(u64_t), 364)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&inv_placeholder, (u8_t *)&inv_tok, sizeof(u64_t), 364)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&pkru_server, sizeof(u32_t), 364)) BUG();
+	if (!crt_jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&pkru_client, sizeof(u32_t), 364)) BUG();
 }
 
 int
@@ -872,7 +873,7 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 
 	callgate_off  = s_fn_addr - sinv->server->ro_addr;
 	callgate_addr = (vaddr_t)sinv->server->mem + callgate_off;
-	crt_jitcallgate(callgate_addr, sinv->client->mpk_key, sinv->server->mpk_key, client_auth_tok, server_auth_tok, client->id);
+	crt_jitcallgate(callgate_addr, sinv->client->mpk_key, sinv->server->mpk_key, client_auth_tok, server_auth_tok, client->id, sinv->sinv_cap);
 
 	printc("sinv %s cap %ld\n", name, sinv->sinv_cap);
 
@@ -1736,3 +1737,29 @@ crt_compinit_exit(struct crt_comp *c, int retval)
 	while (1) ;
 }
 
+isbcap_t
+crt_boot_isb_alloc()
+{
+	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	isbcap_t             isb_cap;
+
+	isb_cap = cos_isb_alloc(ci);
+	assert(isb_cap);
+
+	return isb_cap;
+}
+
+vaddr_t
+crt_isb_map_in(struct crt_comp *dst, isbcap_t isbcap)
+{
+	struct cos_compinfo *ci        = cos_compinfo_get(cos_defcompinfo_curr_get());
+	struct cos_compinfo *target_ci = cos_compinfo_get(dst->comp_res);
+	vaddr_t              uaddr;
+	
+	uaddr = cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
+	assert(uaddr);
+
+	if (cos_isb_mapin(ci, target_ci->pgtbl_cap, isbcap, uaddr)) BUG();
+
+	return uaddr;
+}

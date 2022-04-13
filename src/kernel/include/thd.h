@@ -59,7 +59,8 @@ struct thread {
 	struct cos_fpu fpu;
 
 	/* TODO: same cache-line as the tid */
-	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
+	struct invstk_entry  invstk[THD_INVSTK_MAXSZ];
+	struct cos_ulinvstk *ulinvstk;
 
 	thd_state_t    state;
 	u32_t          tls;

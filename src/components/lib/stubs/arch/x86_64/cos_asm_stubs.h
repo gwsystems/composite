@@ -45,26 +45,24 @@ __cosrt_s_##name:						\
 __cosrt_s_##name:						\
 	/* callee saved */					\
 	pushq	%rbp;						\
-	pushq	%r13;						\
-	pushq	%r14;						\
-	pushq	%r15;						\
-	/* need to save args rcx/rdx since we overwrite them */	\
+	pushq	%r13; /* tid      */				\
+	pushq	%r14; /* isb ptr  */				\
+	pushq	%r15; /* auth tok */				\
 	movq    %rcx, %r8;					\
 	movq    %rdx, %r9;					\
-	/* TODO: save stack ptr on inv stack */			\
-	movq    %rsp, %r14;					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	/* thread ID */						\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffff000, %rdx;			\
 	movzwq  0xff0(%rdx), %r13;				\
+	COS_ULINV_SWITCH_DOMAIN(0x0)				\
+	movabs  $__cosrt_comp_info, %rax;			\
+	/* isb pointer */					\
+	movq    0x88(%rax), %r14;				\
+	COS_ULINV_PUSH_INVSTK					\
+	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* invocation token */					\
 	movabs  $0x0123456789abcdef, %rbp;			\
-	/* switch to server protection domain */		\
-	movl    $0xfffffffe, %eax;				\
-	xor     %rcx, %rcx;					\
-	xor     %rdx, %rdx;					\
-	wrpkru;							\
 	movq    %r13, %rax;					\
 	/* switch to server execution stack */			\
 	COS_ASM_GET_STACK_INVTOKEN				\
@@ -81,14 +79,9 @@ __cosrt_s_##name:						\
 	movq	%rax, %r8;					\
 	/* save server authentication token */			\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
-	/* TODO: ULK */						\
-	/* switch back to client protection domain */		\
-	movl    $0xfffffffe, %eax;				\
-	xor     %rcx, %rcx;					\
-	xor     %rdx, %rdx;					\
-	wrpkru;							\
-	/* TODO: restore stack from inv stack */		\
-	movq	%r14, %rsp;					\
+	COS_ULINV_SWITCH_DOMAIN(0x0)				\
+	COS_ULINV_POP_INVSTK					\
+	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* check server token */				\
 	movq    $0xdeadbeefdeadbeef, %rax;			\
 	cmp     %rax, %r15;					\
@@ -146,25 +139,23 @@ __cosrt_s_##name:						\
 	pushq	%r15;						\
 	/* save the two return ptrs in perserved regs */	\
 	movq	%r8, %r12;					\
-	movq	%r9, %r13;					\
-	/* need to save args rcx/rdx since we overwrite them */	\
+	movq	%r9, %rbx;					\
 	movq    %rcx, %r8;					\
 	movq    %rdx, %r9;					\
-	/* TODO: save stack ptr on inv stack */			\
-	movq    %rsp, %r14;					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	/* thread ID */						\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffff000, %rdx;			\
-	movzwq  0xff0(%rdx), %rbx;				\
+	movzwq  0xff0(%rdx), %r13;				\
+	COS_ULINV_SWITCH_DOMAIN(0x0)				\
+	movabs  $__cosrt_comp_info, %rax;			\
+	/* isb pointer */					\
+	movq    0x88(%rax), %r14;				\
+	COS_ULINV_PUSH_INVSTK					\
+	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* invocation token */					\
 	movabs  $0x0123456789abcdef, %rbp;			\
-	/* switch to server protection domain */		\
-	movl    $0xfffffffe, %eax;				\
-	xor     %rcx, %rcx;					\
-	xor     %rdx, %rdx;					\
-	wrpkru;							\
-	movq    %rbx, %rax;					\
+	movq    %r13, %rax;					\
 	/* switch to server execution stack */			\
 	COS_ASM_GET_STACK_INVTOKEN				\
 	/* ABI mandate a 16-byte alignment stack pointer*/	\
@@ -186,21 +177,16 @@ __cosrt_s_##name:						\
 	popq	%rsi;						\
 	/* save server authentication token */			\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
-	/* TODO: ULK */						\
-	/* switch back to client protection domain */		\
-	movl    $0xfffffffe, %eax;				\
-	xor     %rcx, %rcx;					\
-	xor     %rdx, %rdx;					\
-	wrpkru;							\
-	/* TODO: restore stack from inv stack */		\
-	movq	%r14, %rsp;					\
+	COS_ULINV_SWITCH_DOMAIN(0x0)				\
+	COS_ULINV_POP_INVSTK					\
+	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* check server token */				\
 	movq    $0xdeadbeefdeadbeef, %rax;			\
 	cmp     %rax, %r15;					\
 	/* TODO: jne     bad */					\
 	movq    %r8, %rax;					\
 	movq	%rsi, (%r12);					\
-	movq	%rdi, (%r13);					\
+	movq	%rdi, (%rbx);					\
 	/* callee saved */					\
 	popq	%r15;						\
 	popq	%r14;						\

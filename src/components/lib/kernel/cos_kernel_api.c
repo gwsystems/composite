@@ -898,6 +898,41 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 	return 0;
 }
 
+vaddr_t
+cos_page_bump_intern_valloc(struct cos_compinfo *ci, size_t sz)
+{
+	return __page_bump_valloc(ci, sz, PAGE_SIZE);
+}
+
+isbcap_t
+cos_isb_alloc(struct cos_compinfo *ci)
+{
+	vaddr_t kmem;
+	capid_t cap;
+	u32_t   lid = livenessid_bump_alloc();
+
+	printd("cos_isb_alloc\n");
+
+	assert(ci && lid);
+
+	if (__alloc_mem_cap(ci, CAP_ISB, &kmem, &cap)) return 0;
+	assert(kmem && (round_to_page(kmem) == kmem));
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ISBACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, lid))
+		BUG();
+
+	return cap;
+}
+
+int
+cos_isb_mapin(struct cos_compinfo *ci, pgtblcap_t ptc, isbcap_t cisb, vaddr_t uaddr)
+{
+	printd("cos_isb_mapin\n");
+
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ISBMAP, ptc, cisb, uaddr, 0)) return 1;
+
+	return 0;
+}
+
 sinvcap_t
 cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, invtoken_t token)
 {

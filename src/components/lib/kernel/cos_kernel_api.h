@@ -54,6 +54,7 @@ typedef capid_t compcap_t;
 typedef capid_t captblcap_t;
 typedef capid_t pgtblcap_t;
 typedef capid_t hwcap_t;
+typedef capid_t isbcap_t;
 
 /* Memory source information */
 struct cos_meminfo {
@@ -120,6 +121,9 @@ int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
 compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, u32_t mpk_key);
+isbcap_t    cos_isb_alloc(struct cos_compinfo *ci);
+int         cos_isb_mapin(struct cos_compinfo *ci, pgtblcap_t ptc, isbcap_t cisb, vaddr_t uaddr);
+
 void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier);
 
 typedef void (*cos_thd_fn_t)(void *);
@@ -135,6 +139,7 @@ void *cos_page_bump_alloc(struct cos_compinfo *ci);
 void *cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz);
 void *cos_page_bump_allocn_aligned(struct cos_compinfo *ci, size_t sz, size_t align);
 
+vaddr_t cos_page_bump_intern_valloc(struct cos_compinfo *ci, size_t sz);
 
 capid_t cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_t srcctype, capid_t srccap);
 int     cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_compinfo *srcci, capid_t srccap);

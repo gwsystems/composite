@@ -21,8 +21,6 @@ cos_init(void)
 	int ret;
 	long long ret_ll;
 
-	assert(cos_thdid());
-
 	printc("Ping component %ld: cos_init execution\n", cos_compid());
 
 	pongshvas_call();

@@ -16,6 +16,8 @@
 #include "include/chal/defs.h"
 #include "include/hw.h"
 #include "include/chal/chal_proto.h"
+#include "include/isb.h"
+
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -1276,6 +1278,40 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			livenessid_t lid = __userregs_get2(regs);
 
 			ret = arcv_deactivate(op_cap, capin, lid);
+			break;
+		}
+		case CAPTBL_OP_ISBACTIVATE: {
+			capid_t      isbcap = __userregs_get1(regs);
+			capid_t      ptcap  = __userregs_get2(regs);
+			vaddr_t      addr   = __userregs_get3(regs);
+			livenessid_t lid    = __userregs_get4(regs);
+
+			unsigned long       *pte;
+			struct cos_ulinvstk *isb;
+			
+			ret = cap_kmem_activate(ct, ptcap, addr, (unsigned long *)&isb, &pte);
+			if (ret) cos_throw(err, ret);
+
+			ret = isb_activate(ct, cap, isbcap, (vaddr_t)isb, lid);
+
+			break;
+		}
+		case CAPTBL_OP_ISBMAP: {
+			capid_t    ptcap  = __userregs_get1(regs);
+			capid_t    isbcap = __userregs_get2(regs);
+			vaddr_t    uaddr  = __userregs_get3(regs);
+
+			struct cap_isb   *cisb;
+			struct cap_pgtbl *ptc;
+
+			cisb = (struct cap_isb *)captbl_lkup(ct, isbcap);
+			if ((unlikely(!cisb || cisb->h.type != CAP_ISB))) return -EINVAL;
+
+			ptc = (struct cap_pgtbl *)captbl_lkup(ct, ptcap);
+			assert(ptc);
+
+			ret = isb_mapin(ct, cisb, ptc, uaddr);
+
 			break;
 		}
 		case CAPTBL_OP_CPY: {
