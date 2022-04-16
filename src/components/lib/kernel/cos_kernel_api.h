@@ -60,6 +60,9 @@ struct cos_meminfo {
 	vaddr_t    untyped_ptr, umem_ptr, kmem_ptr;
 	vaddr_t    untyped_frontier, umem_frontier, kmem_frontier;
 	pgtblcap_t pgtbl_cap;
+
+	capid_t	   second_lvl_pgtbl_cap;
+	vaddr_t	   second_lvl_pgtbl_addr;
 };
 
 /* Component captbl/pgtbl allocation information */
@@ -79,6 +82,9 @@ struct cos_compinfo {
 
 	struct ps_lock cap_lock, mem_lock; /* locks to make the cap frontier and mem frontier updates and expands atomic */
 	struct ps_lock va_lock; /* lock to make the vas frontier and bump expands for vas atomic */
+	/* shared comp cap */
+	capid_t comp_cap_shared;
+	capid_t pgtbl_cap_shared;
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
@@ -102,6 +108,8 @@ pgtblcap_t cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int
  * frontier as above.
  */
 int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem);
+
+int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources);
 
 /*
  * This uses the next three functions to allocate a new component and
@@ -203,5 +211,8 @@ void    cos_hw_shutdown(hwcap_t hwc);
 
 
 capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
+
+pgtblcap_t cos_shared_pgtbl_alloc(void);
+u32_t cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl);
 
 #endif /* COS_KERNEL_API_H */

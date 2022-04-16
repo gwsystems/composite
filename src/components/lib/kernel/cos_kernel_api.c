@@ -177,10 +177,12 @@ cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t cap
 	ci->memsrc = ci_resources;
 	assert(ci_resources->memsrc == ci_resources); /* prevent infinite data-structs */
 
-	ci->pgtbl_cap    = pgtbl_cap;
-	ci->captbl_cap   = captbl_cap;
-	ci->comp_cap     = comp_cap;
-	ci->cap_frontier = 0;
+	ci->pgtbl_cap    		= pgtbl_cap;
+	ci->captbl_cap   		= captbl_cap;
+	ci->comp_cap     		= comp_cap;
+	ci->cap_frontier 		= 0;
+	ci->comp_cap_shared 	= 0;
+	ci->pgtbl_cap_shared 	= 0;
 	cos_vasfrontier_init(ci, heap_ptr);
 	cos_capfrontier_init(ci, cap_frontier);
 
@@ -461,6 +463,12 @@ __bump_mem_expand_intern(struct cos_compinfo *ci, pgtblcap_t cipgtbl, vaddr_t me
 	 *    activated...or at least cache it for future use.
 	 */
 	call_cap_op(cipgtbl, CAPTBL_OP_CONS, pte_cap, mem_ptr, 0, 0);
+
+	/* second level was allocated (implies current level = 0) */
+	if(lvl == 0) {
+		ci->mi.second_lvl_pgtbl_cap = pte_cap;
+		ci->mi.second_lvl_pgtbl_addr = mem_ptr;
+	}
 
 	return pte_cap;
 }
@@ -842,6 +850,25 @@ cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t
 
 	return cap;
 }
+
+int
+cos_comp_alloc_shared(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources)
+{
+	compcap_t   compc;
+	captblcap_t ctc = ci->captbl_cap;
+
+	printd("cos_compinfo_alloc_shared\n");
+	assert(ptc);
+	assert(ctc);
+	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry);
+	assert(compc);
+
+	ci->comp_cap_shared = compc;
+	ci->pgtbl_cap_shared = ptc;
+
+	return 0;
+}
+
 
 int
 cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
@@ -1309,4 +1336,38 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 	}
 
 	return (void *)va;
+}
+
+
+/* ----- Shared Pgtbl ------ */
+int
+cos_get_second_lvl(struct cos_compinfo *ci, capid_t *pgtbl_cap, vaddr_t *pgtbl_addr)
+{
+	if(ci->mi.second_lvl_pgtbl_cap == 0) {
+		return -1;
+	}
+	*pgtbl_cap = ci->mi.second_lvl_pgtbl_cap;
+	*pgtbl_addr = ci->mi.second_lvl_pgtbl_addr;
+
+	return 0;
+}
+
+u32_t
+cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl)
+{
+	capid_t pte_cap;
+	vaddr_t pgtbl_addr;
+	int ret;
+
+	if(cos_get_second_lvl(ci, &pte_cap, &pgtbl_addr) != 0) {
+		return -1;
+	}
+
+	if (call_cap_op(top_lvl, CAPTBL_OP_CONS, pte_cap, pgtbl_addr, 0, 0)) {
+		assert(0); /* race? */
+		return -1;
+	}
+
+	return 0;
+
 }
