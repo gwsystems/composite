@@ -46,10 +46,17 @@ pub struct SysInfo {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct TomlAddrSpace {
+    name: String,
+    components: Vec<String>, // names of components in the vas
+    parent: Option<String>,  // which vas contains this one
+}
+
+#[derive(Debug, Deserialize)]
 pub struct TomlSpecification {
     system: SysInfo,
     components: Vec<TomlComponent>,
-    //aggregates: Vec<TomlComponent>  For components of components
+    address_spaces: Option<Vec<TomlAddrSpace>>, //aggregates: Vec<TomlComponent>  For components of components
 }
 
 impl Dep {
@@ -144,6 +151,118 @@ impl TomlSpecification {
             fail = true;
         }
 
+        // Check that 1. each address space includes components that
+        // have been included in the components list, 2. that each
+        // component is included maximum once in an address space, 3.
+        // that each address spaces has a non-empty name, 4. that each
+        // address space has a unique name, 5. that each parent of an
+        // address space is a valid address space, and 6. that there
+        // are no cycles with the parent relation.
+        let mut addrspc_names = Vec::new();
+        if self.ases().is_some() {
+            for addrspc in self.ases().as_ref().unwrap().iter() {
+                let mut referenced_components = Vec::new();
+
+                // 1. Each address space component is a listed component?
+                for as_c in addrspc.components.iter() {
+                    if !self
+                        .comps()
+                        .iter()
+                        .fold(false, |found, c| found | (c.name == *as_c))
+                    {
+                        err_accum.push_str(&format!("Error: Address space {} includes component {} that is not found in the list of components.", addrspc.name, as_c));
+                        fail = true;
+                    }
+
+                    // 2. Test that the components are only referenced
+                    // a single time in address spaces.
+                    if referenced_components.contains(&as_c) {
+                        err_accum.push_str(&format!("Error: Address space {} includes component {} that is already found in another address space.", addrspc.name, as_c));
+                        fail = true;
+                    } else {
+                        referenced_components.push(as_c);
+                    }
+                }
+
+                // 3. ensure that address spaces have non-empty names.
+                if addrspc.name.len() == 0 {
+                    err_accum.push_str(&format!(
+                        "Error: Address space has empty name. Must provide a non-empty name."
+                    ));
+                    fail = true;
+                    continue;
+                }
+
+                // 4. Make sure that address spaces have unique names.
+                if addrspc_names.contains(&addrspc.name) {
+                    err_accum.push_str(&format!("Error: Address space {} name is used by multiple address spaces; address spaces must have unique names.", addrspc.name));
+                    fail = true;
+                } else {
+                    addrspc_names.push(addrspc.name.clone());
+                }
+            }
+
+            let as_and_parents = self
+                .ases()
+                .as_ref()
+                .unwrap_or(&Vec::new())
+                .iter()
+                .map(|a| {
+                    (
+                        a.name.clone(),
+                        a.parent.as_ref().unwrap_or(&"".to_string()).clone(),
+                    )
+                })
+                .collect::<Vec<(String, String)>>();
+            // 5. Check that the parent's, when provided, reference
+            // named address spaces.
+            for (addrspc, parent) in &as_and_parents {
+                if !addrspc_names.contains(&parent) {
+                    err_accum.push_str(&format!("Error: Address space {} has parent {} where {} is not found among the names of address spaces.", addrspc, parent, parent));
+                    fail = true;
+                }
+            }
+
+            // 6. Last, we'll move address spaces to a list of the
+            // parents (initialized with all address spaces without
+            // any parents) from the initial list of address spaces.
+            // We move over an AS only when its parent is in the list
+            // of parents. If we cannot move over all components, then
+            // there is a cycle.
+            let mut parents_len = 0;
+            let (mut parents, mut as_and_parents) = as_and_parents
+                .iter()
+                .fold((Vec::new(), Vec::new()), |(mut p, mut a), (asname, pname)| {
+                    if pname == "" {
+                        p.push(asname);
+                    } else {
+                        a.push((asname, pname));
+                    }
+                    (p, a)
+                });
+	    // Iterate while we have more ASes to process, or until
+	    // there are no changes to the sets.
+            while as_and_parents.len() > 0 && parents.len() != parents_len {
+                parents_len = parents.len();
+		let tmp = as_and_parents
+                    .iter()
+                    .fold((Vec::new(), Vec::new()), |(mut p, mut a), (asname, pname)| {
+                        if p.contains(pname) {
+                            p.push(asname);
+                        } else {
+                            a.push((*asname, *pname));
+                        }
+                        (p, a)
+                    });
+		parents = tmp.0;
+		as_and_parents = tmp.1;
+            }
+            for (as_spc, p) in &as_and_parents {
+                err_accum.push_str(&format!("Error: Address spaces {} and {} are involved in a cycle of parent dependencies. Cycles are not allowed.", as_spc, p));
+                fail = true;
+            }
+        }
+
         // Validate that all dependencies resolve to a defined
         // component, and that that dependency exports the depended on
         // interface.
@@ -229,6 +348,10 @@ impl TomlSpecification {
 
     pub fn comps(&self) -> &Vec<TomlComponent> {
         &self.components
+    }
+
+    pub fn ases(&self) -> &Option<Vec<TomlAddrSpace>> {
+        &self.address_spaces
     }
 
     pub fn comps_mut(&mut self) -> &mut Vec<TomlComponent> {
