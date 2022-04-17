@@ -218,7 +218,7 @@ impl TomlSpecification {
             // named address spaces.
             for (addrspc, parent) in &as_and_parents {
                 if !addrspc_names.contains(&parent) {
-                    err_accum.push_str(&format!("Error: Address space {} has parent {} where {} is not found among the names of address spaces.", addrspc, parent, parent));
+                    err_accum.push_str(&format!("Error: Address space {} has parent {} where that name is not found among the names of address spaces.", addrspc, parent));
                     fail = true;
                 }
             }
@@ -230,32 +230,34 @@ impl TomlSpecification {
             // of parents. If we cannot move over all components, then
             // there is a cycle.
             let mut parents_len = 0;
-            let (mut parents, mut as_and_parents) = as_and_parents
-                .iter()
-                .fold((Vec::new(), Vec::new()), |(mut p, mut a), (asname, pname)| {
+            let (mut parents, mut as_and_parents) = as_and_parents.iter().fold(
+                (Vec::new(), Vec::new()),
+                |(mut p, mut a), (asname, pname)| {
                     if pname == "" {
                         p.push(asname);
                     } else {
                         a.push((asname, pname));
                     }
                     (p, a)
-                });
-	    // Iterate while we have more ASes to process, or until
-	    // there are no changes to the sets.
+                },
+            );
+            // Iterate while we have more ASes to process, or until
+            // there are no changes to the sets.
             while as_and_parents.len() > 0 && parents.len() != parents_len {
                 parents_len = parents.len();
-		let tmp = as_and_parents
-                    .iter()
-                    .fold((Vec::new(), Vec::new()), |(mut p, mut a), (asname, pname)| {
+                let tmp = as_and_parents.iter().fold(
+                    (Vec::new(), Vec::new()),
+                    |(mut p, mut a), (asname, pname)| {
                         if p.contains(pname) {
                             p.push(asname);
                         } else {
                             a.push((*asname, *pname));
                         }
                         (p, a)
-                    });
-		parents = tmp.0;
-		as_and_parents = tmp.1;
+                    },
+                );
+                parents = tmp.0;
+                as_and_parents = tmp.1;
             }
             for (as_spc, p) in &as_and_parents {
                 err_accum.push_str(&format!("Error: Address spaces {} and {} are involved in a cycle of parent dependencies. Cycles are not allowed.", as_spc, p));
