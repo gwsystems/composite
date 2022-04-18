@@ -355,6 +355,8 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 static int
 crt_ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
 {
+	if (c1->ns_vas == NULL || c2->ns_vas == NULL) return 0;
+
 	if (c1->ns_vas == c2->ns_vas) return 1;
 
 	return 0;
@@ -754,7 +756,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 		.s_fn_addr   = s_fn_addr
 	};
 
-	if (crt_ns_vas_shared(client, server)) 
+	if (crt_ns_vas_shared(client, server))
 		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap_shared, sinv->s_fn_addr, client->id);
 	else 
 		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
