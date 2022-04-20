@@ -130,32 +130,6 @@ ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
 	return 0;
 }
 
-static vaddr_t
-boot_isb_map_in(struct crt_comp *c, vaddr_t comp_info_addr, isbcap_t isbcap)
-{
-	unsigned long info_offset;
-	struct cos_component_information *comp_info;
-
-	info_offset = comp_info_addr - c->rw_addr;
-	comp_info = (struct cos_component_information *)(c->mem + round_up_to_page(c->ro_sz) + info_offset);
-
-	comp_info->cos_isb = crt_isb_map_in(c, isbcap);
-
-	return comp_info->cos_isb;
-}
-
-static void
-boot_isb_updated_shared(struct crt_comp *c, vaddr_t comp_info_addr, vaddr_t isb_addr)
-{
-	unsigned long info_offset;
-	struct cos_component_information *comp_info;
-
-	info_offset = comp_info_addr - c->rw_addr;
-	comp_info = (struct cos_component_information *)(c->mem + round_up_to_page(c->ro_sz) + info_offset);
-
-	comp_info->cos_isb = isb_addr;
-}
-
 static void
 comps_init(void)
 {
@@ -177,10 +151,9 @@ comps_init(void)
 	if (crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
 	ss_ns_vas_activate(ns_vas1);
 
-	/* allocate the ISB (memory for ul invstacks) */
-	isbcap_t isbcap = crt_boot_isb_alloc();
-	vaddr_t isbaddr = 0;
-
+	isbcap_t isbcap = cos_isb_alloc(cos_compinfo_get(cos_defcompinfo_curr_get()), 4096*100);
+	cos_isb_mapin(cos_compinfo_get(cos_defcompinfo_curr_get())->pgtbl_cap, isbcap);
+	*((char *)(ULK_BASE_ADDR + 4096*90)) = 69;
 
 	/*
 	 * Assume: our component id is the lowest of the ids for all
@@ -244,23 +217,24 @@ comps_init(void)
 					BUG();
 				}
 				ss_ns_vas_activate(ns_vas2);
-				boot_isb_updated_shared(comp, info, isbaddr);
+				cos_isb_mapin(ns_vas2->top_lvl_pgtbl, isbcap);
+
 			}
 			else if (id == 2) {
 				if (crt_comp_create_in_vas(comp, name, id, elf_hdr, info, ns_vas1)) {
 					BUG();
 				}
-				/* TODO: dont hardcode this either */
-				isbaddr = boot_isb_map_in(comp, info, isbcap);
-				assert(isbaddr);
+			}
+			else {
+				assert(elf_hdr);
+				if (crt_comp_create(comp, name, id, elf_hdr, info, 0)) {
+					printc("Error constructing the resource tables and image of component %s.\n", comp->name);
+					BUG();
+				}
 			}
 		}
 		assert(comp->refcnt != 0);
 	}
-
-
-	/* TODO: dont hardcode this; need to do this for now */
-	/* map this isb into the shared VAS */
 
 
 	ret = args_get_entry("execute", &comps);
@@ -389,6 +363,7 @@ comps_init(void)
 		sinv = ss_sinv_alloc();
 		assert(sinv);
 		if (ns_vas_shared(serv, cli)) {
+			printc("%s\n", args_get_from("name", &curr));
 			crt_sinv_create_shared(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
 				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));

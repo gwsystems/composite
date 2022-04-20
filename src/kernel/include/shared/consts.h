@@ -126,6 +126,8 @@
 
 #define KERN_BASE_ADDR 0xc0000000 // should be COS_MEM_KERN_START_VA
 
+#define ULK_BASE_ADDR 0x400000000000
+
 /* We save information on the user level stack for fast access. The
  * offsets below are used to access CPU and thread IDs. */
 #define CPUID_OFFSET 1

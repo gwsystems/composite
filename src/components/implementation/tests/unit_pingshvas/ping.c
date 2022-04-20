@@ -22,6 +22,7 @@ cos_init(void)
 	long long ret_ll;
 
 	printc("Ping component %ld: cos_init execution\n", cos_compid());
+	assert(*((char *)(ULK_BASE_ADDR + 4096*90)) == 69);
 
 	pongshvas_call();
 	ret = pongshvas_ret();

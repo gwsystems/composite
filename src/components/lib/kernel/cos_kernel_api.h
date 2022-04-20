@@ -121,8 +121,8 @@ int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
 compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, u32_t mpk_key);
-isbcap_t    cos_isb_alloc(struct cos_compinfo *ci);
-int         cos_isb_mapin(struct cos_compinfo *ci, pgtblcap_t ptc, isbcap_t cisb, vaddr_t uaddr);
+isbcap_t    cos_isb_alloc(struct cos_compinfo *root_ci, size_t sz);
+int         cos_isb_mapin(pgtblcap_t toplvl, isbcap_t isbcap);
 
 void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier);
 

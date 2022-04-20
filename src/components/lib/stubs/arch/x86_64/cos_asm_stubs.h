@@ -56,9 +56,7 @@ __cosrt_s_##name:						\
 	andq    $0xfffffffffffff000, %rdx;			\
 	movzwq  0xff0(%rdx), %r13;				\
 	COS_ULINV_SWITCH_DOMAIN(0x0)				\
-	movabs  $__cosrt_comp_info, %rax;			\
-	/* isb pointer */					\
-	movq    0x88(%rax), %r14;				\
+	movabs  $ULK_BASE_ADDR, %r14;			\
 	COS_ULINV_PUSH_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* invocation token */					\
@@ -148,9 +146,7 @@ __cosrt_s_##name:						\
 	andq    $0xfffffffffffff000, %rdx;			\
 	movzwq  0xff0(%rdx), %r13;				\
 	COS_ULINV_SWITCH_DOMAIN(0x0)				\
-	movabs  $__cosrt_comp_info, %rax;			\
-	/* isb pointer */					\
-	movq    0x88(%rax), %r14;				\
+	movabs  $ULK_BASE_ADDR, %r14;			\
 	COS_ULINV_PUSH_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* invocation token */					\

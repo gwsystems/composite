@@ -1736,30 +1736,3 @@ crt_compinit_exit(struct crt_comp *c, int retval)
 	BUG();
 	while (1) ;
 }
-
-isbcap_t
-crt_boot_isb_alloc()
-{
-	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	isbcap_t             isb_cap;
-
-	isb_cap = cos_isb_alloc(ci);
-	assert(isb_cap);
-
-	return isb_cap;
-}
-
-vaddr_t
-crt_isb_map_in(struct crt_comp *dst, isbcap_t isbcap)
-{
-	struct cos_compinfo *ci        = cos_compinfo_get(cos_defcompinfo_curr_get());
-	struct cos_compinfo *target_ci = cos_compinfo_get(dst->comp_res);
-	vaddr_t              uaddr;
-	
-	uaddr = cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
-	assert(uaddr);
-
-	if (cos_isb_mapin(ci, target_ci->pgtbl_cap, isbcap, uaddr)) BUG();
-
-	return uaddr;
-}

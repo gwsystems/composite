@@ -904,35 +904,6 @@ cos_page_bump_intern_valloc(struct cos_compinfo *ci, size_t sz)
 	return __page_bump_valloc(ci, sz, PAGE_SIZE);
 }
 
-isbcap_t
-cos_isb_alloc(struct cos_compinfo *ci)
-{
-	vaddr_t kmem;
-	capid_t cap;
-	u32_t   lid = livenessid_bump_alloc();
-
-	printd("cos_isb_alloc\n");
-
-	assert(ci && lid);
-
-	if (__alloc_mem_cap(ci, CAP_ISB, &kmem, &cap)) return 0;
-	assert(kmem && (round_to_page(kmem) == kmem));
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ISBACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, lid))
-		BUG();
-
-	return cap;
-}
-
-int
-cos_isb_mapin(struct cos_compinfo *ci, pgtblcap_t ptc, isbcap_t cisb, vaddr_t uaddr)
-{
-	printd("cos_isb_mapin\n");
-
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ISBMAP, ptc, cisb, uaddr, 0)) return 1;
-
-	return 0;
-}
-
 sinvcap_t
 cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, invtoken_t token)
 {
@@ -1405,4 +1376,77 @@ cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl)
 
 	return 0;
 
+}
+
+
+static isbcap_t
+__isb_pgtbl_expand(struct cos_compinfo *rootci, pgtblcap_t pgtbl, vaddr_t mem_ptr)
+{
+	int      pgtbl_lvl;
+	capid_t  ptecap;
+	vaddr_t  kmem;
+	isbcap_t isbcap = 0;
+
+	for (pgtbl_lvl = 1; pgtbl_lvl < COS_PGTBL_DEPTH; pgtbl_lvl++) {
+		ptecap = __capid_bump_alloc(rootci, CAP_PGTBL);
+		kmem   = __kmem_bump_alloc(rootci);
+		assert(ptecap != 0 && kmem != 0);
+
+		/* FIXME: handle error */
+		assert(call_cap_op(rootci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, ptecap, rootci->mi.pgtbl_cap, kmem, pgtbl_lvl) == 0);
+		assert(call_cap_op(pgtbl, CAPTBL_OP_CONS, ptecap, mem_ptr, 0, 0) == 0);
+
+		/* the isbcap is the second lvl of the pgtbl so 
+		   we can cons it into other pgtbls */
+		if (pgtbl_lvl == 1) {
+			isbcap = ptecap;
+		}
+	}
+
+	return isbcap;
+}
+
+isbcap_t
+cos_isb_alloc(struct cos_compinfo *root_ci, size_t sz)
+{
+	vaddr_t    kmem;
+	vaddr_t    isb_cursor;
+	pgtblcap_t pgtblcap;
+	isbcap_t   isbcap;
+\
+	printd("cos_isb_alloc\n");
+	assert(root_ci);
+	assert(root_ci->memsrc == root_ci);
+
+	/* allocate a pgtbl for the isb*/
+	pgtblcap = cos_pgtbl_alloc(root_ci);
+
+	/* expand pgtbl and get second lvl*/
+	isbcap = __isb_pgtbl_expand(root_ci, pgtblcap, ULK_BASE_ADDR);
+	assert(isbcap);
+
+	/* alloc actual memory */
+	for (isb_cursor = ULK_BASE_ADDR; isb_cursor < ULK_BASE_ADDR + sz; isb_cursor += PAGE_SIZE) {
+		kmem = __kmem_bump_alloc(root_ci);
+		if (!kmem) return 0;
+
+		if (call_cap_op(root_ci->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, kmem, pgtblcap, isb_cursor, PAGE_ORDER)) {
+			assert(0);
+		}
+	}
+
+	return isbcap;
+}
+
+int
+cos_isb_mapin(pgtblcap_t ptc, isbcap_t isbcap)
+{
+	printd("cos_isb_mapin\n");
+
+	if (call_cap_op(ptc, CAPTBL_OP_CONS, isbcap, ULK_BASE_ADDR, 0, 0)) {
+		assert(0); /* race? */
+		return -1;
+	}
+
+	return 0;
 }

@@ -2,6 +2,7 @@
 #include <cos_kernel_api.h>
 #include <llprint.h>
 #include <pongshvas.h>
+#include <pang.h>
 #include <cos_debug.h>
 #include <cos_types.h>
 #include <barrier.h>
@@ -114,3 +115,9 @@ pongshvas_ids(compid_t *client, compid_t *serv)
 
 	return cos_thdid();
 }
+
+// void
+// pongshvas_invoke(void)
+// {
+// 	assert(pang_call() == 99);
+// }

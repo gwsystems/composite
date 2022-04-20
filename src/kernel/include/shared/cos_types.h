@@ -108,10 +108,8 @@ typedef enum {
 	CAPTBL_OP_ARCVDEACTIVATE,
 	CAPTBL_OP_MEMACTIVATE,
 	CAPTBL_OP_MEMDEACTIVATE,
+	CAPTBL_OP_MEMISBACTIVATE,
 	/* CAPTBL_OP_MAPPING_MOD, */
-	CAPTBL_OP_ISBACTIVATE,
-	CAPTBL_OP_ISBMAP,
-	CAPTBL_OP_ISBDEACTIVATE,
 
 	CAPTBL_OP_MEM_RETYPE2USER,
 	CAPTBL_OP_MEM_RETYPE2KERN,
@@ -430,7 +428,7 @@ struct cos_ulinvstk_entry {
 
 struct cos_ulinvstk {
 	u64_t top, pad;
-	struct cos_ulinvstk_entry stk[COS_ULK_INVSTK_SZ];
+	struct cos_ulinvstk_entry s[COS_ULK_INVSTK_SZ];
 } CACHE_ALIGNED;
 
 struct cos_component_information {

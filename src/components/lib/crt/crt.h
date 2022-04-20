@@ -320,7 +320,7 @@ int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c);
  */
 int crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct crt_ns_vas *vas);
 
-isbcap_t crt_boot_isb_alloc(void);
+isbcap_t crt_isb_alloc(size_t npages);
 vaddr_t  crt_isb_map_in(struct crt_comp *dst, isbcap_t isbcap);
 
 #endif /* CRT_H */
