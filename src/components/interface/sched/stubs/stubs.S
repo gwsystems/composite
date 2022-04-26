@@ -20,3 +20,4 @@ cos_asm_stub_indirect(sched_aep_create_closure);
 cos_asm_stub(sched_thd_param_set);
 cos_asm_stub(sched_thd_exit);
 cos_asm_stub(sched_thd_delete);
+cos_asm_stub(sched_set_tls);

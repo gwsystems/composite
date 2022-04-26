@@ -113,6 +113,14 @@ cm_comp_alloc_with(char *name, compid_t id, struct crt_comp_resources *resources
 	return c;
 }
 
+void
+capmgr_set_tls(thdcap_t cap, unsigned long addr)
+{
+	compid_t cid = (compid_t)cos_inv_token();
+	struct crt_comp* ttt = crtcomp_get(cid);
+
+	cos_thd_mod(&ttt->comp_res->ci, cap, addr);
+}
 
 struct cm_rcv *
 cm_rcv_alloc_in(struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t closure_id, crt_rcv_flags_t flags)

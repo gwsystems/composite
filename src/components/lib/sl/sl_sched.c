@@ -435,6 +435,15 @@ done:
 	return;
 }
 
+void sched_set_tls(word_t tls_addr)
+{
+	struct sl_thd *t = sl_thd_curr();
+
+	thdcap_t thdcap = sl_thd_thdcap(t);
+
+	capmgr_set_tls(thdcap, tls_addr);
+}
+
 void
 sl_thd_yield_cs_exit(thdid_t tid)
 {

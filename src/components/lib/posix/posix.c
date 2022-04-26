@@ -116,7 +116,7 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		return MAP_FAILED;
 	}
 
-	addr = (void *)cos_page_bump_allocn(&cos_defcompinfo_curr_get()->ci, length);
+	addr = (void *)memmgr_heap_page_allocn((length / PAGE_SIZE));
 	if (!addr){
 		ret = (void *) -1;
 	} else {
@@ -533,13 +533,15 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 		return cos_syscalls[syscall_num](a, b, c, d, e, f);
 	}
 }
+
 /* TODO: init tls when creating components */
 char tls_space[8192] = {0};
 void tls_init()
 {
 	vaddr_t* tls_addr		= (vaddr_t *)&tls_space;
 	*tls_addr 			= (vaddr_t)&tls_space;
-	// call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDTLSSET, BOOT_CAPTBL_SELF_INITTHD_BASE, (word_t)tls_addr, 0, 0);
+
+	sched_set_tls((word_t)tls_addr);
 }
 
 /* override musl-libc's init_tls() */
