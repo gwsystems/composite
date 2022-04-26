@@ -12,12 +12,8 @@
 #include <cos_component.h>
 #include <cos_defkernel_api.h>
 #include <llprint.h>
-#if 0
-#include <sl.h>
-#include <sl_lock.h>
-#include <sl_thd.h>
-#endif
 #include <ps_list.h>
+#include <sched.h>
 
 volatile int* null_ptr = NULL;
 #define ABORT() do {int i = *null_ptr;} while(0)
@@ -538,10 +534,10 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 char tls_space[8192] = {0};
 void tls_init()
 {
-	vaddr_t* tls_addr		= (vaddr_t *)&tls_space;
-	*tls_addr 			= (vaddr_t)&tls_space;
+	vaddr_t* tls_addr	= (vaddr_t *)&tls_space;
+	*tls_addr 		= (vaddr_t)&tls_space;
 
-	sched_set_tls((word_t)tls_addr);
+	sched_set_tls((void*)tls_addr);
 }
 
 /* override musl-libc's init_tls() */

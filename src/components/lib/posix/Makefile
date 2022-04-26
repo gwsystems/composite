@@ -18,7 +18,7 @@ OBJECT_OUTPUT = posix
 INCLUDE_PATHS = .
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES =
+INTERFACE_DEPENDENCIES = sched
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
 LIBRARY_DEPENDENCIES = component kernel

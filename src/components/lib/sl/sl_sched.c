@@ -435,7 +435,7 @@ done:
 	return;
 }
 
-void sched_set_tls(word_t tls_addr)
+void sched_set_tls(void* tls_addr)
 {
 	struct sl_thd *t = sl_thd_curr();
 
