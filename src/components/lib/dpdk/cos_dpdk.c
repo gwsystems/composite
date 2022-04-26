@@ -148,11 +148,11 @@ cos_create_pkt_mbuf_pool(const char *name, size_t nb_mbufs)
 }
 
 /*
- * cos_free_packet: wrapper function for rte_pktmbuf_pool_create
+ * cos_free_packet: wrapper function for rte_pktmbuf_free
  *
- * @name: pkt pool name
+ * @packet: mbuf packet
  * 
- * @return: NULL on allocate failure, others on success
+ * @return: 0 on success, others on failure
  * 
  * note: this function will free the mbuf used by this packet
  */
@@ -180,10 +180,12 @@ cos_config_dev_port_queue(cos_portid_t port_id, uint16_t nb_rx_q, uint16_t nb_tx
 {
 	int ret;
 	struct rte_eth_conf local_port_conf = default_port_conf;
+
 	ret = rte_eth_dev_configure(ports_ids[port_id], nb_rx_q, nb_tx_q, &local_port_conf);
-	if (ret < 0)
+	if (ret < 0) {
 		rte_exit(EXIT_FAILURE, "Cannot configure device: err=%d, port=%u\n",
 			ret, port_id);
+	}
 	
 	COS_DPDK_APP_LOG(NOTICE, "cos_config_dev_port_queue success, with "
 			"%d rx_queue, %d tx_queues\n", nb_tx_q, nb_tx_q);
@@ -208,11 +210,13 @@ int
 cos_dev_port_adjust_rx_tx_desc(cos_portid_t port_id, uint16_t *nb_rx_desc, uint16_t *nb_tx_desc)
 {
 	int ret;
+
 	ret = rte_eth_dev_adjust_nb_rx_tx_desc(ports_ids[port_id], nb_rx_desc, nb_tx_desc);
-	if (ret < 0)
+	if (ret < 0) {
 		rte_exit(EXIT_FAILURE,
 				"Cannot adjust number of descriptors: err=%d, port=%u\n",
 				ret, port_id);
+	}
 	
 	COS_DPDK_APP_LOG(NOTICE, "cos_dev_port_adjust_rx_tx_desc success, with "
 			"%d rx_desc, %d tx_desc\n", *nb_rx_desc, *nb_tx_desc);
@@ -248,9 +252,10 @@ cos_dev_port_rx_queue_setup(cos_portid_t port_id, uint16_t rx_queue_id,
 					rte_eth_dev_socket_id(real_port_id),
 					&rxq_conf,
 					mp);
-	if (ret < 0)
+	if (ret < 0) {
 		rte_exit(EXIT_FAILURE, "rte_eth_rx_queue_setup:err=%d, port=%u\n",
 				ret, port_id);
+	}
 
 	COS_DPDK_APP_LOG(NOTICE, "cos_dev_port_rx_queue_setup success, with "
 			"%d rx_desc in rx_queue_%d\n", nb_rx_desc, rx_queue_id);
@@ -286,9 +291,10 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 	ret = rte_eth_tx_queue_setup(real_port_id, tx_queue_id, nb_tx_desc,
 				rte_eth_dev_socket_id(real_port_id),
 				&txq_conf);
-	if (ret < 0)
+	if (ret < 0) {
 		rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup:err=%d, port=%u\n",
 			ret, port_id);
+	}
 
 	COS_DPDK_APP_LOG(NOTICE, "cos_dev_port_tx_queue_setup success, with "
 			"%d tx_desc in tx_queue_%d\n", nb_tx_desc, tx_queue_id);
@@ -309,10 +315,12 @@ int
 cos_dev_port_start(cos_portid_t port_id)
 {
 	int ret;
+
 	ret = rte_eth_dev_start(ports_ids[port_id]);
-	if (ret < 0)
+	if (ret < 0) {
 		rte_exit(EXIT_FAILURE, "rte_eth_dev_start:err=%d, port=%u\n",
 				ret, port_id);
+	}
 	
 	COS_DPDK_APP_LOG(NOTICE, "cos_dev_port_start success, with port %d\n", port_id);
 
@@ -359,16 +367,18 @@ cos_dev_port_set_promiscuous_mode(cos_portid_t port_id, bool mode)
 	cos_portid_t real_port_id = ports_ids[port_id];
 	if(mode == COS_DPDK_SWITCH_ON) {
 		ret = rte_eth_promiscuous_enable(real_port_id);
-		if (ret != 0)
+		if (ret != 0) {
 			rte_exit(EXIT_FAILURE,
 				"rte_eth_promiscuous_enable:err=%s, port=%u\n",
 				rte_strerror(-ret), port_id);
+		}
 	} else if (mode == COS_DPDK_SWITCH_OFF){
 		ret = rte_eth_promiscuous_disable(real_port_id);
-		if (ret != 0)
+		if (ret != 0) {
 			rte_exit(EXIT_FAILURE,
 				"rte_eth_promiscuous_disable:err=%s, port=%u\n",
 				rte_strerror(-ret), port_id);
+		}
 	} else {
 		rte_exit(EXIT_FAILURE, "invalid mode\n");
 	}
@@ -489,8 +499,9 @@ cos_dpdk_init(int argc, char **argv)
 
 	/* register a log type for cos dpdk application */
 	cos_dpdk_log_type = rte_log_register("cos_dpdk_app");
-	if (cos_dpdk_log_type < 0)
+	if (cos_dpdk_log_type < 0) {
 		rte_exit(EXIT_FAILURE, "Cannot register log type");
+	}
 
 	rte_log_set_level(cos_dpdk_log_type, RTE_LOG_INFO);
 

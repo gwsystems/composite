@@ -509,7 +509,6 @@ init_exit(int retval)
 	while (1) ;
 }
 
-extern struct rte_pci_bus rte_pci_bus;
 void
 cos_init(void)
 {

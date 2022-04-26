@@ -1,5 +1,5 @@
-#include<llprint.h>
-#include<cos_dpdk.h>
+#include <llprint.h>
+#include <cos_dpdk.h>
 
 #define NB_RX_DESC_DEFAULT 1024
 #define NB_TX_DESC_DEFAULT 1024
@@ -9,7 +9,7 @@ process_packets(cos_portid_t port_id, cos_mbuf_t* rx_pkts, uint16_t nb_pkts)
 {
 	int i;
 
-	for(i = 0; i < nb_pkts; i++) {
+	for (i = 0; i < nb_pkts; i++) {
 		cos_parse_pkts(rx_pkts[i]);
 	}
 
@@ -65,7 +65,7 @@ cos_dpdk_demo(void)
 	assert(mp != NULL);
 
 	/* 4. config each port */
-	for (i = 0;i < nb_ports; i++) {
+	for (i = 0; i < nb_ports; i++) {
 		cos_config_dev_port_queue(i, 1, 1);
 		cos_dev_port_adjust_rx_tx_desc(i, &nb_rx_desc, &nb_tx_desc);
 		cos_dev_port_rx_queue_setup(i, 0, nb_rx_desc, mp);
@@ -73,7 +73,7 @@ cos_dpdk_demo(void)
 	}
 
 	/* 5. start each port, this will enable rx/tx */
-	for (i = 0;i < nb_ports; i++) {
+	for (i = 0; i < nb_ports; i++) {
 		cos_dev_port_start(i);
 		cos_dev_port_set_promiscuous_mode(i, COS_DPDK_SWITCH_ON);
 	}
@@ -82,7 +82,7 @@ cos_dpdk_demo(void)
 	while (1)
 	{
 		/* infinite loop to process packets */
-		for (i = 0;i < nb_ports; i++) {
+		for (i = 0; i < nb_ports; i++) {
 			/* process rx */
 			nb_pkts = cos_dev_port_rx_burst(i, 0, rx_packets, MAX_PKT_BURST);
 			if (nb_pkts != 0) {

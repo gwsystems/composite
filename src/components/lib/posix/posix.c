@@ -29,9 +29,7 @@ libc_syscall_override(cos_syscall_t fn, int syscall_num)
 	printc("Overriding syscall %d\n", syscall_num);
 	cos_syscalls[syscall_num] = fn;
 }
-#if 0
-struct sl_lock stdout_lock = SL_LOCK_STATIC_INIT();
-#endif
+
 struct ps_lock stdout_lock;
 
 ssize_t
@@ -224,27 +222,6 @@ cos_nanosleep(const struct timespec *req, struct timespec *rem)
 
 	/* FIXME: call scheduler component to finish this sleep */
 	return 0;
-#if 0
-	wakeup_deadline        = sl_now() + sl_usec2cyc(time_to_microsec(req));
-	completed_successfully = sl_thd_block_timeout(0, wakeup_deadline);
-	wakeup_time   = sl_now();
-
-	if (completed_successfully || wakeup_time > wakeup_deadline) {
-		return 0;
-	} else {
-		errno = EINTR;
-		if (rem) {
-			remaining_microseconds = sl_cyc2usec(wakeup_deadline - wakeup_time);
-			remaining_seconds      = remaining_microseconds / 1000000;
-			remaining_nano_seconds = (remaining_microseconds - remaining_seconds * 1000000) * 1000;
-			*rem = (struct timespec) {
-				.tv_sec = remaining_seconds,
-				.tv_nsec = remaining_nano_seconds
-			};
-		}
-		return -1;
-	}
-#endif
 }
 
 
@@ -273,14 +250,6 @@ void* backing_data[MAX_NUM_THREADS];
 static void
 setup_thread_area(void *thread, void* data)
 {
-#if 0
-	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	thdid_t thdid = sl_thd_thdid(thread);
-
-	backing_data[thdid] = data;
-
-	cos_thd_mod(ci, sl_thd_thdcap(thread), &backing_data[thdid]);
-#endif
 	return ;
 }
 
@@ -364,104 +333,11 @@ lookup_futex(int *uaddr)
 
 struct ps_lock futex_lock;
 
-#if 0
-/*
- * precondition: futex_lock is taken
- */
-int
-cos_futex_wait(struct futex_data *futex, int *uaddr, int val, const struct timespec *timeout)
-{
-	cycles_t   deadline = 0;
-	microsec_t wait_time;
-	int cyc_per_usec = 2000;
-	struct futex_waiter waiter = (struct futex_waiter) {
-		.thdid = cos_thdid()
-	};
-
-	if (*uaddr != val) return EAGAIN;
-
-	ps_list_init_d(&waiter);
-	ps_list_head_append_d(&futex->waiters, &waiter);
-
-	if (timeout != NULL) {
-		wait_time = time_to_microsec(timeout);
-		deadline = time_now() + wait_time * cyc_per_usec;
-	}
-
-	do {
-		/* No race here, we'll enter the awoken state if things go wrong */
-		ps_lock_release(&futex_lock);
-		// if (timeout == NULL) {
-		// 	sl_thd_block(0);
-		// } else {
-		// 	sl_thd_block_timeout(0, deadline);
-		// }
-		ps_lock_take(&futex_lock);
-	/* We continue while the waiter is in the list, and the deadline has not elapsed */
-	} while(!ps_list_singleton_d(&waiter) && (timeout == NULL || time_now() < deadline));
-
-	/* If our waiter is still in the list (meaning we quit because the deadline elapsed),
-	 * then we remove it from the list. */
-	if (!ps_list_singleton_d(&waiter)) {
-		ps_list_rem_d(&waiter);
-	}
-	/* We exit the function with futex_lock taken */
-	return 0;
-}
-
-int cos_futex_wake(struct futex_data *futex, int wakeup_count)
-{
-	struct futex_waiter *waiter, *tmp;
-	int awoken = 0;
-
-	ps_list_foreach_del_d(&futex->waiters, waiter, tmp) {
-		if (awoken >= wakeup_count) {
-			return awoken;
-		}
-		ps_list_rem_d(waiter);
-		sl_thd_wakeup(waiter->thdid);
-		awoken += 1;
-	}
-	return awoken;
-}
-#endif
-
 int
 cos_futex(int *uaddr, int op, int val,
           const struct timespec *timeout, /* or: uint32_t val2 */
 		  int *uaddr2, int val3)
 {
-#if 0
-	int result = 0;
-	struct futex_data *futex;
-
-	sl_lock_take(&futex_lock);
-
-	/* TODO: Consider whether these options have sensible composite interpretations */
-	op &= ~FUTEX_PRIVATE;
-	assert(!(op & FUTEX_CLOCK_REALTIME));
-
-	futex = lookup_futex(uaddr);
-	switch (op) {
-		case FUTEX_WAIT:
-			result = cos_futex_wait(futex, uaddr, val, timeout);
-			if (result != 0) {
-				errno = result;
-				result = -1;
-			}
-			break;
-		case FUTEX_WAKE:
-			result = cos_futex_wake(futex, val);
-			break;
-		default:
-			printc("Unsupported futex operation");
-			assert(0);
-	}
-
-	sl_lock_release(&futex_lock);
-
-	return result;
-#endif
 	printc("futex not implemented\n");
 	errno = ENOSYS;
 	return (void*) -1;
@@ -472,13 +348,6 @@ void
 pre_syscall_default_setup()
 {
 	printc("pre_syscall_default_setup\n");
-
-	// struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	// struct cos_compinfo    *ci    = cos_compinfo_get(defci);
-
-	// cos_defcompinfo_init();
-	// cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	// sl_init(SL_MIN_PERIOD_US);
 }
 
 void
@@ -520,7 +389,7 @@ long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f)
 {
 	assert(syscall_num <= SYSCALLS_NUM);
-	printc("Making syscall %d\n", syscall_num);
+
 	if (!cos_syscalls[syscall_num]){
 		printc("WARNING: Component %ld calling unimplemented system call %d\n", cos_spd_id(), syscall_num);
 		assert(0);
