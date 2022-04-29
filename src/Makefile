@@ -80,7 +80,7 @@ config-i386: config-gen
 	@echo "ARCH_ASFLAGS= -m32 -D__x86__ -D__WORD_SIZE_32__ -D__ASM__" >> Makefile.arch
 	@echo "ARCH_LDFLAGS=-melf_i386"      >> Makefile.arch
 	@echo "Configuring the system with clock speed and directory structure."
-	@cat /proc/cpuinfo | grep "model name" -m 1 | sed 's/.*\([0-9]\.[0-9]*\).*/\#define CPU_GHZ \1/' > ./kernel/include/chal/shared/cpu_ghz.h
+	@cpu_freq=`cat /var/log/dmesg | grep  "MHz processor" | awk -F ] '{print $$2}' | awk -F . '{print $$1}' |grep -o '[[:digit:]]*'`;cpu_freq=`awk 'BEGIN{printf "%.2f\n",'$$cpu_freq'/'1000'}'`;echo "#define CPU_GHZ $$cpu_freq" > ./kernel/include/chal/shared/cpu_ghz.h
 	@if [ -z "`cat /proc/cpuinfo | grep \"physical id\"`" ]; then echo "#define NUM_CPU_SOCKETS 1" >> ./kernel/include/chal/shared/cpu_ghz.h; else cat /proc/cpuinfo | grep "physical id" | sort | uniq | wc -l | sed 's/.*\([0-9]\).*/\#define NUM_CPU_SOCKETS \1/' >> ./kernel/include/chal/shared/cpu_ghz.h; fi
 	@echo "Please view Makefile.cosconfig and kernel/include/chal/shared/cpu_ghz.h to make sure they're accurate."
 	@echo "Do _not_ 'git add' either of these files."
@@ -106,7 +106,7 @@ config-x86_64: config-gen
 	@echo "ARCH_ASFLAGS= -m64 -D__x86_64__ -D__WORD_SIZE_64__ -D__ASM__ -mcmodel=large" >> Makefile.arch
 	@echo "ARCH_LDFLAGS= -melf_x86_64"      >> Makefile.arch
 	@echo "Configuring the system with clock speed and directory structure."
-	@cat /proc/cpuinfo | grep "model name" -m 1 | sed 's/.*\([0-9]\.[0-9]*\).*/\#define CPU_GHZ \1/' > ./kernel/include/chal/shared/cpu_ghz.h
+	@cpu_freq=`cat /var/log/dmesg | grep  "MHz processor" | awk -F ] '{print $$2}' | awk -F . '{print $$1}' |grep -o '[[:digit:]]*'`;cpu_freq=`awk 'BEGIN{printf "%.2f\n",'$$cpu_freq'/'1000'}'`;echo "#define CPU_GHZ $$cpu_freq" > ./kernel/include/chal/shared/cpu_ghz.h
 	@if [ -z "`cat /proc/cpuinfo | grep \"physical id\"`" ]; then echo "#define NUM_CPU_SOCKETS 1" >> ./kernel/include/chal/shared/cpu_ghz.h; else cat /proc/cpuinfo | grep "physical id" | sort | uniq | wc -l | sed 's/.*\([0-9]\).*/\#define NUM_CPU_SOCKETS \1/' >> ./kernel/include/chal/shared/cpu_ghz.h; fi
 	@echo "Please view Makefile.cosconfig and kernel/include/chal/shared/cpu_ghz.h to make sure they're accurate."
 	@echo "Do _not_ 'git add' either of these files."

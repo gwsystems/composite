@@ -39,15 +39,15 @@ typedef uint16_t cos_queueid_t;
 typedef void* cos_mbuf_pool_t;
 typedef void* cos_mbuf_t;
 
-enum {
+enum cos_dpdk_status_t {
 	COS_DPDK_SUCCESS = 0,
 	COS_DPDK_FALIURE = 1,
-} cos_dpdk_status_t;
+};
 
-enum {
+enum cos_dpdk_switch_t {
 	COS_DPDK_SWITCH_OFF = 0,
 	COS_DPDK_SWITCH_ON = 1,
-} cos_dpdk_switch_t;
+};
 
 int cos_dpdk_init(int argc, char **argv);
 uint16_t cos_eth_ports_init(void);
