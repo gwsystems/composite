@@ -138,7 +138,7 @@ static struct rte_eth_conf default_port_conf = {
  *       this setting should be enough for most use cases and thus is intended to simplify
  *       users' programming overhead.
  */
-cos_mbuf_pool_t
+char*
 cos_create_pkt_mbuf_pool(const char *name, size_t nb_mbufs)
 {
 	#define MEMPOOL_CACHE_SIZE 256
@@ -157,7 +157,7 @@ cos_create_pkt_mbuf_pool(const char *name, size_t nb_mbufs)
  * note: this function will free the mbuf used by this packet
  */
 int
-cos_free_packet(cos_mbuf_t packet)
+cos_free_packet(char* packet)
 {
 	/* TODO: add free logic */
 	return 0;
@@ -238,7 +238,7 @@ cos_dev_port_adjust_rx_tx_desc(cos_portid_t port_id, uint16_t *nb_rx_desc, uint1
  */
 int
 cos_dev_port_rx_queue_setup(cos_portid_t port_id, uint16_t rx_queue_id, 
-			uint16_t nb_rx_desc, cos_mbuf_pool_t mp)
+			uint16_t nb_rx_desc, char* mp)
 {
 	int ret;
 	cos_portid_t real_port_id = ports_ids[port_id];
@@ -403,7 +403,7 @@ cos_dev_port_set_promiscuous_mode(cos_portid_t port_id, bool mode)
  */
 uint16_t
 cos_dev_port_rx_burst(cos_portid_t port_id, uint16_t queue_id,
-		 cos_mbuf_t *rx_pkts, const uint16_t nb_pkts)
+		 char**rx_pkts, const uint16_t nb_pkts)
 {
 	return rte_eth_rx_burst(ports_ids[port_id], queue_id, (struct rte_mbuf **)rx_pkts, nb_pkts);
 }
@@ -421,7 +421,7 @@ cos_dev_port_rx_burst(cos_portid_t port_id, uint16_t queue_id,
  */
 uint16_t
 cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
-		 cos_mbuf_t *tx_pkts, const uint16_t nb_pkts)
+		 char**tx_pkts, const uint16_t nb_pkts)
 {
 	return rte_eth_tx_burst(ports_ids[port_id], queue_id, (struct rte_mbuf **)tx_pkts, nb_pkts);
 }
@@ -431,7 +431,7 @@ cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
                    proto type, etc.
  */
 void
-cos_parse_pkts(cos_mbuf_t mbuf)
+cos_parse_pkts(char* mbuf)
 {
 	struct rte_ether_hdr *eth_hdr;
 	char buf[RTE_ETHER_ADDR_FMT_SIZE];

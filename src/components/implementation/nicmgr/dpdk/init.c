@@ -5,7 +5,7 @@
 #define NB_TX_DESC_DEFAULT 1024
 
 void
-process_packets(cos_portid_t port_id, cos_mbuf_t* rx_pkts, uint16_t nb_pkts)
+process_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 {
 	int i;
 
@@ -61,7 +61,7 @@ cos_dpdk_demo(void)
 	assert(nb_ports > 0);
 
 	/* 3. create mbuf pool where packets will be stored, user can create multiple pools */
-	cos_mbuf_pool_t mp = cos_create_pkt_mbuf_pool(mpool_name, max_mbufs);
+	char* mp = cos_create_pkt_mbuf_pool(mpool_name, max_mbufs);
 	assert(mp != NULL);
 
 	/* 4. config each port */
@@ -78,7 +78,7 @@ cos_dpdk_demo(void)
 		cos_dev_port_set_promiscuous_mode(i, COS_DPDK_SWITCH_ON);
 	}
 	/* 6. process rx/tx packets */
-	cos_mbuf_t rx_packets[MAX_PKT_BURST];
+	char* rx_packets[MAX_PKT_BURST];
 	while (1)
 	{
 		/* infinite loop to process packets */
