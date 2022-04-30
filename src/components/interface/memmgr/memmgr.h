@@ -13,6 +13,7 @@
 #include <cos_stubs.h>
 
 vaddr_t       memmgr_heap_page_alloc(void);
+vaddr_t       memmgr_virt_to_phys(vaddr_t vaddr);
 
 vaddr_t       memmgr_heap_page_allocn(unsigned long num_pages);
 vaddr_t       COS_STUB_DECL(memmgr_heap_page_allocn)(unsigned long num_pages);

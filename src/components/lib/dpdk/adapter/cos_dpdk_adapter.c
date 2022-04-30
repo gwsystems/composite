@@ -180,8 +180,7 @@ cos_map_virt_to_phys(cos_vaddr_t addr)
 
 	assert((vaddr & 0xfff) == 0);
 
-	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
-	ret = call_cap_op(ci->pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
+	ret = memmgr_virt_to_phys((vaddr_t)vaddr);
 
 	return ret & USER_ADDR_SPACE_MASK;
 }

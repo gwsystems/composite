@@ -224,6 +224,17 @@ memmgr_heap_page_allocn_aligned(unsigned long num_pages, unsigned long align)
 }
 
 vaddr_t
+memmgr_virt_to_phys(vaddr_t vaddr)
+{
+	struct cm_comp *c;
+
+	c = ss_comp_get(cos_inv_token());
+	if (!c) return 0;
+	
+	return call_cap_op(c->comp.comp_res->ci.pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
+}
+
+vaddr_t
 memmgr_heap_page_allocn(unsigned long num_pages)
 {
 	return memmgr_heap_page_allocn_aligned(num_pages, PAGE_SIZE);
@@ -489,9 +500,9 @@ void
 capmgr_set_tls(thdcap_t cap, void* tls_addr)
 {
 	compid_t cid = (compid_t)cos_inv_token();
-	struct crt_comp* ttt = crtcomp_get(cid);
+	struct crt_comp* c = crtcomp_get(cid);
 
-	cos_thd_mod(&ttt->comp_res->ci, cap, tls_addr);
+	cos_thd_mod(&c->comp_res->ci, cap, tls_addr);
 }
 
 void
