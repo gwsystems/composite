@@ -72,7 +72,7 @@ SS_STATIC_SLAB(asnd, struct cm_asnd, MAX_NUM_THREADS);
 
 /* 64 MiB */
 #define MB2PAGES(mb) (round_up_to_page(mb * 1024 * 1024) / PAGE_SIZE)
-#define MM_NPAGES (MB2PAGES(64))
+#define MM_NPAGES (MB2PAGES(256))
 SS_STATIC_SLAB(page, struct mm_page, MM_NPAGES);
 SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 
