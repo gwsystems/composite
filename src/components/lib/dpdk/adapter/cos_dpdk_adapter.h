@@ -17,8 +17,8 @@ struct rte_pci_device;
  * need to first *define* the module within a target module's .c file, and then *declare* that
  * module name in cos_dpdk_adapter.c
  */
-#define COS_DECLARE_MODULE(module_name) extern char COS_##module_name##_PMD; char *COS_##module_name##_PMD_PTR = &COS_##module_name##_PMD;
-#define COS_DEFINE_MODULE(module_name) char COS_##module_name##_PMD;
+#define COS_DPDK_DECLARE_NIC_MODULE(module_name) extern char cos_dpdk_##module_name##_nic_module;static const char* cos_dpdk_##module_name##_ptr __attribute__((used)) = &cos_dpdk_##module_name##_nic_module;
+#define COS_DPDK_DEFINE_NIC_MODULE(module_name) char cos_dpdk_##module_name##_nic_module;
 
 /* Adapters definitions */
 int cos_printc(const char *fmt,va_list ap);

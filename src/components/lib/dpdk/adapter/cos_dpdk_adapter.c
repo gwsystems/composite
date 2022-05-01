@@ -9,9 +9,6 @@
 
 #include "cos_dpdk_adapter.h"
 
-COS_DECLARE_MODULE(e1000);
-COS_DECLARE_MODULE(mempool_ring)
-
 static struct pci_dev cos_pci_devices[PCI_DEVICE_MAX];
 static int pci_dev_nb = 0;
 
@@ -192,3 +189,6 @@ cos_get_tsc_freq(void)
 {
 	return sched_get_cpu_freq() * 1000000;
 }
+
+COS_DPDK_DECLARE_NIC_MODULE(net_e1000_em);
+COS_DPDK_DECLARE_NIC_MODULE(mempool_ring);
