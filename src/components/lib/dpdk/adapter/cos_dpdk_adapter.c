@@ -190,5 +190,5 @@ cos_map_virt_to_phys(cos_vaddr_t addr)
 unsigned long
 cos_get_tsc_freq(void)
 {
-	return cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE) * 1000000;
+	return sched_get_cpu_freq() * 1000000;
 }

@@ -31,6 +31,7 @@ cycles_t sched_thd_block_timeout(thdid_t dep_id, cycles_t abs_timeout);
 cycles_t COS_STUB_DECL(sched_thd_block_timeout)(thdid_t dep_id, cycles_t abs_timeout);
 
 void     sched_set_tls(void* tls_addr);
+unsigned long sched_get_cpu_freq(void);
 
 thdid_t sched_thd_create(cos_thd_fn_t fn, void *data); /* lib.c */
 thdid_t sched_thd_create_closure(thdclosure_index_t idx);

@@ -4,7 +4,7 @@
 #define NB_RX_DESC_DEFAULT 1024
 #define NB_TX_DESC_DEFAULT 1024
 
-void
+static void
 process_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 {
 	int i;
