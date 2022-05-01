@@ -12,7 +12,7 @@ INCLUDE_PATHS = . adapter dpdk/build/install/include
 
 INTERFACE_DEPENDENCIES =
 
-LIBRARY_DEPENDENCIES = component pci posix
+LIBRARY_DEPENDENCIES = component pci posix_legacy
 
 # this is to stop non supported build target
 # this will override $(OBJS) so that compiler will not compile target files under unsupported cases

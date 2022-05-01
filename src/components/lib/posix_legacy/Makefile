@@ -11,17 +11,17 @@ LIBRARY_OUTPUT =
 # posix) which will generate posix.lib.o. Do NOT include the list of .o
 # files here. Please note that using this list is *very rare* and
 # should only be used when the .a support above is not appropriate.
-OBJECT_OUTPUT = posix
+OBJECT_OUTPUT = posix_legacy
 # The path within this directory that holds the .h files for
 # dependents to compile with (./ by default). Will be fed into the -I
 # compiler arguments.
 INCLUDE_PATHS = .
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES = 
+INTERFACE_DEPENDENCIES = memmgr sched
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = component
+LIBRARY_DEPENDENCIES = component kernel posix
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this
