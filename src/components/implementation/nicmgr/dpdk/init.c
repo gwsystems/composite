@@ -99,6 +99,6 @@ cos_dpdk_demo(void)
 void
 cos_init(void)
 {
-	printc("dpdk comp!\n");
+	printc("nic mgr init...\n");
 	cos_dpdk_demo();
 }

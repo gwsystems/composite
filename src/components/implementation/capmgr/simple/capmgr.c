@@ -235,6 +235,17 @@ memmgr_virt_to_phys(vaddr_t vaddr)
 }
 
 vaddr_t
+memmgr_map_phys_to_virt(paddr_t paddr, size_t size)
+{
+	struct cm_comp *c;
+
+	c = ss_comp_get(cos_inv_token());
+	if (!c) return 0;
+
+	return (vaddr_t)cos_hw_map(&c->comp.comp_res->ci, BOOT_CAPTBL_SELF_INITHW_BASE, paddr, size);
+}
+
+vaddr_t
 memmgr_heap_page_allocn(unsigned long num_pages)
 {
 	return memmgr_heap_page_allocn_aligned(num_pages, PAGE_SIZE);

@@ -14,6 +14,7 @@
 #include <llprint.h>
 #include <ps_list.h>
 #include <sched.h>
+#include <memmgr.h>
 
 volatile int* null_ptr = NULL;
 #define ABORT() do {int i = *null_ptr;} while(0)
@@ -340,7 +341,7 @@ cos_futex(int *uaddr, int op, int val,
 {
 	printc("futex not implemented\n");
 	errno = ENOSYS;
-	return (void*) -1;
+	return -1;
 }
 
 

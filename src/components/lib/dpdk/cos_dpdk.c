@@ -45,7 +45,7 @@ cos_eth_info_print(cos_portid_t port_id)
 	if (ret < 0) {
 			cos_printf("Link get failed (port %u): %s\n",
 			port_id, rte_strerror(-ret));
-		} else {
+	} else {
 			rte_eth_link_to_str(link_status_text,
 					sizeof(link_status_text),
 					&link);
@@ -142,7 +142,7 @@ char*
 cos_create_pkt_mbuf_pool(const char *name, size_t nb_mbufs)
 {
 	#define MEMPOOL_CACHE_SIZE 256
-	return rte_pktmbuf_pool_create(name, nb_mbufs,
+	return (char *)rte_pktmbuf_pool_create(name, nb_mbufs,
 		MEMPOOL_CACHE_SIZE, 0, COS_MBUF_DEFAULT_BUF_SIZE,
 		rte_socket_id());
 }
@@ -251,7 +251,7 @@ cos_dev_port_rx_queue_setup(cos_portid_t port_id, uint16_t rx_queue_id,
 	ret = rte_eth_rx_queue_setup(real_port_id, 0, nb_rx_desc,
 					rte_eth_dev_socket_id(real_port_id),
 					&rxq_conf,
-					mp);
+					(struct rte_mempool *)mp);
 	if (ret < 0) {
 		rte_exit(EXIT_FAILURE, "rte_eth_rx_queue_setup:err=%d, port=%u\n",
 				ret, port_id);

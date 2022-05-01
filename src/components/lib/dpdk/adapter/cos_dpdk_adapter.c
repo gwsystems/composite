@@ -3,8 +3,9 @@
 #include <io.h>
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
+#include <memmgr.h>
 
-#include<rte_bus_pci.h>
+#include <rte_bus_pci.h>
 
 #include "cos_dpdk_adapter.h"
 
@@ -167,7 +168,7 @@ cos_pci_scan(void)
 cos_vaddr_t
 cos_map_phys_to_virt(paddr_t paddr, size_t size)
 {
-	return (cos_vaddr_t)cos_hw_map(cos_compinfo_get(cos_defcompinfo_curr_get()), BOOT_CAPTBL_SELF_INITHW_BASE, paddr, size);
+	return memmgr_map_phys_to_virt(paddr, size);
 }
 
 cos_paddr_t
