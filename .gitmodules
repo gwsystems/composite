@@ -8,5 +8,5 @@
 	branch = cos_profile
 [submodule "src/components/lib/dpdk/dpdk"]
 	path = src/components/lib/dpdk/dpdk
-	url = git@github.com:betahxy/dpdk.git
-	branch = composite
+	url = https://github.com/gwsystems/dpdk.git
+	branch = cos_dpdk
