@@ -19,6 +19,10 @@ ubuntu64()
 		sudo apt install grub2-common
 	fi
 
+	pip3 install pyelftools
+	pip3 install meson>=0.61.0
+	pip3 install ninja
+
 	# Install rust
 	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 }
@@ -36,6 +40,9 @@ fedora64()
 		sudo yum install grub2
 	fi
 
+	pip3 install pyelftools
+	pip3 install meson>=0.61.0
+	pip3 install ninja
 	# Install rust
 	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 }
