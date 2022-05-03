@@ -2,26 +2,26 @@
 # for many of these to be empty.
 #
 # The library names associated with .a files output that are linked
-# (via, for example, -lps) into dependents. This list should be
-# "ps" for output files such as libps.a.
-LIBRARY_OUTPUT = ps
+# (via, for example, -lposix) into dependents. This list should be
+# "posix" for output files such as libposix.a.
+LIBRARY_OUTPUT =
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,
-# ps) which will generate ps.lib.o. Do NOT include the list of .o
+# posix) which will generate posix.lib.o. Do NOT include the list of .o
 # files here. Please note that using this list is *very rare* and
 # should only be used when the .a support above is not appropriate.
-OBJECT_OUTPUT =
+OBJECT_OUTPUT = posix_capsched
 # The path within this directory that holds the .h files for
 # dependents to compile with (./ by default). Will be fed into the -I
 # compiler arguments.
-INCLUDE_PATHS = ps/
+INCLUDE_PATHS = .
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES =
+INTERFACE_DEPENDENCIES = memmgr sched
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = component
+LIBRARY_DEPENDENCIES = component kernel posix
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this
@@ -40,7 +40,7 @@ LIBRARY_DEPENDENCIES = component
 # libraries written for composite. Get rid of this if you require a
 # custom Makefile (e.g. if you use an existing
 # (non-composite-specific) library. An example of this is `kernel`.
-## include Makefile.lib
+include Makefile.lib
 
 ## Type 2, external library: If you need to specialize the Makefile
 ## for an external library, you can add the external code as a
@@ -51,42 +51,13 @@ LIBRARY_DEPENDENCIES = component
 ##
 ## To access the Composite Makefile definitions, use the following. An
 ## example of a Makefile written in this way is in `ps/`.
-
-include Makefile.src Makefile.comp Makefile.dependencies
-
-.PHONY: all clean init distclean config clean_lib armv7a_config i386_config
-CINC_ENV = $(CINC) $(DEPENDENCY_INCPATH)
-
-CFLAGS   = $(CINC_ENV) -Wno-address-of-packed-member
-export CINC_ENV
-export CFLAGS
-
-all: config
-	$(info Building ps library...)
-	make -C ps all
-	cp ps/libps.a .
-
-clean_lib:
-	@rm -f libps.a
-	make -C ps clean
-
-# need to make sure the ps_plat.h is always available
-clean: config clean_lib
-
-armv7a_config:
-	$(info Configuring the ps library)
-	@cd ps; ./configure cos armv7a general; cd ..
-
-i386_config:
-	$(info Configuring the ps library)
-	@cd ps; ./configure cos x86 general; cd ..
-
-x86_64_config:
-	$(info Configuring the ps library)
-	cd ps; ./configure cos x86_64 general; cd ..
-
-config: $(PLATFORM)_config
-	make -C ps config
-
-init: clean all
-distclean: clean
+#
+# include Makefile.src Makefile.comp Makefile.dependencies
+# .PHONY: all clean init distclean
+## Fill these out with your implementation
+# all:
+# clean:
+#
+## Default rules:
+# init: clean all
+# distclean: clean
