@@ -10,3 +10,6 @@
 	path = src/components/lib/dpdk/dpdk
 	url = https://github.com/gwsystems/dpdk.git
 	branch = cos_dpdk
+[submodule "src/components/lib/lwip/lwip"]
+	path = src/components/lib/lwip/lwip
+	url = git@github.com:betahxy/lwip.git
