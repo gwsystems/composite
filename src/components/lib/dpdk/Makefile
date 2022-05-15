@@ -80,7 +80,7 @@ else
 endif
 
 $(SHLIB_FILE): build $(OBJS)
-
+CFLAGS+=-mfma
 
 armv7a_init:
 

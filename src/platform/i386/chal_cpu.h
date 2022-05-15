@@ -13,6 +13,7 @@ typedef enum {
 	CR4_PCE      = 1 << 8,  /* user-level access to performance counters enabled (rdpmc) */
 	CR4_OSFXSR   = 1 << 9,  /* floating point enabled */
 	CR4_FSGSBASE = 1 << 16, /* user level fs/gs access permission bit */
+	CR4_OSXSAVE  = 1 << 18, /* XSAVE and Processor Extended States Enable */
 	CR4_SMEP     = 1 << 20, /* Supervisor Mode Execution Protection Enable */
 	CR4_SMAP     = 1 << 21  /* Supervisor Mode Access Protection Enable */
 } cr4_flags_t;
@@ -114,6 +115,17 @@ chal_cpuid(int code, u32_t *a, u32_t *b, u32_t *c, u32_t *d)
 	asm volatile("cpuid" : "=a"(*a), "=b"(*b), "=c"(*c), "=d"(*d) : "a"(code));
 }
 
+static inline void
+chal_avx_enable(void)
+{
+	__asm__ __volatile__(
+		"xor %%rcx, %%rcx\n\t" \
+		"xgetbv\n\t" \
+		"or $7, %%eax\n\t" \
+		"xsetbv\n\t" \
+		:::"rax","rdx","rcx");
+}
+
 static void
 chal_cpu_init(void)
 {
@@ -123,7 +135,8 @@ chal_cpu_init(void)
 #if defined(__x86_64__)
 	u32_t low = 0, high = 0;
 
-	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
+	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE);
+	chal_avx_enable();
 
 	readmsr(MSR_IA32_EFER, &low, &high);
 	writemsr(MSR_IA32_EFER,low | 0x1, high);
