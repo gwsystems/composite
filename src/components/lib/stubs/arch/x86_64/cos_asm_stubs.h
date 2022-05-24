@@ -56,7 +56,7 @@ __cosrt_s_##name:						\
 	andq    $0xfffffffffffff000, %rdx;			\
 	movzwq  0xff0(%rdx), %r13;				\
 	COS_ULINV_SWITCH_DOMAIN(0x0)				\
-	movabs  $ULK_BASE_ADDR, %r14;			\
+	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_PUSH_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* invocation token */					\
@@ -78,6 +78,7 @@ __cosrt_s_##name:						\
 	/* save server authentication token */			\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
 	COS_ULINV_SWITCH_DOMAIN(0x0)				\
+	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_POP_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* check server token */				\
@@ -146,7 +147,7 @@ __cosrt_s_##name:						\
 	andq    $0xfffffffffffff000, %rdx;			\
 	movzwq  0xff0(%rdx), %r13;				\
 	COS_ULINV_SWITCH_DOMAIN(0x0)				\
-	movabs  $ULK_BASE_ADDR, %r14;			\
+	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_PUSH_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* invocation token */					\
@@ -174,6 +175,7 @@ __cosrt_s_##name:						\
 	/* save server authentication token */			\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
 	COS_ULINV_SWITCH_DOMAIN(0x0)				\
+	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_POP_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* check server token */				\

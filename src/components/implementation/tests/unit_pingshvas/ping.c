@@ -7,6 +7,23 @@
 
 volatile ps_tsc_t fast_path, all_args;
 
+struct tbl {
+	u16_t t[256];
+};
+
+volatile struct tbl tb;
+volatile u16_t idx;
+
+void
+fn(void)
+{
+	volatile int tid = 1;
+
+	tb.t[tid] = 0xdead;
+
+	idx = tb.t[tid];
+}
+
 void
 cos_init(void)
 {
@@ -20,9 +37,6 @@ cos_init(void)
 	long long b = (long long)4 << 32 | (long long)2;
 	int ret;
 	long long ret_ll;
-
-	printc("Ping component %ld: cos_init execution\n", cos_compid());
-	assert(*((char *)(ULK_BASE_ADDR + 4096*90)) == 69);
 
 	pongshvas_call();
 	ret = pongshvas_ret();

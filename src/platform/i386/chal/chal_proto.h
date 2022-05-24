@@ -31,9 +31,15 @@
 /* make it an opaque type...not to be touched */
 typedef struct pgtbl *pgtbl_t;
 
+/* x86-64 protection domain: |0...00|asid|mpk| */
+#define PROT_DOMAIN_PKEY_BITS (4)
+#define PROT_DOMAIN_PKEY(protdom) (protdom & 0xf)
+#define PROT_DOMAIN_PCID_BITS (12)
+#define PROT_DOMAIN_PCID(protdom) ((protdom << PROT_DOMAIN_PKEY_BITS) & 0xfff)
+
 struct pgtbl_info {
-	asid_t  asid; /* Unused */
-	pgtbl_t pgtbl;
+	prot_domain_t protdom;
+	pgtbl_t       pgtbl;
 } __attribute__((packed));
 
 /* identical to the capability structure */
@@ -46,11 +52,38 @@ struct cap_pgtbl {
 	u64_t             frozen_ts; /* timestamp when frozen is set. */
 } __attribute__((packed));
 
+static inline void
+wrpkru(u32_t pkru)
+{
+	asm volatile (
+		"xor %%rcx, %%rcx\n\t"
+		"xor %%rdx, %%rdx\n\t"
+		"mov %0,    %%eax\n\t"
+		"wrpkru\n\t"
+		: : "r" (pkru)
+	);
+}
+
+static inline void
+pkey_enable(u8_t mpk_key)
+{
+	/* 
+	 * spicy bit twiddling to set all keys except
+	 * the inputted key and key 0 to WD/AD
+	 */
+	wrpkru(~(0b11 << (2 * mpk_key)) & ~0b11);
+}
+
 /* Update the page table */
 static inline void
 chal_pgtbl_update(struct pgtbl_info *pt)
 {
+	/* TODO: PCID SUPPORT */
+	u16_t asid = PROT_DOMAIN_PCID(pt->protdom);
+	u8_t  pkey = PROT_DOMAIN_PKEY(pt->protdom);
+
 	asm volatile("mov %0, %%cr3" : : "r"(pt->pgtbl));
+	pkey_enable(pkey);
 }
 
 static inline asid_t

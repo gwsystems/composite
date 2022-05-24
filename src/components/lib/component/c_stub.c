@@ -6,7 +6,6 @@
 COS_CLIENT_STUB(int, cosrtdefault, word_t p0, word_t p1, word_t p2, word_t p3)
 {
 	COS_CLIENT_INVCAP;
-
 	return COS_SINV(uc, p0, p1, p2, p3);
 }
 

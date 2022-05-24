@@ -18,7 +18,6 @@ struct comp_info {
 	struct liveness_data liveness;
 	struct pgtbl_info    pgtblinfo;
 	struct captbl *      captbl;
-	u32_t				 mpk_key;
 } __attribute__((packed));
 
 struct cap_comp {
@@ -29,9 +28,17 @@ struct cap_comp {
 	struct comp_info   info;
 } __attribute__((packed));
 
+struct cap_sinv {
+	struct cap_header h;
+	struct comp_info  comp_info;
+	vaddr_t           entry_addr;
+	invtoken_t        token;
+} __attribute__((packed));
+
+
 static int
 comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, capid_t pgtbl_cap, livenessid_t lid,
-              vaddr_t entry_addr, u32_t mpk_key)
+              vaddr_t entry_addr, prot_domain_t protdom)
 {
 	struct cap_comp *  compc;
 	struct cap_pgtbl * ptc;
@@ -58,13 +65,12 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	compc = (struct cap_comp *)__cap_capactivate_pre(t, cap, capin, CAP_COMP, &ret);
 	if (!compc) cos_throw(undo_ctc, ret);
 
-	compc->entry_addr           = entry_addr;
-	compc->info.pgtblinfo.pgtbl = ptc->pgtbl;
-	compc->info.pgtblinfo.asid  = chal_asid_alloc();
-	compc->info.captbl          = ctc->captbl;
-	compc->info.mpk_key         = mpk_key;
-	compc->pgd                  = ptc;
-	compc->ct_top               = ctc;
+	compc->entry_addr             = entry_addr;
+	compc->info.pgtblinfo.pgtbl   = ptc->pgtbl;
+	compc->info.pgtblinfo.protdom = protdom;
+	compc->info.captbl            = ctc->captbl;
+	compc->pgd                    = ptc;
+	compc->ct_top                 = ctc;
 	ltbl_get(lid, &compc->info.liveness);
 	__cap_capactivate_post(&compc->h, CAP_COMP);
 

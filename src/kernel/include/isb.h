@@ -8,46 +8,39 @@
 struct cap_isb {
     struct cap_header     h;
     struct liveness_data  liveness;
-    size_t                npages;
+    vaddr_t               kern_addr;
 } __attribute__((packed));
 
+static int
+isb_activate(struct captbl *t, capid_t ctcap, capid_t isbcapid, livenessid_t lid, vaddr_t kaddr, capid_t ptcid, vaddr_t uaddr)
+{
+    struct cap_isb   *isbcap;
+    struct cap_pgtbl *ptcap;
+    paddr_t           pframe = chal_va2pa((void *)kaddr);
+    int               ret;
 
-// static int
-// isb_activate(struct captbl *t, capid_t ctcap, capid_t isbcap, size_t npages, livenessid_t lid)
-// {
-//     struct cap_isb *cisb;
-//     int             ret;
+    ptcap = (struct cap_pgtbl *)captbl_lkup(t, ptcid);
+    if (!ptcap || ptcap->h.type != CAP_PGTBL) return -EINVAL;
+    if (pgtbl_mapping_add(ptcap->pgtbl, uaddr, pframe, PGTBL_USER_DEF, 12)) return -EINVAL;
 
-//     cisb = (struct cap_isb *)__cap_capactivate_pre(t, ctcap, isbcap, CAP_ISB, &ret);
-//     if (!cisb) return -EINVAL;
+    isbcap = (struct cap_isb *)__cap_capactivate_pre(t, ctcap, isbcapid, CAP_ISB, &ret);
+    if (!isbcap) return -EINVAL;
 
-//     ltbl_get(lid, &cisb->liveness);
-//     cisb->npages = npages;
-//     memset((void *)ULK_BASE_ADDR, 0, PAGE_SIZE * npages);
-//     cos_isb_alloced = 1;
+    ltbl_get(lid, &isbcap->liveness);
+    isbcap->kern_addr = kaddr;
+    memset((void *)kaddr, 0, PAGE_SIZE);
 
-//     __cap_capactivate_post(&cisb->h, CAP_ISB);
+    __cap_capactivate_post(&isbcap->h, CAP_ISB);
 
-//     return 0;
-// }
+    return ret;
+}
 
-// static int
-// isb_deactivate(struct cap_captbl *ct, capid_t isbcap, capid_t ptcap, capid_t cosframe_addr, livenessid_t lid)
-// {
-//     /* TODO */
-//     assert(0);
-//     return 0;
-// }
-
-// static inline int
-// isb_mapin(struct captbl *ct, struct cap_isb *cisb, struct cap_pgtbl *ptcin, vaddr_t uaddr)
-// {
-//     if (unlikely(!ltbl_isalive(&cisb->liveness))) return -EPERM;
-// 	paddr_t pa = chal_va2pa((void *)(cisb->k_addr));
-
-// 	if (pgtbl_mapping_add(ptcin->pgtbl, uaddr, pa, PGTBL_USER_DEF | (1ul << 59), 12)) return -EINVAL;
-
-// 	return 0;
-// }
+static int
+isb_deactivate(struct cap_captbl *ct, capid_t isbcap, capid_t ptcap, capid_t cosframe_addr, livenessid_t lid)
+{
+    /* TODO */
+    assert(0);
+    return 0;
+}
 
 #endif

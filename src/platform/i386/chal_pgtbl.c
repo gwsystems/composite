@@ -316,7 +316,6 @@ chal_pgtbl_lkup_lvl(pgtbl_t pt, vaddr_t addr, word_t *flags, u32_t start_lvl, u3
 	unsigned long *intern = chal_pa2va((unsigned long)pt & PGTBL_ENTRY_ADDR_MASK);
 	unsigned long *page   = chal_pa2va((unsigned long)pt & PGTBL_ENTRY_ADDR_MASK);
 
-	if (addr > COS_MEM_USER_MAX_VA) printk("ADDR: %p\n", addr);
 	assert(addr <= COS_MEM_USER_MAX_VA || addr >= COS_MEM_KERN_START_VA);
 	assert(start_lvl == 0);
 
@@ -373,7 +372,7 @@ chal_pgtbl_mapping_add(pgtbl_t pt, vaddr_t addr, paddr_t page, word_t flags, u32
 
 	/* ref cnt on the frame - always user frame. */
 	ret = retypetbl_ref((void *)page, order);
-	if (ret) return ret;
+	if (ret) return -99;
 
 	ret = __pgtbl_update_leaf(pte, (void *)(page | flags), orig_v);
 	/* restore the refcnt if necessary */

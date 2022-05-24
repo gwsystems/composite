@@ -275,7 +275,6 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 				printc("cons failed: %d\n", cons_ret);
 				assert(0);
 			}
-
 		}
 		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 
 		 * NOTE: this means no further allocations can be made in existing
@@ -344,7 +343,7 @@ crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c)
 	if (mpk_key == 0 && ((mpk_key = crt_mpk_available_name(vas)) == -1)) {
 		return -1;
 	}
-	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get()), c->mpk_key) != 0) {
+	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get()), (prot_domain_t)c->mpk_key) != 0) {
 		printc("allocate comp cap/cap table cap failed\n");
 		return -1;
 	}
@@ -387,6 +386,7 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	if ((mpk_key = crt_mpk_available_name(vas)) == -1) {
 		return -1;
 	}
+	printc("KEY %d\n", mpk_key);
 
 	c->mpk_key = mpk_key;
 	crt_comp_create(c, name, id, elf_hdr, info, mpk_key);
@@ -400,6 +400,13 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	if (cons_ret != 0) {
 		printc("cons failed: %d\n", cons_ret);
 		assert(0);
+	}
+	if (vas->parent) {
+		cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->parent->top_lvl_pgtbl);
+		if (cons_ret != 0) {
+			printc("cons failed: %d\n", cons_ret);
+			assert(0);
+		}
 	}
 
 	vas->names[name_index].allocated = 1;
@@ -639,7 +646,7 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	printc("\t\t elf obj: ro [0x%lx, 0x%lx), data [0x%lx, 0x%lx), bss [0x%lx, 0x%lx).\n",
 	       c->ro_addr, c->ro_addr + ro_sz, c->rw_addr, c->rw_addr + data_sz, c->rw_addr + data_sz, c->rw_addr + data_sz + bss_sz);
 
-	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, c->mpk_key);
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, (prot_domain_t)c->mpk_key);
 	assert(!ret);
 
 	tot_sz = round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz);
@@ -842,6 +849,7 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 	struct usr_inv_cap *ucap;
 	u64_t   client_auth_tok, server_auth_tok;
 	vaddr_t callgate_addr;
+	compcap_t dest;
 	
 	assert(sinv && name && server && client);
 
@@ -868,7 +876,12 @@ crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *serve
 	client_auth_tok = 0xfefefefefefefefe; /* = CSPRNG() */
 	server_auth_tok = 0xabababababababab; /* = CSPRNG() */
 
-	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
+	/* this seems like a flaw in the namespace manager design 
+	   but I might be misunderstanding. I just cant see a reason 
+	   to a have seperate "shared" component capability */
+	dest = (srv->comp_cap_shared) ? srv->comp_cap_shared : srv->comp_cap;
+	
+	sinv->sinv_cap = cos_sinv_alloc(cli, dest, sinv->s_fn_addr, client->id);
 	assert(sinv->sinv_cap);
 
 	callgate_off  = s_fn_addr - sinv->server->ro_addr;
@@ -1058,6 +1071,55 @@ crt_thd_create_with(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resour
  * requested @closure_id).
  */
 int
+crt_shvas_thd_create_in(struct crt_thd *t, struct crt_comp *c, struct crt_isb_ctrl *isbctrl, thdclosure_index_t closure_id)
+{
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
+	struct cos_compinfo    *target_ci;
+	struct cos_aep_info    *target_aep;
+	thdcap_t thdcap;
+	struct crt_thd_resources rs;
+	
+	crt_isb_idx_t stk_idx;
+
+	assert(t && c);
+
+	target_ci = cos_compinfo_get(c->comp_res);
+	target_aep = cos_sched_aep_get(c->comp_res);
+
+	/* allocate an invocation stack */
+	stk_idx = crt_isb_stk_alloc(isbctrl);
+
+	assert(target_ci->comp_cap);
+	if (closure_id == 0) {
+		if (target_aep->thd != 0) return -1; /* should not allow double initialization */
+
+		crt_refcnt_take(&c->refcnt);
+		assert(target_ci->comp_cap);
+
+		if (target_ci->comp_cap_shared != 0) {
+			thdcap = target_aep->thd = cos_initthd_alloc_shvas(ci, target_ci->comp_cap_shared, isbctrl->curr_blk, crt_isb_idx_to_off(stk_idx));
+		}
+		else {
+			thdcap = target_aep->thd = cos_initthd_alloc_shvas(ci, target_ci->comp_cap, isbctrl->curr_blk, crt_isb_idx_to_off(stk_idx));
+		}
+		assert(target_aep->thd);
+	} else {
+		crt_refcnt_take(&c->refcnt);
+		thdcap = cos_thd_alloc_ext_shvas(ci, target_ci->comp_cap, closure_id, isbctrl->curr_blk, crt_isb_idx_to_off(stk_idx));
+		assert(thdcap);
+	}
+
+	rs = (struct crt_thd_resources) { .cap = thdcap };
+	if (crt_thd_create_with(t, c, &rs)) BUG();
+	t->tid = cos_introspect(ci, thdcap, THD_GET_TID);
+
+	crt_isb_iat_update(isbctrl, t->tid, stk_idx);
+
+	return 0;
+}
+
+int
 crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t closure_id)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
@@ -1066,7 +1128,6 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 	struct cos_aep_info    *target_aep;
 	thdcap_t thdcap;
 	struct crt_thd_resources rs;
-
 	assert(t && c);
 
 	target_ci = cos_compinfo_get(c->comp_res);
@@ -1099,6 +1160,21 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 	return 0;
 }
 
+int
+crt_shvas_thd_create(struct crt_thd *t, struct crt_comp *self, struct crt_isb_ctrl *isbctrl, crt_thd_fn_t fn, void *data)
+{
+	int           idx = cos_thd_init_alloc(fn, data);
+	thdcap_t      ret;
+	crt_isb_idx_t stk_idx;
+
+	assert(t && self);
+	if (idx < 1) return 0;
+	ret = crt_shvas_thd_create_in(t, self, isbctrl, idx);
+	if (!ret) cos_thd_init_free(idx);
+
+	return ret;
+}
+
 /**
  * Create a new thread in this component to execute fn with the
  * corresponding data.
@@ -1110,8 +1186,9 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 int
 crt_thd_create(struct crt_thd *t, struct crt_comp *self, crt_thd_fn_t fn, void *data)
 {
-	int      idx = cos_thd_init_alloc(fn, data);
-	thdcap_t ret;
+	int           idx = cos_thd_init_alloc(fn, data);
+	thdcap_t      ret;
+	crt_isb_idx_t stk_idx;
 
 	assert(t && self);
 	if (idx < 1) return 0;
@@ -1524,6 +1601,128 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 	return 0;
 }
 
+/**
+ * Modify the component to make it a scheduler and/or a capability
+ * manager. This allocates the initial execution and capabilities into
+ * the target component. For a scheduler, it creates the rcv endpoint,
+ * thread, and tcap for the scheduler. For now, it also maps in the
+ * component's capability table. For a capability manager, it does
+ * that *and* maps in the page-table and component structure of the
+ * component itself. In addition, for a capability manager, a `memsz`
+ * amount of untyped memory is mapped into a pgtbl that is mapped into
+ * the component.
+ *
+ * - @c the component to upgrade
+ * - @flags in CRT_COMP_SCHED and/or CRT_COMP_CAPMGR
+ * - @memsz is the amount of untyped memory to map into the capmgr
+ *   (not relevant if you don't pass in CRT_COMP_CAPMGR)
+ * - @ret 0 on success
+ */
+int
+crt_comp_exec_shvas(struct crt_comp *c, struct crt_comp_exec_context *ctxt, struct crt_isb_ctrl *isbctrl)
+{
+	struct cos_defcompinfo *defci      = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci         = cos_compinfo_get(defci);
+	struct cos_compinfo    *target_ci  = cos_compinfo_get(c->comp_res);
+	struct cos_aep_info    *target_aep = cos_sched_aep_get(c->comp_res);
+	struct crt_comp_resources compres;
+	int ret;
+
+	assert(c && ctxt);
+
+	/* Should only be called if initialization is necessary */
+	assert(target_ci->comp_cap);
+	if (ctxt->flags & CRT_COMP_CAPMGR && !(c->flags & CRT_COMP_SCHED)) ctxt->flags |= CRT_COMP_SCHED;
+	assert(!(ctxt->flags & CRT_COMP_INITIALIZE) || !(ctxt->flags & CRT_COMP_SCHED)); /* choose one */
+	assert((c->flags & ctxt->flags) == 0);
+
+	if (ctxt->flags & CRT_COMP_INITIALIZE) {
+		assert(!(c->flags & (CRT_COMP_CAPMGR | CRT_COMP_SCHED)) && ctxt->exec.thd);
+
+		c->exec_ctxt = *ctxt;
+		c->flags     = ctxt->flags;
+
+		if (crt_shvas_thd_create_in(ctxt->exec.thd, c, isbctrl, 0)) BUG();
+
+		return 0;
+	}
+
+	if (ctxt->flags & CRT_COMP_SCHED) {
+		struct crt_rcv_resources rcvres;
+		struct crt_rcv *r;
+
+		assert(!(c->flags & CRT_COMP_SCHED) && ctxt->exec.sched.sched_rcv);
+		r = ctxt->exec.sched.sched_rcv;
+
+		if (crt_rcv_create_in(r, c, NULL, 0, 0)) BUG();
+
+		rcvres = (struct crt_rcv_resources) {
+			.tc  = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE,
+			.thd = BOOT_CAPTBL_SELF_INITTHD_CPU_BASE,
+			.rcv = BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
+		};
+		if (crt_rcv_alias_in(r, c, &rcvres, CRT_RCV_ALIAS_RCV | CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP)) BUG();
+
+		*target_aep = r->local_aep; /* update the component's structures */
+		assert(target_aep->thd && target_aep->tc && target_aep->rcv);
+
+		/*
+		 * FIXME:
+		 * This is an ugly hack to allow components to do cos_introspect()
+		 * - to get thdid
+		 * - to get budget on tcap
+		 * - other introspect uses
+		 *
+		 * I don't know a way to get away from this for now!
+		 * If it were just thdid, capmgr could have returned the thdids!
+		 */
+		compres = (struct crt_comp_resources) {
+			.ctc = BOOT_CAPTBL_SELF_CT
+		};
+		if (crt_comp_alias_in(c, c, &compres, CRT_COMP_ALIAS_CAPTBL)) BUG();
+		/*
+		 * FIXME: should subset the permissions for this
+		 * around time management. This should be added back
+		 * in and removed above
+		 */
+		/* ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_INITHW_BASE, ci, BOOT_CAPTBL_SELF_INITHW_BASE); */
+		/* assert(ret == 0); */
+
+		/* Update the component's structure */
+		c->exec_ctxt.exec.sched.sched_rcv = r;
+		/* Make an asnd capability to the child so that we can do tcap delegations */
+		if (crt_asnd_create(&c->exec_ctxt.exec.sched.sched_asnd, r)) BUG();
+
+		c->flags |= CRT_COMP_SCHED;
+	}
+	/* fall-through here */
+	if (ctxt->flags & CRT_COMP_CAPMGR) {
+		pgtblcap_t utpt;
+
+		assert((c->flags & CRT_COMP_SCHED) && !(c->flags & (CRT_COMP_INITIALIZE | CRT_COMP_CAPMGR)));
+
+		/* assume CT is already mapped in from sched_create */
+		compres = (struct crt_comp_resources) {
+			.ptc   = BOOT_CAPTBL_SELF_PT,
+			.compc = BOOT_CAPTBL_SELF_COMP
+		};
+		if (crt_comp_alias_in(c, c, &compres, CRT_COMP_ALIAS_PGTBL | CRT_COMP_ALIAS_COMP)) BUG();
+
+		/* Set up the untyped memory in the new component */
+		utpt = cos_pgtbl_alloc(ci);
+		assert(utpt);
+		cos_meminfo_init(&(target_ci->mi), BOOT_MEM_KM_BASE, ctxt->memsz, utpt);
+		cos_meminfo_alloc(target_ci, BOOT_MEM_KM_BASE, ctxt->memsz);
+		ret = cos_cap_cpy_at(target_ci, BOOT_CAPTBL_SELF_UNTYPED_PT, ci, target_ci->mi.pgtbl_cap);
+		assert(ret == 0);
+
+		c->exec_ctxt.memsz = ctxt->memsz;
+		c->flags |= CRT_COMP_CAPMGR;
+	}
+
+	return 0;
+}
+
 void *
 crt_page_allocn(struct crt_comp *c, u32_t n_pages)
 {
@@ -1735,4 +1934,65 @@ crt_compinit_exit(struct crt_comp *c, int retval)
 	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 	BUG();
 	while (1) ;
+}
+
+void
+crt_isb_ctrl_init(struct crt_isb_ctrl *isbctrl)
+{
+	struct cos_compinfo *curr = cos_compinfo_get(cos_defcompinfo_curr_get());
+	pgtblcap_t           toplvl, secondlvl;
+
+	assert(isbctrl);
+
+	/* FIXME: will need to allocate more pages for 
+	   IAT if max num thds is > 2048 */
+
+	isbctrl->toplvl = cos_isb_pgtbl_create(curr, &secondlvl, &isbctrl->curr_blk);
+	if (!isbctrl->toplvl) BUG();
+	
+	isbctrl->iat          = (struct crt_isb_access_tbl *)ULK_BASE_ADDR;
+	isbctrl->secondlvl    = secondlvl;
+	isbctrl->blk_frontier = ULK_BASE_ADDR + PAGE_SIZE;
+	isbctrl->idx_frontier = 0;
+}
+
+crt_isb_idx_t
+crt_isb_stk_alloc(struct crt_isb_ctrl *isbctrl)
+{
+	struct cos_compinfo *curr = cos_compinfo_get(cos_defcompinfo_curr_get());           
+
+	assert(isbctrl && isbctrl->toplvl);
+	/* TODO: handle concurrency */
+
+	/* need to allocate another block */
+	if ((isbctrl->idx_frontier % (PAGE_SIZE / sizeof(struct cos_ulinvstk)) == 0)) {
+		isbctrl->curr_blk = cos_isb_alloc(curr, isbctrl->toplvl, isbctrl->blk_frontier);
+		isbctrl->blk_frontier += PAGE_SIZE;
+	}
+
+	return isbctrl->idx_frontier++;
+}
+
+void
+crt_isb_iat_update(struct crt_isb_ctrl *isbctrl, thdid_t tid, crt_isb_idx_t isb_idx)
+{
+	assert(isbctrl);
+
+	isbctrl->iat->isb_stk_idx[tid] = isb_idx;
+}
+
+int
+crt_isb_map_in(struct crt_ns_vas *vas, struct crt_isb_ctrl *isbctrl)
+{
+	assert(vas->top_lvl_pgtbl && isbctrl->secondlvl);
+
+	if (cos_isb_map_in(vas->top_lvl_pgtbl, isbctrl->secondlvl)) BUG();
+
+	return 0;
+}
+
+u8_t
+crt_isb_idx_to_off(crt_isb_idx_t idx)
+{
+	return idx % (PAGE_SIZE / sizeof(struct cos_ulinvstk));
 }

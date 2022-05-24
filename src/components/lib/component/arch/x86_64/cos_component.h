@@ -138,7 +138,6 @@ cos_print(char *s, int len)
 	// FIXME: casting from a pointer to an int can be lossy
 	call_cap(PRINT_CAP_TEMP, (word_t) s, len, 0, 0);
 }
-
 static inline int
 cos_sinv(u32_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {

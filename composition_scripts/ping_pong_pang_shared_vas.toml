@@ -1,0 +1,33 @@
+[system]
+description = "Simple system: the ping pong test for IPC and shared VAS"
+
+[[components]]
+name = "booter"
+img  = "no_interface.llbooter_shvas"
+implements = [{interface = "init"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"
+
+[[components]]
+name = "pingshvas"
+img  = "tests.unit_pingshvas"
+deps = [{srv = "pongshvas", interface = "pongshvas"},
+        {srv = "booter", interface = "init"}]
+baseaddr = "0x40000000"
+constructor = "booter"
+
+[[components]]
+name = "pongshvas"
+img  = "tests.unit_pongshvas"
+deps = [{srv = "booter", interface = "init"},
+        {srv = "pang", interface = "pang"}]
+implements = [{interface = "pongshvas"}]
+baseaddr = "0x10000000000"
+constructor = "booter"
+
+[[components]]
+name = "pang"
+img  = "tests.unit_pang"
+deps = [{srv = "booter", interface = "init"}]
+implements = [{interface = "pang"}]
+constructor = "booter"

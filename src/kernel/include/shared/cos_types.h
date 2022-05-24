@@ -108,7 +108,6 @@ typedef enum {
 	CAPTBL_OP_ARCVDEACTIVATE,
 	CAPTBL_OP_MEMACTIVATE,
 	CAPTBL_OP_MEMDEACTIVATE,
-	CAPTBL_OP_MEMISBACTIVATE,
 	/* CAPTBL_OP_MAPPING_MOD, */
 
 	CAPTBL_OP_MEM_RETYPE2USER,
@@ -143,7 +142,13 @@ typedef enum {
 	CAPTBL_OP_HW_L1FLUSH,
 	CAPTBL_OP_HW_TLBFLUSH,
 	CAPTBL_OP_HW_TLBSTALL,
-	CAPTBL_OP_HW_TLBSTALL_RECOUNT
+	CAPTBL_OP_HW_TLBSTALL_RECOUNT,
+
+	CAPTBL_OP_ISBACTIVATE,
+
+	/* TODO: Remove before integration */
+	CAPTBL_OP_TEST_UL_INV,
+
 } syscall_op_t;
 
 typedef enum {
@@ -373,6 +378,16 @@ typedef unsigned long      invtoken_t;
 #define THDCLOSURE_INIT
 typedef int                thdclosure_index_t;
 
+/* This is an attempt decouple hardware specific code from
+   parts of the kernel interface that are kernel agnostic.
+   This type provides an abstraction for hardware-specific 
+   protection domain identifiers (ASID, MPK) that are 
+   interpreted at the hardware-abstraction-layer level. 
+   It is intended for interfaces for hardware-aware user-level 
+   code such as namespace managers. There might be a better 
+   way to do this but it cleans up the kernel interface. */
+typedef unsigned long prot_domain_t;
+
 struct restartable_atomic_sequence {
 	vaddr_t start, end;
 };
@@ -421,7 +436,7 @@ struct cos_stack_freelists {
 struct cos_ulinvstk_entry {
 	capid_t sinv_cap;
 	vaddr_t sp;
-} CACHE_ALIGNED;
+} __attribute__((packed));
 
 /* 1 thread's stack = 2 cache lines */
 #define COS_ULK_INVSTK_SZ 7
@@ -429,7 +444,7 @@ struct cos_ulinvstk_entry {
 struct cos_ulinvstk {
 	u64_t top, pad;
 	struct cos_ulinvstk_entry s[COS_ULK_INVSTK_SZ];
-} CACHE_ALIGNED;
+} CACHE_ALIGNED __attribute__((packed));
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;

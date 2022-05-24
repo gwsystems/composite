@@ -62,6 +62,9 @@ pongshvas_call(void)
 int
 pongshvas_ret(void)
 {
+	/* test kernel invocations from UL stk */
+	assert(pang_call() == 99);
+
 	return 42;
 }
 

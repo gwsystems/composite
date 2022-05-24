@@ -743,7 +743,7 @@ __alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
 }
 
 static thdcap_t
-__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init_data)
+__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init_data, isbcap_t isbcap, u8_t ulinvstk_off)
 {
 	vaddr_t kmem;
 	capid_t cap;
@@ -757,7 +757,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	assert(!(init_data & ~((1 << 16) - 1)));
 	/* TODO: Add cap size checking */
 	ret = call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap,
-			  __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, comp);
+			  __compinfo_metacap(ci)->mi.pgtbl_cap << 16 | isbcap, kmem, comp << 16 | ulinvstk_off);
 	if (ret) BUG();
 
 	return cap;
@@ -770,26 +770,48 @@ cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t id
 {
 	if (idx < 1) return 0;
 
-	return __cos_thd_alloc(ci, comp, idx);
+	return __cos_thd_alloc(ci, comp, idx, 0, 0);
 }
 
 thdcap_t
 cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data)
 {
+	return cos_thd_alloc_shvas(ci, comp, fn, data, 0, 0);
+}
+
+thdcap_t
+cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp)
+{
+	
+	return __cos_thd_alloc(ci, comp, 0, 0, 0);
+}
+
+thdcap_t
+cos_thd_alloc_ext_shvas(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx, isbcap_t isbcap, u8_t ulinvstk_off)
+{
+	if (idx < 1) return 0;
+
+	return __cos_thd_alloc(ci, comp, idx, isbcap, ulinvstk_off);
+}
+
+thdcap_t
+cos_thd_alloc_shvas(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data, isbcap_t isbcap, u8_t ulinvstk_off)
+{
 	int      idx = cos_thd_init_alloc(fn, data);
 	thdcap_t ret;
 
 	if (idx < 1) return 0;
-	ret = __cos_thd_alloc(ci, comp, idx);
+	ret = __cos_thd_alloc(ci, comp, idx, isbcap, ulinvstk_off);
 	if (!ret) cos_thd_init_free(idx);
 
 	return ret;
 }
 
 thdcap_t
-cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp)
+cos_initthd_alloc_shvas(struct cos_compinfo *ci, compcap_t comp, isbcap_t isbcap, u8_t ulinvstk_off)
 {
-	return __cos_thd_alloc(ci, comp, 0);
+	
+	return __cos_thd_alloc(ci, comp, 0, isbcap, ulinvstk_off);
 }
 
 captblcap_t
@@ -827,15 +849,15 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 }
 
 int
-cos_comp_alloc_with(struct cos_compinfo *ci, compcap_t comp, u32_t lid, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, u32_t mpk_key)
+cos_comp_alloc_with(struct cos_compinfo *ci, compcap_t comp, u32_t lid, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, prot_domain_t protdom)
 {
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, comp, (ctc << 16) | ptc, ((u64_t)mpk_key << 60) | lid, entry)) return 1;
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, comp, (ctc << 16) | ptc, ((u64_t)protdom << 16) | lid, entry)) return 1;
 
 	return 0;
 }
 
 compcap_t
-cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, u32_t mpk_key)
+cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, prot_domain_t protdom)
 {
 	capid_t cap;
 	u32_t   lid = livenessid_bump_alloc();
@@ -846,13 +868,13 @@ cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t
 
 	cap = __capid_bump_alloc(ci, CAP_COMP);
 	if (!cap) return 0;
-	if (cos_comp_alloc_with(ci, cap, lid, ctc, ptc, entry, mpk_key)) BUG();
+	if (cos_comp_alloc_with(ci, cap, lid, ctc, ptc, entry, protdom)) BUG();
 
 	return cap;
 }
 
 int
-cos_comp_alloc_shared(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources, u32_t mpk_key)
+cos_comp_alloc_shared(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources, prot_domain_t protdom)
 {
 	compcap_t   compc;
 	captblcap_t ctc = ci->captbl_cap;
@@ -860,7 +882,7 @@ cos_comp_alloc_shared(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t entry, st
 	printd("cos_compinfo_alloc_shared\n");
 	assert(ptc);
 	assert(ctc);
-	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry, mpk_key);
+	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry, protdom);
 	assert(compc);
 
 	ci->comp_cap_shared = compc;
@@ -872,7 +894,7 @@ cos_comp_alloc_shared(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t entry, st
 
 int
 cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
-                   struct cos_compinfo *ci_resources, u32_t mpk_key)
+                   struct cos_compinfo *ci_resources, prot_domain_t protdom)
 {
 	pgtblcap_t  ptc;
 	captblcap_t ctc;
@@ -885,7 +907,7 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 	assert(ptc);
 	ctc = cos_captbl_alloc(ci_resources);
 	assert(ctc);
-	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry, mpk_key);
+	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry, protdom);
 	assert(compc);
 
 	cos_compinfo_init(ci, ptc, ctc, compc, heap_ptr, cap_frontier, ci_resources);
@@ -1379,13 +1401,13 @@ cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl)
 }
 
 
-static isbcap_t
+static pgtblcap_t
 __isb_pgtbl_expand(struct cos_compinfo *rootci, pgtblcap_t pgtbl, vaddr_t mem_ptr)
 {
-	int      pgtbl_lvl;
-	capid_t  ptecap;
-	vaddr_t  kmem;
-	isbcap_t isbcap = 0;
+	int        pgtbl_lvl;
+	capid_t    ptecap;
+	vaddr_t    kmem;
+	pgtblcap_t secondlvl = 0;
 
 	for (pgtbl_lvl = 1; pgtbl_lvl < COS_PGTBL_DEPTH; pgtbl_lvl++) {
 		ptecap = __capid_bump_alloc(rootci, CAP_PGTBL);
@@ -1396,54 +1418,104 @@ __isb_pgtbl_expand(struct cos_compinfo *rootci, pgtblcap_t pgtbl, vaddr_t mem_pt
 		assert(call_cap_op(rootci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, ptecap, rootci->mi.pgtbl_cap, kmem, pgtbl_lvl) == 0);
 		assert(call_cap_op(pgtbl, CAPTBL_OP_CONS, ptecap, mem_ptr, 0, 0) == 0);
 
-		/* the isbcap is the second lvl of the pgtbl so 
+		/* we need the second lvl of the pgtbl so 
 		   we can cons it into other pgtbls */
 		if (pgtbl_lvl == 1) {
-			isbcap = ptecap;
+			secondlvl = ptecap;
 		}
 	}
 
-	return isbcap;
+	return secondlvl;
+}
+
+static vaddr_t
+__isb_pgtbl_page_valloc(struct cos_compinfo *rootci, pgtblcap_t pgtbl, vaddr_t frontier)
+{
+	int     pgtbl_lvl;
+	vaddr_t kmem, range, tmp_frontier, addr;
+	capid_t ptecap;
+
+	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH-1; pgtbl_lvl++) {
+		if (frontier + PAGE_SIZE > cos_pgtbl_round_up_to_page(pgtbl_lvl, frontier)) {
+			range = cos_pgtbl_get_range(pgtbl_lvl);
+			tmp_frontier = cos_pgtbl_round_up_to_page(pgtbl_lvl, frontier + PAGE_SIZE);
+
+			for (addr = frontier; addr < tmp_frontier; addr += range) {
+				ptecap = __capid_bump_alloc(rootci, CAP_PGTBL);
+				kmem   = __kmem_bump_alloc(rootci);
+				assert(ptecap != 0 && kmem != 0);
+
+				/* FIXME: handle error */
+				assert(call_cap_op(rootci->captbl_cap, CAPTBL_OP_PGTBLACTIVATE, ptecap, rootci->mi.pgtbl_cap, kmem, pgtbl_lvl+1) == 0);
+				assert(call_cap_op(pgtbl, CAPTBL_OP_CONS, ptecap, addr, 0, 0) == 0);
+			}
+		}
+	}
+
+	return frontier + PAGE_SIZE;
 }
 
 isbcap_t
-cos_isb_alloc(struct cos_compinfo *root_ci, size_t sz)
+__isb_page_alloc(struct cos_compinfo *ci, pgtblcap_t isbpt, vaddr_t uaddr)
 {
-	vaddr_t    kmem;
-	vaddr_t    isb_cursor;
-	pgtblcap_t pgtblcap;
-	isbcap_t   isbcap;
-\
-	printd("cos_isb_alloc\n");
-	assert(root_ci);
-	assert(root_ci->memsrc == root_ci);
+	struct cos_compinfo *ci_resources = __compinfo_metacap(ci);
 
-	/* allocate a pgtbl for the isb*/
-	pgtblcap = cos_pgtbl_alloc(root_ci);
+	vaddr_t kmem;
+	capid_t cap;
+	u32_t   lid = livenessid_bump_alloc();
+	assert(ci);
+
+	if (__alloc_mem_cap(ci, CAP_ISB, &kmem, &cap)) return 0;
+	assert(kmem && (round_to_page(kmem) == kmem));
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ISBACTIVATE, cap << 16 | lid, ci_resources->mi.pgtbl_cap << 16 | isbpt, kmem, uaddr))
+		BUG();
+
+	return cap;
+}
+
+pgtblcap_t
+cos_isb_pgtbl_create(struct cos_compinfo *ci, pgtblcap_t *secondlvl, isbcap_t *isb)
+{
+	struct cos_compinfo *ci_resources = __compinfo_metacap(ci);
+	pgtblcap_t           toplvl;
+
+	printd("cos_isb_alloc\n");
+	assert(ci_resources);
+
+	/* allocate a pgtbl for the isb memory */
+	toplvl = cos_pgtbl_alloc(ci_resources);
 
 	/* expand pgtbl and get second lvl*/
-	isbcap = __isb_pgtbl_expand(root_ci, pgtblcap, ULK_BASE_ADDR);
-	assert(isbcap);
+	*secondlvl = __isb_pgtbl_expand(ci_resources, toplvl, ULK_BASE_ADDR);
+	assert(*secondlvl);
 
-	/* alloc actual memory */
-	for (isb_cursor = ULK_BASE_ADDR; isb_cursor < ULK_BASE_ADDR + sz; isb_cursor += PAGE_SIZE) {
-		kmem = __kmem_bump_alloc(root_ci);
-		if (!kmem) return 0;
+	*isb = __isb_page_alloc(ci, toplvl, ULK_BASE_ADDR);
 
-		if (call_cap_op(root_ci->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, kmem, pgtblcap, isb_cursor, PAGE_ORDER)) {
-			assert(0);
-		}
-	}
+	return toplvl;
+}
 
-	return isbcap;
+isbcap_t
+cos_isb_alloc(struct cos_compinfo *ci, pgtblcap_t isbpt, vaddr_t uaddr)
+{
+	struct cos_compinfo *ci_resources = __compinfo_metacap(ci);
+	isbcap_t cap;
+
+	printd("cos_isb_alloc");
+	assert(ci);
+
+	__isb_pgtbl_page_valloc(ci_resources, isbpt, uaddr);
+
+	cap = __isb_page_alloc(ci, isbpt, uaddr);
+
+	return cap;
 }
 
 int
-cos_isb_mapin(pgtblcap_t ptc, isbcap_t isbcap)
+cos_isb_map_in(pgtblcap_t ptc, pgtblcap_t isb_secondlvl)
 {
 	printd("cos_isb_mapin\n");
 
-	if (call_cap_op(ptc, CAPTBL_OP_CONS, isbcap, ULK_BASE_ADDR, 0, 0)) {
+	if (call_cap_op(ptc, CAPTBL_OP_CONS, isb_secondlvl, ULK_BASE_ADDR, 0, 0)) {
 		assert(0); /* race? */
 		return -1;
 	}

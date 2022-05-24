@@ -110,19 +110,22 @@ pgtblcap_t cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int
  */
 int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem);
 
-int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources, u32_t mpk_key);
+int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources, prot_domain_t protdom);
 
 /*
  * This uses the next three functions to allocate a new component and
  * correctly populate ci (allocating all resources from ci_resources).
  */
 int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
-                               struct cos_compinfo *ci_resources, u32_t mpk_key);
+                               struct cos_compinfo *ci_resources, prot_domain_t protdom);
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
-compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, u32_t mpk_key);
-isbcap_t    cos_isb_alloc(struct cos_compinfo *root_ci, size_t sz);
-int         cos_isb_mapin(pgtblcap_t toplvl, isbcap_t isbcap);
+compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, prot_domain_t protdom);
+
+pgtblcap_t  cos_isb_pgtbl_create(struct cos_compinfo *root_ci, pgtblcap_t *secondlvl, isbcap_t *isb);
+isbcap_t    cos_isb_alloc(struct cos_compinfo *ci, pgtblcap_t isbpt, vaddr_t uaddr);
+int         cos_isb_map_in(pgtblcap_t ptc, pgtblcap_t isb_secondlvl);
+
 
 void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier);
 
@@ -131,6 +134,11 @@ thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn,
 thdcap_t cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx);
 /* Create the initial (cos_init) thread */
 thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp);
+
+thdcap_t cos_thd_alloc_shvas(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data, isbcap_t isbcap, u8_t ulinvstk_off);
+thdcap_t cos_thd_alloc_ext_shvas(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx, isbcap_t isbcap, u8_t ulinvstk_off);
+thdcap_t cos_initthd_alloc_shvas(struct cos_compinfo *ci, compcap_t comp, isbcap_t isbcap, u8_t ulinvstk_off);
+
 sinvcap_t cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, invtoken_t token);
 arcvcap_t cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap, arcvcap_t enotif);
 asndcap_t cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t ctcap);
