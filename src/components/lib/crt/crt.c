@@ -359,7 +359,7 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 /*
  * helper function to check if two components exist within a shared VAS Namespace
  */
-static int
+int
 crt_ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
 {
 	if (c1->ns_vas == NULL || c2->ns_vas == NULL) return 0;
@@ -891,10 +891,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 		.s_fn_addr   = s_fn_addr
 	};
 
-	if (crt_ns_vas_shared(client, server))
-		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap_shared, sinv->s_fn_addr, client->id);
-	else 
-		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
+	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
 
 	assert(sinv->sinv_cap);
 	printc("sinv %s cap %ld\n", name, sinv->sinv_cap);

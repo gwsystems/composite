@@ -331,10 +331,18 @@ comps_init(void)
 
 		sinv = ss_sinv_alloc();
 		assert(sinv);
-		crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
+		if (crt_ns_vas_shared(serv, cli)) {
+			crt_sinv_create_shared(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
+				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
+				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+		}
+		else {
+			crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
 					strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 					strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+		}
 		ss_sinv_activate(sinv);
+
 		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
 	#ifdef ENABLE_CHKPT
