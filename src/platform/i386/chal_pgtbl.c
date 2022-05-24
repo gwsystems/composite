@@ -372,7 +372,7 @@ chal_pgtbl_mapping_add(pgtbl_t pt, vaddr_t addr, paddr_t page, word_t flags, u32
 
 	/* ref cnt on the frame - always user frame. */
 	ret = retypetbl_ref((void *)page, order);
-	if (ret) return -99;
+	if (ret) return ret;
 
 	ret = __pgtbl_update_leaf(pte, (void *)(page | flags), orig_v);
 	/* restore the refcnt if necessary */
