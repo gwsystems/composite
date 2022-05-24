@@ -88,7 +88,9 @@ struct crt_comp {
 	u32_t  n_sinvs;
 
 	u32_t mpk_key;
-	capid_t second_lvl_pgtbl_cap;	
+	capid_t second_lvl_pgtbl_cap;
+	struct crt_ns_vas *ns_vas;
+	
 };
 
 struct crt_comp_resources {
@@ -274,24 +276,22 @@ int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
  * also: more ASIDs available in 64 bit
  */
 
-#define CRT_VAS_NAME_SZ (1ULL << 39)
-#define CRT_VAS_NUM_NAMES 256
-#define CRT_MPK_NUM_NAMES 14
-#define CRT_ASID_NUM_NAMES 4096
+#define CRT_VAS_NAME_SZ 	(1ULL << 39)
+#define CRT_VAS_NUM_NAMES 	256
+#define CRT_MPK_NUM_NAMES 	14
+#define CRT_ASID_NUM_NAMES 	4096
 
-/* is reserved the right verbiage here? */
+#define CRT_NS_STATE_RESERVED 	1
+#define CRT_NS_STATE_ALLOCATED 1 << 1
+#define CRT_NS_STATE_ALIASED 	1 << 2
+
 struct crt_vas_name {
-	/* can change this to be just the crt comp and use the LSB for the reserved/allocated stuff */
-	u32_t reserved  : 1;
-	u32_t allocated : 1;
-	u32_t aliased   : 1;
+	u32_t state : 3;
 	struct crt_comp *comp;
 };
 
 struct crt_asid_mpk_name {
-	u32_t reserved  : 1;
-	u32_t allocated : 1;
-	/* id is index into the name array */
+	u32_t state : 3;
 };
 
 struct crt_ns_vas {
@@ -304,7 +304,6 @@ struct crt_ns_vas {
 
 
 struct crt_ns_asid {
-	/* this can probably be a simple bitmap, since we just need to track 0/1 for allocated, and id is just the index */
 	struct crt_asid_mpk_name names[CRT_ASID_NUM_NAMES];
 	struct crt_ns_asid *parent;
 };
@@ -342,16 +341,18 @@ int crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids);
 int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids);
 
 /*
- * VAS name mapping/allocation. This function allocates `c` into `vas`
- * by tracking which names (MPK & VAS) are dedicated to `c`. A
- * component can only be allocated into a *single* vas.
- */
-int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c);
-/*
  * A `crt_comp_create` replacement if you want to create a component
  * in a vas directly. Note that, the
  * `crt_comp_create` likely needs to take the asid namespace as well.
  */
 int crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct crt_ns_vas *vas);
+
+/*
+ * VAS name mapping/allocation. 
+ * This function became no longer necessary due to the above, but an implementation of it is here:
+ * https://github.com/ldierksheide/composite/blob/shared_pgtbl/src/components/lib/crt/crt.c#L322-L364
+ * 
+ * int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c);
+ */
 
 #endif /* CRT_H */

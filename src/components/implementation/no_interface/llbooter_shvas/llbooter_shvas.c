@@ -95,41 +95,6 @@ boot_comp_set_idoffset(int off)
 	boot_id_offset = off;
 }
 
-/*
- * helper function to check if two components exist within a shared VAS Namespace
- */
-int
-ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
-{
-	unsigned int i;
-	int j;
-	int found1 = 0;
-	int found2 = 0;
-	struct crt_ns_vas *curr_vas;
-
-	for (i = 1 ; i <= BOOTER_MAX_NS_VAS ; i++) {
-		curr_vas = ss_ns_vas_get(i);
-		found1 = 0;
-		found2 = 0;
-		for (j = 0 ; j < CRT_VAS_NUM_NAMES ; j++) {
-			if (curr_vas == NULL || curr_vas->names[j].comp == NULL) {
-				continue;
-			}
-			if (curr_vas->names[j].comp->id == c1->id) {
-				found1 = 1;
-			}
-			if (curr_vas->names[j].comp->id == c2->id) {
-				found2 = 1;
-			}
-			if (found1 && found2) {
-				return 1;
-			}
-
-		}
-	}
-	return 0;
-}
-
 static void
 comps_init(void)
 {
@@ -226,7 +191,7 @@ comps_init(void)
 				if (crt_comp_create_in_vas(comp, name, id, elf_hdr, info, ns_vas1)) {
 					BUG();
 				}
-				//cos_isb_map_in(cos_compinfo_get(comp->comp_res)->pgtbl_cap, isbctrl.secondlvl);
+				crt_isb_map_in(ns_vas1, &isbctrl);
 			}
 			else {
 				assert(elf_hdr);
@@ -234,7 +199,6 @@ comps_init(void)
 					printc("Error constructing the resource tables and image of component %s.\n", comp->name);
 					BUG();
 				}
-				crt_isb_map_in(ns_vas1, &isbctrl);
 			}
 		}
 		assert(comp->refcnt != 0);
@@ -367,16 +331,9 @@ comps_init(void)
 
 		sinv = ss_sinv_alloc();
 		assert(sinv);
-		if (ns_vas_shared(serv, cli)) {
-			crt_sinv_create_shared(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
-				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
-				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
-		}
-		else {
-			crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
+		crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
 					strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 					strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
-		}
 		ss_sinv_activate(sinv);
 		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
