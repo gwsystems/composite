@@ -147,8 +147,6 @@ void *cos_page_bump_alloc(struct cos_compinfo *ci);
 void *cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz);
 void *cos_page_bump_allocn_aligned(struct cos_compinfo *ci, size_t sz, size_t align);
 
-vaddr_t cos_page_bump_intern_valloc(struct cos_compinfo *ci, size_t sz);
-
 capid_t cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_t srcctype, capid_t srccap);
 int     cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_compinfo *srcci, capid_t srccap);
 

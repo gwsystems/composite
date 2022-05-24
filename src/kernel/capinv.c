@@ -942,16 +942,14 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 
 static int composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch);
 
-/* Current invoking component; updated each kernel invocation */
-struct comp_info *curr_ci;
-unsigned long ip, sp;
-
 COS_SYSCALL __attribute__((section("__ipc_entry"))) int
 composite_syscall_handler(struct pt_regs *regs)
 {
 	struct cap_header *ch;
 	struct thread *    thd;
 	capid_t            cap;
+	struct comp_info  *ci;
+	unsigned long ip, sp;
 
 	/*
 	 * We lookup this struct (which is on stack) only once, and
@@ -977,15 +975,15 @@ composite_syscall_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	curr_ci = thd_invstk_current(thd, &ip, &sp, cos_info);
-	assert(curr_ci && curr_ci->captbl);
+	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	assert(ci && ci->captbl);
 
 	/*
 	 * We don't check the liveness of the current component
 	 * because it's guaranteed by component quiescence period,
 	 * which is at timer tick granularity.
 	 */
-	ch = captbl_lkup(curr_ci->captbl, cap);
+	ch = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
 		printk("cos: cap %d not found!\n", (int)cap);
 		cos_throw(done, 0);
@@ -1002,15 +1000,15 @@ composite_syscall_handler(struct pt_regs *regs)
 	 */
 	switch (ch->type) {
 	case CAP_THD:
-		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, curr_ci, cos_info);
+		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	case CAP_ASND:
-		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, curr_ci, cos_info);
+		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	case CAP_ARCV:
-		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, curr_ci, cos_info);
+		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	default:
@@ -1047,6 +1045,8 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 	syscall_op_t               op;
 	int                        ret      = -ENOENT;
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
+	struct comp_info          *ci;
+	unsigned long              ip, sp;
 
 	/*
 	 * These variables are:
@@ -1063,7 +1063,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 	cap   = __userregs_getcap(regs);
 	capin = __userregs_get1(regs);
 
-	ct = curr_ci->captbl;
+	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	assert(ci && ci->captbl);
+	ct = ci->captbl;
 
 	ch = captbl_lkup(ct, cap);
 	assert(ch);
@@ -1497,7 +1499,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			struct thread *  rthd;
 			struct tcap *    tc;
 
-			rcv = (struct cap_arcv *)captbl_lkup(curr_ci->captbl, tcpdst);
+			rcv = (struct cap_arcv *)captbl_lkup(ci->captbl, tcpdst);
 			if (!CAP_TYPECHK_CORE(rcv, CAP_ARCV)) cos_throw(err, -EINVAL);
 
 			rthd = rcv->thd;
@@ -1508,7 +1510,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			if (unlikely(ret)) cos_throw(err, -EINVAL);
 
 			if (tcap_expended(tcap_current(cos_info))) {
-				ret = expended_process(regs, thd, curr_ci, cos_info, 0);
+				ret = expended_process(regs, thd, ci, cos_info, 0);
 				if (unlikely(ret < 0)) cos_throw(err, ret);
 
 				*thd_switch = 1;
@@ -1534,7 +1536,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			yield       = prio_higher >> ((sizeof(prio_higher) * 8) - 1);
 			prio_higher = (prio_higher << 1) >> 1;
 			prio        = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
-			asnd        = (struct cap_asnd *)captbl_lkup(curr_ci->captbl, asnd_cap);
+			asnd        = (struct cap_asnd *)captbl_lkup(ci->captbl, asnd_cap);
 			if (unlikely(!CAP_TYPECHK(asnd, CAP_ASND))) cos_throw(err, -EINVAL);
 
 			arcv = __cap_asnd_to_arcv(asnd);
@@ -1555,12 +1557,12 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 				 *
 				 *        Also, scheduling token validation!
 				 */
-				ret = cap_switch(regs, thd, n, tcap_next, TCAP_TIME_NIL, curr_ci, cos_info);
+				ret = cap_switch(regs, thd, n, tcap_next, TCAP_TIME_NIL, ci, cos_info);
 				if (unlikely(ret < 0)) cos_throw(err, ret);
 
 				*thd_switch = 1;
 			} else if (tcap_expended(tcap_current(cos_info))) {
-				ret = expended_process(regs, thd, curr_ci, cos_info, 0);
+				ret = expended_process(regs, thd, ci, cos_info, 0);
 				if (unlikely(ret < 0)) cos_throw(err, ret);
 
 				*thd_switch = 1;
@@ -1573,7 +1575,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			struct cap_tcap *tcapdst = (struct cap_tcap *)ch;
 			struct cap_tcap *tcaprm;
 
-			tcaprm = (struct cap_tcap *)captbl_lkup(curr_ci->captbl, tcaprem);
+			tcaprm = (struct cap_tcap *)captbl_lkup(ci->captbl, tcaprem);
 			if (!CAP_TYPECHK_CORE(tcaprm, CAP_TCAP)) cos_throw(err, -EINVAL);
 
 			ret = tcap_merge(tcapdst->tcap, tcaprm->tcap);
@@ -1590,7 +1592,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			tcap_prio_t      prio        = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
 			tcap_res_t       budget      = __userregs_get4(regs);
 
-			thdwkup = (struct cap_thd *)captbl_lkup(curr_ci->captbl, thdcap);
+			thdwkup = (struct cap_thd *)captbl_lkup(ci->captbl, thdcap);
 			if (!CAP_TYPECHK_CORE(thdwkup, CAP_THD)) return -EINVAL;
 
 			ret = tcap_wakeup(tcapwkup->tcap, prio, budget, thdwkup->t, cos_info);
@@ -1609,7 +1611,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			hwid_t           hwid   = __userregs_get1(regs);
 			capid_t          rcvcap = __userregs_get2(regs);
 
-			rcvc = (struct cap_arcv *)captbl_lkup(curr_ci->captbl, rcvcap);
+			rcvc = (struct cap_arcv *)captbl_lkup(ci->captbl, rcvcap);
 			if (!CAP_TYPECHK(rcvc, CAP_ARCV)) cos_throw(err, -EINVAL);
 
 			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcvcap);
@@ -1636,7 +1638,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			 * (i.e. on physical apertures presented by
 			 * PCI).
 			 */
-			ptc = (struct cap_pgtbl *)captbl_lkup(curr_ci->captbl, ptcap);
+			ptc = (struct cap_pgtbl *)captbl_lkup(ci->captbl, ptcap);
 			if (!CAP_TYPECHK(ptc, CAP_PGTBL)) cos_throw(err, -EINVAL);
 
 			pte = pgtbl_lkup_pte(ptc->pgtbl, va, &flags);
@@ -1688,7 +1690,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			   is invoking it correctly after a user-level invocation
 			   by checking the mpk key */
 			u32_t expected_key = __userregs_get1(regs);
-			u32_t mpk_key = curr_ci->pgtblinfo.protdom;
+			u32_t mpk_key = ci->pgtblinfo.protdom;
 			assert(expected_key == mpk_key);
 			break;
 		}

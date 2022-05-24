@@ -63,7 +63,7 @@
 	addq    $1, %rax;					\
 	movq    %rax, (%rcx);		
 
-/* r13 = tid, r14 = isb ptr */
+/* rcx = &stack */
 #define COS_ULINV_POP_INVSTK					\
 	movq    (%rcx), %rdx;					\
 	shlq    $4,     %rdx;					\

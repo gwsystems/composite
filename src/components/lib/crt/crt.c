@@ -391,7 +391,7 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	c->mpk_key = mpk_key;
 	crt_comp_create(c, name, id, elf_hdr, info, mpk_key);
 	/* FIXME: if these fail, should that component ^ be reset or something? */
-	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get()), c->mpk_key) != 0) {
+	if(cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get()), (prot_domain_t)c->mpk_key) != 0) {
 		printc("allocate comp cap/cap table cap failed\n");
 		return -1;
 	}
@@ -401,6 +401,7 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 		printc("cons failed: %d\n", cons_ret);
 		assert(0);
 	}
+	/* !! This is necessary and I dont think it was intended that way. Should discuss. */
 	if (vas->parent) {
 		cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->parent->top_lvl_pgtbl);
 		if (cons_ret != 0) {
@@ -577,7 +578,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 		assert(inv.server->id != chkpt->c->id);
 	}
 
-	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, c->mpk_key);
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, (prot_domain_t)c->mpk_key);
 	assert(!ret);
 
 	mem = cos_page_bump_allocn(root_ci, chkpt->tot_sz_mem);
@@ -639,6 +640,8 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	ci      = cos_compinfo_get(c->comp_res);
 	root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
+	/* Im wondering if there is a way to decouple this hardware-specific
+	   stuff from this generally hardware agnostic library */
 	c->mpk_key = mpk_key;
 
 	if (elf_load_info(c->elf_hdr, &c->ro_addr, &ro_sz, &ro_src, &c->rw_addr, &data_sz, &data_src, &bss_sz)) return -EINVAL;
@@ -669,6 +672,7 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	c->n_sinvs = 0;
 	memset(c->sinvs, 0, sizeof(c->sinvs));
 
+	/* see the comment above hardware specific code */
 	unsigned long flags = COS_PAGE_READABLE | ((unsigned long)mpk_key << 59);
 
 	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(ro_sz), flags)) return -ENOMEM;
@@ -783,6 +787,8 @@ crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp_res
 	return 0;
 }
 
+
+/* This might not be the best spot for all this */
 static int
 crt_jitutils_search(u8_t *src, u8_t *pat, size_t len, size_t max)
 {
@@ -1962,7 +1968,7 @@ crt_isb_stk_alloc(struct crt_isb_ctrl *isbctrl)
 	struct cos_compinfo *curr = cos_compinfo_get(cos_defcompinfo_curr_get());           
 
 	assert(isbctrl && isbctrl->toplvl);
-	/* TODO: handle concurrency */
+	/* TODO: handle concurrency ? */
 
 	/* need to allocate another block */
 	if ((isbctrl->idx_frontier % (PAGE_SIZE / sizeof(struct cos_ulinvstk)) == 0)) {

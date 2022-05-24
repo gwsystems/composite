@@ -1,8 +1,6 @@
 ## tests
 
-This is the skeleton interface used by the `mkcomponent.sh` script to aid in the creation of a new component.
-It provides no functionality, and should never be depended on!
-This documentation should be *replaced* in the documentation for a new component.
+Intended to be invoked by pongshvas, a component that is invoked using UL sinvs. This is to test kernel detection of UL sinvs.
 
 ### Description
 

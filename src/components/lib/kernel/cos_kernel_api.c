@@ -920,12 +920,6 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 	return 0;
 }
 
-vaddr_t
-cos_page_bump_intern_valloc(struct cos_compinfo *ci, size_t sz)
-{
-	return __page_bump_valloc(ci, sz, PAGE_SIZE);
-}
-
 sinvcap_t
 cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, invtoken_t token)
 {

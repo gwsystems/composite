@@ -7,23 +7,6 @@
 
 volatile ps_tsc_t fast_path, all_args;
 
-struct tbl {
-	u16_t t[256];
-};
-
-volatile struct tbl tb;
-volatile u16_t idx;
-
-void
-fn(void)
-{
-	volatile int tid = 1;
-
-	tb.t[tid] = 0xdead;
-
-	idx = tb.t[tid];
-}
-
 void
 cos_init(void)
 {

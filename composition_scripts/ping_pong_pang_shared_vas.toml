@@ -1,5 +1,5 @@
 [system]
-description = "Simple system: the ping pong test for IPC and shared VAS"
+description = "Simple system with 3 components and a booter. Two of the components are in the same VAS and one is isolated from them."
 
 [[components]]
 name = "booter"
