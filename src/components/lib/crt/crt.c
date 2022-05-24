@@ -351,7 +351,6 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	vas->mpk_names[mpk_key].state |= CRT_NS_STATE_ALLOCATED;
 	vas->names[name_index].comp = c;	
 
-	c->mpk_key = mpk_key;
 	c->ns_vas = vas;
 
 	return 0;
