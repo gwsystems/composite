@@ -95,6 +95,39 @@ boot_comp_set_idoffset(int off)
 	boot_id_offset = off;
 }
 
+static int
+ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
+{
+	unsigned int i;
+	int j;
+	int found1 = 0;
+	int found2 = 0;
+	struct crt_ns_vas *curr_vas;
+
+	for (i = 1 ; i <= 64 ; i++) {
+		curr_vas = ss_ns_vas_get(i);
+		found1 = 0;
+		found2 = 0;
+		for (j = 0 ; j < CRT_VAS_NUM_NAMES ; j++) {
+			if (curr_vas == NULL || curr_vas->names[j].comp == NULL) {
+				continue;
+			}
+			if (curr_vas->names[j].comp->id == c1->id) {
+				found1 = 1;
+			}
+			if (curr_vas->names[j].comp->id == c2->id) {
+				found2 = 1;
+			}
+			if (found1 && found2) {
+				return 1;
+			}
+
+		}
+	}
+	return 0;
+}
+
+
 static void
 comps_init(void)
 {
@@ -331,7 +364,7 @@ comps_init(void)
 
 		sinv = ss_sinv_alloc();
 		assert(sinv);
-		if (crt_ns_vas_shared(serv, cli)) {
+		if (ns_vas_shared(serv, cli)) {
 			crt_sinv_create_shared(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
 				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));

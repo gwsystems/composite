@@ -356,18 +356,6 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	return 0;
 }
 
-/*
- * helper function to check if two components exist within a shared VAS Namespace
- */
-int
-crt_ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
-{
-	if (c1->ns_vas == NULL || c2->ns_vas == NULL) return 0;
-
-	if (c1->ns_vas == c2->ns_vas) return 1;
-
-	return 0;
-}
 
 static inline int
 crt_refcnt_alive(crt_refcnt_t *r)

@@ -347,8 +347,6 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
  */
 int crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct crt_ns_vas *vas);
 
-int crt_ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2);
-
 
 /*
  * VAS name mapping/allocation. 
