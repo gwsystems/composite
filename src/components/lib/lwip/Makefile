@@ -30,7 +30,9 @@ LWIP_CORE_FILES=$(LWIP_DIR)/core/mem.c $(LWIP_DIR)/core/memp.c $(LWIP_DIR)/core/
 	$(LWIP_DIR)/core/tcp_out.c $(LWIP_DIR)/core/udp.c \
 	$(LWIP_DIR)/core/init.c $(LWIP_DIR)/core/inet_chksum.c \
 	$(LWIP_DIR)/core/def.c $(LWIP_DIR)/core/timeouts.c \
-	$(LWIP_DIR)/core/ip.c
+	$(LWIP_DIR)/core/ip.c \
+	$(LWIP_DIR)/api/err.c
+
 LWIP_CORE_IPV4_FILES=$(LWIP_DIR)/core/ipv4/icmp.c $(LWIP_DIR)/core/ipv4/ip4.c \
 	$(LWIP_DIR)/core/ipv4/ip4_addr.c $(LWIP_DIR)/core/ipv4/ip4_frag.c
 COS_LWIP_ADAPTER_FILES=$(LWIP_ADAPTER_DIR)/sys_arch.c
