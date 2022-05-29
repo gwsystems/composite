@@ -28,4 +28,6 @@ typedef unsigned long int mem_ptr_t;
 #define PACK_STRUCT_BEGIN
 #define PACK_STRUCT_END
 
+#define LWIP_PLATFORM_DIAG(x) do { cos_printf x; } while (0);
+
 #endif /* __ARCH_CC_H__ */

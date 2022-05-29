@@ -72,5 +72,8 @@ uint16_t cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
 
 void cos_get_port_stats(cos_portid_t port_id);
 
-void cos_parse_pkts(char* mbuf);
+char* cos_get_packet(char* mbuf);
+uint16_t cos_send_a_packet(char * pkt, uint32_t pkt_size, char* mp);
+char* cos_allocate_mbuf(char* mp);
+
 #endif /* COS_DPDK_H */

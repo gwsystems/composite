@@ -56,9 +56,9 @@
 #define ARP_QUEUEING 0
 #define LWIP_SOCKET 0
 #define LWIP_NETCONN 0
-#define LWIP_ICMP   0
+#define LWIP_ICMP   1
 
-#define LWIP_DEBUG  0
+#define LWIP_DEBUG  1
 #define LWIP_DBG_TYPES_ON  LWIP_DBG_OFF
 #define LWIP_DBG_MIN_LEVEL 0
 

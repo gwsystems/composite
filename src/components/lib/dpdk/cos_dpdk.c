@@ -6,6 +6,7 @@
 #include <rte_ether.h>
 #include <rte_log.h>
 #include <rte_config.h>
+#include <rte_mbuf.h>
 
 #include <arpa/inet.h>
 
@@ -118,7 +119,7 @@ cos_eth_ports_init(void)
 static struct rte_mempool * cos_dpdk_pktmbuf_pool = NULL;
 static struct rte_eth_conf default_port_conf = {
 	.rxmode = {
-		.split_hdr_size = 0,
+		.mq_mode = RTE_ETH_MQ_RX_NONE,
 	},
 	.txmode = {
 		.mq_mode = RTE_ETH_MQ_TX_NONE,
@@ -160,6 +161,7 @@ int
 cos_free_packet(char* packet)
 {
 	/* TODO: add free logic */
+	rte_pktmbuf_free((struct rte_mbuf *)packet);
 	return 0;
 }
 
@@ -427,40 +429,18 @@ cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
 }
 
 /*
- * cos_parse_pkts: prints this packet's information, like ether src/dst,
-                   proto type, etc.
+ * cos_parse_pkts: return data pointer of this packet
  */
-void
-cos_parse_pkts(char* mbuf)
+char*
+cos_get_packet(char* mbuf)
 {
-	struct rte_ether_hdr *eth_hdr;
-	char buf[RTE_ETHER_ADDR_FMT_SIZE];
-
-	eth_hdr = rte_pktmbuf_mtod((struct rte_mbuf*)mbuf, struct rte_ether_hdr *);
-
-	rte_ether_format_addr(buf, RTE_ETHER_ADDR_FMT_SIZE, &eth_hdr->src_addr);
-	COS_DPDK_APP_LOG(NOTICE, "src mac_addr: %s ", buf);
-
-	rte_ether_format_addr(buf, RTE_ETHER_ADDR_FMT_SIZE, &eth_hdr->dst_addr);
-	COS_DPDK_APP_LOG(NOTICE, "dst mac_addr: %s\n" ,buf);
-
-	COS_DPDK_APP_LOG(NOTICE, "ether type:%04x\n", ntohs(eth_hdr->ether_type));
-
-	/* modify packets src mac addr to test the tx path */
-	eth_hdr->src_addr.addr_bytes[0] = 1;
-	eth_hdr->src_addr.addr_bytes[1] = 1;
-	eth_hdr->src_addr.addr_bytes[2] = 1;
-	eth_hdr->src_addr.addr_bytes[3] = 1;
-	eth_hdr->src_addr.addr_bytes[4] = 1;
-	eth_hdr->src_addr.addr_bytes[5] = 1;
-
-	return;
+	return (char *)rte_pktmbuf_mtod((struct rte_mbuf*)mbuf, struct rte_ether_hdr *);
 }
 
 /*
  * cos_get_port_stats: get a port's NIC stats
  *
- * @return:
+ * @return: null
  * 
  */
 void
@@ -476,13 +456,19 @@ cos_get_port_stats(cos_portid_t port_id)
 		"\t\t rx packets: %lu\n"
 		"\t\t tx bytes: %lu\n"
 		"\t\t tx packets: %lu\n"
-		"\t\t imssied: %lu\n",
+		"\t\t imssied: %lu\n"
+		"\t\t ierrors: %lu\n"
+		"\t\t oerrors: %lu\n"
+		"\t\t no_buf: %lu\n",
 		ports_ids[port_id],
 		stats.ibytes,
 		stats.ipackets,
 		stats.obytes,
 		stats.opackets,
-		stats.imissed);
+		stats.imissed,
+		stats.ierrors,
+		stats.oerrors,
+		stats.rx_nombuf);
 }
 
 /*
@@ -512,4 +498,32 @@ cos_dpdk_init(int argc, char **argv)
 	}
 
 	return ret;
+}
+
+uint16_t cos_send_a_packet(char * pkt, uint32_t pkt_size, char* mp)
+{
+	struct rte_mbuf * mbuf;
+	struct rte_ether_hdr *eth_hdr;
+	struct rte_ether_addr s_addr = {{0x66,0x66,0x66,0x66,0x66,0x66}};
+	struct rte_ether_addr d_addr = {{0x11,0x11,0x11,0x11,0x11,0x11}};
+
+	mbuf = rte_pktmbuf_alloc(mp);
+	eth_hdr = rte_pktmbuf_mtod(mbuf,struct rte_ether_hdr*);
+
+	eth_hdr->dst_addr = d_addr;
+	eth_hdr->src_addr = s_addr;
+	eth_hdr->ether_type = 0x0008;
+
+	char* ip_data = (char*)eth_hdr + sizeof(struct rte_ether_hdr);
+	memcpy(ip_data, pkt, pkt_size);
+	
+	mbuf->data_len = pkt_size + sizeof(struct rte_ether_hdr);
+	mbuf->pkt_len = pkt_size + sizeof(struct rte_ether_hdr);
+
+	return cos_dev_port_tx_burst(0, 0, &mbuf, 1);
+}
+
+char*
+cos_allocate_mbuf(char* mp) {
+	return rte_pktmbuf_alloc(mp);
 }
