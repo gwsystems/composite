@@ -47,6 +47,11 @@ name = "system"
 components = ["capmgr", "sched"]
 
 [[address_spaces]]
-name = "ping_pong"
-components = ["ping", "pong"]
+name = "pong"
+components = ["pong"]
 parent = "system"
+
+[[address_spaces]]
+name = "ping"
+components = ["ping"]
+parent = "pong"

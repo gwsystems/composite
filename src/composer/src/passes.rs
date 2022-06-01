@@ -164,6 +164,7 @@ pub type Interface = String;
 pub type Variant = String;
 pub type Library = String;
 pub type VAddr = u64;
+pub type AddrSpcName = String;
 
 // unique identifier for a component
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
@@ -209,6 +210,16 @@ pub struct Dependency {
 }
 
 #[derive(Clone, Debug)]
+pub struct AddrSpace {
+    pub name: AddrSpcName,
+    pub components: Vec<ComponentName>,
+    pub parent: Option<AddrSpcName>,
+    pub children: Vec<AddrSpcName>
+}
+
+pub type AddrSpaces = HashMap<AddrSpcName, AddrSpace>;
+
+#[derive(Clone, Debug)]
 pub struct Export {
     pub interface: Interface,
     pub variant: Variant,
@@ -220,6 +231,7 @@ pub trait SpecificationPass {
     fn deps_named(&self, id: &ComponentName) -> &Vec<Dependency>;
     fn exports_named(&self, id: &ComponentName) -> &Vec<Export>;
     fn libs_named(&self, id: &ComponentName) -> &Vec<Library>;
+    fn address_spaces(&self) -> &AddrSpaces;
 }
 
 // Integer namspacing pass. Convert the component variable names to

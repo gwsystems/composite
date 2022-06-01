@@ -1,4 +1,7 @@
-use passes::{BuildState, ComponentId, ComponentName, OrderedSpecPass, SystemState, Transition};
+use passes::{
+    BuildState, ComponentId, ComponentName, OrderedSpecPass, SystemState,
+    Transition,
+};
 use std::collections::BTreeMap;
 
 pub struct CompTotOrd {
@@ -23,7 +26,7 @@ impl Transition for CompTotOrd {
         // Find a total order of components based on the dependency
         // relation...
         let mut tot_ord = Vec::new();
-        // which components are still remaining without an placement
+        // which components are still remaining without a placement
         // in the total order?
         let mut remaining: BTreeMap<ComponentName, Vec<ComponentName>> = BTreeMap::new();
         for n in spec.names().iter() {

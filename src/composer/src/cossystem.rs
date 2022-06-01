@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use syshelpers::dump_file;
 use toml;
 
 use initargs::ArgsKV;
 use passes::{
-    BuildState, Component, ComponentName, Dependency, Export, Library, SpecificationPass,
-    SystemState, Transition,
+    AddrSpace, AddrSpaces, AddrSpcName, BuildState, Component, ComponentName, Dependency, Export,
+    Library, SpecificationPass, SystemState, Transition,
 };
 
 #[derive(Debug, Deserialize)]
@@ -391,6 +391,52 @@ pub struct SystemSpec {
     deps: HashMap<ComponentName, Vec<Dependency>>,
     libs: HashMap<ComponentName, Vec<Library>>,
     exports: HashMap<ComponentName, Vec<Export>>,
+    address_spaces: HashMap<AddrSpcName, AddrSpace>,
+}
+
+// Helper functions to compute components in an address space, and
+// those in all address spaces that descend from it. They assume the
+// SystemSpec data-structures so that we can avoid redundantly
+// computing the set of children address spaces (as that is part of
+// creating SystemSpec::address_spaces.
+fn addrspc_parent_closure<'a>(
+    children: HashSet<&'a AddrSpcName>,
+    all: &'a AddrSpaces,
+) -> HashSet<&'a AddrSpcName> {
+    let mut cs = children.clone();
+    for (_, a) in all.iter() {
+        if children.contains(&a.name) {
+            let children_set: HashSet<&'a AddrSpcName> = a.children.iter().collect();
+            cs = cs
+                .union(&addrspc_parent_closure(children_set, all))
+                .map(|c| *c)
+                .collect();
+        }
+    }
+    cs
+}
+
+// return value is the components in `addrspc`, and the set of
+// components in address spaces that are descendants
+fn addrspc_components<'a>(
+    parent_name: &'a AddrSpcName,
+    all: &'a AddrSpaces,
+) -> (Vec<&'a ComponentName>, Vec<&'a ComponentName>) {
+    // unwrap as we already validated the names
+    let parent = all.get(parent_name).unwrap();
+    let parent_comps = parent.components.iter().collect();
+
+    let descendent_as = addrspc_parent_closure(parent.children.iter().collect(), all);
+    let descendent_comps = descendent_as
+        .iter()
+        .fold(HashSet::new(), |agg, a| {
+            let comps_as_set = all.get(*a).unwrap().components.iter().collect();
+            agg.union(&comps_as_set).map(|c| *c).collect()
+        })
+        .into_iter()
+        .collect();
+
+    (parent_comps, descendent_comps)
 }
 
 impl Transition for SystemSpec {
@@ -482,13 +528,76 @@ impl Transition for SystemSpec {
             exports.insert(ComponentName::new(&c.name, &String::from("global")), es);
         }
 
-        Ok(Box::new(SystemSpec {
+        // Create the address spaces structure
+        let mut address_spaces = HashMap::new();
+        if let Some(ref ases) = spec.ases() {
+            for addrspc in ases {
+                let name = addrspc.name.clone();
+                let parent = addrspc.parent.clone();
+                let components = addrspc
+                    .components
+                    .iter()
+                    .map(|c| ComponentName::new(&c, &String::from("global")))
+                    .collect();
+                let children = ases
+                    .iter()
+                    .filter_map(|a| match a.parent {
+                        Some(ref p) if name == *p => Some(a.name.clone()),
+                        _ => None,
+                    })
+                    .collect();
+
+                address_spaces.insert(
+                    addrspc.name.clone() as AddrSpcName,
+                    AddrSpace {
+                        name,
+                        components,
+                        parent,
+                        children,
+                    },
+                );
+            }
+        }
+
+        let spec = Box::new(SystemSpec {
             ids,
             components,
             deps,
             libs,
             exports,
-        }))
+            address_spaces,
+        });
+
+        // Check that the address spaces are formed such that there
+        // are no dependencies from components in parent (generally,
+        // ancestor) address spaces to components in child address
+        // spaces. This should be done in `validate`, but it requires
+        // the children to be solved.
+        let ases = spec.address_spaces();
+        let mut errs = String::new();
+        for (_, a) in ases {
+            let (parent_comps, child_comps) = addrspc_components(&a.name, &ases);
+
+            // Iterate through parent components, and ensure that they
+            // do not depend on descendent address space components.
+            for pc in &parent_comps {
+                let backward_dep = spec
+                    .deps_named(pc)
+                    .iter()
+                    .find(|&d| child_comps.contains(&&d.server));
+                if backward_dep.is_some() {
+                    let bd = backward_dep.unwrap();
+                    errs.push_str(&format!(
+			"Error: Dependency exists in address space \"{}\" from component \"{}.{}\" to \"{}.{}\" which is in a descendant address space; dependencies can only go from descendants to ancestors.",
+			a.name, pc.scope_name, pc.var_name, bd.server.scope_name, bd.server.var_name));
+                }
+            }
+        }
+        if errs.len() != 0 {
+            return Err(errs);
+        }
+
+        Ok(spec)
     }
 }
 
@@ -511,5 +620,9 @@ impl SpecificationPass for SystemSpec {
 
     fn exports_named(&self, id: &ComponentName) -> &Vec<Export> {
         &self.exports.get(id).unwrap()
+    }
+
+    fn address_spaces(&self) -> &HashMap<AddrSpcName, AddrSpace> {
+        &self.address_spaces
     }
 }
