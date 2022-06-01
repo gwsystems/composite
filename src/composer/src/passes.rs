@@ -234,13 +234,16 @@ pub trait SpecificationPass {
     fn address_spaces(&self) -> &AddrSpaces;
 }
 
-// Integer namspacing pass. Convert the component variable names to
+// Integer namespacing pass. Convert the component variable names to
 // component ids, and create a total order for the components based on
 // their stated dependencies (lower ids are more trusted (more
 // depended on).
 pub trait OrderedSpecPass {
     fn ids(&self) -> &BTreeMap<ComponentId, ComponentName>;
     fn rmap(&self) -> &BTreeMap<ComponentName, ComponentId>;
+    // An ordering of address spaces, and of components without a shared address space.
+    fn addrspc_components_shared(&self) -> &BTreeMap<usize, AddrSpace>;
+    fn addrspc_components_exclusive(&self) -> &Vec<ComponentName>;
 }
 
 // Helper access functions
