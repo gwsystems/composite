@@ -17,7 +17,7 @@ impl Transition for AddressAssignmentx86_64 {
         let ases = s.get_named();
         // 4MB offset, mainly just a known value significantly larger
         // than NULL = 0.
-        let addr_offset = 0x4000000;
+        let addr_offset = 0x400000;
         // We're assuming 64 bit systems here, and x86-64
         // specifically. This is the size of the address range in each
         // second level nodes of the page-table.
@@ -50,7 +50,7 @@ impl Transition for AddressAssignmentx86_64 {
             let comp = s.get_spec().component_named(&c);
             let preproc_addr = comp.base_vaddr.trim_start_matches("0x");
             let addr_wrapped = u64::from_str_radix(preproc_addr, 16);
-            let mut addr = 0x4000000;
+            let mut addr = addr_offset;
 
             if let Ok(a) = addr_wrapped {
                 addr = a;

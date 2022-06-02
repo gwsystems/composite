@@ -159,7 +159,7 @@ fn constructor_serialize_args(
     });
 
     let ids_copy: Vec<ArgsKV> = ids.into_iter().rev().collect();
-    
+
     let mut topkv = Vec::new();
     topkv.push(ArgsKV::new_arr(String::from("sinvs"), sinvs));
     topkv.push(ArgsKV::new_arr(String::from("components"), ids_copy));
@@ -220,10 +220,12 @@ fn comp_gen_make_cmd(
     }
     let decomp: Vec<&str> = c.source.split(".").collect();
     assert!(decomp.len() == 2);
-    let name = format!("{}.{}", &c.name.scope_name, &c.name.var_name);
+    // unwrap as we've already validated the name.
+    let compid = s.get_named().rmap().get(&c.name).unwrap();
+    let baseaddr = s.get_address_assignments().component_baseaddr(compid);
 
-    let cmd = format!(r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={} {} component"#,
-                      if_exp, if_deps, &decomp[0], &decomp[1], &name, output_name, &c.base_vaddr, &optional_cmds);
+    let cmd = format!(r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={:#X} {} component"#,
+                      if_exp, if_deps, &decomp[0], &decomp[1], &c.name, output_name, baseaddr, &optional_cmds);
 
     cmd
 }
