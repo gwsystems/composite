@@ -87,7 +87,7 @@ struct crt_comp {
 	struct crt_sinv sinvs[CRT_COMP_SINVS_LEN];
 	u32_t  n_sinvs;
 
-	u32_t mpk_key;
+	prot_domain_t protdom; /* The meaning of this value is left to architecture specific implementations */
 	capid_t second_lvl_pgtbl_cap;
 	struct crt_ns_vas *ns_vas;
 	
@@ -158,37 +158,11 @@ typedef enum {
 	CRT_RCV_ALIAS_ALL  = CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP | CRT_RCV_ALIAS_RCV,
 } crt_rcv_alias_t;
 
-
-/* index of a thread's ulk stack in the isb memory space.
-   This is NOT the ulinvstk offset that is
-   passed during thd activation to the kernel which 
-   is the offset from a single isb to access a threads ulk 
-   stack in the kernel (Though the two are related where
-   the ulkinvstk offset = stk index % page size / stk size) */
-typedef u16_t crt_isb_idx_t;
-
-#define IAT_SZ PAGE_SIZE / sizeof(crt_isb_idx_t)
-
-/* maps tids to isb idx. The issue with this solution is that 
-   thread creators need ULK access to update this table */
-struct crt_isb_access_tbl {
-    crt_isb_idx_t isb_stk_idx[IAT_SZ];
-} PAGE_ALIGNED;
-
-struct crt_isb_ctrl {
-	struct crt_isb_access_tbl *iat;
-	pgtblcap_t                 toplvl;       /* for block allocation */
-	pgtblcap_t                 secondlvl;    /* for pgtbl mapping */
-	isbcap_t                   curr_blk;     /* current isb to alloc stacks in */
-	vaddr_t                    blk_frontier; /* vaddr of next block to alloc */
-	crt_isb_idx_t              idx_frontier; /* index of next stack to alloc */
-};
-
 struct crt_sinv_resources {
 	sinvcap_t sinv_cap;
 };
 
-int crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, u32_t mpk_key);
+int crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, prot_domain_t protdom);
 int crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_comp_resources *resources);
 
 int crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt);
@@ -205,7 +179,6 @@ struct crt_comp_exec_context *crt_comp_exec_sched_init(struct crt_comp_exec_cont
 struct crt_comp_exec_context *crt_comp_exec_thd_init(struct crt_comp_exec_context *ctxt, struct crt_thd *t);
 struct crt_comp_exec_context *crt_comp_exec_capmgr_init(struct crt_comp_exec_context *ctxt, size_t untyped_memsz);
 int crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt);
-int crt_comp_exec_shvas(struct crt_comp *c, struct crt_comp_exec_context *ctxt, struct crt_isb_ctrl *isbctrl);
 struct crt_rcv *crt_comp_exec_rcv(struct crt_comp *comp);
 struct crt_thd *crt_comp_exec_thd(struct crt_comp *comp);
 
@@ -227,9 +200,6 @@ int crt_thd_create(struct crt_thd *t, struct crt_comp *self, crt_thd_fn_t fn, vo
 int crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t closure_id);
 int crt_thd_create_with(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resources *rs);
 int crt_thd_alias_in(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resources *res);
-
-int crt_shvas_thd_create(struct crt_thd *t, struct crt_comp *self, struct crt_isb_ctrl *isbctrl, crt_thd_fn_t fn, void *data);
-int crt_shvas_thd_create_in(struct crt_thd *t, struct crt_comp *c, struct crt_isb_ctrl *isbctrl, thdclosure_index_t closure_id);
 
 void *crt_page_allocn(struct crt_comp *c, u32_t n_pages);
 int crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr);
@@ -308,12 +278,6 @@ struct crt_ns_asid {
 	struct crt_ns_asid *parent;
 };
 
-void          crt_isb_ctrl_init(struct crt_isb_ctrl *isbctrl);
-crt_isb_idx_t crt_isb_stk_alloc(struct crt_isb_ctrl *isbctrl);
-int           crt_isb_map_in(struct crt_ns_vas *ns, struct crt_isb_ctrl *isbctrl);
-void          crt_isb_iat_update(struct crt_isb_ctrl *isbctrl, thdid_t tid, crt_isb_idx_t isb_idx);
-u8_t          crt_isb_idx_to_off(crt_isb_idx_t idx);
-
 /**
  * NS creation:
  *
@@ -339,6 +303,11 @@ int crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids);
  * `existing`, i.e. those that have not been `crt_ns_vas_alloc_in`ed
  */
 int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids);
+
+int crt_ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2);
+
+int crt_ns_vas_ulk_map(struct crt_ns_vas *ns);
+
 
 /*
  * A `crt_comp_create` replacement if you want to create a component

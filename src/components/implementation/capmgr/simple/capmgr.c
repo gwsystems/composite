@@ -586,12 +586,20 @@ cos_init(void)
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 	int ret;
 
+	/* 
+	 * FIXME: This is a hack since the booter's __thdid_alloc is
+	 *        initialized the same as ours. Need a better solution.
+	 */
+	extern unsigned long __thdid_alloc;
+	__thdid_alloc = 16;
+
 	printc("Starting the capability manager.\n");
 	assert(atol(args_get("captbl_end")) >= BOOT_CAPTBL_FREE);
 
 	/* Get our house in order. Initialize ourself and our data-structures */
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
+
 	/*
 	 * FIXME: this is a hack. The captbl_end variable does *not*
 	 * take into account the synchronous invocations yet. That is
@@ -601,7 +609,6 @@ cos_init(void)
 	 */
 	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER));
 	if (!cm_comp_self_alloc("capmgr")) BUG();
-
 	/* Initialize the other component's for which we're responsible */
 	capmgr_comp_init();
 

@@ -31,50 +31,44 @@
 	xor     %rdx, %rdx;					\
 	wrpkru;	
 
-/* r13 = tid, r14 = isb ptr -> rcx = &stack */
+/* r13 = tid -> r14 = &stack*/
 #define COS_ULINV_GET_INVSTK					\
 	movabs	$ULK_BASE_ADDR, %r14;				\
-	/* access IAT to get thd isb index */       		\
-	movw	(%r14, %r13, 2), %ax;				\
-	/* use index to get perthread invstk */			\
-	addq    $PAGE_SIZE, %r14;				\
-	movq    %r14,   %rdx;					\
 	/* get perthread invstack */				\
-	shlq    $7,     %rax;    				\
-	addq    %rdx,   %rax; 					\
-	/* rcx = &stack->top */	 				\
-	movq    %rax,   %rcx;					\
+	movq	%r13, %rax;					\
+	shlq    $7, %rax;	    				\
+	/* r14 = &stack */	 				\
+	addq    %rax, %r14; 					
 
 
-
-/* rcx = &stack */
+/* r14 = &stack */
 #define COS_ULINV_PUSH_INVSTK					\
-	movq    (%rcx), %rdx;					\
+	movq    (%r14), %rdx;					\
 	addq    $1,     %rdx;					\
 	shlq    $4,     %rdx;					\
-	/* rax = &stack_entry */	 			\
-	addq    %rdx,   %rax;					\
+	/* rdx = &stack_entry */	 			\
+	addq    %r14,   %rdx;					\
 	/* store cap no and sp */				\
-	movq    $0x0123456789abcdef, %rdx; 			\
-	movq    %rdx, (%rax); 					\
-	movq    %rsp, 8(%rax); 					\
+	movq    $0x0123456789abcdef, %rax; 			\
+	movq    %rax, (%rdx); 					\
+	movq    %rsp, 8(%rdx); 					\
 	/* increment tos */					\
-	movq    (%rcx), %rax;					\
+	movq    (%r14), %rax;					\
 	addq    $1, %rax;					\
-	movq    %rax, (%rcx);		
+	movq    %rax, (%r14);		
 
-/* rcx = &stack */
+/* r14 = &stack */
 #define COS_ULINV_POP_INVSTK					\
-	movq    (%rcx), %rdx;					\
+	movq    (%r14), %rdx;					\
 	shlq    $4,     %rdx;					\
-	/* rax = &stack_entry */	 			\
-	addq    %rdx,   %rax;					\
+	/* rdx = &stack_entry */	 			\
+	addq    %r14,   %rdx;					\
 	/* restore sp */					\
-	movq    8(%rax),%rsp; 					\
+	movq    8(%rdx),%rsp; 					\
 	/* decrement tos */					\
-	movq    (%rcx), %rdx;					\
-	subq    $1, %rdx;					\
-	movq    %rdx, (%rcx);					\
+	movq    (%r14), %rax;					\
+	subq    $1, %rax;					\
+	movq    %rax, (%r14);					
 
 
 /* clang-format on */

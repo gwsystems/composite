@@ -54,7 +54,7 @@ typedef capid_t compcap_t;
 typedef capid_t captblcap_t;
 typedef capid_t pgtblcap_t;
 typedef capid_t hwcap_t;
-typedef capid_t isbcap_t;
+typedef capid_t ulkcap_t;
 
 /* Memory source information */
 struct cos_meminfo {
@@ -122,10 +122,10 @@ captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
 compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, prot_domain_t protdom);
 
-pgtblcap_t  cos_isb_pgtbl_create(struct cos_compinfo *root_ci, pgtblcap_t *secondlvl, isbcap_t *isb);
-isbcap_t    cos_isb_alloc(struct cos_compinfo *ci, pgtblcap_t isbpt, vaddr_t uaddr);
-int         cos_isb_map_in(pgtblcap_t ptc, pgtblcap_t isb_secondlvl);
-
+void       cos_ulk_info_init(struct cos_compinfo *ci);
+pgtblcap_t cos_ulk_pgtbl_create(struct cos_compinfo *ci, pgtblcap_t *secondlvl);
+ulkcap_t   cos_ulk_page_alloc(struct cos_compinfo *ci, pgtblcap_t ulkpt, vaddr_t uaddr);
+int        cos_ulk_map_in(pgtblcap_t ptc);
 
 void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier);
 
@@ -134,10 +134,6 @@ thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn,
 thdcap_t cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx);
 /* Create the initial (cos_init) thread */
 thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp);
-
-thdcap_t cos_thd_alloc_shvas(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data, isbcap_t isbcap, u8_t ulinvstk_off);
-thdcap_t cos_thd_alloc_ext_shvas(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx, isbcap_t isbcap, u8_t ulinvstk_off);
-thdcap_t cos_initthd_alloc_shvas(struct cos_compinfo *ci, compcap_t comp, isbcap_t isbcap, u8_t ulinvstk_off);
 
 sinvcap_t cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, invtoken_t token);
 arcvcap_t cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap, arcvcap_t enotif);

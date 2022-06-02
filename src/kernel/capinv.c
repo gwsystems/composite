@@ -16,7 +16,7 @@
 #include "include/chal/defs.h"
 #include "include/hw.h"
 #include "include/chal/chal_proto.h"
-#include "include/isb.h"
+#include "include/ulk.h"
 
 
 #define COS_DEFAULT_RET_CAP 0
@@ -988,6 +988,7 @@ composite_syscall_handler(struct pt_regs *regs)
 		printk("cos: cap %d not found!\n", (int)cap);
 		cos_throw(done, 0);
 	}
+
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
 		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info);
@@ -1017,8 +1018,12 @@ composite_syscall_handler(struct pt_regs *regs)
 
 	/* slowpath restbl (captbl and pgtbl) operations */
 	ret = composite_syscall_slowpath(regs, &thd_switch);
-	if (ret < 0) cos_throw(done, ret);
 
+	/* if we pushed a ulk invstk entry to our stack, we need to pop it */
+	thd_invstk_pop_ulk(thd, cos_info);
+
+	if (ret < 0) cos_throw(done, ret);
+	
 	if (thd_switch) return ret;
 done:
 	/*
@@ -1153,29 +1158,28 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			thdclosure_index_t init_data  = __userregs_get1(regs) >> 16;
 			capid_t thd_cap               = __userregs_get1(regs) & 0xFFFF;
 			capid_t pgtbl_cap             = __userregs_get2(regs) >> 16;
-			capid_t isb_cap               = __userregs_get2(regs) & 0xFFFF;
+			capid_t compcap               = __userregs_get2(regs) & 0xFFFF;
 			capid_t pgtbl_addr            = __userregs_get3(regs);
-			capid_t compcap               = __userregs_get4(regs) >> 16;
-			u8_t    ulinvstk_off          = __userregs_get4(regs) & 0xFF;
+			capid_t ulk_cap               = __userregs_get4(regs) >> 16;
+			thdid_t tid                   = __userregs_get4(regs) & 0xFFFF;
 
-			struct thread       *thd;
-			unsigned long       *pte = NULL;
-			struct cos_ulinvstk *ulinvstk;
-			struct cap_isb      *isbc;
+			struct thread     *thd;
+			unsigned long     *pte = NULL;
+			struct ulk_invstk *ulstk = NULL;
+			struct cap_ulk    *ulkc;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(thd && pte);
 
-			if (isb_cap) {
-				isbc = (struct cap_isb *)captbl_lkup(ct, isb_cap);
-				ulinvstk = &((struct cos_ulinvstk *)(isbc->kern_addr))[ulinvstk_off];
+			if (ulk_cap) {
+				ulkc = (struct cap_ulk *)captbl_lkup(ct, ulk_cap);
+				if (!CAP_TYPECHK(ulkc, CAP_ULK)) cos_throw(err, -EINVAL);
+				ulstk = &((struct ulk_invstk *)(ulkc->kern_addr))[tid % ULK_STACKS_PER_PAGE];
 			}
-			else {
-				ulinvstk = NULL;
-			}
+			
 			/* ret is returned by the overall function */
-			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, ulinvstk);
+			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, tid, ulstk);
 			if (ret) kmem_unalloc(pte);
 
 			break;
@@ -1339,20 +1343,22 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			ret = hw_deactivate(op_cap, capin, lid);
 			break;
 		}
-		case CAPTBL_OP_ISBACTIVATE: {
-			capid_t      isbcap   = __userregs_get1(regs) >> 16;
+		case CAPTBL_OP_ULK_MEMACTIVATE: {
+			capid_t      ulkcap   = __userregs_get1(regs) >> 16;
 			livenessid_t lid      = __userregs_get1(regs) & 0xFFFF;
 			capid_t      ptcap    = __userregs_get2(regs) >> 16;
 			capid_t      ptcapin  = __userregs_get2(regs) & 0xFFFF;
 			vaddr_t      kaddr    = __userregs_get3(regs);
 			vaddr_t      uaddrin  = __userregs_get4(regs);
 
-			struct cos_ulinvstk *stk_space;
-			unsigned long       *pte; /* unused */
+			struct ulk_invstk *stk_mem;
+			unsigned long     *pte;
 
-			ret = cap_kmem_activate(ct, ptcap, kaddr, (word_t *)&stk_space, &pte);
+			ret = cap_kmem_activate(ct, ptcap, kaddr, (word_t *)&stk_mem, &pte);
 			if (ret) cos_throw(err, ret);
-			ret = isb_activate(ct, cap, isbcap, lid, (vaddr_t)stk_space, ptcapin, uaddrin);
+
+			ret = ulk_activate(ct, cap, ulkcap, lid, (vaddr_t)stk_mem, ptcapin, uaddrin);
+			if (ret) kmem_unalloc(pte);
 			break;
 		}
 		default:

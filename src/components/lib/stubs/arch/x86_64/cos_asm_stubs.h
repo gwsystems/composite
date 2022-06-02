@@ -46,7 +46,7 @@ __cosrt_s_##name:						\
 	/* callee saved */					\
 	pushq	%rbp;						\
 	pushq	%r13; /* tid      */				\
-	pushq	%r14; /* isb ptr  */				\
+	pushq	%r14; /* struct ulk_invstk ptr  */				\
 	pushq	%r15; /* auth tok */				\
 	movq    %rcx, %r8;					\
 	movq    %rdx, %r9;					\
@@ -55,8 +55,8 @@ __cosrt_s_##name:						\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffff000, %rdx;			\
 	movzwq  0xff0(%rdx), %r13;				\
-	COS_ULINV_SWITCH_DOMAIN(0x0)				\
 	COS_ULINV_GET_INVSTK					\
+	COS_ULINV_SWITCH_DOMAIN(0x0)				\
 	COS_ULINV_PUSH_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* invocation token */					\
@@ -78,7 +78,6 @@ __cosrt_s_##name:						\
 	/* save server authentication token */			\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
 	COS_ULINV_SWITCH_DOMAIN(0x0)				\
-	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_POP_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* check server token */				\
@@ -146,8 +145,8 @@ __cosrt_s_##name:						\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffff000, %rdx;			\
 	movzwq  0xff0(%rdx), %r13;				\
-	COS_ULINV_SWITCH_DOMAIN(0x0)				\
 	COS_ULINV_GET_INVSTK					\
+	COS_ULINV_SWITCH_DOMAIN(0x0)				\
 	COS_ULINV_PUSH_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* invocation token */					\
@@ -175,7 +174,6 @@ __cosrt_s_##name:						\
 	/* save server authentication token */			\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
 	COS_ULINV_SWITCH_DOMAIN(0x0)				\
-	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_POP_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* check server token */				\

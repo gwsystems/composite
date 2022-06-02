@@ -95,7 +95,7 @@ boot_comp_set_idoffset(int off)
 	boot_id_offset = off;
 }
 
-static int
+int
 ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
 {
 	unsigned int i;
@@ -149,11 +149,6 @@ comps_init(void)
 	if (crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
 	ss_ns_vas_activate(ns_vas1);
 
-	/* might need a way for both the booter and the 
-	 * scheduler to share this structure */
-	struct crt_isb_ctrl isbctrl;
-	crt_isb_ctrl_init(&isbctrl);
-
 	/*
 	 * Assume: our component id is the lowest of the ids for all
 	 * components we are set to create, and that we get it from
@@ -197,12 +192,11 @@ comps_init(void)
 
 		if (id == cos_compid()) {
 			int ret;
-
 			/* booter should not have an elf object */
 			assert(!elf_hdr);
 			ret = crt_booter_create(comp, name, id, info);
-			/* kind of hacky; It makes more sense for every component to have a ns_vas */
-			cos_isb_map_in(cos_compinfo_get(comp->comp_res)->pgtbl_cap, isbctrl.secondlvl);
+			cos_ulk_info_init(cos_compinfo_get(comp->comp_res));
+			cos_ulk_map_in(cos_compinfo_get(comp->comp_res)->pgtbl_cap);
 			assert(ret == 0);
 		} else {
 			assert(elf_hdr);
@@ -211,20 +205,20 @@ comps_init(void)
 				struct crt_ns_vas *ns_vas2 = ss_ns_vas_alloc();
 				assert(ns_vas2);
 
+				ss_ns_vas_activate(ns_vas2);
 				if (crt_ns_vas_split(ns_vas2, ns_vas1, ns_asid) != 0) {
 					BUG();
 				}
 				if (crt_comp_create_in_vas(comp, name, id, elf_hdr, info, ns_vas2)) {
 					BUG();
 				}
-				crt_isb_map_in(ns_vas2, &isbctrl);
-				ss_ns_vas_activate(ns_vas2);
+				crt_ns_vas_ulk_map(ns_vas2);
 			}
 			else if (id == 3) {
 				if (crt_comp_create_in_vas(comp, name, id, elf_hdr, info, ns_vas1)) {
 					BUG();
 				}
-				crt_isb_map_in(ns_vas1, &isbctrl);
+				crt_ns_vas_ulk_map(ns_vas1);
 			}
 			else {
 				assert(elf_hdr);
@@ -257,14 +251,14 @@ comps_init(void)
 			struct crt_rcv *r = ss_rcv_alloc();
 
 			assert(r);
-			if (crt_comp_exec_shvas(comp, crt_comp_exec_sched_init(&ctxt, r), &isbctrl)) BUG();
+			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, r))) BUG();
 			ss_rcv_activate(r);
 			printc("\tCreated scheduling execution for %ld\n", id);
 		} else if (!strcmp(exec_type, "init")) {
 			struct crt_thd *t = ss_thd_alloc();
 
 			assert(t);
-			if (crt_comp_exec_shvas(comp, crt_comp_exec_thd_init(&ctxt, t), &isbctrl)) BUG();
+			if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, t))) BUG();
 			ss_thd_activate(t);
 			printc("\tCreated thread for %ld\n", id);
 		} else {
@@ -333,9 +327,6 @@ comps_init(void)
 
 	/*
 	 * *No static capability slot allocations after this p	printc("%lu\n", sizeof(struct cos_ulinvstk));
-	for (int i = 0; i < 500; i++) {
-		printc("%d\n", crt_isb_stk_alloc(&isbctrl));
-	}the
 	 * capability tables of the components. Thus any statically
 	 * allocated capability ids can be disrupted by these
 	 * bump-pointer allocations if they are used past this
@@ -407,7 +398,7 @@ comps_init(void)
 		assert(c);
 
 		/* TODO: generalize. Give the capmgr 64MB for now. */
-		if (crt_comp_exec_shvas(c, crt_comp_exec_capmgr_init(&ctxt, BOOTER_CAPMGR_MB * 1024 * 1024), &isbctrl)) BUG();
+		if (crt_comp_exec(c, crt_comp_exec_capmgr_init(&ctxt, BOOTER_CAPMGR_MB * 1024 * 1024))) BUG();
 	}
 
 	printc("Kernel resources created, booting components!\n");
@@ -444,7 +435,7 @@ chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt, char *name)
 	assert(path[INITARGS_MAX_PATHNAME - 1] == '\0'); /* no truncation allowed */
 
 	if (id == cos_compid()) {
-		/* this should never happen */
+		/* this should never crt_ns_vas_ulk_maphappen */
 		assert(0);
 	} else {
 		if (crt_comp_create_from(comp, name, id, chkpt)) {

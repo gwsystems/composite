@@ -28,14 +28,6 @@ struct cap_comp {
 	struct comp_info   info;
 } __attribute__((packed));
 
-struct cap_sinv {
-	struct cap_header h;
-	struct comp_info  comp_info;
-	vaddr_t           entry_addr;
-	invtoken_t        token;
-} __attribute__((packed));
-
-
 static int
 comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, capid_t pgtbl_cap, livenessid_t lid,
               vaddr_t entry_addr, prot_domain_t protdom)

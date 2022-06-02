@@ -16,6 +16,12 @@
 #include "thd.h"
 #include "chal/call_convention.h"
 
+struct cap_sinv {
+	struct cap_header h;
+	struct comp_info  comp_info;
+	vaddr_t           entry_addr;
+	invtoken_t        token;
+} __attribute__((packed));
 
 struct cap_sret {
 	struct cap_header h;

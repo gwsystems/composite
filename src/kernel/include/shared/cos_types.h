@@ -144,7 +144,7 @@ typedef enum {
 	CAPTBL_OP_HW_TLBSTALL,
 	CAPTBL_OP_HW_TLBSTALL_RECOUNT,
 
-	CAPTBL_OP_ISBACTIVATE,
+	CAPTBL_OP_ULK_MEMACTIVATE,
 
 	/* TODO: Remove before integration */
 	CAPTBL_OP_TEST_UL_INV,
@@ -166,7 +166,7 @@ typedef enum {
 	CAP_QUIESCENCE, /* when deactivating, set to track quiescence state */
 	CAP_TCAP,       /* tcap captable entry */
 	CAP_HW,         /* hardware (interrupt) */
-	CAP_ISB,        /* UL accessable invocation stack block */
+	CAP_ULK,        /* a page of ULK memory */
 } cap_t;
 
 /* TODO: pervasive use of these macros */
@@ -224,7 +224,7 @@ __captbl_cap2sz(cap_t c)
 	case CAP_TCAP:
 		return CAP_SZ_16B;
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
-	case CAP_ISB:
+	case CAP_ULK:
 		return CAP_SZ_32B;
 	case CAP_SINV:
 	case CAP_COMP:
@@ -378,14 +378,16 @@ typedef unsigned long      invtoken_t;
 #define THDCLOSURE_INIT
 typedef int                thdclosure_index_t;
 
-/* This is an attempt decouple hardware specific code from
-   parts of the kernel interface that are kernel agnostic.
-   This type provides an abstraction for hardware-specific 
-   protection domain identifiers (ASID, MPK) that are 
-   interpreted at the hardware-abstraction-layer level. 
-   It is intended for interfaces for hardware-aware user-level 
-   code such as namespace managers. There might be a better 
-   way to do this but it cleans up the kernel interface. */
+/* 
+ * This is an attempt decouple hardware specific code from
+ * parts of the kernel interface that are kernel agnostic.
+ * This type provides an abstraction for hardware-specific 
+ * protection domain identifiers (ASID, MPK) that are 
+ * interpreted at the hardware-abstraction-layer level. 
+ * It is intended for interfaces for hardware-aware user-level 
+ * code such as namespace managers. There might be a better 
+ * way to do this but it cleans up the kernel interface. 
+ */
 typedef unsigned long prot_domain_t;
 
 struct restartable_atomic_sequence {
@@ -433,18 +435,19 @@ struct cos_stack_freelists {
 /* #endif */
 
 /* Maybe this should be somewhere else... */
-struct cos_ulinvstk_entry {
+struct ulk_invstk_entry {
 	capid_t sinv_cap;
 	vaddr_t sp;
 } __attribute__((packed));
 
-/* 1 thread's stack = 2 cache lines */
-#define COS_ULK_INVSTK_SZ 7
+#define ULK_INVSTK_SZ 7
 
-struct cos_ulinvstk {
+struct ulk_invstk {
 	u64_t top, pad;
-	struct cos_ulinvstk_entry s[COS_ULK_INVSTK_SZ];
+	struct ulk_invstk_entry stk[ULK_INVSTK_SZ];
 } CACHE_ALIGNED __attribute__((packed));
+
+#define ULK_STACKS_PER_PAGE (PAGE_SIZE / sizeof(struct ulk_invstk))
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;
@@ -455,7 +458,6 @@ struct cos_component_information {
 	vaddr_t                    cos_heap_allocated, cos_heap_alloc_extent;
 	vaddr_t                    cos_upcall_entry;
 	vaddr_t                    cos_async_inv_entry;
-	vaddr_t                    cos_isb;
 	//	struct cos_sched_data_area *cos_sched_data_area;
 	vaddr_t                            cos_user_caps;
 	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS / 2];

@@ -63,6 +63,9 @@ int
 pongshvas_ret(void)
 {
 	/* test kernel invocations from UL stk */
+	call_cap_op(BOOT_CAPTBL_SELF_INITHW_BASE, CAPTBL_OP_TEST_UL_INV, 2, 0,0,0);
+
+	/* test kernel sinv from UL stk */
 	assert(pang_call() == 99);
 
 	return 42;
