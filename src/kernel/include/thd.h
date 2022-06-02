@@ -13,7 +13,6 @@
 #include "fpu_regs.h"
 #include "chal/cpuid.h"
 #include "chal/call_convention.h"
-#include "chal/chal_thd.h"
 #include "pgtbl.h"
 #include "ulk.h"
 #include "retype_tbl.h"

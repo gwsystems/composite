@@ -31,12 +31,6 @@
 /* make it an opaque type...not to be touched */
 typedef struct pgtbl *pgtbl_t;
 
-/* x86-64 protection domain: |0...00|asid|mpk| */
-#define PROT_DOMAIN_PKEY_BITS (4)
-#define PROT_DOMAIN_PKEY(protdom) (protdom & 0xf)
-#define PROT_DOMAIN_PCID_BITS (12)
-#define PROT_DOMAIN_PCID(protdom) ((protdom << PROT_DOMAIN_PKEY_BITS) & 0xfff)
-
 struct pgtbl_info {
 	prot_domain_t protdom;
 	pgtbl_t       pgtbl;
@@ -78,12 +72,8 @@ pkey_enable(u8_t mpk_key)
 static inline void
 chal_pgtbl_update(struct pgtbl_info *pt)
 {
-	/* TODO: PCID SUPPORT */
-	u16_t asid = PROT_DOMAIN_PCID(pt->protdom);
-	u8_t  pkey = PROT_DOMAIN_PKEY(pt->protdom);
-
 	asm volatile("mov %0, %%cr3" : : "r"(pt->pgtbl));
-	pkey_enable(pkey);
+	pkey_enable(pt->protdom);
 }
 
 static inline asid_t
