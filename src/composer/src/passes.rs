@@ -14,12 +14,14 @@
 use std::collections::{BTreeMap, HashMap};
 
 use initargs::ArgsKV;
+use std::fmt;
 
 pub struct SystemState {
     spec: String,
 
     parse: Option<Box<dyn SpecificationPass>>,
     named: Option<Box<dyn OrderedSpecPass>>,
+    address_assignment: Option<Box<dyn AddressAssignmentPass>>,
     properties: Option<Box<dyn PropertiesPass>>,
     restbls: Option<Box<dyn ResPass>>,
     param: HashMap<ComponentId, Box<dyn InitParamPass>>,
@@ -34,6 +36,7 @@ impl SystemState {
             spec,
             parse: None,
             named: None,
+	    address_assignment: None,
             properties: None,
             restbls: None,
             param: HashMap::new(),
@@ -49,6 +52,10 @@ impl SystemState {
 
     pub fn add_named(&mut self, n: Box<dyn OrderedSpecPass>) {
         self.named = Some(n);
+    }
+
+    pub fn add_address_assign(&mut self, a: Box<dyn AddressAssignmentPass>) {
+        self.address_assignment = Some(a);
     }
 
     pub fn add_properties(&mut self, n: Box<dyn PropertiesPass>) {
@@ -85,6 +92,10 @@ impl SystemState {
 
     pub fn get_named(&self) -> &dyn OrderedSpecPass {
         &**(self.named.as_ref().unwrap())
+    }
+
+    pub fn get_address_assignments(&self) -> &dyn AddressAssignmentPass {
+        &**(self.address_assignment.as_ref().unwrap())
     }
 
     pub fn get_properties(&self) -> &dyn PropertiesPass {
@@ -179,6 +190,12 @@ impl ComponentName {
             var_name: var_name.clone(),
             scope_name: scope_name.clone(),
         }
+    }
+}
+
+impl fmt::Display for ComponentName {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+	write!(f, r#"{}.{}"#, self.scope_name, self.var_name)
     }
 }
 
@@ -299,6 +316,11 @@ pub trait PropertiesPass {
     fn service_is_a(&self, id: &ComponentId, t: ServiceType) -> bool;
     fn service_clients(&self, id: &ComponentId, t: ServiceType) -> Option<&Vec<ComponentId>>;
     fn service_dependency(&self, id: &ComponentId, t: ServiceType) -> Option<ComponentId>;
+}
+
+// Each component must be compiled starting
+pub trait AddressAssignmentPass {
+    fn component_baseaddr(&self, id: &ComponentId) -> u64;
 }
 
 // Compute the resource table, and resource allocations for each

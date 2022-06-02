@@ -588,8 +588,8 @@ impl Transition for SystemSpec {
                 if backward_dep.is_some() {
                     let bd = backward_dep.unwrap();
                     errs.push_str(&format!(
-			"Error: Dependency exists in address space \"{}\" from component \"{}.{}\" to \"{}.{}\" which is in a descendant address space; dependencies can only go from descendants to ancestors.",
-			a.name, pc.scope_name, pc.var_name, bd.server.scope_name, bd.server.var_name));
+			"Error: Dependency exists in address space \"{}\" from component \"{}\" to \"{}\" which is in a descendant address space; dependencies can only go from descendants to ancestors.",
+			a.name, pc, bd.server));
                 }
             }
         }

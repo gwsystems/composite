@@ -17,6 +17,7 @@ mod symbols;
 mod syshelpers;
 mod tot_order;
 mod properties;
+mod address_assignment;
 
 use build::DefaultBuilder;
 use compobject::{Constructor, ElfObject};
@@ -28,6 +29,7 @@ use resources::ResAssignPass;
 use properties::CompProperties;
 use std::env;
 use tot_order::CompTotOrd;
+use address_assignment::AddressAssignmentx86_64;
 
 pub fn exec() -> Result<(), String> {
     let mut args = env::args();
@@ -49,6 +51,7 @@ pub fn exec() -> Result<(), String> {
 
     sys.add_parsed(SystemSpec::transition(&sys, &mut build)?);
     sys.add_named(CompTotOrd::transition(&sys, &mut build)?);
+    sys.add_address_assign(AddressAssignmentx86_64::transition(&sys, &mut build)?);
     sys.add_properties(CompProperties::transition(&sys, &mut build)?);
     sys.add_restbls(ResAssignPass::transition(&sys, &mut build)?);
 
