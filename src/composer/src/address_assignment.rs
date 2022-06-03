@@ -15,6 +15,8 @@ impl AddressAssignmentPass for AddressAssignmentx86_64 {
 impl Transition for AddressAssignmentx86_64 {
     fn transition(s: &SystemState, _b: &mut dyn BuildState) -> Result<Box<Self>, String> {
         let ases = s.get_named();
+        // This is the offset into each address space name that each
+        // component starts at (unless manually overridden). This is a
         // 4MB offset, mainly just a known value significantly larger
         // than NULL = 0.
         let addr_offset = 0x400000;

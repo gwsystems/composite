@@ -17,8 +17,8 @@ pub struct Dep {
 
 #[derive(Debug, Deserialize)]
 pub struct Parameters {
-    pub name: String,
-    pub value: String,
+    pub key: String,
+    pub value: Option<String>,	// optional as we might provide simple keys without values.
     pub at: Option<String>,
 }
 
@@ -519,7 +519,7 @@ impl Transition for SystemSpec {
                     .as_ref()
                     .unwrap_or(&Vec::new())
                     .iter()
-                    .map(|p| ArgsKV::new_key(p.name.clone(), p.value.clone()))
+                    .map(|p| ArgsKV::new_key(p.key.clone(), p.value.as_ref().unwrap_or(&String::from("")).clone()))
                     .collect(),
                 fsimg: c.initfs.clone(),
             };

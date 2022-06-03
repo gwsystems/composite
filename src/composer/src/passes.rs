@@ -195,7 +195,7 @@ impl ComponentName {
 
 impl fmt::Display for ComponentName {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-	write!(f, r#"{}.{}"#, self.scope_name, self.var_name)
+	write!(f, "{}.{}", self.scope_name, self.var_name)
     }
 }
 
@@ -210,7 +210,7 @@ pub struct Component {
     pub scheduler: ComponentName,   // our scheduler (that creates or initial thread)
 
     pub source: String,      // Where is the component source located?
-    pub base_vaddr: String, // The lowest virtual address for the component -- could be hex, so not a VAddr
+    pub base_vaddr: String,  // The lowest virtual address for the component -- could be hex, so not a VAddr
     pub params: Vec<ArgsKV>, // initialization parameters
     pub fsimg: Option<String>,
 }
