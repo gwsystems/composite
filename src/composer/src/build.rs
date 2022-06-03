@@ -185,7 +185,7 @@ fn constructor_serialize_args(
                 let mut v = vec![
                     ArgsKV::new_key("name".to_string(), a.name.clone()),
                     ArgsKV::new_arr(
-                        "comps".to_string(),
+                        "components".to_string(),
                         a.components
                             .iter()
                             .map(|c| {

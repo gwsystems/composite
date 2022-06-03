@@ -47,10 +47,12 @@ static struct crt_comp boot_comps[MAX_NUM_COMPS];
 static const  compid_t sched_root_id  = 2;
 static        long     boot_id_offset = -1;
 
-SS_STATIC_SLAB(sinv,   struct crt_sinv,   BOOTER_MAX_SINV);
-SS_STATIC_SLAB(thd,    struct crt_thd,    BOOTER_MAX_INITTHD);
-SS_STATIC_SLAB(rcv,    struct crt_rcv,    BOOTER_MAX_SCHED);
-SS_STATIC_SLAB(chkpt,  struct crt_chkpt,  BOOTER_MAX_CHKPT);
+SS_STATIC_SLAB(sinv,   struct crt_sinv,         BOOTER_MAX_SINV);
+SS_STATIC_SLAB(thd,    struct crt_thd,          BOOTER_MAX_INITTHD);
+SS_STATIC_SLAB(rcv,    struct crt_rcv,          BOOTER_MAX_SCHED);
+SS_STATIC_SLAB(chkpt,  struct crt_chkpt,        BOOTER_MAX_CHKPT);
+SS_STATIC_SLAB(ns_asid,	struct crt_ns_asid,	BOOTER_MAX_NS_ASID);
+SS_STATIC_SLAB(ns_vas,	struct crt_ns_vas, 	BOOTER_MAX_NS_VAS);
 
 /*
  * Assumptions: the component with the lowest id *must* be the one
@@ -88,7 +90,7 @@ boot_comp_set_idoffset(int off)
 static void
 comps_init(void)
 {
-	struct initargs comps, curr;
+	struct initargs ases, curr;
 	struct initargs_iter i;
 	int cont, ret, j;
 	int comp_idx = 0;
@@ -106,49 +108,75 @@ comps_init(void)
 	}
 	boot_comp_set_idoffset(cos_compid());
 
-	ret = args_get_entry("components", &comps);
+	ret = args_get_entry("addrspc_shared", &ases);
 	assert(!ret);
-	printc("Components (%d):\n", args_len(&comps));
-	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct crt_comp *comp;
-		void *elf_hdr;
-		int   keylen;
-		compid_t id = atoi(args_key(&curr, &keylen));
-		char *name  = args_get_from("img", &curr);
-		vaddr_t info = atol(args_get_from("info", &curr));
-		const char *root = "binaries/";
-		int   len  = strlen(root);
-		char  path[INITARGS_MAX_PATHNAME + 1];
+	printc("Creating address spaces & components:\n");
+	for (cont = args_iter(&ases, &i, &curr) ; cont ; cont = args_iter_next(&i, &ases)) {
+		/* Component-centric inner iteration */
+		struct initargs comps, curr_comp, comp_cont;
+		struct initargs_iter j;
 
-		printc("%s: %lu\n", name, id);
+		/* allocate, initialize initial namespaces */
+		struct crt_ns_asid *ns_asid;
+		struct crt_ns_vas  *ns_vas;
 
-		assert(id < MAX_NUM_COMPS && id > 0 && name);
+		ns_asid = ss_ns_asid_alloc();
+		assert(ns_asid);
 
-		memset(path, 0, INITARGS_MAX_PATHNAME + 1);
-		strncat(path, root, len + 1);
-		assert(path[len] == '\0');
-		strncat(path, name, INITARGS_MAX_PATHNAME - len);
-		assert(path[INITARGS_MAX_PATHNAME] == '\0'); /* no truncation allowed */
+		if (crt_ns_asids_init(ns_asid) != 0) BUG();
+		ss_ns_asid_activate(ns_asid);
 
-		comp = boot_comp_get(id);
-		assert(comp);
-		elf_hdr = (void *)args_get(path);
+		struct crt_ns_vas *ns_vas1 = ss_ns_vas_alloc();
+		assert(ns_vas1);
 
-		if (id == cos_compid()) {
-			int ret;
+		if (crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
+		ss_ns_vas_activate(ns_vas1);
 
-			/* booter should not have an elf object */
-			assert(!elf_hdr);
-			ret = crt_booter_create(comp, name, id, info);
-			assert(ret == 0);
-		} else {
-			assert(elf_hdr);
-			if (crt_comp_create(comp, name, id, elf_hdr, info)) {
-				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
-				BUG();
-			}	
+		/* Sequence of component ids within an address space... */
+		ret = args_get_entry_from("components", curr, &comps);
+		assert(!ret);
+		for (comp_cont = args_iter(&ases, &j, &curr_comp) ; comp_cont ; comp_cont = args_iter_next(&j, &comps)) {
+			struct crt_comp    *comp;
+			void *elf_hdr;
+			int   keylen;
+			compid_t id  = atoi(args_key(&curr, &keylen));
+			char *name   = args_get_from("img", &curr);
+			vaddr_t info = atol(args_get_from("info", &curr));
+			const char *root = "binaries/";
+			int   len    = strlen(root);
+			char  comppath[INITARGS_MAX_PATHNAME + 1];
+			char  imgpath[INITARGS_MAX_PATHNAME + 1];
+
+			printc("%s: %lu\n", name, id);
+
+			assert(id < MAX_NUM_COMPS && id > 0 && name);
+
+			memset(imgpath, 0, INITARGS_MAX_PATHNAME + 1);
+			strncat(imgpath, root, len + 1);
+			assert(imgpath[len] == '\0');
+			strncat(imgpath, name, INITARGS_MAX_PATHNAME - len);
+			assert(imgpath[INITARGS_MAX_PATHNAME] == '\0'); /* no truncation allowed */
+
+			comp = boot_comp_get(id);
+			assert(comp);
+			elf_hdr = (void *)args_get(imgpath);
+
+			if (id == cos_compid()) {
+				int ret;
+
+				/* booter should not have an elf object */
+				assert(!elf_hdr);
+				ret = crt_booter_create(comp, name, id, info);
+				assert(ret == 0);
+			} else {
+				assert(elf_hdr);
+				if (crt_comp_create(comp, name, id, elf_hdr, info)) {
+					printc("Error constructing the resource tables and image of component %s.\n", comp->name);
+					BUG();
+				}
+			}
+			assert(comp->refcnt != 0);
 		}
-		assert(comp->refcnt != 0);
 	}
 
 	ret = args_get_entry("execute", &comps);
@@ -291,7 +319,7 @@ comps_init(void)
 		cli->n_sinvs++;
 	#endif /* ENABLE_CHKPT */
 	}
-	
+
 	/*
 	 * Delegate the untyped memory to the capmgr. This should go
 	 * *after* all allocations that use untyped memory, so that we
@@ -323,7 +351,7 @@ comps_init(void)
  * We only support a single checkpoint directly above the existing components.
  * At this point we assume capability managers and schedulers will not be checkpointed
  */
-void 
+void
 chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt, char *name)
 {
 #ifdef ENABLE_CHKPT
@@ -377,7 +405,7 @@ chkpt_comp_init(struct crt_comp *comp, struct crt_chkpt *chkpt, char *name)
 			comp->sinvs[i].c_fn_addr, comp->sinvs[i].c_ucap_addr, comp->sinvs[i].s_fn_addr);
 		ss_sinv_activate(sinv);
 		printc("\t(chkpt) sinv: %s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
-			sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);	
+			sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);
 	}
 #endif /* ENABLE_CHKPT */
 
@@ -446,9 +474,9 @@ init_done_chkpt(struct crt_comp *c)
 
 	assert(INITARGS_MAX_PATHNAME > prefix_sz + strlen(c->name));
 	memcpy(name, prefix, prefix_sz + 1);
-	strncat(name, c->name, INITARGS_MAX_PATHNAME - prefix_sz - 1); 
+	strncat(name, c->name, INITARGS_MAX_PATHNAME - prefix_sz - 1);
 	c->name[INITARGS_MAX_PATHNAME - 1] = '\0';
-	
+
 	/* completed all initialization */
 	if (c->init_state >= CRT_COMP_INIT_MAIN) {
 		if (crt_nchkpt() > BOOTER_MAX_CHKPT) {
