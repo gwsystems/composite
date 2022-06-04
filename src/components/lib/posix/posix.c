@@ -36,3 +36,14 @@ pre_syscall_default_setup()
 		cos_syscalls[i] = 0;
 	}
 }
+
+/* override musl-libc's init_tls() */
+void __init_tls(size_t *auxv)
+{
+}
+
+void
+libc_initialization_handler()
+{
+	libc_init();
+}

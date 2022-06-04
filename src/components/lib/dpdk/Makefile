@@ -12,7 +12,7 @@ INCLUDE_PATHS = . adapter dpdk/build/install/include
 
 INTERFACE_DEPENDENCIES =
 
-LIBRARY_DEPENDENCIES = component pci posix_capsched
+LIBRARY_DEPENDENCIES = component pci posix_cap posix_sched
 
 # this is to stop non supported build target
 # this will override $(OBJS) so that compiler will not compile target files under unsupported cases
@@ -76,7 +76,7 @@ else
 	@cd $(DPDK_BUILD_DIR);\
 	$(MUSL_BIN_PATH) ninja -j3;\
 	meson install >> /dev/null;
-	@rm libdpdk.a || true
+	@rm -f libdpdk.a || true
 endif
 
 $(SHLIB_FILE): build $(OBJS)
@@ -97,3 +97,4 @@ distclean:
 	cd $(DPDK_BUILD_DIR) ninja clean
 	cd $(DPDK_DIR); rm -rf build
 clean:
+	$(info cleaning DPDK)

@@ -11,7 +11,7 @@ LIBRARY_OUTPUT =
 # posix) which will generate posix.lib.o. Do NOT include the list of .o
 # files here. Please note that using this list is *very rare* and
 # should only be used when the .a support above is not appropriate.
-OBJECT_OUTPUT = posix_capsched
+OBJECT_OUTPUT = posix_cap
 # The path within this directory that holds the .h files for
 # dependents to compile with (./ by default). Will be fed into the -I
 # compiler arguments.

@@ -507,7 +507,7 @@ uint16_t cos_send_a_packet(char * pkt, uint32_t pkt_size, char* mp)
 	struct rte_ether_addr s_addr = {{0x66,0x66,0x66,0x66,0x66,0x66}};
 	struct rte_ether_addr d_addr = {{0x11,0x11,0x11,0x11,0x11,0x11}};
 
-	mbuf = rte_pktmbuf_alloc(mp);
+	mbuf = rte_pktmbuf_alloc((struct rte_mempool *)mp);
 	eth_hdr = rte_pktmbuf_mtod(mbuf,struct rte_ether_hdr*);
 
 	eth_hdr->dst_addr = d_addr;
@@ -520,10 +520,10 @@ uint16_t cos_send_a_packet(char * pkt, uint32_t pkt_size, char* mp)
 	mbuf->data_len = pkt_size + sizeof(struct rte_ether_hdr);
 	mbuf->pkt_len = pkt_size + sizeof(struct rte_ether_hdr);
 
-	return cos_dev_port_tx_burst(0, 0, &mbuf, 1);
+	return cos_dev_port_tx_burst(0, 0, (char**)&mbuf, 1);
 }
 
 char*
 cos_allocate_mbuf(char* mp) {
-	return rte_pktmbuf_alloc(mp);
+	return (char*)rte_pktmbuf_alloc((struct rte_mempool *)mp);
 }

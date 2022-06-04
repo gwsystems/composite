@@ -1,6 +1,5 @@
 #include <llprint.h>
 #include <cos_dpdk.h>
-#include <nic.h>
 
 #define NB_RX_DESC_DEFAULT 1024
 #define NB_TX_DESC_DEFAULT 1024
@@ -11,21 +10,19 @@ static u16_t nic_ports = 0;
 static void
 process_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 {
-	int i;
-
-	for (i = 0; i < nb_pkts; i++) {
-		char * pkt = cos_get_packet(rx_pkts[i]);
-	}
+	/* sent this group of packets out */
+	cos_dev_port_tx_burst(port_id, 0, rx_pkts, nb_pkts);
 }
 
 static void
 cos_nic_start(){
-	int i;
+	int i, loop = 1000000000;
 	uint16_t nb_pkts = 0;
 
 	char* rx_packets[MAX_PKT_BURST];
 
-	while (1)
+	/* only burst for a little time */
+	while (--loop)
 	{
 		/* infinite loop to process packets */
 		for (i = 0; i < nic_ports; i++) {
@@ -36,9 +33,10 @@ cos_nic_start(){
 			}
 		}
 	}
+	/* print stats */
+	cos_get_port_stats(0);
 }
 
-static char* g_mp = NULL;
 static void
 cos_nic_init(void)
 {
@@ -84,7 +82,6 @@ cos_nic_init(void)
 
 	/* 3. create mbuf pool where packets will be stored, user can create multiple pools */
 	char* mp = cos_create_pkt_mbuf_pool(mpool_name, max_mbufs);
-	g_mp = mp;
 
 	assert(mp != NULL);
 
@@ -101,20 +98,6 @@ cos_nic_init(void)
 		cos_dev_port_start(i);
 		cos_dev_port_set_promiscuous_mode(i, COS_DPDK_SWITCH_ON);
 	}
-}
-
-int
-nic_send_packet(char* pkt, size_t pkt_size)
-{
-	/* TODO: implement this interface */
-	return 0;
-}
-
-int
-nic_bind_port(u32_t ip_addr, u16_t port, void* share_mem, size_t share_mem_sz)
-{
-	/* TODO: implement this interface */
-	return 0;
 }
 
 void

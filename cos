@@ -42,6 +42,12 @@ build()
 clean()
 {
 	echo "[cos executing] make -C src clean"
+	make -C src clean
+}
+
+distclean()
+{
+	echo "[cos executing] make -C src clean"
 	make -C src distclean
 }
 
@@ -133,7 +139,7 @@ gdb()
 
 usage()
 {
-	echo "Usage: " $0 " init <arch: [x86_64|i386|armv7a]>|build|clean|compose <script> <output name>|run <composite name> [enable-nic]|debug_run <composite name> [enable_nic]|gdb"
+	echo "Usage: " $0 " init <arch: [x86_64|i386|armv7a]>|build|clean|compose <script> <output name>|run <composite name> [enable-nic]|debug_run <composite name> [enable_nic]|gdb | distclean"
 	exit 1
 }
 
@@ -166,6 +172,9 @@ case $1 in
 		;;
 	gdb )
 		gdb
+		;;
+	distclean )
+		distclean
 		;;
 	* )
 		usage

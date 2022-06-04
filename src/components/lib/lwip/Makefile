@@ -11,7 +11,7 @@ INCLUDE_PATHS = . cos_adapter lwip/src/include
 
 INTERFACE_DEPENDENCIES =
 
-LIBRARY_DEPENDENCIES = component pci posix_capsched
+LIBRARY_DEPENDENCIES = component
 
 # this is to stop non supported build target
 # this will override $(OBJS) so that compiler will not compile target files under unsupported cases
