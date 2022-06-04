@@ -36,6 +36,12 @@
 #ifndef BOOTER_MAX_CHKPT
 #define BOOTER_MAX_CHKPT 64
 #endif
+#ifndef BOOTER_MAX_NS_ASID
+#define BOOTER_MAX_NS_ASID 64
+#endif
+#ifndef BOOTER_MAX_NS_VAS
+#define BOOTER_MAX_NS_VAS 64
+#endif
 
 /* UNCOMMENT HERE FOR CHECKPOINT FUNCTIONALITY */
 /* #ifndef ENABLE_CHKPT
@@ -51,8 +57,8 @@ SS_STATIC_SLAB(sinv,   struct crt_sinv,         BOOTER_MAX_SINV);
 SS_STATIC_SLAB(thd,    struct crt_thd,          BOOTER_MAX_INITTHD);
 SS_STATIC_SLAB(rcv,    struct crt_rcv,          BOOTER_MAX_SCHED);
 SS_STATIC_SLAB(chkpt,  struct crt_chkpt,        BOOTER_MAX_CHKPT);
-SS_STATIC_SLAB(ns_asid,	struct crt_ns_asid,	BOOTER_MAX_NS_ASID);
-SS_STATIC_SLAB(ns_vas,	struct crt_ns_vas, 	BOOTER_MAX_NS_VAS);
+SS_STATIC_SLAB_GLOBAL_ID(ns_asid, struct crt_ns_asid, BOOTER_MAX_NS_ASID, 0);
+SS_STATIC_SLAB_GLOBAL_ID(ns_vas, struct crt_ns_vas, BOOTER_MAX_NS_VAS, 0);
 
 /*
  * Assumptions: the component with the lowest id *must* be the one
@@ -90,7 +96,7 @@ boot_comp_set_idoffset(int off)
 static void
 comps_init(void)
 {
-	struct initargs ases, curr;
+	struct initargs ases, curr, comps, curr_comp;
 	struct initargs_iter i;
 	int cont, ret, j;
 	int comp_idx = 0;
@@ -122,34 +128,39 @@ comps_init(void)
 	ret = args_get_entry("addrspc_shared", &ases);
 	assert(!ret);
 	printc("Creating address spaces & components:\n");
-	for (cont = args_iter(&ases, &i, &curr) ; cont ; cont = args_iter_next(&i, &ases)) {
+	for (cont = args_iter(&ases, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		/* Component-centric inner iteration */
-		struct initargs comps, curr_comp, comp_cont;
+		struct initargs comps, curr_comp;
+		int comp_cont;
 		struct initargs_iter j;
+		int keylen;
+		int as_id = atoi(args_key(&curr, &keylen));
+		char *parent = args_get_from("parent", &curr);
 
 		/* allocate, initialize initial namespaces */
-		struct crt_ns_vas *ns_vas = ss_ns_vas_alloc_at_id(...);
+		struct crt_ns_vas *ns_vas = ss_ns_vas_alloc_at_id(as_id);
 		assert(ns_vas);
+		if (!parent) {
+			printc("Creating virtual address space %s (%d):\n", args_get_from("name", &curr), as_id);
+			if (crt_ns_vas_init(ns_vas, ns_asid) != 0) BUG();
+		} else {
+			int parent_id = atoi(parent);
+			struct crt_ns_vas *parent_vas = ss_ns_vas_get(parent_id);
+			/*
+			 * This must be true as the order of VASes
+			 * places parents before children
+			 */
+			assert(parent_vas);
 
-		if (crt_ns_vas_init(ns_vas, ns_asid) != 0) BUG();
+			printc("Creating virtual address space %s (%d) split from VAS %d:\n", args_get_from("name", &curr), as_id, parent_id);
+			if (crt_ns_vas_split(ns_vas, parent_vas, ns_asid) != 0) BUG();
+		}
 		ss_ns_vas_activate(ns_vas);
 
-
-		struct crt_ns_vas *ns_vas2 = ss_ns_vas_alloc();
-		assert(ns_vas2);
-
-		if (crt_ns_vas_split(ns_vas2, ns_vas1, ns_asid) != 0) {
-			BUG();
-		}
-		if (crt_comp_create_in_vas(comp, name, id, elf_hdr, info, ns_vas2)) {
-			BUG();
-		}
-		ss_ns_vas_activate(ns_vas2);
-
 		/* Sequence of component ids within an address space... */
-		ret = args_get_entry_from("components", curr, &comps);
+		ret = args_get_entry_from("components", &curr, &comps);
 		assert(!ret);
-		for (comp_cont = args_iter(&comps, &j, &curr_comp) ; comp_cont ; comp_cont = args_iter_next(&j, &comps)) {
+		for (comp_cont = args_iter(&comps, &j, &curr_comp) ; comp_cont ; comp_cont = args_iter_next(&j, &curr_comp)) {
 			struct crt_comp *comp;
 			void *elf_hdr;
 			compid_t id  = atoi(args_value(&curr_comp));
@@ -157,14 +168,14 @@ comps_init(void)
 			char  comppath[INITARGS_MAX_PATHNAME + 1];
 
 			comppath[0] = '\0';
-			snprintf(comppath, INITARGS_MAX_PATHNAME, "components/%d", id);
+			snprintf(comppath, INITARGS_MAX_PATHNAME, "components/%lu", id);
 			args_get_entry(comppath, &comp_data);
 
 			char *name   = args_get_from("img", &comp_data);
 			vaddr_t info = atol(args_get_from("info", &comp_data));
 			char  imgpath[INITARGS_MAX_PATHNAME + 1];
 
-			printc("%s: %lu\n", name, id);
+			printc("\tComponent %s: %lu\n", name, id);
 
 			assert(id < MAX_NUM_COMPS && id > 0 && name);
 
@@ -175,24 +186,64 @@ comps_init(void)
 			assert(comp);
 			elf_hdr = (void *)args_get(imgpath);
 
-			if (id == cos_compid()) {
-				int ret;
-
-				/* booter should not have an elf object */
-				assert(!elf_hdr);
-				ret = crt_booter_create(comp, name, id, info);
-				assert(ret == 0);
-			} else {
-				assert(elf_hdr);
-				if (crt_comp_create(comp, name, id, elf_hdr, info)) {
-					printc("Error constructing the resource tables and image of component %s.\n", comp->name);
-					BUG();
-				}
-			}
+			/* We assume, for now, that the composer is
+			 * *not* part of a shared VAS. */
+			if (id == cos_compid()) BUG();
+			assert(elf_hdr);
+			if (crt_comp_create_in_vas(comp, name, id, elf_hdr, info, ns_vas)) BUG();
 			assert(comp->refcnt != 0);
 		}
 	}
 
+	/* Create all of the components in their own address spaces */
+	ret = args_get_entry("addrspc_exclusive", &comps);
+	assert(!ret);
+	for (cont = args_iter(&comps, &i, &curr_comp) ; cont ; cont = args_iter_next(&i, &curr_comp)) {
+		struct crt_comp *comp;
+		void *elf_hdr;
+		compid_t id = atoi(args_value(&curr_comp));
+		struct initargs comp_data;
+		char  comppath[INITARGS_MAX_PATHNAME + 1];
+
+		comppath[0] = '\0';
+		snprintf(comppath, INITARGS_MAX_PATHNAME, "components/%lu", id);
+		args_get_entry(comppath, &comp_data);
+
+		char *name   = args_get_from("img", &comp_data);
+		vaddr_t info = atol(args_get_from("info", &comp_data));
+		char  imgpath[INITARGS_MAX_PATHNAME + 1];
+
+		printc("Component %s: %lu (in an exclusive address space)\n", name, id);
+
+		assert(id < MAX_NUM_COMPS && id > 0 && name);
+
+		imgpath[0] = '\0';
+		snprintf(imgpath, INITARGS_MAX_PATHNAME, "binaries/%s", name);
+
+		comp = boot_comp_get(id);
+		assert(comp);
+		elf_hdr = (void *)args_get(imgpath);
+
+		/* We assume, for now, that the composer is
+		 * *not* part of a shared VAS. */
+		if (id == cos_compid()) {
+			int ret;
+
+			/* booter should not have an elf object */
+			assert(!elf_hdr);
+			ret = crt_booter_create(comp, name, id, info);
+			assert(ret == 0);
+		} else {
+			assert(elf_hdr);
+			if (crt_comp_create(comp, name, id, elf_hdr, info)) BUG();
+			assert(comp->refcnt != 0);
+		}
+	}
+
+	/*
+	 * Actually create the threads for eventual execution in the
+	 * components.
+	 */
 	ret = args_get_entry("execute", &comps);
 	assert(!ret);
 	printc("Execution schedule:\n");

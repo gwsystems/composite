@@ -87,10 +87,10 @@ crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c)
 	chkpt->mem = mem;
 	chkpt->tot_sz_mem = c->tot_sz_mem;
 
-	memcpy(mem, c->mem, c->tot_sz_mem);	
-	/* 
+	memcpy(mem, c->mem, c->tot_sz_mem);
+	/*
 	 * TODO: capabilities aren't copied, so components that could modify their capabilities
-	 * while running (schedulers/cap mgrs) shouldn't be checkpointed 
+	 * while running (schedulers/cap mgrs) shouldn't be checkpointed
 	 * TODO: copy dynamically allocated memory into the checkpoint
 	 */
 
@@ -106,7 +106,7 @@ crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c)
 }
 
 /* Create a new asids namespace */
-int 
+int
 crt_ns_asids_init(struct crt_ns_asid *asids)
 {
 	int i;
@@ -124,13 +124,13 @@ crt_ns_asids_init(struct crt_ns_asid *asids)
 /*
  * Create a asid namespace from the names "left over" in `existing`,
  * i.e. those that have not been marked allocated.
- * 
+ *
  * Return values:
  *    0: success
  *   -1: new is unallocated/null or initialization fails
- *   -2: new already has allocations 
+ *   -2: new already has allocations
  */
-int 
+int
 crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 {
 	int i;
@@ -151,7 +151,7 @@ crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 		if ((existing->names[i].state & CRT_NS_STATE_ALLOCATED) == CRT_NS_STATE_ALLOCATED) {
 			new->names[i].state &= ~CRT_NS_STATE_RESERVED;
 		}
-		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 
+		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing
 		 * NOTE: this means no further allocations can be made in existing
 		 */
 		if ((existing->names[i].state & CRT_NS_STATE_RESERVED) == CRT_NS_STATE_RESERVED) {
@@ -162,7 +162,7 @@ crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
 	return 0;
 }
 
-/* 
+/*
  * Return the index of the first available ASID name
  * Return -1 if there are none available
  */
@@ -186,13 +186,13 @@ crt_asid_available_name(struct crt_ns_asid *asids)
  *   0: success
  *  -1: new/asids not set up correctly, or no available ASID names, or pgtbl node allocation failed
  */
-int 
+int
 crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
 {
 	int asid_index = 0;
 	int i = 0;
 	pgtblcap_t top_lvl_pgtbl;
-	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());	
+	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 	/* find an asid name for new */
 	asid_index = crt_asid_available_name(asids);
@@ -225,15 +225,15 @@ crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
  * Create a new vas namespace from the names "left over" in
  * `existing`, i.e. those that have not been allocated
  * and automatically alias all names from existing into new
- * 
+ *
  * Return values:
  *   0: success
  *  -1: new is null/not allocated correctly, or initialization fails
  *  -2: new already has allocations
- * 
- * NOTE: after this call, no further allocations can be made in existing 
+ *
+ * NOTE: after this call, no further allocations can be made in existing
  */
-int 
+int
 crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids)
 {
 	int i;
@@ -247,7 +247,8 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 	if (crt_ns_vas_init(new, asids)) return -1;
 
 	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
-		/* if a name is allocated or aliased in existing, the component there should automatically be aliased into new */
+		/*
+		 * If a name is allocated or aliased in existing, the component there should automatically be aliased into new */
 		/* by default via init everything else will go to:
 		 * 		reserved  = 1
 		 *      allocated = 0
@@ -264,7 +265,8 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 			}
 
 		}
-		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing 
+		/*
+		 * If a name is reserved (but not allocated) in existing, it should no longer be reserved in existing
 		 * NOTE: this means no further allocations can be made in existing
 		 */
 		if ((existing->names[i].state & (CRT_NS_STATE_RESERVED | CRT_NS_STATE_ALLOCATED)) == CRT_NS_STATE_RESERVED) {
@@ -287,7 +289,7 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 }
 
 
-/* 
+/*
  * helper function:
  * returns the first available MPK name within vas, or -1 if none available
  */
@@ -307,12 +309,12 @@ crt_mpk_available_name(struct crt_ns_vas *vas)
 
 /*
  * A `crt_comp_create` replacement if you want to create a component
- * in a vas directly. 
+ * in a vas directly.
  */
 int
 crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct crt_ns_vas *vas)
 {
-	/* 
+	/*
 	 * find the name at the entry addr for the elf object for c
 	 * is it reserved but unallocated? --> make allocated & assign MPK key w same properties
 	 * else --> not possible
@@ -341,7 +343,7 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 
 	vas->names[name_index].state |= CRT_NS_STATE_ALLOCATED;
 	vas->mpk_names[mpk_key].state |= CRT_NS_STATE_ALLOCATED;
-	vas->names[name_index].comp = c;	
+	vas->names[name_index].comp = c;
 
 	c->mpk_key = mpk_key;
 	c->ns_vas = vas;
@@ -490,7 +492,7 @@ crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_com
  *
  * @return: 0 on success, != 0 on error.
  */
-int 
+int
 crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt)
 {
 	struct cos_compinfo *ci, *root_ci;
@@ -758,7 +760,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 
 	if (crt_ns_vas_shared(client, server))
 		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap_shared, sinv->s_fn_addr, client->id);
-	else 
+	else
 		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
 
 	assert(sinv->sinv_cap);
@@ -1576,4 +1578,3 @@ crt_compinit_exit(struct crt_comp *c, int retval)
 	BUG();
 	while (1) ;
 }
-
