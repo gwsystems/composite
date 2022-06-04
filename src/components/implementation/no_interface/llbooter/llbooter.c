@@ -94,6 +94,7 @@ comps_init(void)
 	struct initargs_iter i;
 	int cont, ret, j;
 	int comp_idx = 0;
+	struct crt_ns_asid *ns_asid;
 
 	/*
 	 * Assume: our component id is the lowest of the ids for all
@@ -108,6 +109,16 @@ comps_init(void)
 	}
 	boot_comp_set_idoffset(cos_compid());
 
+	/*
+	 * FIXME: the asid namespace is shared between all components,
+	 * so we can only create a # of components up to the number of
+	 * ASIDs (e.g. 1024 for x86-64).
+	 */
+	ns_asid = ss_ns_asid_alloc();
+	assert(ns_asid);
+	if (crt_ns_asids_init(ns_asid) != 0) BUG();
+	ss_ns_asid_activate(ns_asid);
+
 	ret = args_get_entry("addrspc_shared", &ases);
 	assert(!ret);
 	printc("Creating address spaces & components:\n");
@@ -117,45 +128,48 @@ comps_init(void)
 		struct initargs_iter j;
 
 		/* allocate, initialize initial namespaces */
-		struct crt_ns_asid *ns_asid;
-		struct crt_ns_vas  *ns_vas;
+		struct crt_ns_vas *ns_vas = ss_ns_vas_alloc_at_id(...);
+		assert(ns_vas);
 
-		ns_asid = ss_ns_asid_alloc();
-		assert(ns_asid);
+		if (crt_ns_vas_init(ns_vas, ns_asid) != 0) BUG();
+		ss_ns_vas_activate(ns_vas);
 
-		if (crt_ns_asids_init(ns_asid) != 0) BUG();
-		ss_ns_asid_activate(ns_asid);
 
-		struct crt_ns_vas *ns_vas1 = ss_ns_vas_alloc();
-		assert(ns_vas1);
+		struct crt_ns_vas *ns_vas2 = ss_ns_vas_alloc();
+		assert(ns_vas2);
 
-		if (crt_ns_vas_init(ns_vas1, ns_asid) != 0) BUG();
-		ss_ns_vas_activate(ns_vas1);
+		if (crt_ns_vas_split(ns_vas2, ns_vas1, ns_asid) != 0) {
+			BUG();
+		}
+		if (crt_comp_create_in_vas(comp, name, id, elf_hdr, info, ns_vas2)) {
+			BUG();
+		}
+		ss_ns_vas_activate(ns_vas2);
 
 		/* Sequence of component ids within an address space... */
 		ret = args_get_entry_from("components", curr, &comps);
 		assert(!ret);
-		for (comp_cont = args_iter(&ases, &j, &curr_comp) ; comp_cont ; comp_cont = args_iter_next(&j, &comps)) {
-			struct crt_comp    *comp;
+		for (comp_cont = args_iter(&comps, &j, &curr_comp) ; comp_cont ; comp_cont = args_iter_next(&j, &comps)) {
+			struct crt_comp *comp;
 			void *elf_hdr;
-			int   keylen;
-			compid_t id  = atoi(args_key(&curr, &keylen));
-			char *name   = args_get_from("img", &curr);
-			vaddr_t info = atol(args_get_from("info", &curr));
-			const char *root = "binaries/";
-			int   len    = strlen(root);
+			compid_t id  = atoi(args_value(&curr_comp));
+			struct initargs comp_data;
 			char  comppath[INITARGS_MAX_PATHNAME + 1];
+
+			comppath[0] = '\0';
+			snprintf(comppath, INITARGS_MAX_PATHNAME, "components/%d", id);
+			args_get_entry(comppath, &comp_data);
+
+			char *name   = args_get_from("img", &comp_data);
+			vaddr_t info = atol(args_get_from("info", &comp_data));
 			char  imgpath[INITARGS_MAX_PATHNAME + 1];
 
 			printc("%s: %lu\n", name, id);
 
 			assert(id < MAX_NUM_COMPS && id > 0 && name);
 
-			memset(imgpath, 0, INITARGS_MAX_PATHNAME + 1);
-			strncat(imgpath, root, len + 1);
-			assert(imgpath[len] == '\0');
-			strncat(imgpath, name, INITARGS_MAX_PATHNAME - len);
-			assert(imgpath[INITARGS_MAX_PATHNAME] == '\0'); /* no truncation allowed */
+			imgpath[0] = '\0';
+			snprintf(imgpath, INITARGS_MAX_PATHNAME, "binaries/%s", name);
 
 			comp = boot_comp_get(id);
 			assert(comp);

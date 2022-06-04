@@ -1,7 +1,5 @@
 use initargs::ArgsKV;
-use passes::{
-    component, deps, exports, AddrSpcName, BuildState, ComponentId, SystemState,
-};
+use passes::{component, deps, exports, AddrSpcName, BuildState, ComponentId, SystemState};
 use std::env;
 use std::fs::File;
 use syshelpers::{dir_exists, emit_file, exec_pipeline, reset_dir};
@@ -191,7 +189,7 @@ fn constructor_serialize_args(
                             .map(|c| {
                                 ArgsKV::new_key(
                                     "_".to_string(),
-				    s.get_named().rmap().get(c).unwrap().to_string(),
+                                    s.get_named().rmap().get(c).unwrap().to_string(),
                                 )
                             })
                             .collect(),
@@ -206,7 +204,7 @@ fn constructor_serialize_args(
                 v
             })
         })
-	.rev()
+        .rev()
         .collect();
     let excl_ases = s
         .get_named()
