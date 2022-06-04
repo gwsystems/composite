@@ -2,11 +2,13 @@
 from scapy.all import *
 import time
 import _thread
+import os
+import signal
 
 def show_packet(packet):
 	# packet.show()
 	print ('Test Success!')
-	exit(0)
+	os.kill(os.getpid(), signal.SIGTERM)
 
 def send_pkt():
 	sent_pkt=Ether(dst='66:66:66:66:66:66')/IP(src='10.10.1.1', dst='10.10.1.2')/ICMP()
@@ -16,9 +18,9 @@ def send_pkt():
 def dump_packet():
 	rx=sniff(iface='tap0', prn=show_packet, timeout=5)
 	npackets=len(rx)
-	if npackets ==0 :
+	if npackets == 0 :
 		print ('Test Fail!')
-		exit(0)
+		os.kill(os.getpid(), signal.SIGTERM)
 try:
 	_thread.start_new_thread(dump_packet, ())
 	time.sleep(2)
