@@ -34,14 +34,24 @@ impl Transition for AddressAssignmentx86_64 {
         // a sanity check:
         assert_eq!(addrspc_name_sz, u64::pow(2, 48) / u64::pow(2, 9));
         let mut baseaddrs = HashMap::new();
+	// Track the last assigned address to a VAS, so that parent
+	// relationships know where to start child addresses.
+	let mut lastaddr = HashMap::new();
 
         for (_, a) in ases.addrspc_components_shared() {
             let mut offset = addr_offset;
+	    if let Some(ref p) = a.parent {
+		// Lets start our address space name where our parent
+		// left off. Unwrap is OK as we've already validated
+		// the name.
+		offset = *lastaddr.get(p).unwrap();
+	    }
             for c in &a.components {
                 let id = s.get_named().rmap().get(&c).unwrap();
                 baseaddrs.insert(*id, offset);
                 offset += addrspc_name_sz;
             }
+	    lastaddr.insert(&a.name, offset); // record the next name *past* the parent's
         }
 
         // All components within their own exclusive address space:
