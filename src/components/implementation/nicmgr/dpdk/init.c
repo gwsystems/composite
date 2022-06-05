@@ -1,20 +1,33 @@
 #include <llprint.h>
 #include <cos_dpdk.h>
 #include <nic.h>
+#include <shm_bm.h>
+#include <nicshmem.h>
 
 #define NB_RX_DESC_DEFAULT 1024
 #define NB_TX_DESC_DEFAULT 1024
+
 #define MAX_PKT_BURST 512
 
 static u16_t nic_ports = 0;
+
+extern shm_bm_t shm;
+extern struct pkt_data_buf *obj;
 
 static void
 process_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 {
 	int i;
-
+	int len = 0;
 	for (i = 0; i < nb_pkts; i++) {
-		char * pkt = cos_get_packet(rx_pkts[i]);
+
+		char * pkt = cos_get_packet(rx_pkts[i], &len);
+		while(obj->flag != 0);
+		memcpy(obj->data, pkt, len);
+		obj->flag = 1;
+		obj->data_len = len;
+		printc("one pkt rx:%d %d\n", obj->flag, obj->data_len);
+		// net_receive_packet(pkt, 100);
 	}
 }
 
@@ -67,7 +80,7 @@ cos_nic_init(void)
 			"--log-level",
 			"*:info", /* log level can be changed to *debug* if needed, this will print lots of information */
 			"-m",
-			"64", /* total memory used by dpdk memory subsystem, such as mempool */
+			"128", /* total memory used by dpdk memory subsystem, such as mempool */
 			};
 
 	argc = ARRAY_SIZE(argv);
@@ -104,9 +117,11 @@ cos_nic_init(void)
 }
 
 int
-nic_send_packet(char* pkt, size_t pkt_size)
+nic_send_packet(char* pkt, size_t pkt_len)
 {
-	/* TODO: implement this interface */
+	// cos_send_a_packet(pkt, pkt_len, g_mp);
+	printc("nic send a packet\n");
+	obj->flag = 0;
 	return 0;
 }
 
