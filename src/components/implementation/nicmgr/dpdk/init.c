@@ -3,16 +3,17 @@
 #include <nic.h>
 #include <shm_bm.h>
 #include <nicshmem.h>
+#include <sched.h>
 
 #define NB_RX_DESC_DEFAULT 1024
 #define NB_TX_DESC_DEFAULT 1024
 
 #define MAX_PKT_BURST 512
 
-static u16_t nic_ports = 0;
+char* g_rx_mp = NULL;
+char* g_tx_mp = NULL;
 
-extern shm_bm_t shm;
-extern struct pkt_data_buf *obj;
+static u16_t nic_ports = 0;
 
 static void
 process_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
@@ -22,11 +23,11 @@ process_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 	for (i = 0; i < nb_pkts; i++) {
 
 		char * pkt = cos_get_packet(rx_pkts[i], &len);
-		while(obj->flag != 0);
-		memcpy(obj->data, pkt, len);
-		obj->flag = 1;
-		obj->data_len = len;
-		printc("one pkt rx:%d %d\n", obj->flag, obj->data_len);
+		// while(obj->flag != 0);
+		// memcpy(obj->data, pkt, len);
+		// obj->flag = 1;
+		// obj->data_len = len;
+		// printc("one pkt rx:%d %d\n", obj->flag, obj->data_len);
 		// net_receive_packet(pkt, 100);
 	}
 }
@@ -36,9 +37,10 @@ cos_nic_start(){
 	int i;
 	uint16_t nb_pkts = 0;
 
+	int t = 1000000000;
 	char* rx_packets[MAX_PKT_BURST];
 
-	while (1)
+	while (--t)
 	{
 		/* infinite loop to process packets */
 		for (i = 0; i < nic_ports; i++) {
@@ -49,9 +51,10 @@ cos_nic_start(){
 			}
 		}
 	}
+	
+	// sched_thd_wakeup(8);
 }
 
-static char* g_mp = NULL;
 static void
 cos_nic_init(void)
 {
@@ -59,7 +62,8 @@ cos_nic_init(void)
 
 	#define MAX_PKT_BURST 512
 
-	const char *mpool_name = "cos_app_pool";
+	const char *rx_mpool_name = "cos_app_rx_pool";
+	const char *tx_mpool_name = "cos_app_tx_pool";
 	uint16_t i;
 	uint16_t nb_rx_desc = NB_RX_DESC_DEFAULT;
 	uint16_t nb_tx_desc = NB_TX_DESC_DEFAULT;
@@ -68,7 +72,7 @@ cos_nic_init(void)
 	 * set max_mbufs 2 times than nb_rx_desc, so that there is enough room
 	 * to store packets, or this will fail if nb_rx_desc <= max_mbufs.
 	 */
-	const size_t max_mbufs = 8 * nb_rx_desc;
+	const size_t max_mbufs = 2 * nb_rx_desc;
 
 	char *argv[] =	{
 			"COS_DPDK_BOOTER", /* single core, the first argument has to be the program name */
@@ -96,10 +100,12 @@ cos_nic_init(void)
 	assert(nic_ports > 0);
 
 	/* 3. create mbuf pool where packets will be stored, user can create multiple pools */
-	char* mp = cos_create_pkt_mbuf_pool(mpool_name, max_mbufs);
-	g_mp = mp;
-
+	char* mp = cos_create_pkt_mbuf_pool(rx_mpool_name, max_mbufs);
 	assert(mp != NULL);
+	g_rx_mp = mp;
+
+	g_tx_mp = cos_create_pkt_mbuf_pool(tx_mpool_name, max_mbufs);
+	assert(g_tx_mp);
 
 	/* 4. config each port */
 	for (i = 0; i < nic_ports; i++) {
@@ -116,22 +122,6 @@ cos_nic_init(void)
 	}
 }
 
-int
-nic_send_packet(char* pkt, size_t pkt_len)
-{
-	// cos_send_a_packet(pkt, pkt_len, g_mp);
-	printc("nic send a packet\n");
-	obj->flag = 0;
-	return 0;
-}
-
-int
-nic_bind_port(u32_t ip_addr, u16_t port, void* share_mem, size_t share_mem_sz)
-{
-	/* TODO: implement this interface */
-	return 0;
-}
-
 void
 cos_init(void)
 {
@@ -144,7 +134,11 @@ main(void)
 {
 	printc("NIC started\n");
 
-	cos_nic_start();
-
+	while (1)
+	{
+		/* code */
+	}
+	
+	// cos_nic_start();
 	return 0;
 }
