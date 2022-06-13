@@ -53,3 +53,4 @@ constructor
 kernel.iso
 grub.cfg
 gdbinit
+src/external_packages/*

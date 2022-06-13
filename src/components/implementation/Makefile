@@ -1,7 +1,8 @@
 include Makefile.src Makefile.comp
 
 SUBDIRS=$(filter-out skel/, $(wildcard */))
-MAKEOPTIONS=-I$(shell pwd)
+MAKEOPTIONS+= -I$(shell pwd)
+export MAKEOPTIONS
 
 .PHONY: all
 all:
@@ -25,3 +26,6 @@ distclean:
 
 component:
 	$(MAKE) $(MAKEOPTIONS) -C $(COMP_INTERFACE) component
+
+component_external:
+	$(MAKE) $(MAKEOPTIONS) -C $(COMPONENT_EXTERNAL_PATH) component

@@ -1,4 +1,5 @@
-MAKEOPTIONS=-I$(shell pwd)
+MAKEOPTIONS+= -I$(shell pwd)
+export MAKEOPTIONS
 
 # Order of which subdirectories are built first matters here.
 # Interface files rely on library files, and component implementations
@@ -24,3 +25,6 @@ init:
 
 component:
 	$(MAKE) $(MAKEOPTIONS) -C implementation component
+
+component_external:
+	$(MAKE) $(MAKEOPTIONS) -C implementation component_external
