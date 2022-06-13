@@ -310,6 +310,10 @@ contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_
 		ss_page_activate(p);
 	}
 
+	/**
+	 * FIXME: Need to reslove concurrent issue here,
+	 * this is not multi-thread safe
+	 */
 	s->page_off = ss_page_id(initial);
 	s->n_pages  = npages;
 	ss_span_activate(s);
