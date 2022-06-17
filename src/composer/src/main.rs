@@ -54,6 +54,7 @@ pub fn exec() -> Result<(), String> {
     sys.add_address_assign(AddressAssignmentx86_64::transition(&sys, &mut build)?);
     sys.add_properties(CompProperties::transition(&sys, &mut build)?);
     sys.add_restbls(ResAssignPass::transition(&sys, &mut build)?);
+    sys.add_repos(RepoPass::transition(&sys, &mut build)?);
 
     // process these in reverse order of dependencies (e.g. booter last)
     let reverse_ids: Vec<ComponentId> = sys

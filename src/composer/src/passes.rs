@@ -209,10 +209,17 @@ pub struct Component {
     pub constructor: ComponentName, // the constructor that loads this component
     pub scheduler: ComponentName,   // our scheduler (that creates or initial thread)
 
-    pub source: String,      // Where is the component source located?
+    pub source: String,      // Where is the component source located in repo?
+    pub location: Option<String>, // ...and should we use an external repo?
     pub base_vaddr: String,  // The lowest virtual address for the component -- could be hex, so not a VAddr
     pub params: Vec<ArgsKV>, // initialization parameters
     pub fsimg: Option<String>,
+}
+
+impl fmt::Display for Component {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+	write!(f, "{}.{}", self.source, self.name)
+    }
 }
 
 // Input/frontend pass taking the specification, and outputing the

@@ -41,14 +41,22 @@ use tar::Builder;
 // - COMP_INITARGS_FILE - the path to the generated initial arguments .c file
 // - COMP_TAR_FILE - the path to an initargs tarball to compile into the component
 //
+// Building external repositories (not in the main composite repo)
+// doesn't use COMP_INTERFACE and instead uses the following:
+//
+// - COMP_EXTERNAL_REPO - The URL to the to the external repo that
+//   holds the component.
+//
 // In the end, this should result in a command line for each component
 // along these (artificial) lines:
 //
-// `make COMP_INTERFACES="pong/log" COMP_IFDEPS="capmgr/stubs sched/lock" COMP_LIBS="ps heap" COMP_INTERFACE=pong COMP_NAME=pingpong COMP_VARNAME=pongcomp component`
+// `make COMP_INTERFACES="pong/log" COMP_IFDEPS="capmgr/stubs+sched/lock" COMP_LIBS="ps heap" COMP_INTERFACE=pong COMP_NAME=pingpong COMP_VARNAME=pongcomp component`
 //
 // ...which should output the executable pong.pingpong.pongcomp in the
 // build directory which is the "sealed" version of the component that
 // is ready for loading.
+
+//
 
 // The key within the initargs for the tarball, the path of the
 // tarball, and the set of paths to the files to include in the
@@ -340,7 +348,7 @@ impl BuildState for DefaultBuilder {
 
     fn comp_dir_path(&self, c: &ComponentId, state: &SystemState) -> Result<String, String> {
         let name = state.get_named().ids().get(c).unwrap();
-        Ok(self.file_path(&format!("{}.{}", name.scope_name, name.var_name))?)
+        Ok(self.file_path(&format!("{}", name))?)
     }
 
     fn comp_file_path(
@@ -357,7 +365,7 @@ impl BuildState for DefaultBuilder {
 
     fn comp_obj_file(&self, c: &ComponentId, s: &SystemState) -> String {
         let comp = component(&s, &c);
-        format!("{}.{}", &comp.source, &comp.name)
+        format!("{}", &comp)
     }
 
     fn comp_obj_path(&self, c: &ComponentId, s: &SystemState) -> Result<String, String> {
