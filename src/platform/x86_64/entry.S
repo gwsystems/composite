@@ -76,8 +76,6 @@ restore_from_thd:
 	popq %rax
 	movq %rax, %es
 	popq %rax
-	movq %rax, %fs
-	popq %rax
 	movq %rax, %gs
 	RESTORE_REGS_GENERAL
 
@@ -89,8 +87,6 @@ restore_from_thd:
 #define IRQPROC(fn)  \
 	SAVE_REGS_GENERAL; 	\
 	movq %gs, %rax;		\
-	pushq %rax;			\
-	movq %fs, %rax;		\
 	pushq %rax;			\
 	movq %es, %rax;		\
 	pushq %rax;			\

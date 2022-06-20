@@ -65,9 +65,11 @@ DEPS :=$(patsubst %.o, %.d, $(OBJS))
 
 OBJS += $(COS_OBJ) $(ASM_OBJS)
 
+.PHONY: $(CONSTRUCTOR_COMP)
+
 all: $(KERNEL)
 
-$(KERNEL): linker.ld $(DEPS) $(OBJS) start.o
+$(KERNEL): linker.ld $(OBJS) start.o $(CONSTRUCTOR_COMP)
 	$(if $(CONSTRUCTOR_COMP), $(info |     [LD]   Linking in the constructor component $@))
 	$(if $(CONSTRUCTOR_COMP), @cp $(CONSTRUCTOR_COMP) constructor; $(LD) -r -b binary constructor -o constructor.o; $(OBJCP) --rename-section .data=.initial_component constructor.o; rm constructor)
 	$(if $(KERNEL_OUTPUT), $(info |     [LD]   Linking $@))
@@ -79,7 +81,12 @@ $(KERNEL): linker.ld $(DEPS) $(OBJS) start.o
 	$(if $(KERNEL_OUTPUT), @cp $@.bin $(KERNEL_OUTPUT).bin)
 
 %.d: %.c
-	@$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $< -o $@
+	@set +e; rm -f $@; \
+	$(CC) -M $(CFLAGS) $< > $@.$$$$ 2>/dev/null; \
+	if [ -s $@.$$$$ ]; then \
+		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	fi; \
+	rm -f $@.$$$$
 
 pgtbl.o: ../../kernel/pgtbl.c
 	$(info |     [CC]   Compiling $@)
@@ -115,3 +122,5 @@ captbl.o: ../../kernel/captbl.c
 
 clean:
 	@rm -f *.d *.o $(KERNEL)
+
+-include $(DEPS)

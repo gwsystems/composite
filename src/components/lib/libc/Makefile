@@ -85,7 +85,7 @@ i386_init:
 
 x86_64_init:
 	$(info Building libc (musl) for x86_64)
-	cd $(MUSLDIR); ./configure "CFLAGS=-m64 -O3 -mcmodel=large" "LDFLAGS=-Wl,-melf_x86_64" --disable-shared --target=x86_64; cd ..
+	cd $(MUSLDIR); ./configure "CFLAGS=-m64 -O3 -mcmodel=large -g" "LDFLAGS=-Wl,-melf_x86_64" --disable-shared --target=x86_64; cd ..
 
 libc.READY:
 	make $(PLATFORM)_init

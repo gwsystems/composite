@@ -3,6 +3,7 @@
 #include "kernel.h"
 #include "tss.h"
 #include "chal_asm_inc.h"
+#include "chal_cpu.h"
 
 struct gdt_aligned {
         u64_t seg_descs[SEL_CNT];
@@ -20,11 +21,8 @@ void
 chal_tls_update(vaddr_t addr)
 {
 	int cpu_id = get_cpuid();
-	assert(0);
-	/* X86_64-FIXME: commented temporarily because currently I do not set up tls */
-	//gdt[cpu_id].seg_descs[SEL_UGSEG / sizeof *gdt[cpu_id].seg_descs] = make_data_desc_at(3, (u32_t)addr);
-	/* force the reload of the segment cache */
-	asm volatile("movl %0, %%gs" : : "q"(SEL_UGSEG));
+
+	writemsr(MSR_FSBASE, (u32_t)(addr), (u32_t)((addr) >> 32));
 }
 
 /*
@@ -45,6 +43,7 @@ gdt_init(const cpuid_t cpu_id)
 	gdt[cpu_id].seg_descs[SEL_UCSEG / sizeof *gdt[cpu_id].seg_descs] = make_code_desc(3);
 	make_tss_desc(&(gdt[cpu_id].seg_descs[SEL_TSS / sizeof *gdt[cpu_id].seg_descs]), (u64_t)&tss[cpu_id]);
 	gdt[cpu_id].seg_descs[SEL_UGSEG / sizeof *gdt[cpu_id].seg_descs] = make_data_desc(3);
+	gdt[cpu_id].seg_descs[SEL_UFSEG / sizeof *gdt[cpu_id].seg_descs] = make_data_desc(3);
 
 	/*
 	 * Load GDTR, TR.  See [IA32-v3a] 2.4.1 "Global Descriptor
@@ -113,7 +112,7 @@ make_data_desc(int dpl)
 	 * make sure to init variables before use, you don't know 
 	 * whether the value comes from registers or memory, if it does 
 	 * comes from memory, value in that address could be random, 
-	 * thus you need to init that memory first. 	
+	 * thus you need to init that memory first. 
 	 */
 	u32_t e0 = 0, e1 = 0;
 

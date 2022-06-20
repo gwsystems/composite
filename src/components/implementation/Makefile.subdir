@@ -9,7 +9,7 @@ INCLUDES=$(DEPENDENCY_INCPATH) $(CINC)
 OBJS=$(patsubst %.c,%.o,$(wildcard *.c)) $(patsubst %.S,%.o,$(wildcard *.S)) $(patsubst %.cc,%.o,$(wildcard *.cc))
 
 #NOTE: assembly files don't have dependencies generated for them
-SOURCE_DEPENDENCIES=$($(wildcard *.c):%.c=%.d) $($(wildcard *.cc):%.cc=%.d)
+SOURCE_DEPENDENCIES=$(OBJS:%.o=%.d)
 
 .PHONY: all
 all: print $(SOURCE_DEPENDENCIES) $(CLIB) subdirs
@@ -44,11 +44,25 @@ endif
 
 # see the make manual: create the .d dependencies from include
 # statements.
+# redirect error output to /dev/null so that it will not display
+# errors when cleaning, this does not affect gcc's error output when 
+# building the system because that is in a different target path
 %.d:%.c
+	$(info |     [DEP]  Creating dependency file for $@)
+	@set +e; rm -f $@; \
+	$(CC) -M $(INCLUDES) $(CFLAGS) $< > $@.$$$$ 2>/dev/null; \
+	if [ -s $@.$$$$ ]; then \
+		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	fi; \
+	rm -f $@.$$$$
+
+%.d:%.cc
 #	$(info |     [DEP]  Creating dependency file for $<)
-	@set -e; rm -f $@; \
-	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
-	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	@set +e; rm -f $@; \
+	$(CXX) -M $(INCLUDES) $(LIBSTDCXXINC) $(CXXFLAGS) $< > $@.$$$$ 2>/dev/null; \
+	if [ -s $@.$$$$ ]; then \
+		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	fi; \
 	rm -f $@.$$$$
 
 .PHONY: clean

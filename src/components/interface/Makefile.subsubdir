@@ -37,7 +37,7 @@ print:
 	@$(info Compiling stubs for interface: $(IFNAME), variant: $(VARIANTNAME))
 
 %.o:%.c
-	$(info |     [CC]   Compiling c file $^ into $@)
+	$(info |     [CC]   Compiling c file $< into $@)
 	@$(CC) $(CFLAGS) $(DEP_INC) -c -o $(@) $<
 
 $(S_SSTUB_OBJ):$(SSTUB_FILE)
@@ -62,12 +62,17 @@ clean:
 
 fresh: clean all
 
+# redirect error output to /dev/null so that it will not display
+# errors when cleaning, this does not affect gcc's error output when 
+# building the system because that is in a different target path
 %.d:%.c
-	@set -e; rm -f $@; \
-	@$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
-	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	@set +e; rm -f $@; \
+	$(CC) -M $(CFLAGS) $(DEP_INC) $< > $@.$$$$ 2>/dev/null; \
+	if [ -s $@.$$$$ ]; then \
+		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	fi; \
 	rm -f $@.$$$$
 
-SOURCE_DEPENDENCIES=$($(wildcard *.c):%.c=%.d)
+SOURCE_DEPENDENCIES=$(S_CSTUBS:%.c=%.d) $(C_CSTUBS:%.c=%.d)
 
 -include $(SOURCE_DEPENDENCIES)
