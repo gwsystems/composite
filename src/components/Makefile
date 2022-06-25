@@ -26,5 +26,11 @@ init:
 component:
 	$(MAKE) $(MAKEOPTIONS) -C implementation component
 
-component_external:
-	$(MAKE) $(MAKEOPTIONS) -C implementation component_external
+# Download a remote repository (e.g. from github). We're setting up a
+# specific rule for the repo's path so that it won't redundantly clone
+# the repo. Once it has been cloned, never clone it again.
+REPO_ABSPATH = $(REPO_DIR)/$(REPO_PATH)
+$(REPO_ABSPATH):
+	$(GITCLONE) $(REPO_URL) $@
+
+repo_external: $(REPO_ABSPATH)

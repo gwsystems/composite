@@ -40,23 +40,28 @@ use tar::Builder;
 // - COMP_BASEADDR - the base address of .text for the component
 // - COMP_INITARGS_FILE - the path to the generated initial arguments .c file
 // - COMP_TAR_FILE - the path to an initargs tarball to compile into the component
+// - COMP_PATH - path to the component directory relative to `src/components`
 //
 // Building external repositories (not in the main composite repo)
 // doesn't use COMP_INTERFACE and instead uses the following:
 //
-// - COMP_EXTERNAL_REPO - The URL to the to the external repo that
-//   holds the component.
+// - REPO_URL - The URL to the to the external repo that holds the
+//   component.
+// - REPO_PATH - The path within the repo directory into which the
+//   external repo should be cloned.
 //
 // In the end, this should result in a command line for each component
 // along these (artificial) lines:
 //
-// `make COMP_INTERFACES="pong/log" COMP_IFDEPS="capmgr/stubs+sched/lock" COMP_LIBS="ps heap" COMP_INTERFACE=pong COMP_NAME=pingpong COMP_VARNAME=pongcomp component`
+// `make COMP_INTERFACES="pong/log" COMP_IFDEPS="capmgr/stubs+sched/lock" COMP_LIBS="ps heap" COMP_INTERFACE=pong COMP_NAME=pingpong COMP_PATH="implementation/pong/pingpong COMP_VARNAME=pongcomp component`
 //
 // ...which should output the executable pong.pingpong.pongcomp in the
 // build directory which is the "sealed" version of the component that
 // is ready for loading.
 
-//
+// A key design goal of the composer and Composite build system is
+// that the absolute paths are all taken care of by the build system,
+// thus this code focuses on simply properly guiding the build system.
 
 // The key within the initargs for the tarball, the path of the
 // tarball, and the set of paths to the files to include in the
@@ -283,6 +288,13 @@ fn comp_gen_make_cmd(
             ifpath.push_str(&d.variant.clone());
             (false, ifpath)
         });
+    // TODO: replace the above with this if it is the same
+    let deps_test = ds
+        .iter()
+        .map(|d| format!("{}/{}", d.interface, d.variant))
+        .collect::<Vec<_>>()
+        .join("+");
+    assert_eq!(if_deps, deps_test);
 
     let mut optional_cmds = String::from("");
     optional_cmds.push_str(&format!("COMP_INITARGS_FILE={} ", args_file));
@@ -294,10 +306,11 @@ fn comp_gen_make_cmd(
     // unwrap as we've already validated the name.
     let compid = s.get_named().rmap().get(&c.name).unwrap();
     let baseaddr = s.get_address_assignments().component_baseaddr(compid);
+    let comp_location = s.get_dir_location().dir_location(&c.name);
 
     let cmd = format!(
-        r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={:#X} {} component"#,
-        if_exp, if_deps, &decomp[0], &decomp[1], &c.name, output_name, baseaddr, &optional_cmds
+        r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_PATH={} COMP_BASEADDR={:#X} {} component"#,
+        if_exp, if_deps, &decomp[0], &decomp[1], &c.name, output_name, comp_location, baseaddr, &optional_cmds
     );
 
     cmd
@@ -307,6 +320,13 @@ fn kern_gen_make_cmd(input_constructor: &String, kern_output: &String, _s: &Syst
     format!(
         r#"make -C src KERNEL_OUTPUT="{}" CONSTRUCTOR_COMP="{}" plat"#,
         kern_output, input_constructor
+    )
+}
+
+fn repo_download_gen_make_cmd(repo_url: &String, repo_path: &String) -> String {
+    format!(
+        r#"make -C src REPO_URL="{}" REPO_PATH="{}" repo_external"#,
+        repo_url, repo_path
     )
 }
 
@@ -465,6 +485,51 @@ impl BuildState for DefaultBuilder {
         )?;
         if err.len() != 0 {
             println!("Errors in compiling kernel. See {}.", comp_log)
+        }
+
+        Ok(())
+    }
+
+    // Take the repo specification from the specification, and the
+    // path in `src/components/` for the repo.
+    fn repo_download(&self, repo_url: &String, repo_path: &String, _s: &SystemState) -> Result<(), String> {
+        let cmd = repo_download_gen_make_cmd(&repo_url, &repo_path);
+        let (_out, err) = exec_pipeline(vec![cmd.clone()]);
+
+        if err.len() > 0 {
+            let lines = err.lines();
+            let correct_str = "Cloning into ";
+            let correct_str_len = correct_str.len();
+
+            let errs: String = lines
+                .filter_map(|l| {
+                    if l.chars().take(correct_str_len).collect::<String>() != correct_str {
+                        None
+                    } else {
+                        Some(l)
+                    }
+                })
+                .collect();
+
+            return Err(
+                format!("Error creating external repository \"{}\":\n", repo_url)
+                    + &errs
+                    + "\nCommon causes of this error include:\n"
+                    + "1. The specified repository doesn't exist (i.e. incorrect URL).\n"
+                    + "2. `git` isn't installed.\n"MUSTMUST
+                    + "3. `ssh` isn't installed (we access the repo using git's s
+                    + "3. `ssh` isn't installed (we access the repo using gitshMUST support).\n"
+                    + "4. `ssh` asked for user input because the known hosts aren't set up.\n",
+            );
+        }
+
+        Ok(())
+    }
+}
+
+                    + "3. `ssh` isn't installed (we access the repo using gitshMUST support).\n"
+                    + "4. `ssh` asked for user input because the known hosts aren't set up.\n",
+            );
         }
 
         Ok(())

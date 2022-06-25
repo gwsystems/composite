@@ -40,7 +40,7 @@ TAR_SYMBOL_NAME=crt_init.tar
 ifeq ($(PLATFORM), i386)
 LINKFLAG=-Xlinker -melf_i386
 else ifeq ($(PLATFORM), x86_64)
-LINKFLAG=-Xlinker -melf_x86_64 
+LINKFLAG=-Xlinker -melf_x86_64
 else ifeq ($(PLATFORM), armv7a)
 LINKFLAG=-Xlinker -marmelf
 endif
@@ -80,13 +80,15 @@ COMP_DEP_OBJS=$(foreach D,$(COMP_IFDEPS_CLEAN),$(INTERDIR)/$(D)/cosrt_c_stub.o)
 # NOTE: we're currently ignoring the *variants* library requirements,
 # which will break if an interface's code requires a library
 
+
 comp_header:
-	$(info | Composing $(COMP_INTERFACE).$(COMP_NAME) for variable $(COMP_VARNAME) by linking with:)
+	$(info | Composing $(if $(COMP_INTERFACE),$(COMP_INTERFACE).)$(COMP_NAME) for variable $(COMP_VARNAME) by linking with:)
 	$(info |     Exported interfaces: $(COMP_INTERFACES_CLEAN))
 	$(info |     Interface dependencies: $(COMP_IFDEPS_CLEAN))
 	$(info |     Libraries: $(DEPENDENCY_LIBS) $(DEPENDENCY_LIBOBJS))
+	$(info |     Component location: $(COMP_REPO))
 
-.PHONY: component
+.PHONY: component comp_header
 component: clean comp_header $(COMPOBJ)
 	$(if $(COMP_INITARGS_FILE), $(CC) $(INCLUDE) $(CFLAGS) -c -o $(COMP_INITARGS_FILE:%.c=%.o) $(COMP_INITARGS_FILE))
 	$(if $(COMP_TAR_FILE), cp $(COMP_TAR_FILE) $(TAR_SYMBOL_NAME))
@@ -94,6 +96,8 @@ component: clean comp_header $(COMPOBJ)
 	$(LD) $(LDFLAGS) -r -o $(COMPNAME).linked_libs_ifs.o $(COMPOBJ) $(COMP_EXPIF_OBJS) $(COMP_DEP_OBJS) $(if $(COMP_INITARGS_FILE), $(COMP_INITARGS_FILE:%.c=%.o)) $(if $(COMP_TAR_FILE), $(COMP_TAR_FILE).o) $(COMP_DEPLIBDIRS_CLEAN) $(COMP_DEPLIBS_CLEAN) $(LIB_FLAGS)
 	$(MUSLCC) $(COMPNAME).linked_libs_ifs.o $(MUSLCFLAGS) $(LINKFLAG) -o $(COMPNAME).linked_musl.o
 	$(LD) $(LDFLAGS) -Ttext=$(COMP_BASEADDR) -T $(COMP_LD_SCRIPT) -o $(COMP_OUTPUT) $(COMPNAME).linked_musl.o
+
+component_external:
 
 %.o:%.c
 	$(info |     [CC]   $<: Compiling)

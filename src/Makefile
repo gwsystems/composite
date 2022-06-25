@@ -21,6 +21,10 @@ composer:
 component:
 	$(MAKE) $(MAKEOPTIONS) -C components component
 
+# Download an external repository
+repo_external:
+	$(MAKE) $(MAKEOPTIONS) -C components repo_external
+
 comps:
 	$(info )
 	$(info ***********************************************)

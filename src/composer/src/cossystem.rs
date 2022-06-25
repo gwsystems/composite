@@ -32,7 +32,7 @@ pub struct InterfaceVariant {
 pub struct TomlComponent {
     name: String,
     img: String,
-    location: Option<String>,
+    repo: Option<String>,
     baseaddr: Option<String>,
     deps: Option<Vec<Dep>>,
     params: Option<Vec<Parameters>>,
@@ -510,7 +510,7 @@ impl Transition for SystemSpec {
                 constructor: ComponentName::new(&c.constructor, &String::from("global")),
                 scheduler: sched_name,
                 source: c.img.clone(),
-		location: c.location.clone(),
+		repo: c.repo.clone(),
                 base_vaddr: c
                     .baseaddr
                     .as_ref()

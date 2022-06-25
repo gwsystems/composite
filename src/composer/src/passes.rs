@@ -21,6 +21,7 @@ pub struct SystemState {
 
     parse: Option<Box<dyn SpecificationPass>>,
     named: Option<Box<dyn OrderedSpecPass>>,
+    dir_location: Option<Box<dyn DirLocationPass>>,
     address_assignment: Option<Box<dyn AddressAssignmentPass>>,
     properties: Option<Box<dyn PropertiesPass>>,
     restbls: Option<Box<dyn ResPass>>,
@@ -36,6 +37,7 @@ impl SystemState {
             spec,
             parse: None,
             named: None,
+	    dir_location: None,
 	    address_assignment: None,
             properties: None,
             restbls: None,
@@ -52,6 +54,10 @@ impl SystemState {
 
     pub fn add_named(&mut self, n: Box<dyn OrderedSpecPass>) {
         self.named = Some(n);
+    }
+
+    pub fn add_dir_location(&mut self, l: Box<dyn DirLocationPass>) {
+	self.dir_location = Some(l);
     }
 
     pub fn add_address_assign(&mut self, a: Box<dyn AddressAssignmentPass>) {
@@ -92,6 +98,10 @@ impl SystemState {
 
     pub fn get_named(&self) -> &dyn OrderedSpecPass {
         &**(self.named.as_ref().unwrap())
+    }
+
+    pub fn get_dir_location(&self) -> &dyn DirLocationPass {
+        &**(self.dir_location.as_ref().unwrap())
     }
 
     pub fn get_address_assignments(&self) -> &dyn AddressAssignmentPass {
@@ -143,6 +153,7 @@ pub trait BuildState {
     fn comp_build(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // build the component, and return the path to the resulting object
     fn constructor_build(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // build a constructor, including all components it is responsible for booting
     fn kernel_build(&self, kern_output: &String, constructor_input: &String, s: &SystemState) -> Result<(), String>; // build the final kernel image
+    fn repo_download(&self, github_repo: &String, dir_location: &String, s: &SystemState) -> Result<(), String>;
 }
 
 // The following describes the means of transitioning the system
@@ -210,7 +221,7 @@ pub struct Component {
     pub scheduler: ComponentName,   // our scheduler (that creates or initial thread)
 
     pub source: String,      // Where is the component source located in repo?
-    pub location: Option<String>, // ...and should we use an external repo?
+    pub repo: Option<String>, // ...and should we use an external repo?
     pub base_vaddr: String,  // The lowest virtual address for the component -- could be hex, so not a VAddr
     pub params: Vec<ArgsKV>, // initialization parameters
     pub fsimg: Option<String>,
@@ -256,6 +267,14 @@ pub trait SpecificationPass {
     fn exports_named(&self, id: &ComponentName) -> &Vec<Export>;
     fn libs_named(&self, id: &ComponentName) -> &Vec<Library>;
     fn address_spaces(&self) -> &AddrSpaces;
+}
+
+// Find and initialize the location in the FS of a component. This is
+// in the main Composite repo by default (in
+// `components/implementation/*`), and in `components/repos/` otherwise.
+pub trait DirLocationPass {
+    // return the path to the directory to start building the component.
+    fn dir_location(&self, &ComponentName) -> &String;
 }
 
 // Integer namespacing pass. Convert the component variable names to
