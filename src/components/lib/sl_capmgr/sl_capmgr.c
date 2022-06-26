@@ -10,8 +10,8 @@
 #include <sl_mod_policy.h>
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
-#include "../../interface/capmgr/capmgr.h"
-#include "../../interface/capmgr/memmgr.h"
+#include <capmgr.h>
+#include <memmgr.h>
 #include <bitmap.h>
 #include <sl_child.h>
 

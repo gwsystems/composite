@@ -5,7 +5,6 @@
  * Author: Phani Gadepalli, phanikishoreg@gwu.edu
  */
 
-#include <memmgr.h>
 #include <capmgr.h>
 #include <cos_thd_init.h>
 #include <cos_defkernel_api.h>

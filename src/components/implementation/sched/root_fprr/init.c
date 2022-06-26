@@ -221,6 +221,12 @@ sched_child_init(struct sched_childinfo *schedci)
 
 static u32_t cpubmp[NUM_CPU_BMP_WORDS] = { 0 };
 
+unsigned long
+sched_get_cpu_freq(void)
+{
+	return cycs_per_usec;
+}
+
 void
 cos_init(void)
 {

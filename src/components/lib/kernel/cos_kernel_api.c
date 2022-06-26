@@ -1199,7 +1199,7 @@ cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *sr
 int
 cos_thd_mod(struct cos_compinfo *ci, thdcap_t tc, void *tlsaddr)
 {
-	return call_cap_op(ci->captbl_cap, CAPTBL_OP_THDTLSSET, tc, (long)tlsaddr, 0, 0);
+	return call_cap_op(ci->captbl_cap, CAPTBL_OP_THDTLSSET, tc, (word_t)tlsaddr, 0, 0);
 }
 
 /* FIXME: problems when we got to 64 bit systems with the return value */
