@@ -30,6 +30,10 @@ impl Transition for Repos {
             )
         });
 
+        fn repo_dir_create(r: &String) -> String {
+            r.replace("/", "-").replace(":", "-")
+        }
+
         // Download any repos that aren't already present.
         for r in repos {
             // Lets parse the repo into the URL to pass to `git`, and into
@@ -48,17 +52,16 @@ impl Transition for Repos {
                 ));
             }
 
-            let repo_url = format!("git@github.com:{}", repo_split[0]);
-            let repo_path = repo_split[1].replace("/", "-");
+            let repo_url = format!("git@github.com:{}", repo_split[1]);
 
-            b.repo_download(&repo_url, &repo_path, &s)?;
+            b.repo_download(&repo_url, &repo_dir_create(&r), &s)?;
         }
 
         // Add the paths of the components (in external repos, and in
         // the standard source) to the DirLocationpass-queryable
         // hashmap.
         let mut dirs = HashMap::new();
-        for (name, source, location) in comp_locations {
+        for (name, source, repo) in comp_locations {
             let loc = source
                 .as_str()
                 .split(&['.', '/'][..])
@@ -66,8 +69,8 @@ impl Transition for Repos {
                 .join("/");
             dirs.insert(
                 name,
-                match location {
-                    Some(r) => r.clone() + &loc,
+                match repo {
+                    Some(r) => format!("repos/{}/{}", repo_dir_create(&r.clone()), &loc),
                     None => String::from("implementation/") + &loc,
                 },
             );

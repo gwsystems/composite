@@ -1,3 +1,4 @@
+include Makefile.src
 MAKEOPTIONS+= -I$(shell pwd)
 export MAKEOPTIONS
 

@@ -2,8 +2,8 @@
 description = "Test for the hello world external component"
 
 [[components]]
-name = "hw"
+name = "hw1"
 img  = ""
-location = "github.com:gparmer/hello_world"
+repo = "github:gparmer/hello_world"
 deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
 constructor = "kernel"

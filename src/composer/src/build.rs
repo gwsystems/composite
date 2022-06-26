@@ -264,53 +264,31 @@ fn comp_gen_make_cmd(
     let ds = deps(&s, id);
     let exports = exports(&s, id);
 
-    let (_, if_exp) = exports
+    let if_exp = exports
         .iter()
-        .fold((true, String::from("")), |(first, accum), e| {
-            let mut ifpath = accum.clone();
-            if !first {
-                ifpath.push_str("+");
-            }
-            ifpath.push_str(&e.interface.clone());
-            ifpath.push_str("/");
-            ifpath.push_str(&e.variant.clone());
-            (false, ifpath)
-        });
-    let (_, if_deps) = ds
-        .iter()
-        .fold((true, String::from("")), |(first, accum), d| {
-            let mut ifpath = accum.clone();
-            if !first {
-                ifpath.push_str("+");
-            }
-            ifpath.push_str(&d.interface.clone());
-            ifpath.push_str("/");
-            ifpath.push_str(&d.variant.clone());
-            (false, ifpath)
-        });
-    // TODO: replace the above with this if it is the same
-    let deps_test = ds
+        .map(|e| format!("{}/{}", e.interface, e.variant))
+        .collect::<Vec<_>>()
+        .join("+");
+    let if_deps = ds
         .iter()
         .map(|d| format!("{}/{}", d.interface, d.variant))
         .collect::<Vec<_>>()
         .join("+");
-    assert_eq!(if_deps, deps_test);
 
     let mut optional_cmds = String::from("");
     optional_cmds.push_str(&format!("COMP_INITARGS_FILE={} ", args_file));
     if let Some(s) = tar_file {
         optional_cmds.push_str(&format!("COMP_TAR_FILE={} ", s));
     }
-    let decomp: Vec<&str> = c.source.split(".").collect();
-    assert!(decomp.len() == 2);
+
     // unwrap as we've already validated the name.
     let compid = s.get_named().rmap().get(&c.name).unwrap();
     let baseaddr = s.get_address_assignments().component_baseaddr(compid);
     let comp_location = s.get_dir_location().dir_location(&c.name);
 
     let cmd = format!(
-        r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_PATH={} COMP_BASEADDR={:#X} {} component"#,
-        if_exp, if_deps, &decomp[0], &decomp[1], &c.name, output_name, comp_location, baseaddr, &optional_cmds
+        r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_VARNAME={} COMP_OUTPUT={} COMP_PATH={} COMP_BASEADDR={:#X} {} component"#,
+        if_exp, if_deps, &c.name, output_name, comp_location, baseaddr, &optional_cmds
     );
 
     cmd
@@ -325,7 +303,7 @@ fn kern_gen_make_cmd(input_constructor: &String, kern_output: &String, _s: &Syst
 
 fn repo_download_gen_make_cmd(repo_url: &String, repo_path: &String) -> String {
     format!(
-        r#"make -C src REPO_URL="{}" REPO_PATH="{}" repo_external"#,
+        r#"make -C src REPO_URL={} REPO_PATH={} repo_external"#,
         repo_url, repo_path
     )
 }
@@ -492,8 +470,14 @@ impl BuildState for DefaultBuilder {
 
     // Take the repo specification from the specification, and the
     // path in `src/components/` for the repo.
-    fn repo_download(&self, repo_url: &String, repo_path: &String, _s: &SystemState) -> Result<(), String> {
+    fn repo_download(
+        &self,
+        repo_url: &String,
+        repo_path: &String,
+        _s: &SystemState,
+    ) -> Result<(), String> {
         let cmd = repo_download_gen_make_cmd(&repo_url, &repo_path);
+	println!("Executing `git clone {}`, which may ask for your password...", repo_url);
         let (_out, err) = exec_pipeline(vec![cmd.clone()]);
 
         if err.len() > 0 {
@@ -516,18 +500,8 @@ impl BuildState for DefaultBuilder {
                     + &errs
                     + "\nCommon causes of this error include:\n"
                     + "1. The specified repository doesn't exist (i.e. incorrect URL).\n"
-                    + "2. `git` isn't installed.\n"MUSTMUST
-                    + "3. `ssh` isn't installed (we access the repo using git's s
-                    + "3. `ssh` isn't installed (we access the repo using gitshMUST support).\n"
-                    + "4. `ssh` asked for user input because the known hosts aren't set up.\n",
-            );
-        }
-
-        Ok(())
-    }
-}
-
-                    + "3. `ssh` isn't installed (we access the repo using gitshMUST support).\n"
+                    + "2. `git` isn't installed.\n"
+                    + "3. `ssh` isn't installed (we access the repo using git's ssh support).\n"
                     + "4. `ssh` asked for user input because the known hosts aren't set up.\n",
             );
         }

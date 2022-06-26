@@ -82,11 +82,10 @@ COMP_DEP_OBJS=$(foreach D,$(COMP_IFDEPS_CLEAN),$(INTERDIR)/$(D)/cosrt_c_stub.o)
 
 
 comp_header:
-	$(info | Composing $(if $(COMP_INTERFACE),$(COMP_INTERFACE).)$(COMP_NAME) for variable $(COMP_VARNAME) by linking with:)
+	$(info | Composing component in src/components/$(COMP_PATH) for variable $(COMP_VARNAME) by linking with:)
 	$(info |     Exported interfaces: $(COMP_INTERFACES_CLEAN))
 	$(info |     Interface dependencies: $(COMP_IFDEPS_CLEAN))
 	$(info |     Libraries: $(DEPENDENCY_LIBS) $(DEPENDENCY_LIBOBJS))
-	$(info |     Component location: $(COMP_REPO))
 
 .PHONY: component comp_header
 component: clean comp_header $(COMPOBJ)
