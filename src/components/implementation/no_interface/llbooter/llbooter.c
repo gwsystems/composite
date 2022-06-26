@@ -186,8 +186,11 @@ comps_init(void)
 			assert(comp);
 			elf_hdr = (void *)args_get(imgpath);
 
-			/* We assume, for now, that the composer is
-			 * *not* part of a shared VAS. */
+			/*
+			 * We assume, for now, that the
+			 * constructor/booter is *not* part of a
+			 * shared VAS.
+			 */
 			if (id == cos_compid()) BUG();
 			assert(elf_hdr);
 			if (crt_comp_create_in_vas(comp, name, id, elf_hdr, info, ns_vas)) BUG();
