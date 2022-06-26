@@ -6,7 +6,7 @@
 INTERFACE_EXPORTS =
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES = capmgr
+INTERFACE_DEPENDENCIES = capmgr memmgr
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
 LIBRARY_DEPENDENCIES = component kernel

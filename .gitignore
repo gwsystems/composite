@@ -53,3 +53,7 @@ constructor
 kernel.iso
 grub.cfg
 gdbinit
+src/components/lib/libc/musl-1.2.0/include/asm/
+src/components/lib/libc/musl-1.2.0/include/asm-generic/
+src/components/lib/libc/musl-1.2.0/include/linux/
+src/components/lib/libc/musl-1.2.0/include/sys/queue.h

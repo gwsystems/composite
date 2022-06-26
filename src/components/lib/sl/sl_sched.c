@@ -13,6 +13,7 @@
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
 #include <bitmap.h>
+#include <capmgr.h>
 
 struct sl_global sl_global_data;
 struct sl_global_cpu sl_global_cpu_data[NUM_CPU] CACHE_ALIGNED;
@@ -433,6 +434,15 @@ sl_thd_wakeup(thdid_t tid)
 done:
 	sl_cs_exit();
 	return;
+}
+
+void sched_set_tls(void* tls_addr)
+{
+	struct sl_thd *t = sl_thd_curr();
+
+	thdcap_t thdcap = sl_thd_thdcap(t);
+
+	capmgr_set_tls(thdcap, tls_addr);
 }
 
 void

@@ -88,5 +88,5 @@ x86_64_config:
 config: $(PLATFORM)_config
 	make -C ps config
 
-init: clean config
+init: clean all
 distclean: clean
