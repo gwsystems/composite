@@ -40,15 +40,28 @@ use tar::Builder;
 // - COMP_BASEADDR - the base address of .text for the component
 // - COMP_INITARGS_FILE - the path to the generated initial arguments .c file
 // - COMP_TAR_FILE - the path to an initargs tarball to compile into the component
+// - COMP_PATH - path to the component directory relative to `src/components`
+//
+// Building external repositories (not in the main composite repo)
+// doesn't use COMP_INTERFACE and instead uses the following:
+//
+// - REPO_URL - The URL to the to the external repo that holds the
+//   component.
+// - REPO_PATH - The path within the repo directory into which the
+//   external repo should be cloned.
 //
 // In the end, this should result in a command line for each component
 // along these (artificial) lines:
 //
-// `make COMP_INTERFACES="pong/log" COMP_IFDEPS="capmgr/stubs sched/lock" COMP_LIBS="ps heap" COMP_INTERFACE=pong COMP_NAME=pingpong COMP_VARNAME=pongcomp component`
+// `make COMP_INTERFACES="pong/log" COMP_IFDEPS="capmgr/stubs+sched/lock" COMP_LIBS="ps heap" COMP_INTERFACE=pong COMP_NAME=pingpong COMP_PATH="implementation/pong/pingpong COMP_VARNAME=pongcomp component`
 //
 // ...which should output the executable pong.pingpong.pongcomp in the
 // build directory which is the "sealed" version of the component that
 // is ready for loading.
+
+// A key design goal of the composer and Composite build system is
+// that the absolute paths are all taken care of by the build system,
+// thus this code focuses on simply properly guiding the build system.
 
 // The key within the initargs for the tarball, the path of the
 // tarball, and the set of paths to the files to include in the
@@ -251,45 +264,31 @@ fn comp_gen_make_cmd(
     let ds = deps(&s, id);
     let exports = exports(&s, id);
 
-    let (_, if_exp) = exports
+    let if_exp = exports
         .iter()
-        .fold((true, String::from("")), |(first, accum), e| {
-            let mut ifpath = accum.clone();
-            if !first {
-                ifpath.push_str("+");
-            }
-            ifpath.push_str(&e.interface.clone());
-            ifpath.push_str("/");
-            ifpath.push_str(&e.variant.clone());
-            (false, ifpath)
-        });
-    let (_, if_deps) = ds
+        .map(|e| format!("{}/{}", e.interface, e.variant))
+        .collect::<Vec<_>>()
+        .join("+");
+    let if_deps = ds
         .iter()
-        .fold((true, String::from("")), |(first, accum), d| {
-            let mut ifpath = accum.clone();
-            if !first {
-                ifpath.push_str("+");
-            }
-            ifpath.push_str(&d.interface.clone());
-            ifpath.push_str("/");
-            ifpath.push_str(&d.variant.clone());
-            (false, ifpath)
-        });
+        .map(|d| format!("{}/{}", d.interface, d.variant))
+        .collect::<Vec<_>>()
+        .join("+");
 
     let mut optional_cmds = String::from("");
     optional_cmds.push_str(&format!("COMP_INITARGS_FILE={} ", args_file));
     if let Some(s) = tar_file {
         optional_cmds.push_str(&format!("COMP_TAR_FILE={} ", s));
     }
-    let decomp: Vec<&str> = c.source.split(".").collect();
-    assert!(decomp.len() == 2);
+
     // unwrap as we've already validated the name.
     let compid = s.get_named().rmap().get(&c.name).unwrap();
     let baseaddr = s.get_address_assignments().component_baseaddr(compid);
+    let comp_location = s.get_dir_location().dir_location(&c.name);
 
     let cmd = format!(
-        r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={:#X} {} component"#,
-        if_exp, if_deps, &decomp[0], &decomp[1], &c.name, output_name, baseaddr, &optional_cmds
+        r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_VARNAME={} COMP_OUTPUT={} COMP_PATH={} COMP_BASEADDR={:#X} {} component"#,
+        if_exp, if_deps, &c.name, output_name, comp_location, baseaddr, &optional_cmds
     );
 
     cmd
@@ -299,6 +298,13 @@ fn kern_gen_make_cmd(input_constructor: &String, kern_output: &String, _s: &Syst
     format!(
         r#"make -C src KERNEL_OUTPUT="{}" CONSTRUCTOR_COMP="{}" plat"#,
         kern_output, input_constructor
+    )
+}
+
+fn repo_download_gen_make_cmd(repo_url: &String, repo_path: &String) -> String {
+    format!(
+        r#"make -C src REPO_URL={} REPO_PATH={} repo_external"#,
+        repo_url, repo_path
     )
 }
 
@@ -340,7 +346,7 @@ impl BuildState for DefaultBuilder {
 
     fn comp_dir_path(&self, c: &ComponentId, state: &SystemState) -> Result<String, String> {
         let name = state.get_named().ids().get(c).unwrap();
-        Ok(self.file_path(&format!("{}.{}", name.scope_name, name.var_name))?)
+        Ok(self.file_path(&format!("{}", name))?)
     }
 
     fn comp_file_path(
@@ -357,7 +363,7 @@ impl BuildState for DefaultBuilder {
 
     fn comp_obj_file(&self, c: &ComponentId, s: &SystemState) -> String {
         let comp = component(&s, &c);
-        format!("{}.{}", &comp.source, &comp.name)
+        format!("{}", &comp)
     }
 
     fn comp_obj_path(&self, c: &ComponentId, s: &SystemState) -> Result<String, String> {
@@ -457,6 +463,47 @@ impl BuildState for DefaultBuilder {
         )?;
         if err.len() != 0 {
             println!("Errors in compiling kernel. See {}.", comp_log)
+        }
+
+        Ok(())
+    }
+
+    // Take the repo specification from the specification, and the
+    // path in `src/components/` for the repo.
+    fn repo_download(
+        &self,
+        repo_url: &String,
+        repo_path: &String,
+        _s: &SystemState,
+    ) -> Result<(), String> {
+        let cmd = repo_download_gen_make_cmd(&repo_url, &repo_path);
+	println!("Executing `git clone {}`, which may ask for your password...", repo_url);
+        let (_out, err) = exec_pipeline(vec![cmd.clone()]);
+
+        if err.len() > 0 {
+            let lines = err.lines();
+            let correct_str = "Cloning into ";
+            let correct_str_len = correct_str.len();
+
+            let errs: String = lines
+                .filter_map(|l| {
+                    if l.chars().take(correct_str_len).collect::<String>() != correct_str {
+                        None
+                    } else {
+                        Some(l)
+                    }
+                })
+                .collect();
+
+            return Err(
+                format!("Error creating external repository \"{}\":\n", repo_url)
+                    + &errs
+                    + "\nCommon causes of this error include:\n"
+                    + "1. The specified repository doesn't exist (i.e. incorrect URL).\n"
+                    + "2. `git` isn't installed.\n"
+                    + "3. `ssh` isn't installed (we access the repo using git's ssh support).\n"
+                    + "4. `ssh` asked for user input because the known hosts aren't set up.\n",
+            );
         }
 
         Ok(())

@@ -21,7 +21,7 @@ print:
 .PHONY: subdirs
 subdirs:
 	@for dir in $(SUBDIRS) ; do \
-		$(MAKE) -C $$dir ;  \
+		$(MAKE) $(MAKEOPTIONS) -C $$dir ;  \
 	done
 
 $(CLIB):$(OBJS)
@@ -75,6 +75,6 @@ clean:
 
 .PHONY: component
 component:
-	$(MAKE) -C $(COMP_NAME) component
+	$(MAKE) $(MAKEOPTIONS) -C $(COMP_NAME) component
 
 -include $(SOURCE_DEPENDENCIES)

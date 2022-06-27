@@ -62,9 +62,5 @@ pub fn reset_dir(dirname: &String) -> Result<(), String> {
 }
 
 pub fn dir_exists(dirname: &String) -> bool {
-    if let Err(_) = fs::read_dir(&dirname) {
-        false
-    } else {
-        true
-    }
+    fs::read_dir(&dirname).is_ok()
 }

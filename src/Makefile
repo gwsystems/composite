@@ -1,6 +1,7 @@
 #MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 # Note: can't use $(PWD) here if make -Ced from elsewhere.
 MAKEOPTIONS=--no-print-directory -I$(shell pwd)
+export MAKEOPTIONS
 PLAT_FILE=.PLATFORM_ID
 
 .PHONY: default all composer component comps platclean plat cpplat clean distclean init update config
@@ -19,6 +20,10 @@ composer:
 
 component:
 	$(MAKE) $(MAKEOPTIONS) -C components component
+
+# Download an external repository
+repo_external:
+	$(MAKE) $(MAKEOPTIONS) -C components repo_external
 
 comps:
 	$(info )

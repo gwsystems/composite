@@ -1,4 +1,6 @@
-MAKEOPTIONS=-I$(shell pwd)
+include Makefile.src
+MAKEOPTIONS+= -I$(shell pwd)
+export MAKEOPTIONS
 
 # Order of which subdirectories are built first matters here.
 # Interface files rely on library files, and component implementations
@@ -24,3 +26,12 @@ init:
 
 component:
 	$(MAKE) $(MAKEOPTIONS) -C implementation component
+
+# Download a remote repository (e.g. from github). We're setting up a
+# specific rule for the repo's path so that it won't redundantly clone
+# the repo. Once it has been cloned, never clone it again.
+REPO_ABSPATH = $(REPO_DIR)/$(REPO_PATH)
+$(REPO_ABSPATH):
+	$(GITCLONE) $(REPO_URL) $@
+
+repo_external: $(REPO_ABSPATH)

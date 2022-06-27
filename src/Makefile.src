@@ -11,6 +11,7 @@ KINC=$(TOP_DIR)/kernel/include/
 SHAREDINC=$(TOP_DIR)/kernel/include/shared/
 CHALSHAREDINC=$(TOP_DIR)/kernel/include/chal/shared/
 CDIR=$(TOP_DIR)/components/
+REPO_DIR=$(CDIR)/repos
 
 # tools
 MAKE=make
@@ -25,3 +26,8 @@ CP=cp
 RM=rm
 PLAT_FILE=$(TOP_DIR)/.PLATFORM_ID
 PLATFORM=$(shell cat $(PLAT_FILE))
+
+# disable the terminal prompts, and fail out instead; typically fails
+# if ssh isn't set up (known hosts), or if the specified repo doesn't
+# exist.
+GITCLONE=GIT_TERMINAL_PROMPT=0 git clone

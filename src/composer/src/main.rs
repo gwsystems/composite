@@ -18,6 +18,7 @@ mod syshelpers;
 mod tot_order;
 mod properties;
 mod address_assignment;
+mod dir_location;
 
 use build::DefaultBuilder;
 use compobject::{Constructor, ElfObject};
@@ -27,9 +28,10 @@ use invocations::Invocations;
 use passes::{BuildState, ComponentId, SystemState, Transition, TransitionIter};
 use resources::ResAssignPass;
 use properties::CompProperties;
-use std::env;
 use tot_order::CompTotOrd;
 use address_assignment::AddressAssignmentx86_64;
+use dir_location::Repos;
+use std::env;
 
 pub fn exec() -> Result<(), String> {
     let mut args = env::args();
@@ -51,6 +53,7 @@ pub fn exec() -> Result<(), String> {
 
     sys.add_parsed(SystemSpec::transition(&sys, &mut build)?);
     sys.add_named(CompTotOrd::transition(&sys, &mut build)?);
+    sys.add_dir_location(Repos::transition(&sys, &mut build)?);
     sys.add_address_assign(AddressAssignmentx86_64::transition(&sys, &mut build)?);
     sys.add_properties(CompProperties::transition(&sys, &mut build)?);
     sys.add_restbls(ResAssignPass::transition(&sys, &mut build)?);
