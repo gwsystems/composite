@@ -2,7 +2,7 @@
 #define PCI_H
 
 #define PCI_BUS_MAX        255
-#define PCI_DEVICE_MAX     32
+#define PCI_DEVICE_MAX     256
 #define PCI_FUNC_MAX       7
 #define PCI_DEVICE_NUM     128
 #define PCI_CONFIG_ADDRESS 0xCF8
@@ -92,4 +92,6 @@ int pci_dev_get(struct pci_dev *devices, int sz, struct pci_dev *dev, u16_t dev_
  */
 int pci_dev_count(void);
 
+u32_t pci_config_read(u32_t bus, u32_t dev, u32_t func, u32_t reg);
+void pci_config_write(u32_t bus, u32_t dev, u32_t func, u32_t reg, u32_t v);
 #endif /* PCI_H */

@@ -42,6 +42,12 @@ build()
 clean()
 {
 	echo "[cos executing] make -C src clean"
+	make -C src clean
+}
+
+distclean()
+{
+	echo "[cos executing] make -C src clean"
 	make -C src distclean
 }
 
@@ -85,10 +91,10 @@ run()
 
 	if [ "${elf_type}" == "ELF64" ]
 	then
-		tools/run.sh ${dir}/cos.iso x86_64
+		tools/run.sh ${dir}/cos.iso x86_64 ${enable_nic}
 	elif [ "${elf_type}" == "ELF32" ]
 	then
-		tools/run.sh ${dir}/cos.iso i386
+		tools/run.sh ${dir}/cos.iso i386 ${enable_nic}
 	else
 		echo "Unsupported image type: ${elf_type} !"
 	fi
@@ -117,10 +123,10 @@ debug_run()
 
 	if [ "${elf_type}" == "ELF64" ]
 	then
-		tools/run.sh ${dir}/cos.iso x86_64 debug
+		tools/run.sh ${dir}/cos.iso x86_64 debug ${enable_nic}
 	elif [ "${elf_type}" == "ELF32" ]
 	then
-		tools/run.sh ${dir}/cos.iso i386 debug
+		tools/run.sh ${dir}/cos.iso i386 debug ${enable_nic}
 	else
 		echo "Unsupported image type!"
 	fi
@@ -133,7 +139,7 @@ gdb()
 
 usage()
 {
-	echo "Usage: " $0 " init <arch: [x86_64|i386|armv7a]>|build|clean|compose <script> <output name>|run <composite name>|debug_run <composite name>|gdb"
+	echo "Usage: " $0 " init <arch: [x86_64|i386|armv7a]>|build|clean|compose <script> <output name>|run <composite name> [enable-nic]|debug_run <composite name> [enable_nic]|gdb | distclean"
 	exit 1
 }
 
@@ -156,14 +162,19 @@ case $1 in
 	run )
 		binary=$2
 		name=$2
+		enable_nic=$3
 		run
 		;;
 	debug_run )
 		name=$2
+		enable_nic=$3
 		debug_run
 		;;
 	gdb )
 		gdb
+		;;
+	distclean )
+		distclean
 		;;
 	* )
 		usage
