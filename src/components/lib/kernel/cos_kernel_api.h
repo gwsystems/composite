@@ -60,6 +60,9 @@ struct cos_meminfo {
 	vaddr_t    untyped_ptr, umem_ptr, kmem_ptr;
 	vaddr_t    untyped_frontier, umem_frontier, kmem_frontier;
 	pgtblcap_t pgtbl_cap;
+
+	capid_t	   second_lvl_pgtbl_cap;
+	vaddr_t	   second_lvl_pgtbl_addr;
 };
 
 /* Component captbl/pgtbl allocation information */
@@ -69,15 +72,19 @@ struct cos_compinfo {
 	/* the frontier of unallocated caps, and the allocated captbl range */
 	capid_t cap_frontier, caprange_frontier;
 	/* the frontier for each of the various sizes of capability per core! */
-	capid_t cap16_frontier[NUM_CPU], cap32_frontier[NUM_CPU], cap64_frontier;
+	capid_t cap16_frontier[NUM_CPU], cap32_frontier[NUM_CPU], cap64_frontier[NUM_CPU];
 	/* heap pointer equivalent, and range of allocated PTEs */
-	vaddr_t vas_frontier, vasrange_frontier;
+	vaddr_t vas_frontier;
+	vaddr_t vasrange_frontier[COS_PGTBL_DEPTH - 1]; 
 	/* the source of memory */
 	struct cos_compinfo *memsrc; /* might be self-referential */
 	struct cos_meminfo   mi;     /* only populated for the component with real memory */
 
 	struct ps_lock cap_lock, mem_lock; /* locks to make the cap frontier and mem frontier updates and expands atomic */
 	struct ps_lock va_lock; /* lock to make the vas frontier and bump expands for vas atomic */
+	/* shared comp cap */
+	capid_t comp_cap_shared;
+	capid_t pgtbl_cap_shared;
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
@@ -102,6 +109,8 @@ pgtblcap_t cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int
  */
 int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem);
 
+int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources);
+
 /*
  * This uses the next three functions to allocate a new component and
  * correctly populate ci (allocating all resources from ci_resources).
@@ -124,6 +133,8 @@ asndcap_t cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t
 
 void *cos_page_bump_alloc(struct cos_compinfo *ci);
 void *cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz);
+void *cos_page_bump_allocn_aligned(struct cos_compinfo *ci, size_t sz, size_t align);
+
 
 capid_t cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_t srcctype, capid_t srccap);
 int     cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_compinfo *srcci, capid_t srccap);
@@ -159,13 +170,11 @@ int cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout, int *rc
 
 int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
 
-int cos_sinv(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4);
-int cos_sinv_rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2, word_t *ret3);
-int cos_sinv_2rets(sinvcap_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2);
-
-vaddr_t cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
-vaddr_t cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz);
-int     cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);
+vaddr_t cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, unsigned long perm_flags);
+vaddr_t cos_mem_aliasn(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz, unsigned long perm_flags);
+vaddr_t cos_mem_aliasn_aligned(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src, size_t sz, size_t align, unsigned long perm_flags);
+int     cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, unsigned long perm_flags);
+int     cos_mem_alias_atn(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src, size_t sz, unsigned long perm_flags);
 vaddr_t cos_mem_move(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
 int     cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);
 int     cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
@@ -193,9 +202,17 @@ int     cos_hw_detach(hwcap_t hwc, hwid_t hwid);
 void   *cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len);
 int     cos_hw_cycles_per_usec(hwcap_t hwc);
 int     cos_hw_cycles_thresh(hwcap_t hwc);
+int     cos_hw_tlb_lockdown(hwcap_t hwc, unsigned long entryid, unsigned long vaddr, unsigned long paddr);
+int     cos_hw_l1flush(hwcap_t hwc);
+int     cos_hw_tlbflush(hwcap_t hwc);
+int     cos_hw_tlbstall(hwcap_t hwc);
+int     cos_hw_tlbstall_recount(hwcap_t hwc);
 void    cos_hw_shutdown(hwcap_t hwc);
 
 
 capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
+
+pgtblcap_t cos_shared_pgtbl_alloc(void);
+u32_t cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl);
 
 #endif /* COS_KERNEL_API_H */

@@ -1,0 +1,1 @@
+../i386/miniacpi.c

@@ -95,7 +95,7 @@ cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, lon
 	return 0;
 }
 
-__attribute__((regparm(1))) long
+CREGPARM(1) long
 __cos_syscall(int syscall_num, long a, long b, long c, long d, long e, long f, long g)
 {
 	return cos_syscall_handler(syscall_num, a, b, c, d, e, f, g);
@@ -103,6 +103,16 @@ __cos_syscall(int syscall_num, long a, long b, long c, long d, long e, long f, l
 
 CWEAKSYMB void
 libc_initialization_handler()
+{
+}
+
+CWEAKSYMB void
+libc_posixcap_initialization_handler()
+{
+}
+
+CWEAKSYMB void
+libc_posixsched_initialization_handler()
 {
 }
 
@@ -164,8 +174,8 @@ const char *cos_print_str[PRINT_LEVEL_MAX] = {
 	"DBG:",
 };
 
-cos_print_level_t cos_print_level   = PRINT_ERROR;
-int               cos_print_lvl_str = 0;
+int cos_print_level   = PRINT_ERROR;
+int cos_print_lvl_str = 0;
 
 CWEAKSYMB void
 cos_print_level_set(cos_print_level_t lvl, int print_str)
@@ -202,6 +212,7 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	const int parallel_init = cos_parallel_init != __crt_cos_parallel_init;
 	int ret = 0;
 	int main_time = 0;
+	static volatile int initialization_completed = 0;
 
 	/* are parallel/regular main user-defined? */
 	if (parallel_main != __crt_parallel_main) {
@@ -212,20 +223,23 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	}
 
 	/* single-core initialization */
-	if (init_core) {
-		cos_init();
-		/* continue only if there is no user-defined main, or parallel exec */
-		COS_EXTERN_INV(init_done)(parallel_init, main_type);
-		assert(parallel_init || main_type != INIT_MAIN_NONE);
-	}
+	if (initialization_completed == 0) {
+		if (init_core) {
+			cos_init();
+			/* continue only if there is no user-defined main, or parallel exec */
+			COS_EXTERN_INV(init_done)(parallel_init, main_type);
+			assert(parallel_init || main_type != INIT_MAIN_NONE);
+		}
 
-	/* Parallel initialization */
-	COS_EXTERN_INV(init_parallel_await_init)();
-	if (parallel_init) {
-		cos_parallel_init(cid, init_core, init_parallelism());
+		/* Parallel initialization */
+		COS_EXTERN_INV(init_parallel_await_init)();
+		if (parallel_init) {
+			cos_parallel_init(cid, init_core, init_parallelism());
+		}
+		/* All initialization completed here, go onto main execution */
+		COS_EXTERN_INV(init_done)(0, main_type);
+		initialization_completed = 1;
 	}
-	/* All initialization completed here, go onto main execution */
-	COS_EXTERN_INV(init_done)(0, main_type);
 	/* No main? we shouldn't have continued here... */
 	assert(main_type != INIT_MAIN_NONE);
 	assert(main_type == INIT_MAIN_PARALLEL || (main_type == INIT_MAIN_SINGLE && init_core));
@@ -243,6 +257,16 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	/* with the previous exits, we should never get here */
 	BUG();
 }
+
+#if defined(__arm__)
+CWEAKSYMB vaddr_t
+cos_inv_cap_set(struct usr_inv_cap *uc)
+{
+	set_stk_data(INVCAP_OFFSET, (long)uc);
+
+	return uc->invocation_fn;
+}
+#endif
 
 CWEAKSYMB void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
@@ -275,6 +299,10 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		syscall_emulation_setup();
 		/* With all that setup, we can invoke the libc_initialization_handler */
 		libc_initialization_handler();
+		/* init lib posix variants */
+		libc_posixcap_initialization_handler();
+		libc_posixsched_initialization_handler();
+
 
 		constructors_execute();
 	}
@@ -285,6 +313,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	 */
 	if (cos_compid_uninitialized()) { /* we must be in the initial booter! */
 		cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+		perfcntr_init();
 	}
 
 	switch (t) {
@@ -299,8 +328,9 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 			static unsigned long first_core = 1;
 
 			start_execution(cos_coreid(), ps_cas(&first_core, 1, 0), init_parallelism());
+
 		} else {
-			u32_t idx = (int)arg1 - 1;
+			word_t idx = (word_t)arg1 - 1;
 			if (idx >= COS_THD_INIT_REGION_SIZE) {
 				/* This means static defined entry */
 				cos_thd_entry_static(idx - COS_THD_INIT_REGION_SIZE);

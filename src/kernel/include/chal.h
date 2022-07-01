@@ -60,8 +60,6 @@ void chal_cycles_per_period(u64_t cycles);
  * Address translation functions *
  *********************************/
 
-paddr_t        chal_va2pa(void *va);
-void *         chal_pa2va(paddr_t pa);
 extern paddr_t chal_kernel_mem_pa;
 
 /************************************
@@ -102,7 +100,7 @@ void chal_init(void);
 /* int cos_syscall_buff_mgmt(void); */
 /* void cos_syscall_upcall(void); */
 
-#include "../../platform/include/chal_plat.h"
+#include "../chal/chal_plat.h"
 
 extern void printk(const char *fmt, ...);
 void        chal_khalt(void);

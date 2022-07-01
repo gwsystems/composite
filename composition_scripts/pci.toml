@@ -1,0 +1,16 @@
+[system]
+description = "Simple system: check if pci library works"
+
+[[components]]
+name = "booter"
+img  = "no_interface.llbooter"
+implements = [{interface = "init"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"
+
+[[components]]
+name = "pci"
+img  = "tests.pci"
+deps = [{srv = "booter", interface = "init"}]
+baseaddr = "0x1600000"
+constructor = "booter"

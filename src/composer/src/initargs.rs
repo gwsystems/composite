@@ -32,14 +32,14 @@ impl VarNamespace {
 impl ArgsKV {
     pub fn new_key(key: String, val: String) -> ArgsKV {
         ArgsKV {
-            key: key,
+            key,
             val: ArgsValType::Str(val),
         }
     }
 
     pub fn new_arr(key: String, val: Vec<ArgsKV>) -> ArgsKV {
         ArgsKV {
-            key: key,
+            key,
             val: ArgsValType::Arr(val),
         }
     }
@@ -62,9 +62,14 @@ impl ArgsKV {
             } => {
                 // base case
                 let kv_name = ns.fresh_name();
-                (format!(r#"static struct kv_entry {} = {{ key: "{}", vtype: VTYPE_STR, val: {{ str: "{}" }} }};
-"#, kv_name, k, s),
-                 vec![format!("&{}", kv_name)])
+                (
+                    format!(
+                        r#"static struct kv_entry {} = {{ key: "{}", vtype: VTYPE_STR, val: {{ str: "{}" }} }};
+"#,
+                        kv_name, k, s
+                    ),
+                    vec![format!("&{}", kv_name)],
+                )
             }
             ArgsKV {
                 key: k,
@@ -84,11 +89,21 @@ impl ArgsKV {
 
                         (format!("{}{}", t, t1), exprs)
                     });
-                (format!(r#"{}static struct kv_entry *{}[] = {{{}}};
+                (
+                    format!(
+                        r#"{}static struct kv_entry *{}[] = {{{}}};
 static struct kv_entry {} = {{ key: "{}", vtype: VTYPE_ARR, val: {{ arr: {{ sz: {}, kvs: {} }} }} }};
 "#,
-                         strs.0, arr_name, strs.1.join(", "), arr_val_name, k, kvs.len(), arr_name),
-                 vec![format!("&{}", arr_val_name)])
+                        strs.0,
+                        arr_name,
+                        strs.1.join(", "),
+                        arr_val_name,
+                        k,
+                        kvs.len(),
+                        arr_name
+                    ),
+                    vec![format!("&{}", arr_val_name)],
+                )
             }
         }
     }
@@ -168,10 +183,9 @@ impl TransitionIter for Parameters {
     ) -> Result<Box<Self>, String> {
         let argpath = b.comp_file_path(&id, &"initargs.c".to_string(), s)?;
         let mut args = Vec::new();
-        component(s, id)
-            .params
-            .iter()
-            .for_each(|a| args.push(a.clone()));
+
+        let param_args = component(s, id).params.clone();
+        args.push(ArgsKV::new_arr(String::from("param"), param_args));
         let resargs = s.get_restbl().args(&id);
         resargs.iter().for_each(|a| args.push(a.clone()));
         args.push(ArgsKV::new_key(String::from("compid"), id.to_string()));

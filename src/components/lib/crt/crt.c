@@ -55,6 +55,315 @@
 
 #define CRT_REFCNT_INITVAL 1
 
+static unsigned long nchkpt = 0;
+static unsigned long ncomp = 1;
+
+unsigned long
+crt_ncomp()
+{
+	return ncomp;
+}
+
+unsigned long
+crt_nchkpt()
+{
+	return nchkpt;
+}
+
+int
+crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c)
+{
+	char *mem;
+	struct cos_compinfo *root_ci;
+
+	chkpt->c = c;
+	ps_faa(&nchkpt, 1);
+
+	/* allocate space for saving the component's memory */
+	root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+	mem = cos_page_bump_allocn(root_ci, c->tot_sz_mem);
+	if (!mem) return -ENOMEM;
+
+	chkpt->mem = mem;
+	chkpt->tot_sz_mem = c->tot_sz_mem;
+
+	memcpy(mem, c->mem, c->tot_sz_mem);
+	/*
+	 * TODO: capabilities aren't copied, so components that could modify their capabilities
+	 * while running (schedulers/cap mgrs) shouldn't be checkpointed
+	 * TODO: copy dynamically allocated memory into the checkpoint
+	 */
+
+	return 0;
+}
+
+int
+crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c)
+{
+	/* turning c, a terminated component, back into a chkpt */
+	/* TODO: return memory to a previous saved state */
+	return 0;
+}
+
+/* Create a new asids namespace */
+int
+crt_ns_asids_init(struct crt_ns_asid *asids)
+{
+	int i;
+
+	for (i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
+		/* set reserved = 1, allocated = 0 */
+		asids->names[i].state = CRT_NS_STATE_RESERVED;
+	}
+
+	asids->parent = NULL;
+
+	return 0;
+}
+
+/*
+ * Create a asid namespace from the names "left over" in `existing`,
+ * i.e. those that have not been marked allocated.
+ *
+ * Return values:
+ *    0: success
+ *   -1: new is unallocated/null or initialization fails
+ *   -2: new already has allocations
+ */
+int
+crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing)
+{
+	int i;
+
+	for (i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
+		if ((new->names[i].state & CRT_NS_STATE_ALLOCATED) == CRT_NS_STATE_ALLOCATED) return -2;
+	}
+
+	if (crt_ns_asids_init(new)) return -1;
+
+	for (i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
+		/* if a name is allocated in existing, it should not be reserved in new */
+		/* by default via init everything else will go to:
+		 *	reserved  = 1
+		 *	allocated = 0
+		 *	aliased   = 0
+		 */
+		if ((existing->names[i].state & CRT_NS_STATE_ALLOCATED) == CRT_NS_STATE_ALLOCATED) {
+			new->names[i].state &= ~CRT_NS_STATE_RESERVED;
+		}
+		/* if a name is reserved (but not allocated) in existing, it should no longer be reserved in existing
+		 * NOTE: this means no further allocations can be made in existing
+		 */
+		if ((existing->names[i].state & CRT_NS_STATE_RESERVED) == CRT_NS_STATE_RESERVED) {
+			existing->names[i].state &= ~CRT_NS_STATE_RESERVED;
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * Return the index of the first available ASID name
+ * Return -1 if there are none available
+ */
+static int
+crt_asid_available_name(struct crt_ns_asid *asids)
+{
+	int i;
+
+	for (i = 0 ; i < CRT_ASID_NUM_NAMES ; i++) {
+		if ((asids->names[i].state & (CRT_NS_STATE_RESERVED | CRT_NS_STATE_ALLOCATED)) == CRT_NS_STATE_RESERVED) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+/*
+ * Initialize a new vas namespace, pulling a name from the `asids`
+ * Return values:
+ *   0: success
+ *  -1: new/asids not set up correctly, or no available ASID names, or pgtbl node allocation failed
+ */
+int
+crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids)
+{
+	int asid_index = 0;
+	int i = 0;
+	pgtblcap_t top_lvl_pgtbl;
+	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+
+	/* find an asid name for new */
+	asid_index = crt_asid_available_name(asids);
+	if (asid_index == -1) return -1;
+
+	if ((top_lvl_pgtbl = cos_pgtbl_alloc(ci)) == 0) return -1;
+
+	new->asid_name = asid_index;
+	asids->names[asid_index].state |= CRT_NS_STATE_ALLOCATED;
+
+	new->top_lvl_pgtbl = top_lvl_pgtbl;
+	new->parent = NULL;
+
+	/* initialize the names in new */
+	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
+		new->names[i].state = CRT_NS_STATE_RESERVED;
+		new->names[i].comp = NULL;
+	}
+
+	/* initialize an MPK NS for new */
+	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
+		new->mpk_names[i].state = CRT_NS_STATE_RESERVED;
+	}
+
+	return 0;
+
+}
+
+/*
+ * Create a new vas namespace from the names "left over" in
+ * `existing`, i.e. those that have not been allocated
+ * and automatically alias all names from existing into new
+ *
+ * Return values:
+ *   0: success
+ *  -1: new is null/not allocated correctly, or initialization fails
+ *  -2: new already has allocations
+ *
+ * NOTE: after this call, no further allocations can be made in existing
+ */
+int
+crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids)
+{
+	int i;
+	int cons_ret;
+
+	/* verify that `new` has no existing allocations */
+	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
+		if ((new->names[i].state & CRT_NS_STATE_ALLOCATED) == CRT_NS_STATE_ALLOCATED) return -2;
+	}
+
+	if (crt_ns_vas_init(new, asids)) return -1;
+
+	for (i = 0 ; i < CRT_VAS_NUM_NAMES ; i++) {
+		/*
+		 * If a name is allocated or aliased in existing, the component there should automatically be aliased into new */
+		/* by default via init everything else will go to:
+		 * 		reserved  = 1
+		 *      allocated = 0
+		 *      aliased   = 0
+		 */
+		if (existing->names[i].state & (CRT_NS_STATE_ALLOCATED | CRT_NS_STATE_ALIASED)) {
+			new->names[i].state = (new->names[i].state & ~CRT_NS_STATE_RESERVED) | CRT_NS_STATE_ALIASED;
+			new->names[i].comp = existing->names[i].comp;
+
+			cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(new->names[i].comp->comp_res), new->top_lvl_pgtbl);
+			if (cons_ret != 0) {
+				printc("cons failed: %d\n", cons_ret);
+				assert(0);
+			}
+
+		}
+		/*
+		 * If a name is reserved (but not allocated) in existing, it should no longer be reserved in existing
+		 * NOTE: this means no further allocations can be made in existing
+		 */
+		if ((existing->names[i].state & (CRT_NS_STATE_RESERVED | CRT_NS_STATE_ALLOCATED)) == CRT_NS_STATE_RESERVED) {
+			existing->names[i].state &= ~CRT_NS_STATE_RESERVED;
+		}
+	}
+
+	/* initialize the mpk namespace within new */
+	for (i = 0 ; i < CRT_MPK_NUM_NAMES ; i++) {
+		if ((existing->mpk_names[i].state & CRT_NS_STATE_ALLOCATED) == CRT_NS_STATE_ALLOCATED) {
+			new->mpk_names[i].state &= ~CRT_NS_STATE_RESERVED;
+		}
+		else if ((existing->mpk_names[i].state & (CRT_NS_STATE_RESERVED | CRT_NS_STATE_ALLOCATED)) == CRT_NS_STATE_RESERVED) {
+			existing->mpk_names[i].state &= ~CRT_NS_STATE_RESERVED;
+		}
+	}
+	new->parent = existing;
+
+	return 0;
+}
+
+
+/*
+ * helper function:
+ * returns the first available MPK name within vas, or -1 if none available
+ */
+static int
+crt_mpk_available_name(struct crt_ns_vas *vas)
+{
+	int i;
+
+	for (i = 0 ; i < CRT_MPK_NUM_NAMES ; i++) {
+		if ((vas->mpk_names[i].state & (CRT_NS_STATE_RESERVED | CRT_NS_STATE_ALLOCATED)) == CRT_NS_STATE_RESERVED) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+/*
+ * A `crt_comp_create` replacement if you want to create a component
+ * in a vas directly.
+ */
+int
+crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct crt_ns_vas *vas)
+{
+	/*
+	 * find the name at the entry addr for the elf object for c
+	 * is it reserved but unallocated? --> make allocated & assign MPK key w same properties
+	 * else --> not possible
+	 */
+	int name_index =  (elf_hdr ? elf_entry_addr(elf_hdr) : 0) / CRT_VAS_NAME_SZ;
+	int mpk_key = 0;
+	int cons_ret;
+
+	assert(name_index < CRT_VAS_NUM_NAMES);
+
+	if (!vas->names[name_index].state) return -1;
+	if ((mpk_key = crt_mpk_available_name(vas)) == -1) return -1;
+
+	crt_comp_create(c, name, id, elf_hdr, info);
+
+	if (cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get())) != 0) {
+		printc("allocate comp cap/cap table cap failed\n");
+		assert(0);
+	}
+
+	cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl);
+	if (cons_ret != 0) {
+		printc("cons failed: %d\n", cons_ret);
+		assert(0);
+	}
+
+	vas->names[name_index].state |= CRT_NS_STATE_ALLOCATED;
+	vas->mpk_names[mpk_key].state |= CRT_NS_STATE_ALLOCATED;
+	vas->names[name_index].comp = c;
+
+	c->mpk_key = mpk_key;
+	c->ns_vas = vas;
+
+	return 0;
+}
+
+/*
+ * helper function to check if two components exist within a shared VAS Namespace
+ */
+static int
+crt_ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
+{
+	if (c1->ns_vas == NULL || c2->ns_vas == NULL) return 0;
+
+	if (c1->ns_vas == c2->ns_vas) return 1;
+
+	return 0;
+}
+
 static inline int
 crt_refcnt_alive(crt_refcnt_t *r)
 {
@@ -140,6 +449,8 @@ crt_comp_init(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_
 	assert(!elf_hdr || c->entry_addr != 0); /* same as `if elf_hdr then c->entry_addr` */
 	simple_barrier_init(&c->barrier, init_parallelism());
 
+	ps_faa(&ncomp, 1);
+
 	return 0;
 }
 
@@ -167,6 +478,76 @@ crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_com
 	cos_compinfo_init(cos_compinfo_get(c->comp_res),
 			  r->ptc, r->ctc, r->compc, r->heap_ptr, r->captbl_frontier,
 			  cos_compinfo_get(cos_defcompinfo_curr_get()));
+	return 0;
+}
+
+/**
+ * Creates the new component from the checkpoint
+ *
+ * Arguments:
+ * - @c the new component to initialize
+ * - @name the name (not copied in this function) for debugging.
+ * - @id the component's id.
+ * - @chkpt the checkpoint used to create c
+ *
+ * @return: 0 on success, != 0 on error.
+ */
+int
+crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt)
+{
+	struct cos_compinfo *ci, *root_ci;
+	struct cos_component_information *comp_info;
+	unsigned long info_offset;
+	size_t  ro_sz,   rw_sz, data_sz, bss_sz;
+	char   *ro_src, *data_src, *mem;
+	int     ret;
+	vaddr_t	info = chkpt->c->info;
+
+	assert(c && name);
+
+	if (crt_comp_init(c, name, id, NULL, chkpt->c->info)) BUG();
+	ci      = cos_compinfo_get(c->comp_res);
+	root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+
+	/* overwrite */
+	c->entry_addr = chkpt->c->entry_addr;
+	c->ro_addr = chkpt->c->ro_addr;
+	c->rw_addr = chkpt->c->rw_addr;
+
+	/* re-work the sinvs with the right IDs */
+	memcpy(c->sinvs, chkpt->c->sinvs, sizeof(c->sinvs));
+	c->n_sinvs = chkpt->c->n_sinvs;
+	for (u32_t i = 0; i < c->n_sinvs; i++) {
+		struct crt_sinv inv = chkpt->c->sinvs[i];
+
+		assert(inv.client->id == chkpt->c->id);
+		c->sinvs[i].client = c;
+		assert(inv.server->id != chkpt->c->id);
+	}
+
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
+	assert(!ret);
+
+	mem = cos_page_bump_allocn(root_ci, chkpt->tot_sz_mem);
+	if (!mem) return -ENOMEM;
+	c->mem = mem;
+	c->tot_sz_mem = chkpt->tot_sz_mem;
+	c->ro_sz = chkpt->c->ro_sz;
+
+	memcpy(mem, chkpt->mem, round_up_to_page(chkpt->tot_sz_mem));
+
+	info_offset = info - c->rw_addr;
+	comp_info   = (struct cos_component_information *)(mem + round_up_to_page(c->ro_sz) + info_offset);
+	comp_info->cos_this_spd_id = 0;
+	assert(comp_info->cos_this_spd_id == 0);
+	comp_info->cos_this_spd_id = id;
+
+	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(c->ro_sz), COS_PAGE_READABLE)) return -ENOMEM;
+	if (c->rw_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem + round_up_to_page(c->ro_sz), c->tot_sz_mem - round_to_page(c->ro_sz), COS_PAGE_READABLE | COS_PAGE_WRITABLE)) return -ENOMEM;
+
+	/* FIXME: cos_time.h assumes we have access to this... */
+	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, root_ci, BOOT_CAPTBL_SELF_INITHW_BASE);
+	assert(ret == 0);
 
 	return 0;
 }
@@ -218,6 +599,8 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	mem    = cos_page_bump_allocn(root_ci, tot_sz);
 	if (!mem) return -ENOMEM;
 	c->mem = mem;
+	c->tot_sz_mem = tot_sz;
+	c->ro_sz = ro_sz;
 
 	memcpy(mem, ro_src, ro_sz);
 	memcpy(mem + round_up_to_page(ro_sz), data_src, data_sz);
@@ -229,8 +612,11 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	assert(comp_info->cos_this_spd_id == 0);
 	comp_info->cos_this_spd_id = id;
 
-	/* FIXME: separate map of RO and RW */
-	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, tot_sz)) return -ENOMEM;
+	c->n_sinvs = 0;
+	memset(c->sinvs, 0, sizeof(c->sinvs));
+
+	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(ro_sz), COS_PAGE_READABLE)) return -ENOMEM;
+	if (c->rw_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem + round_up_to_page(ro_sz), round_up_to_page(data_sz + bss_sz), COS_PAGE_READABLE | COS_PAGE_WRITABLE)) return -ENOMEM;
 
 	/* FIXME: cos_time.h assumes we have access to this... */
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, root_ci, BOOT_CAPTBL_SELF_INITHW_BASE);
@@ -263,7 +649,8 @@ crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
 		.init_state = CRT_COMP_INIT_PREINIT,
 		.main_type  = INIT_MAIN_NONE,
 		.init_core  = cos_cpuid(),
-		.barrier    = SIMPLE_BARRIER_INITVAL
+		.barrier    = SIMPLE_BARRIER_INITVAL,
+		.n_sinvs    = 0,
 	};
 	simple_barrier_init(&c->barrier, init_parallelism());
 
@@ -354,6 +741,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 	cli = cos_compinfo_get(client->comp_res);
 	srv = cos_compinfo_get(server->comp_res);
 
+
 	assert(crt_refcnt_alive(&server->refcnt) && crt_refcnt_alive(&client->refcnt));
 	crt_refcnt_take(&client->refcnt);
 	crt_refcnt_take(&server->refcnt);
@@ -370,7 +758,11 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 		.s_fn_addr   = s_fn_addr
 	};
 
-	sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
+	if (crt_ns_vas_shared(client, server))
+		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap_shared, sinv->s_fn_addr, client->id);
+	else
+		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
+
 	assert(sinv->sinv_cap);
 	printc("sinv %s cap %ld\n", name, sinv->sinv_cap);
 
@@ -524,11 +916,17 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 
 	assert(target_ci->comp_cap);
 	if (closure_id == 0) {
-		if(target_aep->thd != 0) return -1; /* should not allow double initialization */
+		if (target_aep->thd != 0) return -1; /* should not allow double initialization */
 
 		crt_refcnt_take(&c->refcnt);
 		assert(target_ci->comp_cap);
-		thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
+
+		if (target_ci->comp_cap_shared != 0) {
+			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap_shared);
+		}
+		else {
+			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
+		}
 		assert(target_aep->thd);
 	} else {
 		crt_refcnt_take(&c->refcnt);
@@ -978,12 +1376,18 @@ crt_page_allocn(struct crt_comp *c, u32_t n_pages)
 }
 
 int
-crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr)
+crt_page_aliasn_aligned_in(void *pages, unsigned long align, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr)
 {
-	*map_addr = cos_mem_aliasn(cos_compinfo_get(c_in->comp_res), cos_compinfo_get(self->comp_res), (vaddr_t)pages, n_pages * PAGE_SIZE);
+	*map_addr = cos_mem_aliasn_aligned(cos_compinfo_get(c_in->comp_res), cos_compinfo_get(self->comp_res), (vaddr_t)pages, n_pages * PAGE_SIZE, align, COS_PAGE_READABLE | COS_PAGE_WRITABLE);
 	if (!*map_addr) return -EINVAL;
 
 	return 0;
+}
+
+int
+crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr)
+{
+	return crt_page_aliasn_aligned_in(pages, PAGE_SIZE, n_pages, self, c_in, map_addr);
 }
 
 /*
@@ -1035,7 +1439,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		if (comp->flags & CRT_COMP_SCHED) {
 			if (crt_comp_sched_delegate(comp, comp_get(cos_compid()), TCAP_PRIO_MAX, TCAP_RES_INF)) BUG();
 		} else {
-			if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync()))) {
+			if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync()))) {
 				printc("Switch failure on thdcap %ld, with ret %d\n", thdcap, ret);
 				BUG();
 			}
@@ -1084,12 +1488,13 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 			struct cos_defcompinfo *defci     = comp->comp_res;
 			struct cos_aep_info    *child_aep = cos_sched_aep_get(defci);
 
-			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_RES_INF, child_aep->rcv, cos_sched_sync())) BUG();
+			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, child_aep->rcv, cos_sched_sync())) BUG();
 		} else {
-			if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+			if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync())) BUG();
 		}
 	}
 
+	printc("BUG, shutting down...");
 	cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);
 	while (1) ;
 

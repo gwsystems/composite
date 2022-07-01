@@ -1,22 +1,23 @@
 /*
- * Copyright 2016, Phani Gadepalli and Gabriel Parmer, GWU, gparmer@gwu.edu.
+ * Copyright 2016, Phani Gadepalli, Runyu Pan and Gabriel Parmer, GWU, gparmer@gwu.edu.
  *
  * This uses a two clause BSD License.
+ * Care should be taken when running this: may not finish on an embedded board. 
+ * To finish, reduce iterations to 100.
  */
 
-#include <cos_component.h>
-#include <cos_defkernel_api.h>
 #include <llprint.h>
-#include <sl.h>
+#include <sched.h>
 
 #include <crt_lock.h>
+#include <crt_sem.h>
 #include <crt_static_chan.h>
 
-struct cos_compinfo *ci;
-
-#define CHAN_ITER  1000000
+#define CHAN_ITER  10000
 #define NCHANTHDS  5
 #define CHAN_BATCH 3
+
+#define SWITCH_TO sched_thd_yield_to
 
 CRT_STATIC_CHAN_STATIC_ALLOC(c0, int, 4);
 CRT_STATIC_CHAN_STATIC_ALLOC(c1, int, 4);
@@ -26,7 +27,7 @@ CRT_STATIC_CHAN_STATIC_ALLOC(c4, int, 4);
 
 CRT_STATIC_CHAN_TYPE_PROTOTYPES(test, int, 4);
 struct crt_static_chan *chans[NCHANTHDS + 1];
-struct sl_thd  *chan_thds[NCHANTHDS] = {NULL, };
+thdid_t chan_thds[NCHANTHDS] = {0, };
 
 typedef enum { CHILLING = 0, RECVING, SENDING } actions_t;
 unsigned long status[NCHANTHDS];
@@ -76,7 +77,7 @@ chantest_recv(int thd_off, struct crt_static_chan *c)
 void
 chan_thd(void *d)
 {
-	int thd_off = (int)d;
+	int thd_off = (unsigned long)d;
 	struct crt_static_chan **chan_pair = &chans[thd_off];
 	int recv;
 	int i;
@@ -113,8 +114,8 @@ idle_thd(void *d)
 void
 test_chan(void)
 {
-	int i;
-	struct sl_thd *idle;
+	unsigned long i;
+	thdid_t idle;
 	sched_param_t idle_param = SCHED_PARAM_CONS(SCHEDP_PRIO, 10);
 
 	sched_param_t sps[] = {
@@ -139,30 +140,30 @@ test_chan(void)
 
 	printc("Create threads:\n");
 	for (i = 0; i < NCHANTHDS; i++) {
-		chan_thds[i] = sl_thd_alloc(chan_thd, (void *)i);
+		chan_thds[i] = sched_thd_create(chan_thd, (void *)i);
 		assert(chan_thds[i]);
 		sched_param_get(sps[i], NULL, &p);
-		printc("\tcreating thread %ld at prio %d\n", sl_thd_thdid(chan_thds[i]), p);
-		sl_thd_param_set(chan_thds[i], sps[i]);
+		printc("\tcreating thread %lu at prio %d\n", chan_thds[i], p);
+		sched_thd_param_set(chan_thds[i], sps[i]);
 	}
-	idle = sl_thd_alloc(idle_thd, NULL);
+	idle = sched_thd_create(idle_thd, NULL);
 	sched_param_get(idle_param, NULL, &p);
-	printc("\tcreating IDLE %ld at prio %d\n", sl_thd_thdid(idle), p);
-	sl_thd_param_set(idle, idle_param);
+	printc("\tcreating IDLE %lu at prio %d\n", idle, p);
+	sched_thd_param_set(idle, idle_param);
 
 }
 
-#define LOCK_ITER 1000000
+#define LOCK_ITER 10000
 #define NLOCKTHDS 4
 struct crt_lock lock;
-struct sl_thd  *lock_thds[NLOCKTHDS] = {NULL, };
-unsigned int    progress[NLOCKTHDS] = {0, };
+thdid_t lock_thds[NLOCKTHDS] = {0, };
+unsigned int lock_progress[NLOCKTHDS] = {0, };
 volatile thdid_t holder;
 
 thdid_t
-next_thd(void)
+next_lock_thd(void)
 {
-	return sl_thd_thdid(lock_thds[(unsigned int)(ps_tsc() % NLOCKTHDS)]);
+	return lock_thds[(unsigned int)(time_now() % NLOCKTHDS)];
 }
 
 void
@@ -171,35 +172,35 @@ lock_thd(void *d)
 	int i, cnt, me = -1;
 
 	for (i = 0; i < NLOCKTHDS; i++) {
-		if (sl_thd_thdid(lock_thds[i]) != cos_thdid()) continue;
+		if (lock_thds[i] != cos_thdid()) continue;
 
 		me = i;
 	}
 	assert(me != -1);
-
-	sl_thd_yield(sl_thd_thdid(lock_thds[1]));
+	
+	SWITCH_TO(lock_thds[1]);
 
 	for (i = 0; i < LOCK_ITER; i++) {
 		crt_lock_take(&lock);
 
-		progress[me]++;
+		lock_progress[me]++;
 		holder = cos_thdid();
-
-		sl_thd_yield(next_thd());
+	
+		SWITCH_TO(next_lock_thd());
 
 		if (holder != cos_thdid()) {
 			printc("FAILURE\n");
 			BUG();
 		}
 		crt_lock_release(&lock);
-		sl_thd_yield(next_thd());
+		SWITCH_TO(next_lock_thd());
 	}
 
 	for (i = 0; i < NLOCKTHDS; i++) {
 		if (i == me) continue;
 
-		if (progress[i] < LOCK_ITER) {
-			sl_thd_yield(sl_thd_thdid(lock_thds[i]));
+		if (lock_progress[i] < LOCK_ITER) {
+			SWITCH_TO(lock_thds[i]);
 		}
 	}
 
@@ -212,44 +213,113 @@ test_lock(void)
 {
 	int i;
 	sched_param_t sps[] = {
-		SCHED_PARAM_CONS(SCHEDP_PRIO, 5),
 		SCHED_PARAM_CONS(SCHEDP_PRIO, 6),
 		SCHED_PARAM_CONS(SCHEDP_PRIO, 6),
-		SCHED_PARAM_CONS(SCHEDP_PRIO, 7)
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 6),
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 6)
 	};
 
 	crt_lock_init(&lock);
 
 	printc("Create threads:\n");
 	for (i = 0; i < NLOCKTHDS; i++) {
-		lock_thds[i] = sl_thd_alloc(lock_thd, NULL);
-		printc("\tcreating thread %ld at prio %d\n", sl_thd_thdid(lock_thds[i]), sps[i]);
-		sl_thd_param_set(lock_thds[i], sps[i]);
+		lock_thds[i] = sched_thd_create(lock_thd, NULL);
+		printc("\tcreating thread %lu at prio %d\n", lock_thds[i], sps[i]);
+		sched_thd_param_set(lock_thds[i], sps[i]);
+	}
+}
+
+#define SEM_ITER 10000
+#define NSEMTHDS 4
+struct crt_sem sem;
+thdid_t sem_thds[NSEMTHDS] = {0, };
+unsigned int sem_progress[NSEMTHDS] = {0, };
+volatile thdid_t poster;
+
+thdid_t
+next_sem_thd(void)
+{
+	return sem_thds[(unsigned int)(time_now() % NSEMTHDS)];
+}
+
+void
+sem_thd(void *d)
+{
+	int i, cnt, me = -1;
+
+	for (i = 0; i < NSEMTHDS; i++) {
+		if (sem_thds[i] != cos_thdid()) continue;
+
+		me = i;
+	}
+	assert(me != -1);
+
+	SWITCH_TO(sem_thds[1]);
+
+	for (i = 0; i < SEM_ITER; i++) {
+		crt_sem_take(&sem);
+
+		sem_progress[me]++;
+		poster = cos_thdid();
+
+		SWITCH_TO(next_sem_thd());
+
+		if (poster != cos_thdid()) {
+			printc("FAILURE\n");
+			BUG();
+		}
+		crt_sem_give(&sem);
+		SWITCH_TO(next_sem_thd());
+	}
+
+	for (i = 0; i < NSEMTHDS; i++) {
+		if (i == me) continue;
+
+		if (sem_progress[i] < SEM_ITER) {
+			SWITCH_TO(sem_thds[i]);
+		}
+	}
+
+	printc("SUCCESS!");
+	while (1) ;
+}
+
+void
+test_sem(void)
+{
+	int i;
+	sched_param_t sps[] = {
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 6),
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 6),
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 6),
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 6)
+	};
+
+	crt_sem_init(&sem, 1);
+
+	printc("Create threads:\n");
+	for (i = 0; i < NSEMTHDS; i++) {
+		sem_thds[i] = sched_thd_create(sem_thd, NULL);
+		printc("\tcreating thread %lu at prio %d\n", sem_thds[i], sps[i]);
+		sched_thd_param_set(sem_thds[i], sps[i]);
 	}
 }
 
 void
 cos_init(void)
 {
-	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	ci = cos_compinfo_get(defci);
-
-	printc("Unit-test for the crt (sl)\n");
-	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_defcompinfo_init();
-	sl_init(SL_MIN_PERIOD_US);
+	printc("Unit-test for the crt (w/sched interface).\n");
 }
 
 int
 main(void)
 {
+	/* Run the uncommented test - one at a time */
 //	test_lock();
+//	test_sem();
 	test_chan();
 
-	printc("Running benchmark...\n");
-	sl_sched_loop_nonblock();
-
-	assert(0);
+	printc("Running benchmark, exiting main thread...\n");
 
 	return 0;
 }

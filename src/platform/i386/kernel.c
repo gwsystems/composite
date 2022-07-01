@@ -1,6 +1,6 @@
 #include "assert.h"
 #include "kernel.h"
-#include "multiboot.h"
+#include "multiboot2.h"
 #include "string.h"
 #include "boot_comp.h"
 #include "mem_layout.h"
@@ -10,6 +10,7 @@
 #include <retype_tbl.h>
 #include <component.h>
 #include <thd.h>
+#include <chal_plat.h>
 
 #define ADDR_STR_LEN 8
 
@@ -33,53 +34,91 @@ extern u8_t end; /* from the linker script */
 
 extern u8_t _binary_constructor_start, _binary_constructor_end;
 
-void
-kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
+static void
+multiboot_mem_parse(struct multiboot_tag *tag)
 {
-	struct multiboot_mem_list *mems;
-	unsigned int               i, wastage = 0;
+	unsigned int i = 0;
+	multiboot_memory_map_t *mmap;
+	u8_t *                  mod_end;
+	u8_t *                  mem_addr;
+	unsigned long long      mem_len, sz;
+
+	for (mmap = ((struct multiboot_tag_mmap *) tag)->entries;
+		(multiboot_uint8_t *) mmap < (multiboot_uint8_t *) tag + tag->size;
+		mmap = (multiboot_memory_map_t *) ((unsigned long) mmap +
+		 ((struct multiboot_tag_mmap *) tag)->entry_size)) {
+
+		mod_end  = glb_memlayout.mod_end;
+		mem_addr = chal_pa2va((paddr_t)mmap->addr);
+		mem_len  = (mmap->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ : mmap->len); /* maximum allowed */
+		printk("\t- %d (%s): [%08llx, %08llx) sz = %ldMB + %ldKB\n", i, 
+			mmap->type == 1 ? "Available" : "Reserved ",
+			mmap->addr, mmap->addr + mmap->len, 
+			MEM_MB_ONLY((unsigned long long)mmap->len), MEM_KB_ONLY((unsigned long long)mmap->len));
+
+		if (mmap->addr > COS_PHYMEM_END_PA || mmap->addr + mem_len > COS_PHYMEM_END_PA) {
+			i++;
+			continue;
+		}
+		/* is this the memory region we'll use for component memory? */
+		if (mmap->type == 1 && mod_end >= mem_addr && mod_end < (mem_addr + mem_len)) {
+			sz = (mem_addr + mem_len) - mod_end;
+			glb_memlayout.kmem_end = mem_addr + mem_len;
+			printk("\t  memory usable at boot time: %lx (%ld MB + %ld KB)\n", sz, 
+				MEM_MB_ONLY(sz), MEM_KB_ONLY(sz));
+		}
+		i++;
+	}
+}
+
+static void 
+multiboot_tag_parse(unsigned long mboot_addr)
+{
+	struct multiboot_tag *tag;
+	multiboot_memory_map_t *mmap;
+
+	for (tag = (struct multiboot_tag *) (mboot_addr + 8); 
+		tag->type != MULTIBOOT_TAG_TYPE_END;
+		tag = (struct multiboot_tag *) ((multiboot_uint8_t *) tag + ((tag->size + 7) & ~7))) {
+		if (tag->type == MULTIBOOT_TAG_TYPE_MMAP) multiboot_mem_parse(tag);
+	}
+}
+
+void
+kern_memory_setup(unsigned long mboot_addr, unsigned long mboot_magic)
+{
+	unsigned int wastage = 0;
+	u32_t size;
 
 	glb_memlayout.allocs_avail = 1;
 
-	if (mboot_magic != MULTIBOOT_EAX_MAGIC) {
-		die("Not started from a multiboot loader!\n");
-	}
-	if ((mb->flags & MULTIBOOT_FLAGS_REQUIRED) != MULTIBOOT_FLAGS_REQUIRED) {
-		die("Multiboot flags include %x but are missing one of %x\n", mb->flags, MULTIBOOT_FLAGS_REQUIRED);
+	if (mboot_magic != MULTIBOOT2_BOOTLOADER_MAGIC) {
+		die("multiboot magic not correct\n");
 	}
 
-	mems = (struct multiboot_mem_list *)mb->mmap_addr;
+	if (mboot_addr & 7) {
+		die("mboot unligned mbi\n");
+	}
+
 	glb_memlayout.kern_end = &end;
-	assert((unsigned int)&end % RETYPE_MEM_NPAGES * PAGE_SIZE == 0);
+	assert((unsigned long)&end % RETYPE_MEM_NPAGES * PAGE_SIZE == 0);
 
 	printk("Initial component found:\n");
 	/* These values have to be higher-half addresses */
 	glb_memlayout.mod_start = &_binary_constructor_start;
 	glb_memlayout.mod_end   = &_binary_constructor_end;
 	glb_memlayout.kern_boot_heap = mem_boot_start();
-	printk("\t- [%08x, %08x)\n", &_binary_constructor_start, &_binary_constructor_end);
+	printk("kenrel mem layout:\n");
+	printk("\t- [%p, %p, %p)\n", glb_memlayout.mod_start, glb_memlayout.mod_end, glb_memlayout.kern_boot_heap);
+
+	size = *(u32_t *)mboot_addr;
+	if (size <= 0) {
+		die("not found tag!\n");
+	}
 
 	printk("Memory regions:\n");
-	for (i = 0; i < mb->mmap_length / sizeof(struct multiboot_mem_list); i++) {
-		struct multiboot_mem_list *mem      = &mems[i];
-		u8_t *                     mod_end  = glb_memlayout.mod_end;
-		u8_t *                     mem_addr = chal_pa2va((paddr_t)mem->addr);
-		unsigned long              mem_len  = (mem->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ : mem->len); /* maximum allowed */
+	multiboot_tag_parse(mboot_addr);
 
-		printk("\t- %d (%s): [%08llx, %08llx) sz = %ldMB + %ldKB\n", i, mem->type == 1 ? "Available" : "Reserved ", mem->addr,
-		       mem->addr + mem->len, MEM_MB_ONLY((u32_t)mem->len), MEM_KB_ONLY((u32_t)mem->len));
-
-		if (mem->addr > COS_PHYMEM_END_PA || mem->addr + mem_len > COS_PHYMEM_END_PA) continue;
-
-		/* is this the memory region we'll use for component memory? */
-		if (mem->type == 1 && mod_end >= mem_addr && mod_end < (mem_addr + mem_len)) {
-			unsigned long sz = (mem_addr + mem_len) - mod_end;
-
-			glb_memlayout.kmem_end = mem_addr + mem_len;
-			printk("\t  memory usable at boot time: %lx (%ld MB + %ld KB)\n", sz, MEM_MB_ONLY(sz),
-			       MEM_KB_ONLY(sz));
-		}
-	}
 	/* FIXME: check memory layout vs. the multiboot memory regions... */
 
 	/* Validate the memory layout. */
@@ -100,7 +139,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 }
 
 void
-kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
+kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 {
 #define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
 	unsigned long max;
@@ -120,10 +159,10 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #endif
 	boot_state_transition(INIT_BOOTED, INIT_CPU);
 
-	max = MAX((unsigned long)mboot->mods_addr,
-	          MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
-	kern_paging_map_init((void *)(max + PGD_SIZE));
-	kern_memory_setup(mboot, mboot_magic);
+	max = MAX((unsigned long)chal_va2pa((void*)mboot_addr), (unsigned long)(chal_va2pa(&end)));
+
+	kern_paging_map_init((void *)(max));
+	kern_memory_setup(mboot_addr, mboot_magic);
 	boot_state_transition(INIT_CPU, INIT_MEM_MAP);
 
 	chal_init();
@@ -187,6 +226,13 @@ khalt(void)
 	static int method = 0;
 
 	if (method == 0) printk("Shutting down...\n");
+
+	/* Since we cannot shutdown the system currently, use halt here to save cpu time */
+	while (1)
+	{
+		asm volatile("hlt");
+	}
+	
 	/*
 	 * Use the case statement as we shutdown in the fault handler,
 	 * thus faults on shutdown require that we bypass faulty

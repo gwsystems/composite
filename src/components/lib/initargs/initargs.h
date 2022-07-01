@@ -3,7 +3,7 @@
 
 #include <tar.h>
 
-/*
+/***
  * A very simple nested K/V representation for retrieving initial
  * arguments to components.
  *

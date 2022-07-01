@@ -1,6 +1,6 @@
 #define ENABLE_CONSOLE
 
-#include "io.h"
+#include "chal/shared/cos_io.h"
 #include "string.h"
 #include "isr.h"
 #include "kernel.h"

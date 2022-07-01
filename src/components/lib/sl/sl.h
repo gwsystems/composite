@@ -38,6 +38,7 @@
 #include <sl_thd.h>
 #include <sl_consts.h>
 #include <sl_xcpu.h>
+#include <cos_time.h>
 #include <heap.h>
 
 /* Critical section (cs) API to protect scheduler data-structures */
@@ -306,7 +307,7 @@ sl_usec2cyc(microsec_t usec)
 static inline cycles_t
 sl_now(void)
 {
-	return ps_tsc();
+	return time_now();
 }
 
 static inline microsec_t

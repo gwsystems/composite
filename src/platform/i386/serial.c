@@ -1,7 +1,7 @@
 #define ENABLE_SERIAL
 
 #include "string.h"
-#include "chal/io.h"
+#include "chal/shared/cos_io.h"
 #include "isr.h"
 #include "kernel.h"
 

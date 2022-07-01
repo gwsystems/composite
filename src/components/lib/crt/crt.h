@@ -9,6 +9,10 @@
 
 typedef unsigned long crt_refcnt_t;
 
+#define CRT_COMP_SINVS_LEN 16
+
+struct crt_comp;
+
 struct crt_asnd {
 	struct crt_rcv *rcv;
 	asndcap_t asnd;
@@ -47,6 +51,14 @@ typedef enum {
 	CRT_COMP_INIT_TERM
 } crt_comp_init_state_t;
 
+struct crt_sinv {
+	char *name;
+	struct crt_comp *server, *client;
+	vaddr_t c_fn_addr, c_ucap_addr;
+	vaddr_t s_fn_addr;
+	sinvcap_t sinv_cap;
+};
+
 struct crt_comp {
 	crt_comp_flags_t flags;
 	char *name;
@@ -69,6 +81,16 @@ struct crt_comp {
 	coreid_t init_core;
 
 	crt_refcnt_t refcnt;
+
+	size_t tot_sz_mem;
+	size_t ro_sz;
+	struct crt_sinv sinvs[CRT_COMP_SINVS_LEN];
+	u32_t  n_sinvs;
+
+	u32_t mpk_key;
+	capid_t second_lvl_pgtbl_cap;
+	struct crt_ns_vas *ns_vas;
+	
 };
 
 struct crt_comp_resources {
@@ -78,6 +100,12 @@ struct crt_comp_resources {
 	cap_t       captbl_frontier;
 	vaddr_t     heap_ptr;
 	vaddr_t     info;
+};
+
+struct crt_chkpt {
+	struct crt_comp *c;
+	char            *mem;
+	size_t           tot_sz_mem;
 };
 
 typedef enum {
@@ -130,13 +158,7 @@ typedef enum {
 	CRT_RCV_ALIAS_ALL  = CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP | CRT_RCV_ALIAS_RCV,
 } crt_rcv_alias_t;
 
-struct crt_sinv {
-	char *name;
-	struct crt_comp *server, *client;
-	vaddr_t c_fn_addr, c_ucap_addr;
-	vaddr_t s_fn_addr;
-	sinvcap_t sinv_cap;
-};
+
 
 struct crt_sinv_resources {
 	sinvcap_t sinv_cap;
@@ -144,6 +166,11 @@ struct crt_sinv_resources {
 
 int crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info);
 int crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_comp_resources *resources);
+
+int crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt);
+unsigned long crt_ncomp();
+unsigned long crt_nchkpt();
+
 int crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp_resources *res, crt_comp_alias_t flags);
 void crt_comp_captbl_frontier_update(struct crt_comp *c, capid_t capid);
 int crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info);
@@ -158,6 +185,8 @@ struct crt_rcv *crt_comp_exec_rcv(struct crt_comp *comp);
 struct crt_thd *crt_comp_exec_thd(struct crt_comp *comp);
 
 int crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr);
+int crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr);
+
 int crt_sinv_alias_in(struct crt_sinv *s, struct crt_comp *c, struct crt_sinv_resources *res);
 
 int crt_asnd_create(struct crt_asnd *s, struct crt_rcv *r);
@@ -176,6 +205,7 @@ int crt_thd_alias_in(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resou
 
 void *crt_page_allocn(struct crt_comp *c, u32_t n_pages);
 int crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr);
+int crt_page_aliasn_aligned_in(void *pages, unsigned long align, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr);
 
 /**
  * Initialization API to automate the coordination necessary for
@@ -186,5 +216,109 @@ typedef struct crt_comp *(*comp_get_fn_t)(compid_t id);
 void crt_compinit_execute(comp_get_fn_t comp_get);
 void crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type);
 void crt_compinit_exit(struct crt_comp *c, int retval);
+
+int crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c);
+int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
+
+
+/*
+ * - The VAS structure will be an array of pointers to `struct
+ *   crt_comp`s, and "reserved" bits. The reserved bits are used to
+ *   notate which names to *split* off, and the `crt_comp` is which
+ *   component has been `alloc_in`ed at that name. Each NS maintains a
+ *   pointer to its parent (it split off from).
+ *
+ * - We also need a similar structure like this to track the MPK
+ *   namespace and the ASID namespace.
+ */
+
+/* for 32 bit:
+ * name sz = 2^22
+ * 2^32 / 2^22 = 2^10 = 1024 names
+ * 2^10 / 2 to ensure the array fits into a page = 512 names
+ * #define CRT_VAS_NAME_SZ (1 << 22)
+ * #define CRT_VAS_NUM_NAMES 512
+ * #define CRT_MPK_NUM_NAMES 16
+ * #define CRT_ASID_NUM_NAMES 1024
+ * 
+ * for 64 bit:
+ * name sz = 2^39 
+ * 2^48 / 2^39 = 2^9 = 512 names
+ * 2^9 / 2 to ensure the array fits into a page = 256 names
+ * also: more ASIDs available in 64 bit
+ */
+
+#define CRT_VAS_NAME_SZ 	(1ULL << 39)
+#define CRT_VAS_NUM_NAMES 	256
+#define CRT_MPK_NUM_NAMES 	14
+#define CRT_ASID_NUM_NAMES 	4096
+
+#define CRT_NS_STATE_RESERVED 	1
+#define CRT_NS_STATE_ALLOCATED 1 << 1
+#define CRT_NS_STATE_ALIASED 	1 << 2
+
+struct crt_vas_name {
+	u32_t state : 3;
+	struct crt_comp *comp;
+};
+
+struct crt_asid_mpk_name {
+	u32_t state : 3;
+};
+
+struct crt_ns_vas {
+	pgtblcap_t top_lvl_pgtbl;
+	struct crt_vas_name names[CRT_VAS_NUM_NAMES];
+	struct crt_ns_vas *parent;
+	u32_t asid_name;
+	struct crt_asid_mpk_name mpk_names[CRT_MPK_NUM_NAMES];
+};
+
+
+struct crt_ns_asid {
+	struct crt_asid_mpk_name names[CRT_ASID_NUM_NAMES];
+	struct crt_ns_asid *parent;
+};
+
+/**
+ * NS creation:
+ *
+ * - create functions that simply create a new ns with all of the
+ *   names available, and
+ * - split functions that simply make a new ns from the unallocated
+ *   names left over in an existing namespace.
+ */
+
+/* Create a new asids namespace */
+int crt_ns_asids_init(struct crt_ns_asid *asids);
+/*
+ * Create a asid namespace from the names "left over" in `existing`,
+ * i.e. those that have not been `crt_ns_vas_alloc_in`ed.
+ */
+int crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing);
+/*
+ * Initialize a new vas namespace, pulling a name from the `asids`
+ */
+int crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids);
+/*
+ * Create a new vas namespace from the names "left over" in
+ * `existing`, i.e. those that have not been `crt_ns_vas_alloc_in`ed
+ */
+int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids);
+
+/*
+ * A `crt_comp_create` replacement if you want to create a component
+ * in a vas directly. Note that, the
+ * `crt_comp_create` likely needs to take the asid namespace as well.
+ */
+int crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct crt_ns_vas *vas);
+
+/*
+ * VAS name mapping/allocation. 
+ * This function became no longer necessary due to the above, but an implementation of it is here:
+ * https://github.com/ldierksheide/composite/blob/shared_pgtbl/src/components/lib/crt/crt.c#L322-L364
+ * 
+ * int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c);
+ */
 
 #endif /* CRT_H */

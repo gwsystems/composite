@@ -1,0 +1,8 @@
+[system]
+description = "Sl library context switch benchmarking."
+
+[[components]]
+name = "bench_sl_yield"
+img  = "tests.bench_sl_yield"
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"

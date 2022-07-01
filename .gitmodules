@@ -1,6 +1,16 @@
 [submodule "src/components/lib/ps/ps"]
 	path = src/components/lib/ps/ps
 	url = https://github.com/gwsystems/ps.git
+	branch = master
 [submodule "src/components/lib/ck/ck"]
 	path = src/components/lib/ck/ck
 	url = https://github.com/gwsystems/ck.git
+	branch = cos_profile
+[submodule "src/components/lib/dpdk/dpdk"]
+	path = src/components/lib/dpdk/dpdk
+	url = https://github.com/gwsystems/dpdk.git
+	branch = cos_dpdk
+[submodule "src/components/lib/lwip/lwip"]
+	path = src/components/lib/lwip/lwip
+	url = https://github.com/gwsystems/lwip.git
+	branch = cos_stable_2_1_x

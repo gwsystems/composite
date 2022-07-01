@@ -1,6 +1,5 @@
 #include <cos_stubs.h>
 #include <capmgr.h>
-#include <memmgr.h>
 
 COS_SERVER_3RET_STUB(arcvcap_t, capmgr_rcv_create)
 {

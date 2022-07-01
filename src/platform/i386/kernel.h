@@ -5,7 +5,7 @@
 #include <shared/cos_types.h>
 #include <shared/util.h>
 #include "chal.h"
-#include "multiboot.h"
+#include "multiboot2.h"
 
 #include "chal_asm_inc.h"
 #include <thd.h>
@@ -26,6 +26,8 @@ void vga_puts(const char *str);
 #ifdef ENABLE_SERIAL
 void serial_init(void);
 #endif
+
+#define PRINTK(format, ...) printk("%d: " format, get_cpuid(), ## __VA_ARGS__)
 
 typedef enum {
 	INIT_BOOTED,   /* initial boot */
@@ -94,6 +96,7 @@ void tls_update(u32_t addr);
 
 // void printk(const char *fmt, ...);
 int printk_register_handler(void (*handler)(const char *));
+void print_pt_regs(struct pt_regs *r);
 
 void khalt(void);
 
