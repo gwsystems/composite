@@ -2,6 +2,8 @@
 #include <llprint.h>
 #include <chan.h>
 #include <ps.h>
+#include <cos_time.h>
+#include <sched.h>
 
 /***
  * There will be three threads. Only one is a receiver, and two will be senders. The receiver have a
@@ -34,7 +36,7 @@ sender(void *d)
 {
 	int i;
 	word_t idx;
-	
+
 	idx = (word_t)d;
 
 	for (i = 0; i < COMM_AMNT; i++) {
@@ -63,7 +65,7 @@ receiver(void *d)
 		evt_res_data_t evtdata;
 		evt_res_type_t  evtsrc;
 		struct chan_rcv *r;
-		
+
 		/* Receive from the events */
 		if (evt_get(&e, EVT_WAIT_DEFAULT, &evtsrc, &evtdata))  {
 			printc("evt_get error\n");
@@ -93,11 +95,11 @@ receiver(void *d)
 
 int
 main(void)
-{	
+{
 	/* Create channels */
 	for (int i = 0; i < SEND_THD_NUM; i++) {
 		test[i].idx = i;
-		
+
 		if (chan_init(&(test[i].c), sizeof(thdid_t), 16, CHAN_DEFAULT)) {
 			printc("chan_init failure %d.\n", i);
 			assert(0);
@@ -115,7 +117,7 @@ main(void)
 	}
 
 	printc("Chan tests: created channel, send/receive end-points. Proceeding with child thread creation.\n");
-	
+
 	/* Create threads */
 	init_thd = cos_thdid();
 	r_id = sched_thd_create(receiver, NULL);
@@ -123,7 +125,7 @@ main(void)
 		printc("sched_thd_create error.\n");
 		assert(0);
 	}
-	
+
 	for (word_t i = 0; i < SEND_THD_NUM; i++) {
 		thdid_t s_id = sched_thd_create(sender, (void*)i);
 
@@ -139,22 +141,22 @@ main(void)
 			assert(0);
 		}
 	}
-	
+
 	if (sched_thd_param_set(r_id, sched_param_pack(SCHEDP_PRIO, 4))) {
 		printc("sched_thd_param_set failed.\n");
 		assert(0);
 	}
-	
+
 	/* Bind all to an event */
 	printc("Chan tests: created child threads. Proceeding with event creation.\n");
 	assert(evt_init(&e, SEND_THD_NUM) == 0);
-	
+
 	for (int i = 0; i < SEND_THD_NUM; i++) {
 		test[i].evt_id = evt_add(&e, i, (evt_res_data_t)&(test[i].r));
 		assert(test[i].evt_id != 0);
 		assert(chan_evt_associate(&(test[i].c), test[i].evt_id) == 0);
 	}
-	
+
 	printc("Chan tests: created child threads. Proceeding with tests.\n");
 	sched_thd_block(0);
 	printc("Chan evt test: SUCCESS.\n");

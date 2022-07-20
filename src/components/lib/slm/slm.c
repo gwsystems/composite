@@ -374,6 +374,14 @@ slm_cs_enter_sched(void)
 	return ret;
 }
 
+unsigned long
+slm_get_cycs_per_usec(void)
+{
+	struct slm_global *g = slm_global();
+
+	return (unsigned long)g->cyc_per_usec;
+}
+
 static void
 slm_sched_loop_intern(int non_block)
 {
@@ -496,23 +504,6 @@ void
 slm_sched_loop_nonblock(void)
 {
 	slm_sched_loop_intern(1);
-}
-
-/* Override this to do initialization before idle computation */
-CWEAKSYMB void slm_idle_comp_initialization(void) { return; }
-/* Override this to do repetitive computation in idle */
-CWEAKSYMB void slm_idle_iteration(void) { return; }
-
-void
-slm_idle(void *d)
-{
-	slm_idle_comp_initialization();
-
-	while (1) {
-		slm_idle_iteration();
-	}
-
-	BUG();
 }
 
 void

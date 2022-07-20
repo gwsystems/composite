@@ -101,6 +101,8 @@ slm_now(void)
 	return ps_tsc();
 }
 
+unsigned long slm_get_cycs_per_usec(void);
+
 #include <slm_private.h>
 
 /***
@@ -108,22 +110,34 @@ slm_now(void)
  *
  * ```c
  * void
- * cos_init() {
- *         t = thd_alloc(slm_idle, ...); // bypass the slm in allocation
+ * cos_parallel_init(...) {
+ *         t = thd_allow(slm_idle, ...); // bypass the slm in allocation
  *         slm_init(t->thdcap, t->thdid);
  *         ...
  * }
  *
  * int
- * main(void) {
+ * parallel_main(...) {
  *         ...
  *         slm_sched_loop(); // start processing the scheduler, never return
  * }
  * ```
  */
 
-/* This is the idle function, and should be the function executed by the thread */
+/*
+ * This is the idle function, and should be the function executed by
+ * the thread. idle calls `slm_idle_comp_initialization()`, then goes
+ * into an infinite loop calling `slm_idle_iteration();` each time.
+ * These functions can be defined in other object files, and will be
+ * correspondingly invoked. The initialization protocol (`init.c`)
+ * overrides the first.
+ */
 void slm_idle(void *);
+void slm_idle_comp_initialization(void);
+void slm_idle_iteration(void);
+
+
+
 /**
  * This function *must* be called as part of the scheduler
  * initialization, usually as part of `cos_init`. This assumes that

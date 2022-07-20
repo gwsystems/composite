@@ -202,7 +202,7 @@ typedef void (*thd_fn_t)(void *);
 	int slm_sched_wakeup(struct slm_thd *t)				\
 	{ return slm_sched_##schedpol##_wakeup(t); }			\
 	struct slm_thd *slm_sched_schedule(void)			\
-	{ return slm_sched_##schedpol##_schedule(); }			\
+ 	{ return slm_sched_##schedpol##_schedule(); }			\
 	void slm_sched_execution(struct slm_thd *t, cycles_t c)		\
 	{ slm_sched_##schedpol##_execution(t, c); }			\
 									\
@@ -244,5 +244,4 @@ typedef void (*thd_fn_t)(void *);
 	{ return &ps_container(t, struct slm_thd_container, timer)->thd; } \
 	struct slm_thd *slm_thd_from_sched(struct slm_sched_thd *t)	\
 	{ return &ps_container(t, struct slm_thd_container, sched)->thd; }
-
 #endif	/* SLM_API_H */

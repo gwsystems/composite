@@ -8,6 +8,7 @@
 #include <tmrmgr.h>
 #include <static_slab.h>
 #include <heap.h>
+#include <cos_time.h>
 
 #define MAX_NUM_TMR 32
 #define MIN_USECS_LIMIT 1000
@@ -38,23 +39,23 @@ tmrmgr_create(unsigned int usecs, tmr_flags_t flags)
 {
 	tmr_id_t id;
 	struct tmr_info* t;
-	
+
 	t = ss_timer_alloc();
 	if (!t) return 0;
-	
+
 	id = ss_timer_id(t);
-	
+
 	t->usecs = usecs;
 	t->flags = flags;
 	t->timeout_cyc = 0;
 	t->evt_id = 0;
-	
+
 	if (t->usecs < MIN_USECS_LIMIT) t->usecs = MIN_USECS_LIMIT;
-	
+
 	debug("Timer manager: timer created, id %d, usecs %d, flags %d\n", id, usecs, flags);
-	
+
 	ss_timer_activate(t);
-	
+
 	return id;
 }
 
@@ -153,10 +154,10 @@ main(void)
 {
 	cycles_t wakeup;
 	struct tmr_info *t;
-	
-	main_thdid=sl_thdid();
+
+	main_thdid=cos_thdid();
 	printc("Timer manager: executing main with thread ID %lu.\n", main_thdid);
-	
+
 	/* Now we do a test around sched_thd_block_timeout and see... */
 	while(1) {
 		/*
@@ -171,17 +172,17 @@ main(void)
 			sched_thd_block_timeout(0, wakeup);
 			continue;
 		}
-		
+
 		wakeup = time_now();
 		t = heap_peek((struct heap *)timer_heap);
-		
+
 		if (t != NULL) {
 			/* At least one timer expired. Process all of them. */
 			while(t->timeout_cyc <= (wakeup + time_usec2cyc(MIN_USECS_LIMIT))) {
 				debug("Timer manager: id %d expired.\n", ss_timer_id(t));
 				evt_trigger(t->evt_id);
 				t = heap_highest((struct heap *)timer_heap);
-				
+
 				if (t->flags == TMR_PERIODIC) {
 					debug("Timer manager: added back id %d to heap.\n", ss_timer_id(t));
 					t->timeout_cyc = time_now() + time_usec2cyc(t->usecs);
@@ -189,12 +190,12 @@ main(void)
 				} else {
 					t->timeout_cyc = 0;
 				}
-				
+
 				t = heap_peek((struct heap *)timer_heap);
 				if (t == NULL) break;
 			}
 		}
-		
+
 		if (t == NULL) {
 			wakeup = time_now() + time_usec2cyc(1000 * 1000);
 			sched_thd_block_timeout(0, wakeup);
@@ -224,7 +225,7 @@ void
 cos_init(void)
 {
 	printc("Timer manager: init.\n");
-	
+
 	/* Initialize active timer heap */
 	modifying = 0;
 	timer_active = (struct heap*)timer_heap;

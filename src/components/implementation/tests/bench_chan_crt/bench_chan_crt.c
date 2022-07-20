@@ -9,6 +9,7 @@
 
 #include <crt_static_chan.h>
 #include <perfdata.h>
+#include <cos_time.h>
 
 #undef CHAN_TRACE_DEBUG
 #ifdef CHAN_TRACE_DEBUG
@@ -81,7 +82,7 @@ chan_writer_thd(void *d)
 		debug("w4,");
 		ts3[0] = time_now();
 		debug("w5,");
-		
+
 		if (first == 0) first = 1;
 		else {
 			if (ts2[0] > ts1[0] && ts3[0] > ts2[0]) {
@@ -91,7 +92,7 @@ chan_writer_thd(void *d)
 			}
 		}
 	}
-	
+
 	perfdata_calc(&perf1);
 	perfdata_calc(&perf2);
 	perfdata_calc(&perf3);
@@ -134,7 +135,7 @@ test_chan(void)
 #endif
 
 	crt_static_chan_init_bench(chan1);
-	
+
 	/* Uncontended lock taking/releasing */
 	perfdata_init(&perf1, "Uncontended channel - selfloop", result1, ITERATION);
 	for (i = 0; i < ITERATION + 1; i++) {
@@ -160,13 +161,13 @@ test_chan(void)
 	perfdata_init(&perf1, "Contended channel - reader high use this", result1, ITERATION);
 	perfdata_init(&perf2, "Contended channel - writer high use this", result2, ITERATION);
 	perfdata_init(&perf3, "Contended channel - roundtrip", result3, ITERATION);
-	
+
 	printc("Create threads:\n");
-	
+
 	chan_reader = sched_thd_create(chan_reader_thd, NULL);
 	printc("\tcreating reader thread %lu at prio %d\n", chan_reader, sps[0]);
 	sched_thd_param_set(chan_reader, sps[0]);
-	
+
 	chan_writer = sched_thd_create(chan_writer_thd, NULL);
 	printc("\tcreating writer thread %lu at prio %d\n", chan_writer, sps[1]);
 	sched_thd_param_set(chan_writer, sps[1]);

@@ -2,7 +2,7 @@
  * Copyright 2016, Phani Gadepalli, Runyu Pan and Gabriel Parmer, GWU, gparmer@gwu.edu.
  *
  * This uses a two clause BSD License.
- * Care should be taken when running this: may not finish on an embedded board. 
+ * Care should be taken when running this: may not finish on an embedded board.
  * To finish, reduce iterations to 100.
  */
 
@@ -12,6 +12,7 @@
 #include <crt_lock.h>
 #include <crt_sem.h>
 #include <crt_static_chan.h>
+#include <cos_time.h>
 
 #define CHAN_ITER  10000
 #define NCHANTHDS  5
@@ -177,7 +178,7 @@ lock_thd(void *d)
 		me = i;
 	}
 	assert(me != -1);
-	
+
 	SWITCH_TO(lock_thds[1]);
 
 	for (i = 0; i < LOCK_ITER; i++) {
@@ -185,7 +186,7 @@ lock_thd(void *d)
 
 		lock_progress[me]++;
 		holder = cos_thdid();
-	
+
 		SWITCH_TO(next_lock_thd());
 
 		if (holder != cos_thdid()) {

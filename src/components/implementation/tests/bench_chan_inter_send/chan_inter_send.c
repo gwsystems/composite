@@ -3,6 +3,7 @@
 #include <chan.h>
 #include <ps.h>
 #include <perfdata.h>
+#include <cos_time.h>
 
 #undef CHAN_TRACE_DEBUG
 #ifdef CHAN_TRACE_DEBUG
@@ -54,9 +55,9 @@ main(void)
 #endif
 
 	printc("Component chan sender: executing main.\n");
-	
+
 	/* Send data to receiver so it can register for channels */
-	
+
 #ifdef USE_EVTMGR
 	assert(evt_init(&e, 2) == 0);
 	evt_id = evt_add(&e, 0, (evt_res_data_t)&r);
@@ -65,7 +66,7 @@ main(void)
 	printc("Sender side event created.\n");
 #endif
 
-	/* 
+	/*
 	 * This sleep in both hi and lo comps lets the benchmark run
 	 * more predictably on HW and on Qemu.
 	 *
@@ -92,7 +93,7 @@ main(void)
 		debug("w4,");
 		ts3 = time_now();
 		debug("w5,");
-		
+
 		if (first == 0) first = 1;
 		else {
 			if (ts2 > ts1 && ts3 > ts2) {
@@ -102,7 +103,7 @@ main(void)
 			}
 		}
 	}
-	
+
 	perfdata_calc(&perf1);
 	perfdata_calc(&perf2);
 	perfdata_calc(&perf3);
