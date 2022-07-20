@@ -228,10 +228,11 @@ start_execution(coreid_t cid, int init_core, int ncores)
 			cos_init();
 			/* continue only if there is no user-defined main, or parallel exec */
 			COS_EXTERN_INV(init_done)(parallel_init, main_type);
+			/* Shouldn't return if we don't want to run parallel init or main */
 			assert(parallel_init || main_type != INIT_MAIN_NONE);
 		}
 
-		/* Parallel initialization */
+		/* Parallel initialization awaits `cos_init` completion */
 		COS_EXTERN_INV(init_parallel_await_init)();
 		if (parallel_init) {
 			cos_parallel_init(cid, init_core, init_parallelism());
@@ -242,6 +243,7 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	}
 	/* No main? we shouldn't have continued here... */
 	assert(main_type != INIT_MAIN_NONE);
+	/* Either parallel main, or a single main with only the initial core executing here. */
 	assert(main_type == INIT_MAIN_PARALLEL || (main_type == INIT_MAIN_SINGLE && init_core));
 
 	/* Execute the main: either parallel or normal */
@@ -327,8 +329,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		if (arg1 == 0) {
 			static unsigned long first_core = 1;
 
+			/* FIXME: assume that core 0 is the initial core for now */
 			start_execution(cos_coreid(), ps_cas(&first_core, 1, 0), init_parallelism());
-
 		} else {
 			word_t idx = (word_t)arg1 - 1;
 			if (idx >= COS_THD_INIT_REGION_SIZE) {

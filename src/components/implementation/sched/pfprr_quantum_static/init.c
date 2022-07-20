@@ -41,6 +41,14 @@
 #include <init.h>
 #include <initargs.h>
 
+/* This schedule is used by the initializer_thd to ascertain order */
+static unsigned long init_schedule_off = 0;
+static compid_t init_schedule[MAX_NUM_COMPS] = { 0 };
+
+/*
+ * Coordinating the initialization of components requires tracking the
+ * initialization state, and barriers across cores.
+ */
 typedef enum {
 	SCHEDINIT_FREE,
 	SCHEDINIT_INITING,
@@ -51,13 +59,11 @@ typedef enum {
 struct schedinit_status {
 	struct simple_barrier barrier;
 	schedinit_t status;
-	init_main_t  main_type;
+	unsigned long init_core;
+	struct slm_thd *initialization_thds[NUM_CPU];
 };
 
 static struct schedinit_status initialization_state[MAX_NUM_COMPS] = { 0 };
-/* This schedule is used by the initializer_thd to ascertain order */
-static unsigned long init_schedule_off = 0;
-static compid_t init_schedule[MAX_NUM_COMPS] = { 0 };
 
 static void
 component_initialize_next(compid_t cid)
@@ -70,10 +76,12 @@ component_initialize_next(compid_t cid)
 	s = &initialization_state[cid];
 	assert(s->status == SCHEDINIT_FREE);
 	*s = (struct schedinit_status) {
-		.status = SCHEDINIT_INITING,
-		.main_type = INIT_MAIN_NONE,
+		.status    = SCHEDINIT_INITING,
+		.init_core = ~0,
+		.initialization_thds = { 0 },
 	};
-	simple_barrier(&s->barrier);
+	/* By default, lets assume that each component can initialize onto *all* cores */
+	simple_barrier_init(&s->barrier, init_parallelism());
 
 	return;
 }
@@ -107,6 +115,19 @@ calculate_initialization_schedule(void)
 
 struct slm_thd *slm_thd_current_extern(void);
 
+static __attribute__((noreturn)) void
+exit_init_thd(void)
+{
+	struct slm_thd *current = slm_thd_current_extern();
+
+	printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), (compid_t)cos_inv_token());
+	slm_cs_enter(current, SLM_CS_NONE);
+	slm_thd_deinit(current);		/* I'm out! */
+	slm_cs_exit_reschedule(current, SLM_CS_NONE);
+	BUG();
+	while (1) ;
+}
+
 void
 init_done(int parallel_init, init_main_t cont)
 {
@@ -115,40 +136,68 @@ init_done(int parallel_init, init_main_t cont)
 
 	s = &initialization_state[client];
 	assert(s->status != SCHEDINIT_FREE);
+	/*
+	 * Set the initialization core as the first core to call
+	 * `cos_init`, thus call `init_done` first. This is a little
+	 * obtuse, but we're simply trying to set the `s->init_core`
+	 * only if it is still set to `-1`. Thus the first core to try
+	 * (and only the first core to try), should succeed.
+	 */
+	ps_cas(&s->init_core, ~0, cos_coreid());
 
-	/* Currently we don't do parallel initialization */
-	if (parallel_init) {
+	/*
+	 * `init_done` should not be called once initialization is
+	 * completed. This is an error.
+	 */
+	if (s->status == SCHEDINIT_MAIN) {
+		exit_init_thd();
+	}
+
+	/*
+	 * This should *ONLY* happen for the initialization thread
+	 * *after* it executes `cos_init`.
+	 */
+	if (s->status == SCHEDINIT_INITING) {
+		/*
+		 * Assumption: here we're moving on to parallel
+		 * initialization regardless if it is requested or
+		 * not. We *know* that we've created all parallel
+		 * threads, and that the client will avoid calling the
+		 * `parallel_init` function if it isn't requested.
+		 */
+
+		/* Continue with parallel initialization... */
 		ps_store(&s->status, SCHEDINIT_PARINIT);
 
 		return;
 	}
 
-	switch (cont) {
-	case INIT_MAIN_SINGLE:
-		ps_store(&s->main_type, INIT_MAIN_SINGLE);
-		break;
-	case INIT_MAIN_PARALLEL:
-		ps_store(&s->main_type, INIT_MAIN_PARALLEL);
-		break;
-	case INIT_MAIN_NONE:
-		break;
+	/*
+ 	 * If this barrier is hit *after* the parallel initialization
+	 * has finished, no blocking will occur as its count has
+	 * already been hit.
+	 */
+	simple_barrier(&s->barrier);
+	s->status = SCHEDINIT_MAIN;
+
+	s->initialization_thds[cos_coreid()] = slm_thd_current_extern();
+	extern int thd_block(void);
+	thd_block(); 		/* block until initialization is completed */
+
+ 	/*
+	 * After initialization, we're done with the parallel threads
+	 * in some cases.
+	 */
+	if ((cos_coreid() != s->init_core && cont == INIT_MAIN_SINGLE) || cont == INIT_MAIN_NONE) {
+		exit_init_thd();
 	}
 
-	/* This is the sync value for the initialization thread */
-	ps_store(&s->status, SCHEDINIT_MAIN);
-	if (s->main_type != INIT_MAIN_NONE) return; /* FIXME: no parallel main currently */
-
-	if (cont == INIT_MAIN_NONE) {
-		struct slm_thd *current = slm_thd_current_extern();
-
-		printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), client);
-		slm_cs_enter(current, SLM_CS_NONE);
-		slm_thd_deinit(current);		/* I'm out! */
-		slm_cs_exit_reschedule(current, SLM_CS_NONE);
-		BUG();
-	}
-
-	/* TODO: parallel init and main */
+	/*
+	 * We've moved on to execute main, are in the initialization
+	 * thread, or are in a parallel thread, and are to do parallel
+	 * main execution. We'd expect the next API call here to be
+	 * `init_exit`.
+	 */
 
 	return;
 }
@@ -156,38 +205,17 @@ init_done(int parallel_init, init_main_t cont)
 void
 init_exit(int retval)
 {
-	compid_t client = (compid_t)cos_inv_token();
-	struct slm_thd *current = slm_thd_current_extern();
-
-	printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), client);
-	slm_cs_enter(current, SLM_CS_NONE);
-	slm_thd_deinit(current);		/* I'm out! */
-	slm_cs_exit_reschedule(current, SLM_CS_NONE);
-	BUG();
-	while (1) ;
+	exit_init_thd();
 }
 
 /**
- * A new thread, at the highest priority executes this function. This
- * thread collaborates with
- * 1. sched_childinfo_init_intern which parses through the components
- *    we are supposed to initialize, and
- * 2. the init_* interface that captures the initialization status of
- *    component's threads
- * to orchestrate the initialization of all components we're
- * responsible for scheduling.
- *
- * *Assumptions and simplifications:* We make a number of
- * simplifications here. Currently, we don't support parallel
- * initialization. We also assume that the initialization thread can
- * either be executed at the highest priority (which might be
- * difficult with some scheduling policies), or will at least not
- * starve due to the initialization thread execution.
+ * This executes in the *idle thread* before the normal idle
+ * processing. Thus, it runs as the lowest priority.
  */
 static void
-slm_comp_init_loop(void *d)
+slm_comp_init_loop(void)
 {
-	unsigned long init_schedule_current = 0;
+	unsigned long init_schedule_current = 0, i;
 	struct slm_thd *current;
 
 	printc("Scheduler %ld: Running initialization thread.\n", cos_compid());
@@ -202,68 +230,54 @@ slm_comp_init_loop(void *d)
 		param[0] = sched_param_pack(SCHEDP_INIT, 0);
 		param[1] = 0;
 
-		extern struct slm_thd *thd_alloc_in(compid_t id, thdclosure_index_t idx, sched_param_t *parameters, int reschedule);
-
 		/* Create the thread for initialization of the next component */
+		extern struct slm_thd *thd_alloc_in(compid_t id, thdclosure_index_t idx, sched_param_t *parameters, int reschedule);
 		t = thd_alloc_in(client, 0, param, 0);
 		assert(t);
 
 		n = &initialization_state[client];
 		init_schedule_current++;
 
+		printc("\tScheduler %ld: initializing component %ld with thread %ld.\n", cos_compid(), client, t->tid);
 		/*
 		 * This waits till init_done effective runs before
 		 * moving on. We need to be highest-priority, so that
 		 * we can direct switch to the initialization thread
 		 * here.
 		 *
-		 * FIXME: if the initialization thread blocks, this
-		 * will test the awkward code paths around waking on a
-		 * block *before* the actual impulse you're blocking
-		 * on is true. Always recheck your block conditions,
-		 * kids!
+		 * If the initial thread blocked, we may execute. Lets
+		 * just wait for it to finish! We're in the idle
+		 * thread, so the spin isn't really wasting many
+		 * resources.
 		 */
-		printc("\tScheduler %ld: initializing component %ld with thread %ld.\n", cos_compid(), client, t->tid);
-		while (ps_load(&n->status) != SCHEDINIT_MAIN) {
-			sched_tok_t             tok;
+		while (ps_load(&n->initialization_thds[cos_coreid()]) == NULL) ;
+ 	}
 
-			assert(ps_load(&n->status) != SCHEDINIT_FREE);
-			tok  = cos_sched_sync();
-			slm_switch_to(slm_thd_current_extern(), t, tok, 0);
-		}
-	}
-
-	current = slm_thd_current_extern();
 	printc("Scheduler %ld, initialization completed.\n", cos_compid());
-	slm_cs_enter(current, SLM_CS_NONE);
-	slm_thd_deinit(current);		/* I'm out! */
-	slm_cs_exit_reschedule(current, SLM_CS_NONE);
-	BUG();
+
+	/*
+	 * We want to *atomically* awaken all of the threads that will
+	 * go on to execute `parallel_main`s, thus we maintain the
+	 * critical section while awaking them all.
+	 */
+	slm_cs_enter(slm_thd_current_extern(), SLM_CS_NONE);
+	for (i = 0; i < ps_load(&init_schedule_off); i++) {
+		compid_t client = init_schedule[i];
+		struct slm_thd *t;
+
+		t = initialization_state[client].initialization_thds[cos_coreid()];
+		assert(t != NULL);
+
+		slm_thd_wakeup(t, 0);
+	}
+	slm_cs_exit_reschedule(slm_thd_current_extern(), SLM_CS_NONE);
+
+	return;
 }
 
-/**
- * If the scheduler is supposed to initialize other components, this
- * should be called directly before the scheduler loop. Will create
- * threads to actuate the initialization process, and then the actual
- * threads to execute in the initializing components.
- */
-int
-slm_start_component_init(void)
+void
+slm_idle_comp_initialization(void)
 {
-	struct slm_thd_container *t;
-	sched_param_t param[2];
-
 	calculate_initialization_schedule();
-
-	/* Note that the initialization protocol thread runs at the highest priority */
-	param[0] = sched_param_pack(SCHEDP_INIT_PROTO, 0);
-	param[1] = 0;
-
-	typedef void (*thd_fn_t)(void *);
-	struct slm_thd_container *thd_alloc(thd_fn_t fn, void *data, sched_param_t *parameters, int reschedule);
-
-	t = thd_alloc(slm_comp_init_loop, NULL, param, 0);
-	assert(t);
-
-	return 0;
+	slm_comp_init_loop();
 }

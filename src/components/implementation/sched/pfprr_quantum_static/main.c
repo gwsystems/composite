@@ -369,29 +369,32 @@ sched_aep_create_closure(thdclosure_index_t id, int owntc, cos_channelkey_t key,
 	return 0;
 }
 
-int
-main(void)
+void
+parallel_main(coreid_t cid)
 {
-	extern int slm_start_component_init(void);
-
-	slm_start_component_init();
 	slm_sched_loop();
+}
+
+void
+cos_parallel_init(coreid_t cid, int init_core, int ncores)
+{
+	struct slm_thd_container *t;
+	thdcap_t thdcap;
+	thdid_t tid;
+
+	cos_defcompinfo_init();
+	cos_defcompinfo_sched_init();
+
+	extern void slm_init_idle(void *d);
+	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid);
+	if (!t) BUG();
+	slm_init(thdcap, tid);
 }
 
 void
 cos_init(void)
 {
-	struct slm_thd_container *t;
 	struct cos_compinfo *boot_info = cos_compinfo_get(cos_defcompinfo_curr_get());
-	thdcap_t thdcap;
-	thdid_t tid;
 
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-	cos_defcompinfo_init();
-	cos_defcompinfo_sched_init();
-
-	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid);
-	if (!t) BUG();
-
-	slm_init(thdcap, tid);
 }
