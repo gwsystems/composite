@@ -43,7 +43,7 @@ DISABLED_DRIVERS=-Ddisable_drivers=common/mvep,common/mlx5,af_xdp,net/ipn3ke,net
 	raw/dpaa2_cmdif,raw/dpaa2_qdma,raw/ioat,raw/ntb,raw/octeontx2_dma,raw/octeontx2_ep,raw/skeleton,common/cpt,common/dpaax,$\
 	common/iavf,common/octeontx,common/octeontx2,common/cnxk,common/qat,common/sfc_efx,bus/auxiliary,bus/dpaa,bus/fslmc,$\
 	bus/ifpga,net/af_packet,net/ark,net/atlantic,net/avp,net/axgbe,net/bnx2x,net/bnxt,net/bond,net/cxgbe,net/ena,net/enic,$\
-	net/failsafe,net/fm10k,net/hinic,net/hns3,net/i40e,net/igc,net/ionic,net/ixgbe,net/kni,net/liquidio,net/memif,net/nfp,$\
+	net/failsafe,net/fm10k,net/hinic,net/hns3,net/igc,net/ionic,net/ixgbe,net/kni,net/liquidio,net/memif,net/nfp,$\
 	net/ngbe,net/null,net/pcap,net/qede,net/softnic,net/thunderx,net/txgbe,net/vdev_netvsc,baseband/la12xx,dma/idxd,dma/ioat,$\
 	dma/skeleton,net/octeontx_ep,
 

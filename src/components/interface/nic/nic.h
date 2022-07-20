@@ -6,6 +6,8 @@
 #include <cos_stubs.h>
 #include <shm_bm.h>
 
+void nic_shmem_init(cbuf_t rx_shm_id, cbuf_t tx_shm_id);
+
 int nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_size);
 int nic_bind_port(u32_t ip_addr, u16_t port);
 
@@ -14,5 +16,5 @@ int nic_bind_port(u32_t ip_addr, u16_t port);
  * dpdk will then copy the packet to this shmem region specified by the shmid
  * and return its shmem objectid.
  */
-shm_bm_objid_t nic_get_a_packet(cbuf_t shmid);
+shm_bm_objid_t nic_get_a_packet();
 #endif /* NIC_H */

@@ -3,10 +3,10 @@
 #
 # The set of interfaces that this component exports for use by other
 # components. This is a list of the interface names.
-INTERFACE_EXPORTS =
+INTERFACE_EXPORTS = netmgr
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES = memmgr nicshmem nic contigmem
+INTERFACE_DEPENDENCIES = memmgr netshmem nic contigmem netshmem
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
 LIBRARY_DEPENDENCIES = component shm_bm lwip

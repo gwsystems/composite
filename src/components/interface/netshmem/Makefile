@@ -4,7 +4,7 @@
 # The library names associated with .a files output that are linked
 # (via, for example, -lpongshmem) into dependents. This list should be
 # "pongshmem" for output files such as libpongshmem.a.
-LIBRARY_OUTPUT = 
+LIBRARY_OUTPUT = netshmem
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,
