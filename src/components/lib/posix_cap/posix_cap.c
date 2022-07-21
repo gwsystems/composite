@@ -15,6 +15,7 @@
 #include <posix.h>
 #include <ps_list.h>
 #include <memmgr.h>
+#include <contigmem.h>
 
 static struct ps_lock stdout_lock;
 
@@ -96,7 +97,7 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		return MAP_FAILED;
 	}
 
-	addr = (void *)memmgr_heap_page_allocn((length / PAGE_SIZE));
+	addr = (void *)contigmem_alloc((length / PAGE_SIZE));
 	if (!addr){
 		ret = (void *) -1;
 	} else {

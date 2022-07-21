@@ -1,0 +1,4 @@
+#include <cos_asm_stubs.h>
+
+cos_asm_stub(contigmem_alloc)
+cos_asm_stub_indirect(contigmem_shared_alloc_aligned)

@@ -432,8 +432,10 @@ cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
  * cos_parse_pkts: return data pointer of this packet
  */
 char*
-cos_get_packet(char* mbuf)
+cos_get_packet(char* mbuf, int *len)
 {
+
+	*len = ((struct rte_mbuf*)mbuf)->pkt_len;
 	return (char *)rte_pktmbuf_mtod((struct rte_mbuf*)mbuf, struct rte_ether_hdr *);
 }
 
@@ -520,10 +522,40 @@ uint16_t cos_send_a_packet(char * pkt, uint32_t pkt_size, char* mp)
 	mbuf->data_len = pkt_size + sizeof(struct rte_ether_hdr);
 	mbuf->pkt_len = pkt_size + sizeof(struct rte_ether_hdr);
 
-	return cos_dev_port_tx_burst(0, 0, (char**)&mbuf, 1);
+	return cos_dev_port_tx_burst(0, 0, (char **)&mbuf, 1);
 }
 
 char*
 cos_allocate_mbuf(char* mp) {
-	return (char*)rte_pktmbuf_alloc((struct rte_mempool *)mp);
+	return (char *)rte_pktmbuf_alloc((struct rte_mempool *)mp);
+}
+
+int
+cos_attach_external_mbuf(char *mbuf, void *buf_vaddr, uint16_t buf_len,
+			void (*ext_buf_free_cb)(void *addr, void *opaque),
+			uint64_t buf_paddr)
+{
+	struct rte_mbuf_ext_shared_info *ret_shinfo = NULL;
+	rte_iova_t buf_iova =buf_paddr ;
+	bool freed = false;
+
+	uint16_t ext_buf_len = buf_len + sizeof(struct rte_mbuf_ext_shared_info);
+
+	struct rte_mbuf *_mbuf = (struct rte_mbuf *)mbuf;
+
+	ret_shinfo = rte_pktmbuf_ext_shinfo_init_helper(buf_vaddr, &ext_buf_len, ext_buf_free_cb, &freed);
+	rte_pktmbuf_attach_extbuf(_mbuf, buf_vaddr, buf_iova, ext_buf_len, ret_shinfo);
+	assert(_mbuf->ol_flags == RTE_MBUF_F_EXTERNAL);
+
+	return 0;
+}
+
+int
+cos_send_external_packet(char*mbuf, uint16_t pkt_len)
+{
+	struct rte_mbuf *_mbuf = (struct rte_mbuf *)mbuf;
+	_mbuf->data_len = pkt_len;
+	_mbuf->pkt_len = pkt_len;
+
+	return cos_dev_port_tx_burst(0, 0, &mbuf, 1);
 }
