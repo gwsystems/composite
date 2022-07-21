@@ -133,6 +133,29 @@ sched_thd_exit(void)
 }
 
 int
+sched_thd_yield_to(thdid_t t)
+{
+	struct slm_thd *current = slm_thd_current();
+	struct slm_thd *to = slm_thd_lookup(t);
+	int ret;
+
+	if (!to) return -1;
+
+	slm_cs_enter(current, SLM_CS_NONE);
+        slm_sched_yield(current, to);
+	ret = slm_cs_exit_reschedule(current, SLM_CS_NONE);
+
+	return ret;
+}
+
+void
+sched_set_tls(void* tls_addr)
+{
+	/* Not used, so not yet supported */
+	BUG();
+}
+
+int
 thd_block(void)
 {
 	struct slm_thd *current = slm_thd_current();

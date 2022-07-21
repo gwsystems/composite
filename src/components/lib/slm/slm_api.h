@@ -201,6 +201,8 @@ typedef void (*thd_fn_t)(void *);
 	{ return slm_sched_##schedpol##_block(t); }			\
 	int slm_sched_wakeup(struct slm_thd *t)				\
 	{ return slm_sched_##schedpol##_wakeup(t); }			\
+	void slm_sched_yield(struct slm_thd *t, struct slm_thd *yield_to) \
+	{ return slm_sched_##schedpol##_yield(t, yield_to); }   	\
 	struct slm_thd *slm_sched_schedule(void)			\
  	{ return slm_sched_##schedpol##_schedule(); }			\
 	void slm_sched_execution(struct slm_thd *t, cycles_t c)		\
