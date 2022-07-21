@@ -46,7 +46,6 @@ cos_interface_output(struct netif *ni, struct pbuf *p, const ip4_addr_t *ip)
 			obj = (struct netshmem_pkt_buf*)(p->next->payload - NETSHMEM_HEADROOM);
 			objid = obj->objid;
 			data = obj->payload_offset + obj->data;
-			// printc("before dpdk:%s\n", data);
 			memcpy(data - p->len, p->payload, p->len);
 			obj->payload_offset = obj->payload_offset - p->len;
 			obj->payload_sz += p->len;
@@ -57,9 +56,6 @@ cos_interface_output(struct netif *ni, struct pbuf *p, const ip4_addr_t *ip)
 			if (obj == NULL) return ERR_OK;
 
 			memcpy(obj->data, data, p->len);
-			// for(int i = 0;i < p->len;i++) {
-			// 	obj->data[i] = data[i];
-			// }
 			obj->payload_offset = 0;
 			obj->payload_sz = p->len;
 
