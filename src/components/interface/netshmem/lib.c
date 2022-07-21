@@ -22,12 +22,6 @@ netshmem_init(void)
 	netshmems[NETSHMEM_TX].shm	= shm_bm_create_rx_pkt_buf(mem, netshmems[NETSHMEM_TX].shmsz);
 
 	shm_bm_init_tx_pkt_buf(netshmems[NETSHMEM_TX].shm);
-	// nic_shemem_map(rx_shm_id);
-	// obj = shm_bm_alloc_tx_pkt_buf(rx_shm, &objid);
-	// obj->data[0] = 'm';
-	// printc("app objid:%u\n",objid);
-
-	// printc("app init shm done:%d\n", nicshmem_test1());
 }
 
 cbuf_t

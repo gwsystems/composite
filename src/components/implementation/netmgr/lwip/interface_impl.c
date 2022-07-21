@@ -22,9 +22,6 @@ struct pbuf *g_pbuf = NULL;
 
 #define TCP_MAX_SERVER (16)
 
-typedef unsigned long cos_paddr_t; /* physical address */
-typedef unsigned long cos_vaddr_t; /* virtual address */
-
 extern struct netif net_interface;
 
 struct tcp_server
@@ -48,7 +45,6 @@ cos_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p, err_t err)
 	err_t ret_err;
 
 	if(p != NULL) {
-		// cos_echoserver(p, tp);
 		return_flag = 1;
 		g_pbuf = p;
 		// tcp_recved(tp, p->tot_len);

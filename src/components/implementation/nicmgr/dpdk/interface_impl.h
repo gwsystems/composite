@@ -21,6 +21,8 @@ struct shemem_info {
 
 struct pkt_buf {
 	char   *pkt;
+	u64_t   paddr;
+	int     pkt_len;
 };
 
 /* per thread session */
@@ -36,13 +38,25 @@ struct client_session {
 	struct pkt_buf *ringbuf;
 };
 
+extern struct ck_ring *g_tx_ring;
+extern struct pkt_buf *g_tx_ringbuf;
+
 extern struct client_session client_sessions[NIC_MAX_SESSION];
 
-#define PKT_RBUF_SZ (64 * sizeof(struct pkt_buf))
-#define PKT_RING_SZ   (sizeof(struct ck_ring) + PKT_RBUF_SZ)
-#define PKT_RING_PAGES (round_up_to_page(PKT_RING_SZ)/PAGE_SIZE)
+#define RX_PKT_RBUF_SZ (64 * sizeof(struct pkt_buf))
+#define RX_PKT_RING_SZ   (sizeof(struct ck_ring) + RX_PKT_RBUF_SZ)
+#define RX_PKT_RING_PAGES (round_up_to_page(RX_PKT_RING_SZ)/PAGE_SIZE)
 
-int pkt_ring_buf_enqueue(struct client_session *session, struct pkt_buf *buf);
-int pkt_ring_buf_dequeue(struct client_session *session, struct pkt_buf *buf);
-int pkt_ring_buf_empty(struct client_session *session);
+#define TX_PKT_RBUF_SZ (64 * sizeof(struct pkt_buf))
+#define TX_PKT_RING_SZ   (sizeof(struct ck_ring) + TX_PKT_RBUF_SZ)
+#define TX_PKT_RING_PAGES (round_up_to_page(TX_PKT_RING_SZ)/PAGE_SIZE)
+
+int rx_pkt_ring_buf_enqueue(struct client_session *session, struct pkt_buf *buf);
+int rx_pkt_ring_buf_dequeue(struct client_session *session, struct pkt_buf *buf);
+int rx_pkt_ring_buf_empty(struct client_session *session);
+
+int tx_pkt_ring_buf_enqueue(struct ck_ring *tx_ring, struct pkt_buf *tx_ringbuf, struct pkt_buf *buf);
+int tx_pkt_ring_buf_dequeue(struct ck_ring *tx_ring, struct pkt_buf *tx_ringbuf, struct pkt_buf *buf);
+int tx_pkt_ring_buf_empty(struct ck_ring *tx_ring);
+
 #endif /* INTERFACE_IMPL_H */
