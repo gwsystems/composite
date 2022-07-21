@@ -39,7 +39,6 @@ cos_interface_output(struct netif *ni, struct pbuf *p, const ip4_addr_t *ip)
 	shm_bm_objid_t  objid;
 	struct netshmem_pkt_buf *obj;
 
-	// printc("hhhhhhhhhhhhhhhh\n");
 	if (p->type_internal & PBUF_RAM) {
 		if(p->next != NULL && p->next->type_internal & PBUF_ROM) {
 			/* shemem case, pbuf is chained with a header pbuf and a data pbuf that points to shemem */
