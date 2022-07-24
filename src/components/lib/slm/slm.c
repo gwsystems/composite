@@ -394,7 +394,7 @@ slm_sched_loop_intern(int non_block)
 	assert(cos_thdid() == us->tid);
 
 	while (1) {
-		int pending;
+		int pending, ret;
 
 		do {
 			thdid_t        tid;
@@ -416,7 +416,6 @@ slm_sched_loop_intern(int non_block)
 			 */
 			pending = cos_sched_rcv(us->rcv, rfl, g->timeout_next, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
 			if (!tid) goto pending_events;
-
 			/*
 			 * FIXME: kernel should pass an untyped
 			 * pointer back here that we can use instead
@@ -490,7 +489,8 @@ pending_events:
 
 		if (slm_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
-		if (slm_cs_exit_reschedule(us, SLM_CS_CHECK_TIMEOUT)) assert(0);
+		ret = slm_cs_exit_reschedule(us, SLM_CS_CHECK_TIMEOUT);
+		if (ret && ret != -EAGAIN) BUG();
 	}
 }
 
@@ -528,6 +528,7 @@ slm_init(thdcap_t thd, thdid_t tid)
 		.priority = TCAP_PRIO_MAX
 	};
 	ps_list_init(s, thd_list);
+	ps_list_init(s, graveyard_list);
 	assert(s->tid == cos_thdid());
 
 	*i = (struct slm_thd) {

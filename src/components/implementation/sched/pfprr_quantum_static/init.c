@@ -260,7 +260,7 @@ slm_comp_init_loop(void)
 	 * go on to execute `parallel_main`s, thus we maintain the
 	 * critical section while awaking them all.
 	 */
-	slm_cs_enter(slm_thd_current_extern(), SLM_CS_NONE);
+	slm_cs_enter(slm_thd_special(), SLM_CS_NONE);
 	for (i = 0; i < ps_load(&init_schedule_off); i++) {
 		compid_t client = init_schedule[i];
 		struct slm_thd *t;
@@ -270,7 +270,7 @@ slm_comp_init_loop(void)
 
 		slm_thd_wakeup(t, 0);
 	}
-	slm_cs_exit_reschedule(slm_thd_current_extern(), SLM_CS_NONE);
+	slm_cs_exit_reschedule(slm_thd_special(), SLM_CS_NONE);
 
 	return;
 }

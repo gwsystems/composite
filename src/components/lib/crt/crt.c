@@ -1494,7 +1494,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		}
 	}
 
-	printc("BUG, shutting down...");
+	printc("%ld: All main functions returned: shutting down...\n", cos_compid());
 	cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);
 	while (1) ;
 

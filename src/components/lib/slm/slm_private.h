@@ -125,7 +125,6 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 			return cos_switch(t->thd, t->tc, prio, timeout, g->sched_thd.rcv, tok);
 		}
 	}
-
 	ret = cos_defswitch(t->thd, prio, timeout, tok);
 
 	if (unlikely(ret == -EPERM && !slm_thd_normal(t))) {
@@ -189,6 +188,7 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 		}
 	}
 
+	/* Make a policy decision! */
 	t = slm_sched_schedule();
 	if (unlikely(!t)) t = &g->idle_thd;
 

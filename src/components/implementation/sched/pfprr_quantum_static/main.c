@@ -148,11 +148,14 @@ sched_thd_yield_to(thdid_t t)
 	return ret;
 }
 
+
 void
 sched_set_tls(void* tls_addr)
 {
-	/* Not used, so not yet supported */
-	BUG();
+	struct slm_thd *current = slm_thd_current();
+	thdcap_t thdcap = current->thd;
+
+	capmgr_set_tls(thdcap, tls_addr);
 }
 
 int
@@ -281,10 +284,13 @@ sched_get_cpu_freq(void)
 	return slm_get_cycs_per_usec();
 }
 
+thdcap_t idlecap;
+
 void
 parallel_main(coreid_t cid)
 {
-	slm_sched_loop();
+	printc("Starting scheduler loop...\n");
+	slm_sched_loop_nonblock();
 }
 
 void
@@ -300,6 +306,8 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	extern void slm_init_idle(void *d);
 	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid);
 	if (!t) BUG();
+	idlecap = thdcap;
+
 	slm_init(thdcap, tid);
 }
 

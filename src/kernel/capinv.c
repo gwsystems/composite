@@ -125,7 +125,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 
 	pa = old_v & PGTBL_FRAME_MASK;
 	 if (!chal_pgtbl_flag_exist(old_v, PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
-	 assert(!chal_pgtbl_flag_exist(old_v, PGTBL_QUIESCENCE)); 
+	 assert(!chal_pgtbl_flag_exist(old_v, PGTBL_QUIESCENCE));
 
 	/* Scan the page to make sure there's nothing left. */
 	if (ch->type == CAP_CAPTBL) {
