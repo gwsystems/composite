@@ -673,13 +673,13 @@ crt_comp_thdcap_get(struct crt_comp *c)
 	assert(c);
 
 	if (c->flags & CRT_COMP_INITIALIZE) {
-		struct crt_thd *t = c->exec_ctxt.exec.thd;
+		struct crt_thd *t = c->exec_ctxt.exec[cos_coreid()].thd;
 
 		if (!t) return 0;
 
 		ret = t->cap;
 	} else if (c->flags & CRT_COMP_SCHED) {
-		struct crt_rcv *r = c->exec_ctxt.exec.sched.sched_rcv;
+		struct crt_rcv *r = c->exec_ctxt.exec[cos_coreid()].sched.sched_rcv;
 
 		if (!r) return 0;
 
@@ -698,7 +698,7 @@ crt_comp_sched_delegate(struct crt_comp *child, struct crt_comp *self, tcap_prio
 
 	sched_aep = cos_sched_aep_get(self->comp_res);
 
-	return cos_tcap_delegate(child->exec_ctxt.exec.sched.sched_asnd.asnd, sched_aep->tc, res, prio, TCAP_DELEG_YIELD);
+	return cos_tcap_delegate(child->exec_ctxt.exec[cos_coreid()].sched.sched_asnd.asnd, sched_aep->tc, res, prio, TCAP_DELEG_YIELD);
 }
 
 /**
@@ -1190,7 +1190,7 @@ crt_comp_exec_sched_init(struct crt_comp_exec_context *ctxt, struct crt_rcv *r)
 	assert(!(ctxt->flags & CRT_COMP_INITIALIZE));
 
 	ctxt->flags |= CRT_COMP_SCHED;
-	ctxt->exec.sched.sched_rcv = r;
+	ctxt->exec[cos_coreid()].sched.sched_rcv = r;
 
 	return ctxt;
 }
@@ -1202,7 +1202,7 @@ crt_comp_exec_thd_init(struct crt_comp_exec_context *ctxt, struct crt_thd *t)
 	assert(!(ctxt->flags & CRT_COMP_SCHED));
 
 	ctxt->flags |= CRT_COMP_INITIALIZE;
-	ctxt->exec.thd = t;
+	ctxt->exec[cos_coreid()].thd = t;
 
 	return ctxt;
 }
@@ -1231,9 +1231,9 @@ struct crt_rcv *
 crt_comp_exec_schedthd(struct crt_comp *comp)
 {
 	assert(comp);
-	assert((comp->exec_ctxt.flags & CRT_COMP_SCHED) && comp->exec_ctxt.exec.sched.sched_rcv != NULL);
+	assert((comp->exec_ctxt.flags & CRT_COMP_SCHED) && comp->exec_ctxt.exec[cos_coreid()].sched.sched_rcv != NULL);
 
-	return comp->exec_ctxt.exec.sched.sched_rcv;
+	return comp->exec_ctxt.exec[cos_coreid()].sched.sched_rcv;
 }
 
 struct crt_thd *
@@ -1242,7 +1242,7 @@ crt_comp_exec_thd(struct crt_comp *comp)
 	assert(comp);
 	assert((comp->exec_ctxt.flags & (CRT_COMP_INITIALIZE | CRT_COMP_SCHED)));
 
-	return comp->exec_ctxt.exec.thd;
+	return comp->exec_ctxt.exec[cos_coreid()].thd;
 }
 
 /**
@@ -1278,15 +1278,15 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 	assert(target_ci->comp_cap);
 	if (ctxt->flags & CRT_COMP_CAPMGR && !(c->flags & CRT_COMP_SCHED)) ctxt->flags |= CRT_COMP_SCHED;
 	assert(!(ctxt->flags & CRT_COMP_INITIALIZE) || !(ctxt->flags & CRT_COMP_SCHED)); /* choose one */
-	assert((c->flags & ctxt->flags) == 0);
+	assert((c->flags & ctxt->flags) == 0 || c->flags == ctxt->flags); /* already set, or set to the same value */
 
 	if (ctxt->flags & CRT_COMP_INITIALIZE) {
-		assert(!(c->flags & (CRT_COMP_CAPMGR | CRT_COMP_SCHED)) && ctxt->exec.thd);
+		assert(!(c->flags & (CRT_COMP_CAPMGR | CRT_COMP_SCHED)) && ctxt->exec[cos_coreid()].thd);
 
 		c->exec_ctxt = *ctxt;
 		c->flags     = ctxt->flags;
 
-		if (crt_thd_create_in(ctxt->exec.thd, c, 0)) BUG();
+		if (crt_thd_create_in(ctxt->exec[cos_coreid()].thd, c, 0)) BUG();
 
 		return 0;
 	}
@@ -1295,8 +1295,8 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		struct crt_rcv_resources rcvres;
 		struct crt_rcv *r;
 
-		assert(!(c->flags & CRT_COMP_SCHED) && ctxt->exec.sched.sched_rcv);
-		r = ctxt->exec.sched.sched_rcv;
+		assert(!(c->flags & CRT_COMP_SCHED) && ctxt->exec[cos_coreid()].sched.sched_rcv);
+		r = ctxt->exec[cos_coreid()].sched.sched_rcv;
 
 		if (crt_rcv_create_in(r, c, NULL, 0, 0)) BUG();
 
@@ -1333,9 +1333,9 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		/* assert(ret == 0); */
 
 		/* Update the component's structure */
-		c->exec_ctxt.exec.sched.sched_rcv = r;
+		c->exec_ctxt.exec[cos_coreid()].sched.sched_rcv = r;
 		/* Make an asnd capability to the child so that we can do tcap delegations */
-		if (crt_asnd_create(&c->exec_ctxt.exec.sched.sched_asnd, r)) BUG();
+		if (crt_asnd_create(&c->exec_ctxt.exec[cos_coreid()].sched.sched_asnd, r)) BUG();
 
 		c->flags |= CRT_COMP_SCHED;
 	}
@@ -1402,7 +1402,10 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 	int cont;
 	int ret;
 
-	/* Initialize components in order of the pre-computed schedule from mkimg */
+	/*
+	 * Initialize components (cos_init, then cos_parallel_init) in
+	 * order of the pre-computed schedule from the composer.
+	 */
 	ret = args_get_entry("execute", &comps);
 	assert(!ret);
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
@@ -1417,22 +1420,17 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		assert(comp);
 		initcore = comp->init_core == cos_cpuid();
 		assert(comp->init_state = CRT_COMP_INIT_COS_INIT);
-		thdcap   = crt_comp_thdcap_get(comp);
 
 		if (initcore) {
+			thdcap = crt_comp_thdcap_get(comp);
 			printc("Initializing component %lu (executing cos_init).\n", comp->id);
 		} else {
 			/* wait for the init core's thread to initialize */
 			while (ps_load(&comp->init_state) == CRT_COMP_INIT_COS_INIT) ;
 			if (ps_load(&comp->init_state) != CRT_COMP_INIT_PAR_INIT) continue;
 
-			/* Lazily allocate parallel threads only when they are required. */
-			if (!thdcap) {
-				assert(0);
-				/* ret = crt_thd_init_create(comp); */
-				assert(ret == 0);
-				thdcap = crt_comp_thdcap_get(comp);
-			}
+			printc("%p\n", comp->exec_ctxt.exec[cos_coreid()].sched.sched_rcv);
+			thdcap = crt_comp_thdcap_get(comp);
 		}
 		assert(thdcap);
 

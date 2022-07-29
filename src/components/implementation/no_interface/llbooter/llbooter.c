@@ -93,6 +93,75 @@ boot_comp_set_idoffset(int off)
 	boot_id_offset = off;
 }
 
+struct simple_barrier comps_created = SIMPLE_BARRIER_INITVAL;
+struct simple_barrier thds_created  = SIMPLE_BARRIER_INITVAL;
+
+/*
+ * Create the threads in each of the components, including rcv/tcaps
+ * for schedulers. This is called on each core as part of
+ * initialization.
+ */
+static void
+execution_init(int is_init_core)
+{
+	struct initargs curr, comps;
+	struct initargs_iter i;
+	int cont, ret;
+
+	/*
+	 * We need to await the creation of all of the components
+	 * before we create the threads.
+	 */
+	simple_barrier(&comps_created);
+
+	/*
+	 * Actually create the threads for eventual execution in the
+	 * components.
+	 */
+	ret = args_get_entry("execute", &comps);
+	assert(!ret);
+	if (is_init_core) printc("Execution schedule:\n");
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		struct crt_comp     *comp;
+		int      keylen;
+		compid_t id        = atoi(args_key(&curr, &keylen));
+		char    *exec_type = args_value(&curr);
+		struct crt_comp_exec_context ctxt = { 0 };
+
+		assert(exec_type);
+		assert(id != cos_compid());
+		comp = boot_comp_get(id);
+		assert(comp);
+
+		if (!strcmp(exec_type, "sched")) {
+			struct crt_rcv *r = ss_rcv_alloc();
+
+			assert(r);
+			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, r))) BUG();
+			ss_rcv_activate(r);
+			if (is_init_core) printc("\tCreated scheduling execution for %ld\n", id);
+		} else if (!strcmp(exec_type, "init")) {
+			struct crt_thd *t = ss_thd_alloc();
+
+			assert(t);
+			if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, t))) BUG();
+			ss_thd_activate(t);
+			if (is_init_core) printc("\tCreated thread for %ld\n", id);
+		} else {
+			printc("Error: Found unknown execution schedule type %s.\n", exec_type);
+			BUG();
+		}
+
+		if (is_init_core) comp->init_state = CRT_COMP_INIT_COS_INIT;
+	}
+
+	/*
+	 * We have to wait till all of the threads are created before
+	 * we move on to other captbl manipulations.
+	 */
+	simple_barrier(&thds_created);
+}
+
 static void
 comps_init(void)
 {
@@ -227,8 +296,10 @@ comps_init(void)
 		assert(comp);
 		elf_hdr = (void *)args_get(imgpath);
 
-		/* We assume, for now, that the composer is
-		 * *not* part of a shared VAS. */
+		/*
+		 * We assume, for now, that the composer is
+		 * *not* part of a shared VAS.
+		 */
 		if (id == cos_compid()) {
 			int ret;
 
@@ -243,46 +314,7 @@ comps_init(void)
 		}
 	}
 
-	/*
-	 * Actually create the threads for eventual execution in the
-	 * components.
-	 */
-	ret = args_get_entry("execute", &comps);
-	assert(!ret);
-	printc("Execution schedule:\n");
-	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct crt_comp     *comp;
-		int      keylen;
-		compid_t id        = atoi(args_key(&curr, &keylen));
-		char    *exec_type = args_value(&curr);
-		struct crt_comp_exec_context ctxt = { 0 };
-
-		assert(exec_type);
-		assert(id != cos_compid());
-		comp = boot_comp_get(id);
-		assert(comp);
-
-		if (!strcmp(exec_type, "sched")) {
-			struct crt_rcv *r = ss_rcv_alloc();
-
-			assert(r);
-			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, r))) BUG();
-			ss_rcv_activate(r);
-			printc("\tCreated scheduling execution for %ld\n", id);
-		} else if (!strcmp(exec_type, "init")) {
-			struct crt_thd *t = ss_thd_alloc();
-
-			assert(t);
-			if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, t))) BUG();
-			ss_thd_activate(t);
-			printc("\tCreated thread for %ld\n", id);
-		} else {
-			printc("Error: Found unknown execution schedule type %s.\n", exec_type);
-			BUG();
-		}
-
-		comp->init_state = CRT_COMP_INIT_COS_INIT;
-	}
+	execution_init(1);
 
 	/* perform any necessary captbl delegations */
 	ret = args_get_entry("captbl_delegations", &comps);
@@ -606,10 +638,19 @@ init_exit(int retval)
 }
 
 void
+cos_parallel_init(coreid_t cid, int init_core, int ncores)
+{
+	if (init_core) {
+		comps_init();
+	} else {
+		execution_init(0);
+	}
+}
+
+void
 cos_init(void)
 {
 	booter_init();
-	comps_init();
 }
 
 void
