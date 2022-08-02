@@ -39,6 +39,7 @@ static inline cycles_t
 time_now(void)
 {
 	cycles_t now;
+
 	rdtscll(now);
 
 	return now;
@@ -48,6 +49,17 @@ static inline microsec_t
 time_now_usec(void)
 {
 	return time_cyc2usec(time_now());
+}
+
+static inline void
+time_delay(microsec_t us)
+{
+	cycles_t until = time_usec2cyc(time_cyc2usec(time_now()) + us);
+
+	/* Unintuitive logic here to consider wrap-around */
+	while (until - time_now() < ((cycles_t)0 - (cycles_t)1)) ;
+
+	return;
 }
 
 #endif /* COS_TIME_H */

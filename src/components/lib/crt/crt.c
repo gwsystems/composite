@@ -259,10 +259,7 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 			new->names[i].comp = existing->names[i].comp;
 
 			cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(new->names[i].comp->comp_res), new->top_lvl_pgtbl);
-			if (cons_ret != 0) {
-				printc("cons failed: %d\n", cons_ret);
-				assert(0);
-			}
+			if (cons_ret != 0) BUG();
 
 		}
 		/*
@@ -923,8 +920,7 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 
 		if (target_ci->comp_cap_shared != 0) {
 			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap_shared);
-		}
-		else {
+		} else {
 			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
 		}
 		assert(target_aep->thd);
@@ -1281,10 +1277,14 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 	assert((c->flags & ctxt->flags) == 0 || c->flags == ctxt->flags); /* already set, or set to the same value */
 
 	if (ctxt->flags & CRT_COMP_INITIALIZE) {
-		assert(!(c->flags & (CRT_COMP_CAPMGR | CRT_COMP_SCHED)) && ctxt->exec[cos_coreid()].thd);
+		struct crt_comp_exec_context *cx = &c->exec_ctxt;
+		coreid_t core = cos_coreid();
+		struct crt_thd *t = ctxt->exec[core].thd;
 
-		c->exec_ctxt = *ctxt;
-		c->flags     = ctxt->flags;
+		assert(!(c->flags & (CRT_COMP_CAPMGR | CRT_COMP_SCHED)) && t);
+
+		c->flags = cx->flags = ctxt->flags;
+		cx->exec[core].thd   = t;
 
 		if (crt_thd_create_in(ctxt->exec[cos_coreid()].thd, c, 0)) BUG();
 
@@ -1295,8 +1295,9 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		struct crt_rcv_resources rcvres;
 		struct crt_rcv *r;
 
-		assert(!(c->flags & CRT_COMP_SCHED) && ctxt->exec[cos_coreid()].sched.sched_rcv);
+		assert(c->exec_ctxt.exec[cos_coreid()].sched.sched_rcv == NULL && ctxt->exec[cos_coreid()].sched.sched_rcv);
 		r = ctxt->exec[cos_coreid()].sched.sched_rcv;
+		assert(r);
 
 		if (crt_rcv_create_in(r, c, NULL, 0, 0)) BUG();
 
@@ -1323,7 +1324,14 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		compres = (struct crt_comp_resources) {
 			.ctc = BOOT_CAPTBL_SELF_CT
 		};
-		if (crt_comp_alias_in(c, c, &compres, CRT_COMP_ALIAS_CAPTBL)) BUG();
+		/*
+		 * If we aren't the initialization core (i.e. the
+		 * component hasn't yet been set as a scheduler.
+		 */
+		if (!(c->flags & CRT_COMP_SCHED)) {
+			if (crt_comp_alias_in(c, c, &compres, CRT_COMP_ALIAS_CAPTBL)) BUG();
+		}
+
 		/*
 		 * FIXME: should subset the permissions for this
 		 * around time management. This should be added back
@@ -1334,6 +1342,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 
 		/* Update the component's structure */
 		c->exec_ctxt.exec[cos_coreid()].sched.sched_rcv = r;
+
 		/* Make an asnd capability to the child so that we can do tcap delegations */
 		if (crt_asnd_create(&c->exec_ctxt.exec[cos_coreid()].sched.sched_asnd, r)) BUG();
 
@@ -1429,7 +1438,6 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 			while (ps_load(&comp->init_state) == CRT_COMP_INIT_COS_INIT) ;
 			if (ps_load(&comp->init_state) != CRT_COMP_INIT_PAR_INIT) continue;
 
-			printc("%p\n", comp->exec_ctxt.exec[cos_coreid()].sched.sched_rcv);
 			thdcap = crt_comp_thdcap_get(comp);
 		}
 		assert(thdcap);
@@ -1483,10 +1491,12 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		}
 
 		if (comp->flags & CRT_COMP_SCHED) {
-			struct cos_defcompinfo *defci     = comp->comp_res;
-			struct cos_aep_info    *child_aep = cos_sched_aep_get(defci);
+			struct cos_defcompinfo *compci     = comp->comp_res;
+			struct cos_aep_info    *child_aep = cos_sched_aep_get(compci);
+			struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
+			struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 
-			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, child_aep->rcv, cos_sched_sync())) BUG();
+			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, sched_aep->rcv, cos_sched_sync())) BUG();
 		} else {
 			if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync())) BUG();
 		}

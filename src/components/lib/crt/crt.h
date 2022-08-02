@@ -3,6 +3,7 @@
 
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
+#include <cos_component.h>
 #include <cos_types.h>
 #include <init.h>
 #include <barrier.h>
@@ -157,8 +158,6 @@ typedef enum {
 	CRT_RCV_ALIAS_RCV  = 4,
 	CRT_RCV_ALIAS_ALL  = CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP | CRT_RCV_ALIAS_RCV,
 } crt_rcv_alias_t;
-
-
 
 struct crt_sinv_resources {
 	sinvcap_t sinv_cap;
@@ -320,5 +319,24 @@ int crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *el
  *
  * int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c);
  */
+
+/**
+ * `crt_delay` is a simple function to delay for a number of cycles.
+ */
+static inline void
+crt_delay(cycles_t spin)
+{
+	cycles_t start, now;
+
+	rdtscll(start);
+	now = start;
+
+	/* Unintuitive logic here to consider wrap-around */
+	while (now - start < spin) {
+		rdtscll(now);
+	}
+
+	return;
+}
 
 #endif /* CRT_H */

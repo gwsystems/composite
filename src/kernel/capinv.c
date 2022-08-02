@@ -1006,6 +1006,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	case CAP_ARCV:
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
+
 		return ret;
 	default:
 		break;

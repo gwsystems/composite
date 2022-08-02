@@ -55,7 +55,7 @@ static        long     boot_id_offset = -1;
 
 SS_STATIC_SLAB(sinv,   struct crt_sinv,         BOOTER_MAX_SINV);
 SS_STATIC_SLAB(thd,    struct crt_thd,          BOOTER_MAX_INITTHD);
-SS_STATIC_SLAB(rcv,    struct crt_rcv,          BOOTER_MAX_SCHED);
+SS_STATIC_SLAB(rcv,    struct crt_rcv,          BOOTER_MAX_SCHED * NUM_CPU);
 SS_STATIC_SLAB(chkpt,  struct crt_chkpt,        BOOTER_MAX_CHKPT);
 SS_STATIC_SLAB_GLOBAL_ID(ns_asid, struct crt_ns_asid, BOOTER_MAX_NS_ASID, 0);
 SS_STATIC_SLAB_GLOBAL_ID(ns_vas, struct crt_ns_vas, BOOTER_MAX_NS_VAS, 0);
@@ -137,6 +137,7 @@ execution_init(int is_init_core)
 			struct crt_rcv *r = ss_rcv_alloc();
 
 			assert(r);
+
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, r))) BUG();
 			ss_rcv_activate(r);
 			if (is_init_core) printc("\tCreated scheduling execution for %ld\n", id);
@@ -640,6 +641,7 @@ init_exit(int retval)
 void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
+	cos_defcompinfo_sched_init();
 	if (init_core) {
 		comps_init();
 	} else {

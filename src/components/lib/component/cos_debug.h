@@ -25,7 +25,7 @@ static volatile int *volatile_null_ptr = (int *) NULL;
 	do {                        \
 		debug_print("BUG @ ");  \
 		*volatile_null_ptr = 0; \
-	} while (0);
+	} while (0)
 
 #ifdef DEBUG
 
