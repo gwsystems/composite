@@ -1399,6 +1399,26 @@ crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt
 	return crt_page_aliasn_aligned_in(pages, PAGE_SIZE, n_pages, self, c_in, map_addr);
 }
 
+static void
+crt_clear_schedevents(void)
+{
+	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
+	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
+	int ret, rcvd, blocked;
+	cycles_t cycles;
+	tcap_time_t thd_timeout;
+	int pending = 1;
+	thdid_t tid;
+
+	assert(sched_aep->rcv != 0);
+	while (pending) {
+		pending = cos_sched_rcv(sched_aep->rcv, RCV_NON_BLOCKING, TCAP_TIME_NIL, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
+		assert(pending >= 0);
+	}
+
+	return;
+}
+
 /*
  * The functions to automate much of the component initialization
  * logic follow.
@@ -1455,8 +1475,10 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 
 	/*
 	 * Initialization of components (parallel or sequential)
-	 * complete. Execute the main in components, FIFO
+	 * complete. Execute the main in components, FIFO. First we
+	 * clear out any pending scheduling events.
 	 */
+	crt_clear_schedevents();
 	/* Initialize components in order of the pre-computed schedule from mkimg */
 	ret = args_get_entry("execute", &comps);
 	assert(!ret);
@@ -1472,6 +1494,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		assert(comp);
 		initcore = comp->init_core == cos_cpuid();
 		thdcap   = crt_comp_thdcap_get(comp);
+		assert(thdcap);
 
 		/* wait for the initcore to change the state... */
 		while (ps_load(&comp->init_state) == CRT_COMP_INIT_COS_INIT || ps_load(&comp->init_state) == CRT_COMP_INIT_PAR_INIT) ;
@@ -1479,24 +1502,17 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		if (ps_load(&comp->init_state) == CRT_COMP_INIT_PASSIVE ||
 		    (comp->main_type == INIT_MAIN_SINGLE && !initcore)) continue;
 
-		if (initcore) {
-			assert(thdcap);
-			printc("Switching to main in component %lu.\n", comp->id);
-		} else if (!thdcap) {
-			assert(0); /* FIXME: Update once the single core is working */
-			/* ret = crt_thd_init_create(comp); */
-			/* assert(ret == 0); */
-			/* thdcap = crt_comp_create_in(comp); */
-			/* assert(thdcap); */
-		}
+		if (initcore) printc("Switching to main in component %lu.\n", comp->id);
 
 		if (comp->flags & CRT_COMP_SCHED) {
 			struct cos_defcompinfo *compci     = comp->comp_res;
 			struct cos_aep_info    *child_aep = cos_sched_aep_get(compci);
 			struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 			struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
+			int ret;
 
-			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, sched_aep->rcv, cos_sched_sync())) BUG();
+			assert(sched_aep->rcv != 0 && child_aep->tc != 0);
+			if ((ret = cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, sched_aep->rcv, cos_sched_sync()))) { printc("switch error %d\n", ret); BUG();}
 		} else {
 			if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync())) BUG();
 		}
