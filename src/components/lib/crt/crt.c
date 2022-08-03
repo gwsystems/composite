@@ -1509,10 +1509,9 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 			struct cos_aep_info    *child_aep = cos_sched_aep_get(compci);
 			struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 			struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
-			int ret;
 
 			assert(sched_aep->rcv != 0 && child_aep->tc != 0);
-			if ((ret = cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, sched_aep->rcv, cos_sched_sync()))) { printc("switch error %d\n", ret); BUG();}
+			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, sched_aep->rcv, cos_sched_sync())) BUG();
 		} else {
 			if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync())) BUG();
 		}
