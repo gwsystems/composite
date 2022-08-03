@@ -41,6 +41,8 @@
 #include <init.h>
 #include <initargs.h>
 
+#include <crt.h>
+
 /* This schedule is used by the initializer_thd to ascertain order */
 static unsigned long init_schedule_off = 0;
 static compid_t init_schedule[MAX_NUM_COMPS] = { 0 };
@@ -86,7 +88,7 @@ component_initialize_next(compid_t cid)
 	return;
 }
 
-static void
+void
 calculate_initialization_schedule(void)
 {
 	struct initargs exec_entries, curr;
@@ -120,7 +122,7 @@ exit_init_thd(void)
 {
 	struct slm_thd *current = slm_thd_current_extern();
 
-	printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), (compid_t)cos_inv_token());
+	if (cos_coreid() == 0) printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), (compid_t)cos_inv_token());
 	slm_cs_enter(current, SLM_CS_NONE);
 	slm_thd_deinit(current);		/* I'm out! */
 	slm_cs_exit_reschedule(current, SLM_CS_NONE);
@@ -218,7 +220,7 @@ slm_comp_init_loop(void)
 	unsigned long init_schedule_current = 0, i;
 	struct slm_thd *current;
 
-	printc("Scheduler %ld: Running initialization thread.\n", cos_compid());
+	if (cos_coreid() == 0) printc("Scheduler %ld: Running initialization thread.\n", cos_compid());
 	/* If there are more components to initialize */
 	while (init_schedule_current != ps_load(&init_schedule_off)) {
 		/* Which is the next component to initialize? */
@@ -238,7 +240,7 @@ slm_comp_init_loop(void)
 		n = &initialization_state[client];
 		init_schedule_current++;
 
-		printc("\tScheduler %ld: initializing component %ld with thread %ld.\n", cos_compid(), client, t->tid);
+		if (cos_coreid() == 0)	printc("\tScheduler %ld: initializing component %ld with thread %ld.\n", cos_compid(), client, t->tid);
 		/*
 		 * This waits till init_done effective runs before
 		 * moving on. We need to be highest-priority, so that
@@ -253,7 +255,7 @@ slm_comp_init_loop(void)
 		while (ps_load(&n->initialization_thds[cos_coreid()]) == NULL) ;
  	}
 
-	printc("Scheduler %ld, initialization completed.\n", cos_compid());
+	if (cos_coreid() == 0) printc("Scheduler %ld, initialization completed.\n", cos_compid());
 
 	/*
 	 * We want to *atomically* awaken all of the threads that will
@@ -278,6 +280,5 @@ slm_comp_init_loop(void)
 void
 slm_idle_comp_initialization(void)
 {
-	calculate_initialization_schedule();
 	slm_comp_init_loop();
 }

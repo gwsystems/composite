@@ -389,7 +389,6 @@ capmgr_execution_init(int is_init_core)
 	capid_t capfr = 0;
 	int ret, cont;
 
-	if (!is_init_core) crt_delay(2000000000);
 	/* Create execution in the relevant components */
 	ret = args_get_entry("execute", &exec_entries);
 	assert(!ret);

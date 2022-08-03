@@ -289,7 +289,7 @@ thdcap_t idlecap;
 void
 parallel_main(coreid_t cid)
 {
-	printc("Starting scheduler loop...\n");
+	if (cid == 0) printc("Starting scheduler loop...\n");
 	slm_sched_loop_nonblock();
 }
 
@@ -303,7 +303,6 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	cos_defcompinfo_init();
 	cos_defcompinfo_sched_init();
 
-	extern void slm_init_idle(void *d);
 	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid);
 	if (!t) BUG();
 	idlecap = thdcap;
@@ -317,4 +316,6 @@ cos_init(void)
 	struct cos_compinfo *boot_info = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+	extern void calculate_initialization_schedule(void);
+	calculate_initialization_schedule();
 }
