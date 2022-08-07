@@ -16,7 +16,7 @@ parallel_main(coreid_t cid)
 {
 	assert(cos_init_executed == 1);
 	assert(cos_parallel_init_executed == NUM_CPU);
-	assert(parallel_main_executed == 0);
+	assert(parallel_main_executed < NUM_CPU);
 
 	cos_faa(&parallel_main_executed, 1);
 	pong_arg(STAGE_MAIN);
@@ -28,6 +28,7 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	assert(cos_parallel_init_executed < NUM_CPU);
 	assert(parallel_main_executed == 0);
 	assert(cos_init_executed == 1);
+	assert(ncores == NUM_CPU);
 
 	cos_faa(&cos_parallel_init_executed, 1);
 	pong_arg(STAGE_PARINIT);
