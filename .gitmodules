@@ -14,3 +14,7 @@
 	path = src/components/lib/lwip/lwip
 	url = https://github.com/gwsystems/lwip.git
 	branch = cos_stable_2_1_x
+[submodule "src/components/lib/memcached/memcached"]
+	path = src/components/lib/memcached/memcached
+	url = https://github.com/betahxy/memcached
+	branch = cos_memcached
