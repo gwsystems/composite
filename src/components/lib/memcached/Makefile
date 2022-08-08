@@ -9,7 +9,7 @@ INCLUDE_PATHS = memcached/ cos_adapter/
 
 INTERFACE_DEPENDENCIES =
 
-LIBRARY_DEPENDENCIES = 
+LIBRARY_DEPENDENCIES = component posix_cap posix_sched
 
 # this is to stop non supported build target
 # this will override $(OBJS) so that compiler will not compile target files under unsupported cases
@@ -27,13 +27,15 @@ MEMCACHED_SRC_FILES=$(MEMCACHED_DIR)/hash.c $(MEMCACHED_DIR)/jenkins_hash.c $(ME
 	$(MEMCACHED_DIR)/itoa_ljust.c $(MEMCACHED_DIR)/slab_automove.c \
 	$(MEMCACHED_DIR)/authfile.c $(MEMCACHED_DIR)/restart.c \
 	$(MEMCACHED_DIR)/proto_text.c $(MEMCACHED_DIR)/proto_bin.c \
+	$(MEMCACHED_DIR)/memcached.c \
+	cos_adapter/cos_mc_adapter.c 
 
 CFILES+=$(MEMCACHED_SRC_FILES)
 
 include Makefile.lib
 CINC+=$(foreach I, $(INCLUDE_PATHS), -I$(I))
 # Memcached source dose have some code that triggers some warnings, we close them here
-CFLAGS+=-DCOS_MEMCACHED -DHAVE_CONFIG_H -I$(MEMCACHE_INC_DIR) -Wno-implicit-fallthrough -Wno-sign-compare -Wno-unused-but-set-parameter
+CFLAGS+=-DCOS_MEMCACHED -DHAVE_CONFIG_H -I$(MEMCACHE_INC_DIR) -Wno-implicit-fallthrough -Wno-sign-compare -Wno-unused-but-set-parameter -Wno-old-style-declaration
 
 .PHONY: all clean distclean init build 
 
