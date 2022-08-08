@@ -1,49 +1,60 @@
+MEMCACHED_DIR		= memcached
+MEMCACHE_INC_DIR	= cos_adapter/sys_include/
+
 LIBRARY_OUTPUT = memcached
 
 OBJECT_OUTPUT =
 
-INCLUDE_PATHS = memcached/
+INCLUDE_PATHS = memcached/ cos_adapter/
 
 INTERFACE_DEPENDENCIES =
 
 LIBRARY_DEPENDENCIES = 
 
-include Makefile.src Makefile.comp Makefile.dependencies
+# this is to stop non supported build target
+# this will override $(OBJS) so that compiler will not compile target files under unsupported cases
+ifneq ($(PLATFORM),x86_64)
+override OBJS =
+endif
 
-.PHONY: all clean init distclean config clean_lib armv7a_config i386_config
-CINC_ENV = $(CINC) $(DEPENDENCY_INCPATH)
+MEMCACHED_SRC_FILES=$(MEMCACHED_DIR)/hash.c $(MEMCACHED_DIR)/jenkins_hash.c $(MEMCACHED_DIR)/murmur3_hash.c \
+	$(MEMCACHED_DIR)/slabs.c $(MEMCACHED_DIR)/items.c \
+	$(MEMCACHED_DIR)/assoc.c $(MEMCACHED_DIR)/thread.c \
+	$(MEMCACHED_DIR)/daemon.c $(MEMCACHED_DIR)/stats_prefix.c \
+	$(MEMCACHED_DIR)/util.c $(MEMCACHED_DIR)/cache.c \
+	$(MEMCACHED_DIR)/bipbuffer.c $(MEMCACHED_DIR)/base64.c \
+	$(MEMCACHED_DIR)/logger.c $(MEMCACHED_DIR)/crawler.c \
+	$(MEMCACHED_DIR)/itoa_ljust.c $(MEMCACHED_DIR)/slab_automove.c \
+	$(MEMCACHED_DIR)/authfile.c $(MEMCACHED_DIR)/restart.c \
+	$(MEMCACHED_DIR)/proto_text.c $(MEMCACHED_DIR)/proto_bin.c \
 
-CFLAGS   = $(CINC_ENV) -Wno-address-of-packed-member
-export CINC_ENV
-export CFLAGS
+CFILES+=$(MEMCACHED_SRC_FILES)
 
-all: config
-	$(info Building memcached library...)
+include Makefile.lib
+CINC+=$(foreach I, $(INCLUDE_PATHS), -I$(I))
+# Memcached source dose have some code that triggers some warnings, we close them here
+CFLAGS+=-DCOS_MEMCACHED -DHAVE_CONFIG_H -I$(MEMCACHE_INC_DIR) -Wno-implicit-fallthrough -Wno-sign-compare -Wno-unused-but-set-parameter
 
-clean_lib:
-#	@rm -f libmemcached.a
-#	make -C memcached clean
-
-clean:
-
-distclean: config clean_lib
+.PHONY: all clean distclean init build 
 
 build:
 ifneq ($(PLATFORM),x86_64)
-	@echo "Platform: $(PLATFORM) is not supported in Memcached"
+	@echo "Platform: $(PLATFORM) is not supported in memcached"
 endif
-#	make -C memcached
 
-armv7a_config:
-	$(info Configuring the ps library)
+armv7a_init:
 
-i386_config:
-	$(info Configuring the ps library)
+i386_init:
 
-x86_64_config:
-	$(info Configuring the ps library)
-#	cd memcached; ./autogen.sh && ./configure ; cd ..
+x86_64_init: 
 
-config: $(PLATFORM)_config
+platform_init:
+	@find /usr/lib/gcc/x86_64-linux-gnu/$(shell gcc -dumpversion)/include/ -iname "*.h" | grep -v "std.*" | xargs cp -rft $(MEMCACHE_INC_DIR)
+	make $(PLATFORM)_init
 
-init: distclean all
+init: platform_init
+
+distclean:
+	$(info memcached distclean)
+	rm $(OBJS) $(CFILES:%.c=%.d)
+clean:
