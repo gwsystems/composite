@@ -72,7 +72,7 @@ struct client_state {
 	int stage_cnt[STAGE_MAX];
 } clients[MAX_CLIENTS];
 
-int
+static int
 validate(unsigned long client, stage_t stage)
 {
 	unsigned int i, j;
@@ -111,12 +111,12 @@ validate(unsigned long client, stage_t stage)
 	return 0;
 }
 
-void
+static void
 assess_success(void)
 {
 	int i;
 
-	for (i = 0; clients[i].client; i++) {
+	for (i = 0; clients[i].client > 0; i++) {
 		if (clients[i].stage_cnt[STAGE_MAIN] < NUM_CPU) return;
 	}
 	/*
