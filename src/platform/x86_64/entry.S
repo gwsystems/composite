@@ -75,8 +75,7 @@ restore_from_thd:
 	movq %rax, %ds
 	popq %rax
 	movq %rax, %es
-	popq %rax
-	movq %rax, %gs
+	addq $0x10, %rsp
 	RESTORE_REGS_GENERAL
 
 	addq $8, %rsp
@@ -86,12 +85,11 @@ restore_from_thd:
 
 #define IRQPROC(fn)  \
 	SAVE_REGS_GENERAL; 	\
-	movq %gs, %rax;		\
-	pushq %rax;			\
+	subq $0x10, %rsp;	\
 	movq %es, %rax;		\
-	pushq %rax;			\
+	pushq %rax;		\
 	movq %ds, %rax;		\
-	pushq %rax;			\
+	pushq %rax;		\
 	movq $(SEL_KDSEG), %rax;\
 	mov %rax, %ds;		\
 	mov %rsp, %rdi; 	\
