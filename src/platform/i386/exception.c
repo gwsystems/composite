@@ -119,17 +119,18 @@ page_fault_handler(struct pt_regs *regs)
 {
 	unsigned long                      fault_addr = 0, errcode = 0, ip = 0;
 	struct cos_cpu_local_info *ci    = cos_cpu_local_info();
-	thdid_t                    thdid = thd_current(ci)->tid;
+	struct thread * curr             = thd_current(ci);
+	thdid_t                    thdid = curr->tid;
 
 	print_pt_regs(regs);
 	fault_addr = chal_cpu_fault_vaddr(regs);
 	errcode    = chal_cpu_fault_errcode(regs);
 	ip        = chal_cpu_fault_ip(regs);
 
-	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%p, ip 0x%p\n", thdid,
+	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%p, ip 0x%p, tls 0x%p\n", thdid,
 	    errcode & PGTBL_PRESENT ? "present" : "not-present",
 	    errcode & PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & PGTBL_USER ? "user-mode" : "system",
-	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, ip);
+	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, ip, curr->tls);
 
 	return 1;
 }

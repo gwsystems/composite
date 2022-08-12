@@ -62,11 +62,7 @@ struct thread {
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
 
 	thd_state_t    state;
-#if defined(__x86_64__)
-	u64_t          tls;
-#else
-	u32_t          tls;
-#endif
+	word_t          tls;
 	cpuid_t        cpuid;
 	unsigned int   refcnt;
 	tcap_res_t     exec; /* execution time */
