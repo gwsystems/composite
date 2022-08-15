@@ -32,34 +32,38 @@ COS_CLIENT_STUB(thdcap_t, capmgr_initthd_create, spdid_t child, thdid_t *tid)
 	return ret;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_thunk, thdclosure_index_t id, thdid_t *tid)
+COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_thunk, thdclosure_index_t id, thdid_t *tid, struct cos_dcb_info **dcb)
 {
 	COS_CLIENT_INVCAP;
-	word_t unused, tid_ret;
+	word_t dcb_ret, tid_ret;
 	thdcap_t ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, id, 0, 0, 0, &tid_ret, &unused);
+	ret = cos_sinv_2rets(uc->cap_no, id, 0, 0, 0, &tid_ret, &dcb_ret);
+	*dcb = (struct cos_dcb_info *)dcb_ret;
 	*tid = tid_ret;
 
 	return ret;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext, spdid_t child, thdclosure_index_t idx, thdid_t *tid)
+COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext, spdid_t child, thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info **dcb)
 {
 	COS_CLIENT_INVCAP;
-	word_t unused, tid_ret;
+	word_t dcb_ret, tid_ret;
 	thdcap_t ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, child, idx, 0, 0, &tid_ret, &unused);
+	ret = cos_sinv_2rets(uc->cap_no, child, idx, 0, 0, &tid_ret, &dcb_ret);
+	*dcb = (struct cos_dcb_info *)dcb_ret;
 	*tid = tid_ret;
 
 	return ret;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_thunk, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
+COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_thunk, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, struct cos_dcb_info **dcb)
 {
 	COS_CLIENT_INVCAP;
-	word_t tcrcvret   = 0;
+	word_t tcrcvret  = 0;
+	word_t thdtidret = 0;
+	word_t dcb_ret   = 0;
 	thdcap_t thd     = 0;
 	thdid_t tid      = 0;
 	u32_t owntc_idx  = (owntc << 16) | idx;
@@ -68,18 +72,24 @@ COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_thunk, struct cos_aep_info *aep, thd
 
 	if (idx < 1) return 0;
 
-	thd = cos_sinv_2rets(uc->cap_no, owntc_idx, key_ipimax, ipiwin32b, 0, &tid, &tcrcvret);
-	if (!thd) return 0;
+	thdtidret = cos_sinv_2rets(uc->cap_no, owntc_idx, key_ipimax, ipiwin32b, 0, &dcb_ret, &tcrcvret);
+	if (!thdtidret) return 0;
+	thd = thdtidret >> 16;
+	tid = (thdtidret << 16) >> 16;
+	if (!thd || !tid) return 0;
 
 	aep->thd  = thd;
 	aep->rcv  = (tcrcvret << 16) >> 16;
 	aep->tc   = (tcrcvret >> 16);
 	aep->tid  = tid;
 
+	*dcb = (struct cos_dcb_info *)dcb_ret;
+
 	return thd;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_ext, spdid_t child, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
+/* FIXME: Won't work now */
+COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_ext, spdid_t child, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, struct cos_dcb_info **dcb, arcvcap_t *extrcv)
 {
 	COS_CLIENT_INVCAP;
 	word_t drcvtidret  = 0;

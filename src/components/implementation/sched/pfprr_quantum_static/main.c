@@ -318,4 +318,5 @@ cos_init(void)
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	extern void calculate_initialization_schedule(void);
 	calculate_initialization_schedule();
+	if (capmgr_scb_mapping()) BUG();
 }

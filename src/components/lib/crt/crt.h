@@ -219,6 +219,7 @@ void crt_compinit_exit(struct crt_comp *c, int retval);
 int crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c);
 int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
 
+dcbcap_t crt_dcb_create_in(struct crt_comp *c, vaddr_t *dcb_addr);
 
 /*
  * - The VAS structure will be an array of pointers to `struct
