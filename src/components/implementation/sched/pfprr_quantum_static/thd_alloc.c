@@ -8,8 +8,9 @@ slm_thd_alloc(thd_fn_t fn, void *data, thdcap_t *thd, thdid_t *tid)
 	thdid_t _tid;
 	thdcap_t _cap;
 	struct slm_thd_container *ret = NULL;
+	struct cos_dcb_info      *dcb = NULL;
 
-	_cap = capmgr_thd_create(fn, data, &_tid);
+	_cap = capmgr_thd_create(fn, data, &_tid, &dcb);
 	if (_cap <= 0) return NULL;
 
 	return slm_thd_mem_alloc(_cap, _tid, thd, tid);
@@ -19,10 +20,11 @@ struct slm_thd_container *
 slm_thd_alloc_in(compid_t cid, thdclosure_index_t idx, thdcap_t *thd, thdid_t *tid)
 {
 	struct slm_thd_container *ret = NULL;
+	struct cos_dcb_info      *dcb = NULL;
 	thdid_t _tid;
 	thdcap_t _cap;
 
-	_cap = capmgr_thd_create_ext(cid, idx, &_tid);
+	_cap = capmgr_thd_create_ext(cid, idx, &_tid, &dcb);
 	if (_cap <= 0) return NULL;
 
 	return slm_thd_mem_alloc(_cap, _tid, thd, tid);

@@ -192,7 +192,7 @@ test_ipi_switch(void)
                 if (EXPECT_LL_LT(1, tcc, "IPI SWITCH: TCAP Allocation"))
                         return;
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI SWITCH: Thread Allocation"))
                         return;
 
@@ -207,7 +207,7 @@ test_ipi_switch(void)
                 rcv[cos_cpuid()] = r;
                 while (!rcv[TEST_SND_CORE]) ;
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI SWITCH: Thread Allocation"))
                         return;
 
@@ -226,7 +226,7 @@ test_ipi_switch(void)
 
                 /* Test RCV1: Corresponding Send */
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI SWITCH: Thread Allocation"))
                         return;
 

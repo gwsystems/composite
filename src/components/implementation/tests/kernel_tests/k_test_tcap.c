@@ -48,7 +48,7 @@ test_timer(void)
         long long   time, mask;
         tcap_time_t timer, thd_timeout;
 
-        tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
+        tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL, 0, 0);
 
         perfdata_init(&result, "COS THD => COS_THD_SWITCH", test_results, ARRAY_SIZE);
 
@@ -139,7 +139,7 @@ exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t p
 {
         e->tcc = cos_tcap_alloc(&booter_info);
         if (EXPECT_LL_LT(1, e->tcc, "Cluster Allocation: TCAP ALLOC")) return -1;
-        e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d);
+        e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d, 0, 0);
         if (EXPECT_LL_LT(1, e->tc, "Cluster Allocation: THD ALLOC")) return -1;
         e->rc = cos_arcv_alloc(&booter_info, e->tc, e->tcc, booter_info.comp_cap, parentc);
         if (EXPECT_LL_LT(1, e->rc, "Cluster Allocation: ARCV ALLOC")) return -1;
