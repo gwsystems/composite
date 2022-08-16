@@ -473,7 +473,7 @@ crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_com
 	if (crt_comp_init(c, name, id, NULL, r->info)) BUG();
 
 	cos_compinfo_init(cos_compinfo_get(c->comp_res),
-			  r->ptc, r->ctc, r->compc, 0, r->heap_ptr, r->captbl_frontier,
+			  r->ptc, r->ctc, r->compc, r->heap_ptr, r->captbl_frontier,
 			  cos_compinfo_get(cos_defcompinfo_curr_get()));
 	return 0;
 }
@@ -522,7 +522,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 		assert(inv.server->id != chkpt->c->id);
 	}
 
-	ret = cos_compinfo_alloc(ci, 0, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
 	assert(!ret);
 
 	mem = cos_page_bump_allocn(root_ci, chkpt->tot_sz_mem);
@@ -589,9 +589,7 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	printc("\t\t elf obj: ro [0x%lx, 0x%lx), data [0x%lx, 0x%lx), bss [0x%lx, 0x%lx).\n",
 	       c->ro_addr, c->ro_addr + ro_sz, c->rw_addr, c->rw_addr + data_sz, c->rw_addr + data_sz, c->rw_addr + data_sz + bss_sz);
 
-	/* FIXME: This is a hack making every component has SCB by default. */
-	scbcap_t scbc = cos_scb_alloc(root_ci);
-	ret = cos_compinfo_alloc(ci, scbc, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
 	assert(!ret);
 
 	tot_sz = round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz);
@@ -921,14 +919,14 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 		assert(target_ci->comp_cap);
 
 		if (target_ci->comp_cap_shared != 0) {
-			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap_shared, 0);
+			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap_shared);
 		} else {
-			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap, 0);
+			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
 		}
 		assert(target_aep->thd);
 	} else {
 		crt_refcnt_take(&c->refcnt);
-		thdcap = cos_thd_alloc_ext(ci, target_ci->comp_cap, closure_id, 0, 0);
+		thdcap = cos_thd_alloc_ext(ci, target_ci->comp_cap, closure_id);
 		assert(thdcap);
 	}
 
@@ -1040,9 +1038,9 @@ crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, 
 	crt_refcnt_take(&c->refcnt);
 	assert(target_ci->comp_cap);
 	if (closure_id == 0) {
-		thdcap = cos_initthd_alloc(cos_compinfo_get(defci), target_ci->comp_cap, 0);
+		thdcap = cos_initthd_alloc(cos_compinfo_get(defci), target_ci->comp_cap);
 	} else {
-		thdcap = cos_thd_alloc_ext(cos_compinfo_get(defci), target_ci->comp_cap, closure_id, 0, 0);
+		thdcap = cos_thd_alloc_ext(cos_compinfo_get(defci), target_ci->comp_cap, closure_id);
 	}
 	assert(thdcap);
 
@@ -1513,10 +1511,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 			struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 
 			assert(sched_aep->rcv != 0 && child_aep->tc != 0);
-			ret = cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, sched_aep->rcv, cos_sched_sync());
-			if (ret) {
-			BUG();
-			}
+			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, sched_aep->rcv, cos_sched_sync())) BUG();
 		} else {
 			if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync())) BUG();
 		}
@@ -1606,22 +1601,4 @@ crt_compinit_exit(struct crt_comp *c, int retval)
 	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
 	BUG();
 	while (1) ;
-}
-
-dcbcap_t
-crt_dcb_create_in(struct crt_comp *c, vaddr_t *dcb_addr)
-{
-	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci        = cos_compinfo_get(defci);
-	struct cos_compinfo    *target_ci = cos_compinfo_get(c->comp_res);
-	dcbcap_t                dcb_cap;
-	vaddr_t                 dcbaddr;
-
-	dcbaddr = cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
-	assert(dcbaddr);
-	dcb_cap = cos_dcb_alloc(ci, target_ci->pgtbl_cap, dcbaddr);
-	assert(dcb_cap);
-	*dcb_addr = dcbaddr;
-
-	return dcb_cap;
 }

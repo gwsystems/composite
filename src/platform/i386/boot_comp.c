@@ -11,7 +11,6 @@
 #include <component.h>
 #include <inv.h>
 #include <hw.h>
-#include <scb.h>
 #include <shared/elf_loader.h>
 #include <shared/cos_config.h>
 
@@ -38,7 +37,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	cos_info->cpuid          = cpu_id;
 	cos_info->invstk_top     = 0;
 	cos_info->overflow_check = 0xDEADBEEF;
-	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0, 0, 0);
+	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
 	assert(!ret);
 
 	tcap_active_init(cos_info);
@@ -246,7 +245,6 @@ kern_boot_comp(const cpuid_t cpu_id)
 	u8_t *         boot_comp_captbl;
 	pgtbl_t        pgtbl     = (pgtbl_t)chal_va2pa(&boot_comp_pgd), boot_vm_pgd;
 	u32_t          hw_bitmap = ~0;
-	vaddr_t        scb_uaddr = 0, scb_kaddr = 0;
 
 	assert(cpu_id >= 0);
 	if (NUM_CPU > 1 && cpu_id > 0) {
@@ -272,9 +270,6 @@ kern_boot_comp(const cpuid_t cpu_id)
 		ret = captbl_expand(glb_boot_ct, i / CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + i + PAGE_SIZE / 2);
 		assert(!ret);
 	}
-
-	scb_kaddr = (vaddr_t)mem_boot_alloc(1);
-	assert(scb_kaddr);
 
 	for (i = 0; i < NUM_CPU; i++) {
 		thd_mem[i]  = mem_boot_alloc(1);
@@ -332,12 +327,10 @@ kern_boot_comp(const cpuid_t cpu_id)
 
 	/* Shut off further bump allocations */
 	glb_memlayout.allocs_avail = 0;
-	if (scb_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, LLBOOT_CAPTBL_SCB, scb_kaddr, 0)) assert(0);
 
-	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT,
-	                  LLBOOT_CAPTBL_SCB, 0, (vaddr_t)mem_bootc_entry()))
+	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
+	                  mem_bootc_entry()))
 		assert(0);
-
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
 	kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);

@@ -190,7 +190,7 @@ test_ipi_interference(void)
                 if (EXPECT_LL_LT(1, tcc, "IPI Interference: TCAP Allocation"))
                         return;
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL, 0, 0);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL);
                 if (EXPECT_LL_LT(1, t, "IPI Inteference: Thread Allocation"))
                         return;
 
@@ -205,7 +205,7 @@ test_ipi_interference(void)
                 rcv[cos_cpuid()] = r;
                 while (!rcv[TEST_SND_CORE]) ;
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL, 0, 0);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, rcv_spinner, NULL);
                 if (EXPECT_LL_LT(1, t, "IPI Interference: Thread Allocation"))
                         return;
 
@@ -230,7 +230,7 @@ test_ipi_interference(void)
                 if (EXPECT_LL_LT(1, tcc, "IPI Interference: TCAP Allocation"))
                         return;
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL, 0, 0);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL);
                 if (EXPECT_LL_LT(1, t, "IPI Interference: Thread Allocation"))
                         return;
 

@@ -29,14 +29,14 @@ cos_init(void)
         if (first_init) {
                 first_init = 0;
                 cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-                cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 0, 
+                cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
                                       (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
                 init_done = 1;
         }
 
         while (!init_done);
 
-        termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL, 0, 0);
+        termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
         assert(termthd[cos_cpuid()]);
         if (cos_cpuid() == 0) PRINTC("Micro Booter Xcore started.\n");
 
