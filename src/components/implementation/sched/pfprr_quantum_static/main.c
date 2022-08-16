@@ -300,8 +300,7 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	thdcap_t thdcap;
 	thdid_t tid;
 
-	cos_defcompinfo_init();
-	cos_defcompinfo_sched_init();
+	if (!init_core) cos_defcompinfo_sched_init();
 
 	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid);
 	if (!t) BUG();
@@ -318,5 +317,7 @@ cos_init(void)
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	extern void calculate_initialization_schedule(void);
 	calculate_initialization_schedule();
+	cos_defcompinfo_init();
+  
 	if (capmgr_scb_mapping()) BUG();
 }

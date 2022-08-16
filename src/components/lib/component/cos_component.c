@@ -168,7 +168,26 @@ cos_thd_entry_static(u32_t idx)
 	return 0;
 }
 
-const char *cos_print_str[PRINT_LEVEL_MAX] = {
+CWEAKSYMB int
+cos_print_str(char *s, int len)
+{
+	int written = 0;
+
+	while (written < len) {
+		u32_t *s_ints = (u32_t *)&s[written];
+		int ret;
+
+		ret = call_cap(PRINT_CAP_TEMP, s_ints[0], s_ints[1], s_ints[2], len - written);
+		/* Bomb out. Can't use a print out here as we must avoid recursion. */
+		if (ret < 0) written = *(int *)NULL;
+		written += ret;
+	}
+
+	return written;
+}
+
+
+const char *cos_print_lvl[PRINT_LEVEL_MAX] = {
 	"ERR:",
 	"WARN:",
 	"DBG:",

@@ -536,11 +536,9 @@ capmgr_comp_init(void)
 		snprintf(id_serialized, 20, "names/%ld", id);
 		name = args_get(id_serialized);
 		assert(name);
-		printc("\tCreating component %s: ", name);
-		printc("id %ld, caps (captbl:%ld, pgtbl:%ld,comp:%ld)",
-		       id, comp_res.ctc, comp_res.ptc, comp_res.compc);
-		printc(", captbl frontier %d, heap pointer %ld, scheduler %ld\n",
-		       comp_res.captbl_frontier, comp_res.heap_ptr, sched_id);
+		printc("\tCreating component %s: id %ld\n", name, id);
+		printc("\t\tcaptbl:%ld, pgtbl:%ld, comp:%ld, captbl/pgtbl frontiers %d & %lx, sched %ld\n",
+		       comp_res.ctc, comp_res.ptc, comp_res.compc, comp_res.captbl_frontier, comp_res.heap_ptr, sched_id);
 		comp = cm_comp_alloc_with(name, id, &comp_res);
 		assert(comp);
 	}
