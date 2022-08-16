@@ -318,4 +318,6 @@ cos_init(void)
 	extern void calculate_initialization_schedule(void);
 	calculate_initialization_schedule();
 	cos_defcompinfo_init();
+  
+	if (capmgr_scb_mapping()) BUG();
 }
