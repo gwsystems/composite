@@ -245,6 +245,8 @@ slm_cs_enter(struct slm_thd *current, slm_cs_flags_t flags)
  *
  * Assume: the owner of the critical section is the same thread that
  * calls `slm_cs_exit`.
+ *
+ * TODO: use `switchto`
  */
 static inline void
 slm_cs_exit(struct slm_thd *switchto, slm_cs_flags_t flags)

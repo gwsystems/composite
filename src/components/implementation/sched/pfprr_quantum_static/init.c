@@ -123,9 +123,14 @@ exit_init_thd(void)
 	struct slm_thd *current = slm_thd_current_extern();
 
 	if (cos_coreid() == 0) printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), (compid_t)cos_inv_token());
+
 	slm_cs_enter(current, SLM_CS_NONE);
 	slm_thd_deinit(current);		/* I'm out! */
-	slm_cs_exit_reschedule(current, SLM_CS_NONE);
+	slm_cs_exit(NULL, SLM_CS_NONE);
+
+	/* Switch to the scheduler thread */
+	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+
 	BUG();
 	while (1) ;
 }

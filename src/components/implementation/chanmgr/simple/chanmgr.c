@@ -21,7 +21,7 @@ __chanmgr_create(unsigned int item_sz, unsigned int slots, chan_flags_t flags, c
 {
 	chan_id_t id, ret;
 	struct chan_info *c;
-	struct crt_blkpt empty, full;
+	struct sync_blkpt empty, full;
 	unsigned int mem_pages;
 
 	if (chanid == 0) {
@@ -39,8 +39,8 @@ __chanmgr_create(unsigned int item_sz, unsigned int slots, chan_flags_t flags, c
 		.id      = id,
 		.evt_id  = 0
 	};
-	if (crt_blkpt_init(&empty)) ERR_THROW(0, free_chan);
-	if (crt_blkpt_init(&full))  ERR_THROW(0, dealloc_empty_blkpt);
+	if (sync_blkpt_init(&empty)) ERR_THROW(0, free_chan);
+	if (sync_blkpt_init(&full))  ERR_THROW(0, dealloc_empty_blkpt);
 	c->info.blkpt_empty_id = empty.id;
 	c->info.blkpt_full_id  = full.id;
 	mem_pages = round_up_to_page(chan_mem_sz(item_sz, slots)) / PAGE_SIZE;
@@ -52,9 +52,9 @@ __chanmgr_create(unsigned int item_sz, unsigned int slots, chan_flags_t flags, c
 	return ret;
 
 dealloc_full_blkpt:
-	crt_blkpt_teardown(&full);
+	sync_blkpt_teardown(&full);
 dealloc_empty_blkpt:
-	crt_blkpt_teardown(&empty);
+	sync_blkpt_teardown(&empty);
 free_chan:
 	ss_channel_free(c);
 
