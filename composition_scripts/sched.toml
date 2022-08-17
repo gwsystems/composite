@@ -2,6 +2,13 @@
 description = "Simplest system with both capability manager and scheduler, from unit_schedcomp.sh"
 
 [[components]]
+name = "print"
+img  = "print.serializing"
+implements = [{interface = "print"}]
+deps = [{srv = "booter", interface = "init"}]
+constructor = "booter"
+
+[[components]]
 name = "booter"
 img  = "no_interface.llbooter"
 implements = [{interface = "init"}, {interface = "addr"}, {interface = "scb_mapping"}]
@@ -11,14 +18,14 @@ constructor = "kernel"
 [[components]]
 name = "capmgr"
 img  = "capmgr.simple"
-deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}, {srv = "booter", interface = "scb_mapping"}]
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}, {srv = "print", interface = "print"}, {srv = "booter", interface = "scb_mapping"}]
 implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
 constructor = "booter"
 
 [[components]]
 name = "sched"
 img  = "sched.pfprr_quantum_static"
-deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "print", interface = "print"}]
 implements = [{interface = "sched"}, {interface = "init"}]
 constructor = "booter"
 
