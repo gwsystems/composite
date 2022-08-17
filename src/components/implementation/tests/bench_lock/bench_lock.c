@@ -19,7 +19,7 @@
 #endif
 
 /* One low-priority thread and one high-priority thread contends on the lock */
-#define ITERATION 10000
+#define ITERATION 200
 /* #define PRINT_ALL */
 
 struct sync_lock lock;
@@ -50,8 +50,8 @@ lock_hi_thd(void *d)
 		flag = 1;
 		start = time_now();
 		sync_lock_take(&lock);
-		sync_lock_release(&lock);
 
+		sync_lock_release(&lock);
 		end = time_now();
 		debug("h3,");
 	}
@@ -65,14 +65,16 @@ lock_lo_thd(void *d)
 
 	for (i = 0; i < ITERATION + 1; i++) {
 		debug("l1,");
-		sched_thd_wakeup(lock_hi);
+		//sched_thd_wakeup(lock_hi);
 
 		debug("l2,");
-		flag = 0;
+		//flag = 0;
 		sync_lock_take(&lock);
 
 		debug("l3,");
-		while (flag != 1) {}
+		while (flag != 1) ;
+		flag = 0;
+
 		sync_lock_release(&lock);
 
 		if (first == 0) first = 1;
@@ -87,6 +89,7 @@ lock_lo_thd(void *d)
 	perfdata_print(&perf);
 #endif
 
+	printc("SUCCESS: Finished lock tests.\n");
 	while (1) ;
 }
 

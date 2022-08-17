@@ -33,20 +33,22 @@ quantum_wakeup_expired(cycles_t now)
 		struct slm_thd *tp, *th;
 		struct slm_timer_thd *tt;
 
+		/* Should we wake up the closest-timeout thread? */
 		tp = heap_peek(&g->h);
 		assert(tp);
 		tt = slm_thd_timer_policy(tp);
-		assert(tt);
+		assert(tt && tt->timeout_idx > 0);
 
-		/* FIXME: logic for wraparound in current tsc */
-		if (likely(tt->abs_wakeup > now)) break;
+		/* No more threads to wake! */
+		if (cycles_greater_than(tt->abs_wakeup, now)) break;
 
+		/* Dequeue thread with closest wakeup */
 		th = heap_highest(&g->h);
 		assert(th == tp);
 
 		tt->timeout_idx = -1;
 		tt->abs_wakeup  = now;
-		slm_thd_wakeup(tp, 1);
+		slm_thd_wakeup(th, 1);
 	}
 }
 
@@ -91,8 +93,6 @@ slm_timer_quantum_add(struct slm_thd *t, cycles_t absolute_timeout)
 	assert(tt && tt->timeout_idx == -1);
 	assert(heap_size(&g->h) < MAX_NUM_THREADS);
 
-	if (!cycles_greater_than(absolute_timeout, slm_now())) return 0;
-
 	tt->abs_wakeup = absolute_timeout;
 	heap_add(&g->h, t);
 
@@ -104,6 +104,8 @@ slm_timer_quantum_cancel(struct slm_thd *t)
 {
 	struct slm_timer_thd *tt = slm_thd_timer_policy(t);
 	struct timer_global *g   = timer_global();
+
+	if (tt->timeout_idx == -1) return 0;
 
 	assert(heap_size(&g->h));
 	assert(tt->timeout_idx > 0);

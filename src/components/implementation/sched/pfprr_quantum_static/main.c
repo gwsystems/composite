@@ -210,28 +210,43 @@ static int
 thd_block_until(cycles_t timeout)
 {
 	struct slm_thd *current = slm_thd_current();
+	int ret = 0;
 
-	slm_cs_enter(current, SLM_CS_NONE);
-	if (slm_timer_add(current, timeout)) goto done;
-	if (slm_thd_block(current)) {
+	while (cycles_greater_than(timeout, slm_now())) {
+		slm_cs_enter(current, SLM_CS_NONE);
+		if (slm_timer_add(current, timeout)) goto done;
+		if (slm_thd_block(current)) {
+			slm_timer_cancel(current);
+		}
+done:
+		ret = slm_cs_exit_reschedule(current, SLM_CS_NONE);
+		/* cleanup stale timeouts (e.g. if we were woken outside of the timer) */
 		slm_timer_cancel(current);
 	}
-done:
-	return slm_cs_exit_reschedule(current, SLM_CS_NONE);
+
+	return ret;
 }
 
 cycles_t
 sched_thd_block_timeout(thdid_t dep_id, cycles_t abs_timeout)
 {
-	cycles_t elapsed;
+	cycles_t now;
 
 	if (dep_id) return 0;
+	if (thd_block_until(abs_timeout)) return 0;
 
-	if (thd_block_until(abs_timeout)) {
-		return 0;
-	}
+	now = slm_now();
+	assert(cycles_greater_than(now, abs_timeout));
 
-	return ps_tsc();
+	return now;
+}
+
+int
+thd_sleep(cycles_t c)
+{
+	cycles_t timeout = c + slm_now();
+
+	return thd_block_until(timeout);
 }
 
 sched_blkpt_id_t
@@ -262,14 +277,6 @@ sched_blkpt_block(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, thdid_t dep
 	struct slm_thd *current = slm_thd_current();
 
 	return slm_blkpt_block(blkpt, current, epoch, dependency);
-}
-
-int
-thd_sleep(cycles_t c)
-{
-	cycles_t timeout = c + slm_now();
-
-	return thd_block_until(timeout);
 }
 
 thdid_t

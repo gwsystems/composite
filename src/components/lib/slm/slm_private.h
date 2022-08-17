@@ -175,13 +175,10 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 
 	tok  = cos_sched_sync();
 	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
-		cycles_t now;
-		s64_t    diff;
+		cycles_t now = slm_now();
 
-		now  = slm_now();
-		diff = (s64_t)(g->timer_next - now);
 		/* Do we need to recompute the timer? */
-		if (diff <= 0) {
+		if (!cycles_greater_than(g->timer_next, now)) {
 			g->timer_set = 0;
 			/* The timer policy will likely reset the timer */
 			slm_timer_expire(now);
