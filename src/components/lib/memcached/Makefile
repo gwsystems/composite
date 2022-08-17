@@ -5,7 +5,7 @@ LIBRARY_OUTPUT = memcached
 
 OBJECT_OUTPUT =
 
-INCLUDE_PATHS = memcached/ cos_adapter/
+INCLUDE_PATHS = ./ memcached/ cos_adapter/
 
 INTERFACE_DEPENDENCIES =
 

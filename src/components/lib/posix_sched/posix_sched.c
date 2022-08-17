@@ -205,6 +205,23 @@ cos_futex(int *uaddr, int op, int val,
 	return -1;
 }
 
+int
+cos_clock_gettime(clockid_t clock_id, struct timespec *ts)
+{
+	switch (clock_id)
+	{
+	case CLOCK_REALTIME:
+		/* code */
+		ts->tv_sec = 3600; //one hour after 1970-01-01, just a hack.
+		break;
+	
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 /* TODO: init tls when creating components */
 char tls_space[8192] = {0};
 void tls_init()
@@ -227,5 +244,7 @@ libc_posixsched_initialization_handler()
 	libc_syscall_override((cos_syscall_t)(void*)cos_set_tid_address, __NR_set_tid_address);
 	libc_syscall_override((cos_syscall_t)(void*)cos_clone, __NR_clone);
 	libc_syscall_override((cos_syscall_t)(void*)cos_futex, __NR_futex);
+	libc_syscall_override((cos_syscall_t)(void*)cos_clock_gettime, __NR_clock_gettime);
+
 	tls_init();
 }
