@@ -55,7 +55,7 @@ cos_mc_init(int argc, char **argv)
 {
 	int ret = 0;
 
-	ret = mc_main(argc, argv);
+	ret = cos_mc_main(argc, argv);
 
 	return ret;
 }
