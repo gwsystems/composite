@@ -20,6 +20,8 @@
 #include <slm_blkpt.c>
 #include <slm_modules.h>
 
+#include <syncipc.h>
+
 struct slm_resources_thd {
 	thdcap_t cap;
 	thdid_t  tid;
@@ -277,6 +279,246 @@ sched_blkpt_block(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, thdid_t dep
 	struct slm_thd *current = slm_thd_current();
 
 	return slm_blkpt_block(blkpt, current, epoch, dependency);
+}
+
+struct ipc_retvals {
+	int ready;
+	word_t r0, r1;
+};
+
+struct ipc_ep {
+	struct slm_thd     *client, *server;
+	word_t              a0, a1;
+	struct ipc_retvals *retvals;
+};
+
+/* For now, mainly a testing feature, thus only one */
+#define IPC_EP_NUM 1 /* MAX_NUM_THREADS */
+
+struct ipc_ep eps[IPC_EP_NUM];
+
+enum {
+	CNT_C_CALL,
+	CNT_C_LOOP,
+	CNT_C_RET,
+	CNT_S_REPLY,
+	CNT_S_LOOP,
+	CNT_S_WAIT,
+	CNT_S_RET,
+	CNT_MAX
+};
+unsigned long counts[CNT_MAX];
+static void
+count_inc(int type)
+{
+	counts[type]++;
+}
+
+cycles_t readings[4];
+struct total {
+	int cnt;
+	int prev_stage_cnt[4];
+	cycles_t tot;
+} totals[4];
+
+static void
+trace_add(int reading)
+{
+	struct total *t = &totals[reading];
+	cycles_t prev_tsc;
+	cycles_t now = ps_tsc();
+	cycles_t max = 0;
+	int i, max_idx;
+
+	/* Avoid this overhead for now! */
+	return;
+
+	for (i = 0; i < 4; i++) {
+		if (readings[i] > max) {
+			max = readings[i];
+			max_idx = i;
+		}
+	}
+	prev_tsc = max;
+	t->prev_stage_cnt[max_idx]++;
+
+	t->cnt++;
+	t->tot += now - prev_tsc;
+
+	if (t->cnt % 128 == 128 - 1) {
+		int i;
+
+		for (i = 0; i < 4; i++)	{
+			int cnt = totals[i].cnt;
+			int j;
+
+			if (cnt == 0) cnt = 1;
+			printc("%d:%llu (", i, totals[i].tot / cnt);
+			for (j = 0; j < 4; j++) {
+				printc("%d:%d%s", j, totals[i].prev_stage_cnt[j], j == 3 ? "" :  ", ");
+			}
+			printc(")\n");
+		}
+		printc("Counts: ");
+		for (i = 0; i < CNT_MAX; i++) {
+			printc("%ld%s", counts[i], i == CNT_MAX - 1 ? "\n\n" : ", ");
+		}
+
+		readings[reading] = ps_tsc();
+	} else {
+		readings[reading] = now;
+	}
+}
+
+int
+syncipc_call(int ipc_ep, word_t arg0, word_t arg1, word_t *ret0, word_t *ret1)
+{
+	struct slm_thd *t = slm_thd_current(), *switchto, *client;
+	/* avoid the conditional for bounds checking, ala Nova */
+	struct ipc_ep *ep = &eps[ipc_ep % IPC_EP_NUM];
+	sched_tok_t   tok;
+	int           ret;
+	struct ipc_retvals retvals = { .ready = 0 };
+
+	count_inc(CNT_C_CALL);
+	/* No server thread yet? Nothing to do here. */
+	if (ep->server == NULL) return -EAGAIN;
+	while (1) {
+		tok      = cos_sched_sync();
+		switchto = ps_load(&ep->server);
+
+
+		/* Lets try and set ourself as the client communicating with the server! */
+		if (likely(ps_cas((unsigned long *)&ep->client, 0, (unsigned long)t))) {
+			/* We are the serviced client, pass arguments! */
+			ep->a0      = arg0;
+			ep->a1      = arg1;
+			ep->retvals = &retvals;
+			assert(ps_load(&ep->client) == t);
+		}
+		/*
+		 * If another client is already communicating with the
+		 * server, and they haven't yet populated the
+		 * arguments and retvals, let them finish setting up
+		 * their communication.
+		 */
+		client = ps_load(&ep->client);
+		if (unlikely(ep->client != t && ep->retvals == NULL)) switchto = client;
+
+		/*
+		 * If we are the client, then we're activating the
+		 * server here. If another client exists, we're
+		 * generally just performing priority inheritance
+		 * here.
+		 */
+		trace_add(0);
+		ret = slm_switch_to(t, switchto, tok, 1);
+		trace_add(3);
+		count_inc(CNT_C_LOOP);
+		/*
+		 * Iterate while we are not the serviced client, we
+		 * have a stale scheduling token...
+		 */
+		if (unlikely(ret)) {
+			if (ret != -EAGAIN) return ret;
+			if (ret == EAGAIN) continue;
+		}
+
+		/* ...or the server hasn't provided a response. */
+		if (likely(ps_load(&retvals.ready))) break;
+	}
+
+	count_inc(CNT_C_RET);
+	*ret0 = ps_load(&retvals.r0);
+	*ret1 = ps_load(&retvals.r1);
+
+	return 0;
+}
+
+int
+syncipc_reply_wait(int ipc_ep, word_t arg0, word_t arg1, word_t *ret0, word_t *ret1)
+{
+	struct slm_thd *t = slm_thd_current(), *client;
+	/* avoid the conditional for bounds checking, ala Nova */
+	struct ipc_ep *ep = &eps[ipc_ep % IPC_EP_NUM];
+	sched_tok_t   tok;
+	int           ret;
+
+	/*
+	 * Phase 1: An EP is associated with a specific server. This
+	 * conditional is formulated to move the cas and awaiting the
+	 * first client off the fast-path.
+	 */
+	if (unlikely(ep->server != t)) {
+		/* Another server claimed the endpoint */
+		if (ep->server != NULL)         return -1;
+		if (!ps_cas((unsigned long *)&ep->server, 0, (unsigned long)t)) return -1;
+		ret = slm_sched_thd_update(t, SCHEDP_INIT, 0);
+		assert(ret == 0);
+		assert(ep->server == t);
+
+		/* Now await the first client spinning at idle prio! */
+		while (ps_load(&ep->client) == NULL) ;
+		*ret0 = ep->a0;
+		*ret1 = ep->a1;
+
+		return 0;
+	}
+
+	count_inc(CNT_S_REPLY);
+
+	/*
+	 * Phase 2: Reply to the client we are currently servicing!
+	 */
+	client             = ps_load(&ep->client);
+	ep->retvals->r0    = arg0;
+	ep->retvals->r1    = arg1;
+	/* Make sure to set this *last*. */
+	ep->retvals->ready = 1;
+	/*
+	 * Reset the endpoint, so that the next client can make a
+	 * request. As the client variable is the sync point, we have
+	 * to write it last.
+	 */
+	ep->retvals       = NULL;
+	ep->client        = NULL;
+
+	do {
+		/*
+		 * Switch back to the client!
+		 *
+		 * TODO: We should add a bit that designates if there
+		 * is *contention* on the server thread, and if it is
+		 * set, instead call `slm_exit_reschedule` here to
+		 * instead run the highest-priority client.
+		 */
+		trace_add(2);
+		ret = slm_switch_to(t, client, cos_sched_sync(), 1);
+		trace_add(1);
+		if (unlikely(ret) && ret != -EAGAIN) return ret;
+		count_inc(CNT_S_LOOP);
+	} while (ret == -EAGAIN);
+
+	count_inc(CNT_S_WAIT);
+	/*
+	 * Phase 3: Now await the next call! We spin as we're idle
+	 * priority.
+	 */
+	while (ps_load(&ep->client) == NULL) ;
+	/*
+	 * FIXME: If we are repriorized at higher than the client, we
+	 * might preempt it after it sets ->client, but before it sets
+	 * the arguments. The *correct* design is to create a PASSIVE
+	 * priority in which threads only execute using explicit
+	 * switches from other, properly prioritized threads. Such
+	 * threads could *not* reprioritize.
+	 */
+	*ret0 = ep->a0;
+	*ret1 = ep->a1;
+
+	count_inc(CNT_S_RET);
+
+	return 0;
 }
 
 thdid_t
