@@ -85,6 +85,8 @@ struct slm_thd {
 	struct event_info event_info;
 	struct ps_list    thd_list;       /* list of events for the scheduler */
 	struct ps_list    graveyard_list; /* list of threads that have terminated that require deallocation */
+
+	struct cos_dcb_info *dcb;
 };
 
 typedef enum {
@@ -167,7 +169,7 @@ int slm_init_done(void);
 /* After a thread has been initialized, activate it! Calls `slm_thd_sched_update`. */
 int slm_thd_commit_updates(struct slm_thd *t);
 
-int  slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid);
+int  slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid, struct cos_dcb_info *dcb);
 void slm_thd_deinit(struct slm_thd *t);
 
 /* forward declarations, not part of the public API. */
@@ -363,5 +365,4 @@ slm_timeout_clear(void)
 {
 	slm_global()->timer_set = 0;
 }
-
 #endif	/* SLM_H */

@@ -183,7 +183,6 @@ test_ipi_switch(void)
         thdcap_t  t = 0;
         tcap_t    tcc = 0;
 
-
         if (cos_cpuid() == TEST_RCV_CORE) {
 
                 /* Test RCV 1: Close Loop at lower priority => Measure Thread Switching + IPI */
@@ -191,7 +190,6 @@ test_ipi_switch(void)
                 tcc = cos_tcap_alloc(&booter_info);
                 if (EXPECT_LL_LT(1, tcc, "IPI SWITCH: TCAP Allocation"))
                         return;
-
                 t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI SWITCH: Thread Allocation"))
                         return;
@@ -217,11 +215,10 @@ test_ipi_switch(void)
                 if (EXPECT_LL_LT(1, s, "IPI SWITCH: ASND Allocation"))
                         return;
                 asnd[cos_cpuid()] = s;
+
                 test_sync_asnd();
                 test_sched_loop();
-
         } else {
-
                 if (cos_cpuid() != TEST_SND_CORE) return;
 
                 /* Test RCV1: Corresponding Send */

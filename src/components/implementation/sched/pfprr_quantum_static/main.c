@@ -297,12 +297,13 @@ void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
 	struct slm_thd_container *t;
+	struct cos_dcb_info *dcb;
 	thdcap_t thdcap;
 	thdid_t tid;
 
 	if (!init_core) cos_defcompinfo_sched_init();
 
-	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid);
+	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid, &dcb);
 	if (!t) BUG();
 	idlecap = thdcap;
 

@@ -70,6 +70,8 @@ struct slm_global {
 
 	struct ps_list_head event_head;     /* all pending events for sched end-point */
 	struct ps_list_head graveyard_head; /* all deinitialized threads */
+
+	struct cos_scb_info *scb;
 } CACHE_ALIGNED;
 
 /*
@@ -82,6 +84,25 @@ slm_global(void)
 
 	return &__slm_global[cos_coreid()];
 }
+
+static inline struct cos_scb_info *
+slm_scb_info_core(void)
+{
+	return (slm_global()->scb);
+}
+
+static inline struct cos_dcb_info *
+slm_thd_dcbinfo(struct slm_thd *t)
+{ return t->dcb; }
+
+static inline unsigned long *
+slm_thd_dcbinfo_ip(struct slm_thd *t)
+{ return &t->dcb->ip; }
+
+static inline unsigned long *
+slm_thd_dcbinfo_sp(struct slm_thd *t)
+{ return &t->dcb->sp; }
+
 
 /*
  * Return if the given thread is normal, i.e. not the idle thread nor
@@ -137,6 +158,74 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 	}
 
 	return ret;
+}
+
+
+static inline int
+slm_thd_dispatch(struct slm_thd *next, sched_tok_t tok, struct slm_thd *curr)
+{
+	volatile struct cos_scb_info *scb = slm_scb_info_core();
+	struct cos_dcb_info *cd = slm_thd_dcbinfo(curr), *nd = slm_thd_dcbinfo(next);
+
+	assert(curr != next);
+	//if (unlikely(!cd || !nd)) return sl_thd_activate(next, tok, sl__globals_cpu()->timeout_next);
+	if (unlikely(!cd || !nd)) return slm_thd_activate(curr, next, tok, 0);
+
+	/*
+	 * jump labels in the asm routine:
+	 *
+	 * 1: slowpath dispatch using cos_thd_switch to switch to a thread
+	 *    if the dcb sp of the next thread is reset.
+	 *	(inlined slowpath sysenter to debug preemption problem)
+	 *
+	 * 2: if user-level dispatch routine completed successfully so
+	 *    the register states still retained and in the dispatched thread
+	 *    we reset its dcb sp!
+	 *
+	 * 3: if user-level dispatch was either preempted in the middle
+	 *    of this routine or kernel at some point had to switch to a
+	 *    thread that co-operatively switched away from this routine.
+	 *    NOTE: kernel takes care of resetting dcb sp in this case!
+	 */
+
+	__asm__ __volatile__ (				\
+		"pushl %%ebp\n\t"			\
+		"movl %%esp, %%ebp\n\t"			\
+		"movl $2f, (%%eax)\n\t"			\
+		"movl %%esp, 4(%%eax)\n\t"		\
+		"cmp $0, 4(%%ebx)\n\t"			\
+		"je 1f\n\t"				\
+		"movl %%edx, (%%ecx)\n\t"		\
+		"movl 4(%%ebx), %%esp\n\t"		\
+		"jmp *(%%ebx)\n\t"			\
+		".align 4\n\t"				\
+		"1:\n\t"				\
+		"movl $3f, %%ecx\n\t"			\
+		"movl %%edx, %%eax\n\t"			\
+		"inc %%eax\n\t"				\
+		"shl $16, %%eax\n\t"			\
+		"movl $0, %%ebx\n\t"			\
+		"movl $0, %%esi\n\t"			\
+		"movl $0, %%edi\n\t"			\
+		"movl $0, %%edx\n\t"			\
+		"sysenter\n\t"				\
+		"jmp 3f\n\t"				\
+		".align 4\n\t"				\
+		"2:\n\t"				\
+		"movl $0, 4(%%ebx)\n\t"			\
+		".align 4\n\t"				\
+		"3:\n\t"				\
+		"popl %%ebp\n\t"			\
+		:
+		: "a" (cd), "b" (nd),
+		  "S" ((u32_t)((u64_t)tok >> 32)), "D" ((u32_t)(((u64_t)tok << 32) >> 32)),
+		  "c" (&(scb->curr_thd)), "d" (next->thd)
+		: "memory", "cc");
+
+	scb = slm_scb_info_core();
+	if (unlikely(ps_load(&scb->sched_tok) != tok)) return -EAGAIN;
+
+	return 0;
 }
 
 static inline void slm_cs_exit(struct slm_thd *switchto, slm_cs_flags_t flags);
@@ -195,7 +284,8 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 	assert(slm_state_is_runnable(t->state));
 	slm_cs_exit(NULL, flags);
 
-	ret = slm_thd_activate(curr, t, tok, 0);
+	//ret = slm_thd_activate(curr, t, tok, 0);
+	ret = slm_thd_dispatch(t, tok, curr);
 	/* Assuming only the single tcap with infinite budget...should not get EPERM */
 	assert(ret != -EPERM);
 

@@ -32,5 +32,5 @@ constructor = "booter"
 [[components]]
 name = "schedtest"
 img  = "tests.unit_schedcomp"
-deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}]
+deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "print", interface = "print"}]
 constructor = "booter"

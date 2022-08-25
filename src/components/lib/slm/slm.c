@@ -16,7 +16,7 @@ slm_thd_special(void)
 }
 
 static int
-slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid)
+slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid, struct cos_dcb_info *dcb)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
@@ -29,7 +29,8 @@ slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid)
 		.tid = tid,
 		.state = SLM_THD_RUNNABLE,
 		.priority = TCAP_PRIO_MIN,
-		.properties = 0
+		.properties = 0,
+		.dcb = dcb
 	};
 	ps_list_init(t, thd_list);
 	ps_list_init(t, graveyard_list);
@@ -46,11 +47,11 @@ slm_thd_deinit_internal(struct slm_thd *t)
 }
 
 int
-slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid)
+slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid, struct cos_dcb_info *dcb)
 {
 	int ret;
 
-	if ((ret = slm_thd_init_internal(t, thd, tid))) return ret;
+	if ((ret = slm_thd_init_internal(t, thd, tid, dcb))) return ret;
 	if ((ret = slm_timer_thd_init(t))) return ret;
 	if ((ret = slm_sched_thd_init(t))) return ret;
 
@@ -548,6 +549,9 @@ slm_init(thdcap_t thd, thdid_t tid)
 
 	g->cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	g->lock.owner_contention = 0;
+
+	assert(sizeof(struct cos_scb_info) * NUM_CPU <= COS_SCB_SIZE && COS_SCB_SIZE == PAGE_SIZE);
+	g->scb = (struct cos_scb_info *)cos_scb_info_get();
 
 	slm_sched_init();
 	slm_timer_init();
