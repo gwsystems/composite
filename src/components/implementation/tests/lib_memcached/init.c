@@ -11,7 +11,9 @@ cos_init(void)
 
 	char *argv[] =	{
 		"--listen=10.10.2.2",
-		"--threads=1",
+		"--port=0",// close tcp initialization
+		"--udp-port=11211",
+		"--threads=64",
 		"--protocol=auto",
 		"--memory-limit=64",
 		"--extended=no_lru_crawler,no_lru_maintainer,no_hashexpand,no_slab_reassign",

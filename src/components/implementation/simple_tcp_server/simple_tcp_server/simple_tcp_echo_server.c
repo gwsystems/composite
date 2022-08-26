@@ -19,13 +19,16 @@ cos_init(void)
 {
 	shm_bm_objid_t objid;
 	struct netshmem_pkt_buf *obj;
-	netshmem_init();
 
-	netmgr_shmem_init(netshmem_get_rx_shm_id(), netshmem_get_tx_shm_id());
+	/* create current component's shmem */
+	netshmem_create();
+
+	netmgr_shmem_map(netshmem_get_shm_id());
 
 	printc("app init shm done\n");
 }
 
+#if 0
 int
 main(void)
 {
@@ -37,6 +40,7 @@ main(void)
 	struct netshmem_pkt_buf *rx_obj;
 	struct netshmem_pkt_buf *tx_obj;
 	char *data;
+	u16_t data_offset, data_len;
 
 	ret = netmgr_tcp_bind(ip, port);
 	assert(ret == NETMGR_OK);
@@ -51,18 +55,59 @@ main(void)
 	while (1)
 	{
 		/* code */
-		objid = netmgr_tcp_shmem_read();
-		rx_obj = shm_bm_take_rx_pkt_buf(netshmem_get_rx_shm(), objid);
+		objid  = netmgr_tcp_shmem_read(&data_offset, &data_len);
+		rx_obj = shm_bm_take_net_pkt_buf(netshmem_get_shm(), objid);
 		
-		data = rx_obj->data + rx_obj->payload_offset;
+		data = rx_obj->data + data_offset;
 
-		tx_obj = shm_bm_alloc_tx_pkt_buf(netshmem_get_tx_shm(), &objid);
-		memcpy(tx_obj->data + NETSHMEM_HEADROOM, data, rx_obj->payload_sz);
-		tx_obj->payload_offset = NETSHMEM_HEADROOM;
-		tx_obj->payload_sz = rx_obj->payload_sz;
+		tx_obj = shm_bm_alloc_net_pkt_buf(netshmem_get_shm(), &objid);
+		memcpy(netshmem_get_data_buf(tx_obj), data, data_len);
 
-		netmgr_tcp_shmem_write(objid);
+		/* application free unused rx buf */
+		shm_bm_free_net_pkt_buf(rx_obj);
+
+		netmgr_tcp_shmem_write(objid, netshmem_get_data_offset(), data_len);
 	}
 	
 
+}
+#endif
+
+int
+main(void)
+{
+	int ret		= 0;
+	u32_t ip	= inet_addr("10.10.1.2");
+	u16_t port	= 80;
+	struct conn_addr client_addr;
+	shm_bm_objid_t           objid;
+	struct netshmem_pkt_buf *rx_obj;
+	struct netshmem_pkt_buf *tx_obj;
+	char *data;
+	u16_t data_offset, data_len;
+
+	ret = netmgr_udp_bind(ip, port);
+	assert(ret == NETMGR_OK);
+
+	while (1)
+	{
+		/* code */
+		objid  = netmgr_udp_shmem_read(&data_offset, &data_len);
+		/* application would like to own the shmem because it does not want ohters to free it. */
+		rx_obj = shm_bm_transfer_net_pkt_buf(netshmem_get_shm(), objid);
+		data = rx_obj->data + data_offset;
+		printc("sever recv(%d):%s\n", objid, data);
+
+		tx_obj = shm_bm_alloc_net_pkt_buf(netshmem_get_shm(), &objid);
+		printc("app tx obj:%p\n", tx_obj);
+		assert(tx_obj);
+		memcpy(netshmem_get_data_buf(tx_obj), data, data_len);
+
+		/* application free unused rx buf */
+		shm_bm_free_net_pkt_buf(rx_obj);
+
+		printc("write shmem:%d\n", objid);
+		netmgr_udp_shmem_write(objid, netshmem_get_data_offset(), data_len);
+		shm_bm_free_net_pkt_buf(tx_obj);
+	}
 }

@@ -7,7 +7,7 @@ OBJECT_OUTPUT =
 
 INCLUDE_PATHS = ./ memcached/ cos_adapter/
 
-INTERFACE_DEPENDENCIES =
+INTERFACE_DEPENDENCIES = netshmem
 
 LIBRARY_DEPENDENCIES = component posix_cap posix_sched
 

@@ -80,20 +80,6 @@ char* g_tx_mp = NULL;
 
 static u16_t nic_ports = 0;
 
-static void
-tx_ringbuf_init()
-{
-	vaddr_t buf_addr = NULL;
-
-	buf_addr = malloc(TX_PKT_RING_SZ);
-	assert(buf_addr);
-
-	ck_ring_init(buf_addr, TX_PKT_RBUF_SZ);
-
-	g_tx_ring    = buf_addr;
-	g_tx_ringbuf = buf_addr + sizeof(struct ck_ring);
-}
-
 static struct client_session *
 find_session(uint32_t dst_ip, uint16_t dst_port)
 {
@@ -110,15 +96,12 @@ find_session(uint32_t dst_ip, uint16_t dst_port)
 static void
 ext_buf_free_callback_fn(void *addr, void *opaque)
 {
-	bool *freed = opaque;
-
 	if (addr == NULL) {
 		printc("External buffer address is invalid\n");
 		return;
 	}
 
-	*freed = true;
-	// printc("External buffer freed via callback\n");
+	shm_bm_free_net_pkt_buf(addr);
 }
 
 static void
@@ -127,15 +110,13 @@ process_tx_packets(void)
 	struct pkt_buf buf;
 	char* mbuf;
 
-	while (!tx_pkt_ring_buf_empty(g_tx_ring))
+	while (!pkt_ring_buf_empty(g_tx_ring))
 	{
-		tx_pkt_ring_buf_dequeue(g_tx_ring, g_tx_ringbuf, &buf);
+		pkt_ring_buf_dequeue(g_tx_ring, g_tx_ringbuf, &buf);
 
 		mbuf = cos_allocate_mbuf(g_tx_mp);
 		cos_attach_external_mbuf(mbuf, buf.pkt, PKT_BUF_SIZE, ext_buf_free_callback_fn, buf.paddr);
 		cos_send_external_packet(mbuf, buf.pkt_len);
-
-		cos_free_packet(mbuf);
 	}
 }
 
@@ -155,6 +136,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 	for (i = 0; i < nb_pkts; i++) {
 		char * pkt = cos_get_packet(rx_pkts[i], &len);
 		eth = pkt;
+
 		if (htons(eth->ether_type) == 0x0800) {
 			iph = (char*)eth + sizeof(struct eth_hdr);
 			port = (char*)eth + sizeof(struct eth_hdr) + iph->ihl * 4;
@@ -164,8 +146,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 				continue;
 			}
 			buf.pkt = rx_pkts[i];
-			rx_pkt_ring_buf_enqueue(session, &buf);
-			
+			pkt_ring_buf_enqueue(session->ring, session->ringbuf, &buf);
 			sched_thd_wakeup(session->thd);
 		} else if (htons(eth->ether_type) == 0x0806) {
 			arp_hdr = (char*)eth + sizeof(struct eth_hdr);
@@ -174,7 +155,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 				continue;
 			}
 			buf.pkt = rx_pkts[i];
-			rx_pkt_ring_buf_enqueue(session, &buf);
+			pkt_ring_buf_enqueue(session->ring, session->ringbuf, &buf);
 			
 			sched_thd_wakeup(session->thd);
 		} else {
@@ -182,6 +163,19 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			continue;
 		}
 
+	}
+}
+
+static void
+cos_free_rx_buf()
+{
+	struct pkt_buf buf;
+	char* mbuf;
+
+	while (!pkt_ring_buf_empty(g_free_ring))
+	{
+		pkt_ring_buf_dequeue(g_free_ring, g_free_ringbuf, &buf);
+		cos_free_packet(buf.pkt);
 	}
 }
 
@@ -194,6 +188,7 @@ cos_nic_start(){
 
 	while (1)
 	{
+		cos_free_rx_buf();
 		/* infinite loop to process packets */
 		for (i = 0; i < nic_ports; i++) {
 			/* process rx */
@@ -262,7 +257,7 @@ cos_nic_init(void)
 	for (i = 0; i < nic_ports; i++) {
 		cos_config_dev_port_queue(i, 1, 1);
 		cos_dev_port_adjust_rx_tx_desc(i, &nb_rx_desc, &nb_tx_desc);
-		cos_dev_port_rx_queue_setup(i, 0, nb_rx_desc, mp);
+		cos_dev_port_rx_queue_setup(i, 0, nb_rx_desc, g_rx_mp);
 		cos_dev_port_tx_queue_setup(i, 0, nb_tx_desc);
 	}
 
@@ -278,7 +273,10 @@ cos_init(void)
 {
 	printc("nicmgr init...\n");
 	cos_nic_init();
-	tx_ringbuf_init();
+	pkt_ring_buf_init(&g_tx_ring, &g_tx_ringbuf, TX_PKT_RBUF_NUM, TX_PKT_RING_SZ);
+	pkt_ring_buf_init(&g_free_ring, &g_free_ringbuf, FREE_PKT_RBUF_NUM, FREE_PKT_RING_SZ);
+
+	printc("dpdk init end\n");
 }
 
 int

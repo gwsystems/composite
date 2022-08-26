@@ -38,28 +38,30 @@ cos_interface_output(struct netif *ni, struct pbuf *p, const ip4_addr_t *ip)
 	char * data = p->payload;
 	shm_bm_objid_t  objid;
 	struct netshmem_pkt_buf *obj;
+	u16_t pkt_offset, pkt_len;
 
 	if (p->type_internal & PBUF_RAM) {
 		if(p->next != NULL && p->next->type_internal & PBUF_ROM) {
 			/* shemem case, pbuf is chained with a header pbuf and a data pbuf that points to shemem */
-			obj = (struct netshmem_pkt_buf*)(p->next->payload - NETSHMEM_HEADROOM);
-			objid = obj->objid;
-			data = obj->payload_offset + obj->data;
+			obj = (struct netshmem_pkt_buf*)(p->next->payload - netshmem_get_data_offset());
+			objid = shm_bm_get_objid_net_pkt_buf(obj);
+			data = netshmem_get_data_buf(obj) ;
 			memcpy(data - p->len, p->payload, p->len);
-			obj->payload_offset = obj->payload_offset - p->len;
-			obj->payload_sz += p->len;
-			nic_send_packet(objid, obj->payload_sz);
+			pkt_offset = netshmem_get_data_offset() - p->len;
+			pkt_len = p->len;
+			pkt_len += p->next->len;
+			nic_send_packet(objid, pkt_offset, pkt_len);
 		} else {
 			/* other cases that don't use shmem */
-			obj = shm_bm_alloc_tx_pkt_buf(netshmem_get_tx_shm(), &objid);
-			if (obj == NULL) return ERR_OK;
+			obj = shm_bm_alloc_net_pkt_buf(netshmem_get_shm(), &objid);
+			assert(obj);
 
 			memcpy(obj->data, data, p->len);
-			obj->payload_offset = 0;
-			obj->payload_sz = p->len;
+			pkt_offset = 0;
+			pkt_len = p->len;
 
-			nic_send_packet(objid, obj->payload_sz);
-			shm_bm_free_tx_pkt_buf(obj);
+			nic_send_packet(objid, pkt_offset, pkt_len);
+			shm_bm_free_net_pkt_buf(obj);
 		}
 	}
 	return ERR_OK;
@@ -113,6 +115,8 @@ cos_init(void)
 	netif_set_default(&net_interface);
 	netif_set_up(&net_interface);
 	printc("netmgr init done\n");
+
+	/* TODO: static arp might be needed when testing */
 	// ip4_addr_t ipaddr;
 	// struct eth_addr ethaddr;
 	// ethaddr.addr[0] = 0x11;

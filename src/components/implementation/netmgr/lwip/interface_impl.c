@@ -9,6 +9,7 @@
 #include <lwip/init.h>
 #include <lwip/netif.h>
 #include <lwip/tcp.h>
+#include <lwip/udp.h>
 #include <lwip/stats.h>
 #include <lwip/prot/tcp.h>
 #include <netif/ethernet.h>
@@ -16,25 +17,27 @@
 
 #include <netmgr.h>
 
-int return_flag = 0;
+int back_to_app = 0;
 shm_bm_objid_t           g_objid;
+u16_t g_data_offset, g_data_len;
 struct pbuf *g_pbuf = NULL;
 
 #define TCP_MAX_SERVER (16)
 
 extern struct netif net_interface;
 
-struct tcp_server
+struct lwip_pcb
 {
 	struct tcp_pcb *tp;
+	struct udp_pcb *up;
 };
 
-struct tcp_server tcp_servers[TCP_MAX_SERVER];
+struct lwip_pcb lwip_pcbs[TCP_MAX_SERVER];
 
 static err_t
 cos_lwip_tcp_sent(void *arg, struct tcp_pcb *tp, u16_t len)
 {
-	// printc("tcp sent\n");
+	/* TODO: process sent state */
 	return ERR_OK;
 }
 
@@ -45,7 +48,7 @@ cos_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p, err_t err)
 	err_t ret_err;
 
 	if(p != NULL) {
-		return_flag = 1;
+		back_to_app = 1;
 		g_pbuf = p;
 		// tcp_recved(tp, p->tot_len);
 	}
@@ -57,6 +60,7 @@ cos_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p, err_t err)
 static void
 cos_lwip_tcp_err(void *arg,  err_t err)
 {
+	printc("lwip tcp err\n");
 	assert(0);
 	return;
 }
@@ -65,14 +69,14 @@ static err_t
 cos_lwip_tcp_accept(void *arg, struct tcp_pcb *tp, err_t err)
 {
 	err_t ret_err;
-	compid_t client = (compid_t)cos_inv_token();
+	thdid_t thd = cos_thdid();
 
 	tcp_arg(tp, 0);
 	tcp_err(tp, cos_lwip_tcp_err);
 	tcp_recv(tp, cos_lwip_tcp_recv);
 	tcp_sent(tp, cos_lwip_tcp_sent);
 
-	tcp_servers[client].tp = tp;
+	lwip_pcbs[thd].tp = tp;
 
 	tcp_nagle_disable(tp);
 
@@ -80,10 +84,10 @@ cos_lwip_tcp_accept(void *arg, struct tcp_pcb *tp, err_t err)
 	return ret_err;
 }
 
-void netmgr_shmem_init(cbuf_t rx_shm_id, cbuf_t tx_shm_id)
+void netmgr_shmem_map(cbuf_t shm_id)
 {
-	nic_shmem_init(rx_shm_id, tx_shm_id);
-	netshmem_map_shmem(rx_shm_id, tx_shm_id);
+	nic_shmem_map(shm_id);
+	netshmem_map_shmem(shm_id);
 }
 
 int
@@ -99,15 +103,14 @@ netmgr_tcp_bind(u32_t ip_addr, u16_t port)
 	struct ip4_addr ipa = *(struct ip4_addr*)&ip_addr;
 	err_t ret;
 
-	compid_t client = (compid_t)cos_inv_token();
-	unsigned long paddr = 0;
+	thdid_t thd = cos_thdid();
 
 	nic_bind_port(ip_addr, htons(port));
 
 	tp = tcp_new();
 	assert(tp != NULL);
 
-	tcp_servers[client].tp = tp;
+	lwip_pcbs[thd].tp = tp;
 
 	ret = tcp_bind(tp, &ipa, port);
 
@@ -118,12 +121,11 @@ int
 netmgr_tcp_listen(u8_t backlog)
 {
 	struct tcp_pcb *new_tp = NULL;
-	compid_t client = (compid_t)cos_inv_token();
+	thdid_t thd = cos_thdid();
 
-	new_tp = tcp_listen_with_backlog(tcp_servers[client].tp, backlog);
+	new_tp = tcp_listen_with_backlog(lwip_pcbs[thd].tp, backlog);
 	assert(new_tp);
-
-	tcp_servers[client].tp = new_tp;
+	lwip_pcbs[thd].tp = new_tp;
 
 	return ERR_OK;
 }
@@ -167,66 +169,167 @@ netmgr_tcp_accept(struct conn_addr *client_addr)
 	size_t shmsz;
 	cbuf_t rx_shm_id;
 	void  *mem;
+	u16_t pkt_len;
 
-	compid_t client = (compid_t)cos_inv_token();
+	thdid_t thd = cos_thdid();
 
 	netif_set_link_up(&net_interface);
-	tcp_accept(tcp_servers[client].tp, cos_lwip_tcp_accept);
+	tcp_accept(lwip_pcbs[thd].tp, cos_lwip_tcp_accept);
 
 	// should block here
-	while (!return_flag)
+	while (!back_to_app)
 	{
-		objid = nic_get_a_packet();
-		obj = shm_bm_take_rx_pkt_buf(netshmem_get_rx_shm(), objid);
+		objid = nic_get_a_packet(&pkt_len);
+		obj = shm_bm_take_net_pkt_buf(netshmem_get_shm(), objid);
 
-		net_receive_packet(obj->payload_offset + obj->data, obj->payload_sz);
-		
+		net_receive_packet(obj->data, pkt_len);
 	}
 	g_objid = objid;
-	obj->payload_offset = (char*)g_pbuf->payload - obj->data;
-	obj->payload_sz = g_pbuf->len;
 
 	return 0;
 }
 
 shm_bm_objid_t
-netmgr_tcp_shmem_read(void)
+netmgr_tcp_shmem_read(u16_t *data_offset, u16_t *data_len)
 {
 	shm_bm_objid_t           objid;
 	struct netshmem_pkt_buf *obj;
+	u16_t pkt_len;
 
-	while (!return_flag)
+	obj = shm_bm_take_net_pkt_buf(netshmem_get_shm(), g_objid);
+
+	while (!back_to_app)
 	{
-		objid = nic_get_a_packet();
-		obj = shm_bm_take_rx_pkt_buf(netshmem_get_rx_shm(), objid);
+		objid = nic_get_a_packet(&pkt_len);
+		obj = shm_bm_take_net_pkt_buf(netshmem_get_shm(), objid);
+		assert(obj);
 
-		net_receive_packet(obj->payload_offset + obj->data, obj->payload_sz);
-		obj->payload_offset = (char*)g_pbuf->payload - obj->data;
-		obj->payload_sz = g_pbuf->len;
+		net_receive_packet(obj->data, pkt_len);
 		g_objid = objid;
 	}
 
-	return_flag = 0;
+	*data_offset = (char*)g_pbuf->payload - obj->data;
+	*data_len = g_pbuf->len;
+
+	back_to_app = 0;
+
 	return g_objid;
 }
 
 int
-netmgr_tcp_shmem_write(shm_bm_objid_t objid)
+netmgr_tcp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len)
 {
 	struct netshmem_pkt_buf *obj;
 
-	compid_t client = (compid_t)cos_inv_token();
+	thdid_t thd = cos_thdid();
 	char *data;
 
-	obj = shm_bm_take_tx_pkt_buf(netshmem_get_tx_shm(), objid);
-	obj->objid = objid;
-	data = obj->data + obj->payload_offset;
+	obj = shm_bm_take_net_pkt_buf(netshmem_get_shm(), objid);
+	data = obj->data + data_offset;
 
-	err_t wr_err = tcp_write(tcp_servers[client].tp, data, obj->payload_sz, 0);
+	err_t wr_err = tcp_write(lwip_pcbs[thd].tp, data, data_len, 0);
 	assert(wr_err == ERR_OK);
 
-	// wr_err = tcp_output(tcp_servers[client].tp);
+	/* tcp_output() might be needed in the future */
+	// wr_err = tcp_output(lwip_pcbs[thd].tp);
 	// assert(wr_err == ERR_OK);
+
+	return 0;
+}
+
+static void
+cos_lwip_udp_recv(void *arg, struct udp_pcb *up, struct pbuf *p, const ip_addr_t *addr, u16_t port)
+{
+	err_t ret_err;
+
+	if(p != NULL) {
+		back_to_app = 1;
+		g_pbuf = p;
+	}
+
+	return ERR_OK;
+
+}
+
+int
+netmgr_udp_bind(u32_t ip_addr, u16_t port)
+{
+
+	unsigned long npages;
+	void         *mem;
+	shm_bm_t shm;
+	struct netshmem_pkt_buf *obj;
+
+	struct ip4_addr ipa = *(struct ip4_addr*)&ip_addr;
+	err_t ret;
+
+	thdid_t thd = cos_thdid();
+
+	nic_bind_port(ip_addr, htons(port));
+
+	lwip_pcbs[thd].up = udp_new();
+	assert(lwip_pcbs[thd].up != NULL);
+
+	ret = udp_bind(lwip_pcbs[thd].up, &ipa, port);
+	assert(ret == ERR_OK);
+
+	udp_recv(lwip_pcbs[thd].up, cos_lwip_udp_recv, 0);
+
+	return ret;
+}
+
+shm_bm_objid_t
+netmgr_udp_shmem_read(u16_t *data_offset, u16_t *data_len)
+{
+	shm_bm_objid_t           objid;
+	struct netshmem_pkt_buf *obj;
+	u16_t pkt_len;
+
+	while (1)
+	{
+		objid = nic_get_a_packet(&pkt_len);
+		obj = shm_bm_borrow_net_pkt_buf(netshmem_get_shm(), objid);
+		assert(obj);
+
+		net_receive_packet(obj->data, pkt_len);
+		g_objid = objid;
+		if (!back_to_app) {
+			/* if this packet doesn't need to transfer to application, lwip needs to free it. */
+			shm_bm_free_net_pkt_buf(obj);
+		} else {
+			break;
+		}
+	}
+
+	*data_offset = (char*)g_pbuf->payload - obj->data;
+	*data_len = g_pbuf->len;
+
+	back_to_app = 0;
+	return g_objid;
+}
+
+int
+netmgr_udp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len)
+{
+	struct netshmem_pkt_buf *obj;
+	struct pbuf *p;
+	ip_addr_t dst_ip;
+	
+	thdid_t thd = cos_thdid();
+	char *data;
+
+	obj = shm_bm_borrow_net_pkt_buf(netshmem_get_shm(), objid);
+	data = obj->data + data_offset;
+
+	p = pbuf_alloc(PBUF_LINK, data_len, PBUF_ROM);
+	assert(p);
+
+	p->payload = data;
+
+	IP4_ADDR(&dst_ip, 10,10,1,1);
+
+	udp_sendto_if(lwip_pcbs[thd].up, p , &dst_ip, 10000, &net_interface);
+	pbuf_free(p);
 
 	return 0;
 }

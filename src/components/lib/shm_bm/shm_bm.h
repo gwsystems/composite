@@ -166,6 +166,21 @@ __shm_bm_ptr_free(void *ptr, size_t objsz, unsigned int nobj)
 	bm[bm_idx] = bm[bm_idx] | (1ul << bm_offset);
 }
 
+static shm_bm_objid_t
+__shm_bm_get_objid(void *ptr, size_t objsz, unsigned int nobj)
+{
+	void        *shm;
+	unsigned int obj_idx, bm_idx, bm_offset;
+	word_t      *bm;
+
+	/* Mask out bits less significant than the alignment to get pointer to head of shm */
+	shm = (void *)((word_t)ptr & ~(SHM_BM_ALIGN - 1));
+	obj_idx = ((unsigned char *)ptr - SHM_BM_DATA(shm, nobj)) / objsz;
+	assert (obj_idx <= nobj);
+
+	return obj_idx;
+}
+
 
 #define __SHM_BM_DEFINE_FCNS(name)                                                          \
     static inline size_t   shm_bm_size_##name(void);                                        \
@@ -217,6 +232,11 @@ __shm_bm_ptr_free(void *ptr, size_t objsz, unsigned int nobj)
     shm_bm_free_##name(void *ptr)                                                           \
     {                                                                                       \
         __shm_bm_ptr_free(ptr, objsz, nobjs);                                               \
+    }                                                                                       \
+    static inline shm_bm_objid_t                                                            \
+    shm_bm_get_objid_##name(void *ptr)                                                      \
+    {                                                                                       \
+        return __shm_bm_get_objid(ptr, objsz, nobjs);                                              \
     }
 
 #define SHM_BM_INTERFACE_CREATE(name, objsz, nobjs)                                         \

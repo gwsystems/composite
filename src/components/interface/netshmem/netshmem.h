@@ -4,7 +4,7 @@
 #include <cos_component.h>
 #include <shm_bm.h>
 
-#define PKT_BUF_NUM 4096
+#define PKT_BUF_NUM 1024
 #define PKT_BUF_SIZE 2000
 #define PKT_BUF_HEAD_ROOM 500
 
@@ -14,34 +14,49 @@ struct netshmem {
 	cbuf_t shm_id;
 };
 
-#define NETSHMEM_RX 0
-#define NETSHMEM_TX 1
-#define NETSHMEM_REGION_SZ 2
+/*
+ * Assumption 1: a thread will only bind to a single shmem region.
+ * Thus, within a component's code, it can use thread id to find 
+ * which shared memory region it should use.
+ * Assumption 2: thread will not be destroyed and then its id is 
+ * assigned to another new thread.
+ */
+#define NETSHMEM_REGION_SZ 1024
 
 /*
  * This is the offset size of netshmem_pkt_buf.data for application to write data.
  * HEADROOM is used for lwip to set ether & ip & tcp/udp headers
  */
-
 #define NETSHMEM_HEADROOM 128
 
 struct netshmem_pkt_buf {
 	char data[PKT_BUF_SIZE];
-	u32_t payload_offset; /* offset of payload data within data member */
-	int payload_sz;
-	shm_bm_objid_t objid; /* self reference */
 };
 
-SHM_BM_INTERFACE_CREATE(rx_pkt_buf, sizeof (struct netshmem_pkt_buf), PKT_BUF_NUM);
-SHM_BM_INTERFACE_CREATE(tx_pkt_buf, sizeof (struct netshmem_pkt_buf), PKT_BUF_NUM);
+/*
+ * One component can have PKT_BUF_NUM pkt buffers.
+ * This Macro doesn't actually create the buffers, 
+ * it just declares some helper functions for the buffer.
+ * It is the components' duty to actually create the buffers/shmem.
+ */
+SHM_BM_INTERFACE_CREATE(net_pkt_buf, sizeof (struct netshmem_pkt_buf), PKT_BUF_NUM);
 
-void netshmem_init(void);
-cbuf_t netshmem_get_rx_shm_id(void);
-cbuf_t netshmem_get_tx_shm_id(void);
+/* This will create a shmem for the current component*/
+void netshmem_create(void);
 
-shm_bm_t netshmem_get_rx_shm(void);
-shm_bm_t netshmem_get_tx_shm(void);
+cbuf_t netshmem_get_shm_id();
+shm_bm_t netshmem_get_shm();
 
-void netshmem_map_shmem(cbuf_t rx_shm_id, cbuf_t tx_shm_id);
+/* map a shmem for a client component */
+void netshmem_map_shmem(cbuf_t shm_id);
 
+static inline void* netshmem_get_data_buf(struct netshmem_pkt_buf *pkt_buf)
+{
+	return (char *)pkt_buf + NETSHMEM_HEADROOM;
+}
+
+static inline u16_t netshmem_get_data_offset(void)
+{
+	return NETSHMEM_HEADROOM;
+}
 #endif

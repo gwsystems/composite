@@ -290,6 +290,14 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 	ret = rte_eth_dev_info_get(real_port_id, &dev_info);
 	txq_conf = dev_info.default_txconf;
 
+	/* This commented code might be used in the future to adjust tx configurations */
+	// txq_conf.tx_rs_thresh = 2;
+	// txq_conf.tx_thresh.pthresh = 1;
+	// txq_conf.tx_thresh.hthresh = 1;
+	// txq_conf.tx_thresh.wthresh = 1;
+	// txq_conf.tx_free_thresh = 1020;
+	// txq_conf.offloads = 0;
+
 	ret = rte_eth_tx_queue_setup(real_port_id, tx_queue_id, nb_tx_desc,
 				rte_eth_dev_socket_id(real_port_id),
 				&txq_conf);
@@ -434,7 +442,6 @@ cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
 char*
 cos_get_packet(char* mbuf, int *len)
 {
-
 	*len = ((struct rte_mbuf*)mbuf)->pkt_len;
 	return (char *)rte_pktmbuf_mtod((struct rte_mbuf*)mbuf, struct rte_ether_hdr *);
 }
@@ -537,13 +544,12 @@ cos_attach_external_mbuf(char *mbuf, void *buf_vaddr, uint16_t buf_len,
 {
 	struct rte_mbuf_ext_shared_info *ret_shinfo = NULL;
 	rte_iova_t buf_iova =buf_paddr ;
-	bool freed = false;
 
 	uint16_t ext_buf_len = buf_len + sizeof(struct rte_mbuf_ext_shared_info);
 
 	struct rte_mbuf *_mbuf = (struct rte_mbuf *)mbuf;
 
-	ret_shinfo = rte_pktmbuf_ext_shinfo_init_helper(buf_vaddr, &ext_buf_len, ext_buf_free_cb, &freed);
+	ret_shinfo = rte_pktmbuf_ext_shinfo_init_helper(buf_vaddr, &ext_buf_len, ext_buf_free_cb, 0);
 	rte_pktmbuf_attach_extbuf(_mbuf, buf_vaddr, buf_iova, ext_buf_len, ret_shinfo);
 	assert(_mbuf->ol_flags == RTE_MBUF_F_EXTERNAL);
 
@@ -558,4 +564,16 @@ cos_send_external_packet(char*mbuf, uint16_t pkt_len)
 	_mbuf->pkt_len = pkt_len;
 
 	return cos_dev_port_tx_burst(0, 0, &mbuf, 1);
+}
+
+int
+cos_mempool_full(const char *mp)
+{
+	return rte_mempool_full(mp);
+}
+
+int
+cos_mempool_in_use_count(const char *mp)
+{
+	return rte_mempool_in_use_count(mp);
 }

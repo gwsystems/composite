@@ -81,5 +81,7 @@ int cos_attach_external_mbuf(char *mbuf, void *buf_vaddr, uint16_t buf_len,
 			uint64_t buf_paddr);
 
 int cos_send_external_packet(char*mbuf, u16_t pkt_len);
+int cos_mempool_full(const char *mp);
+int cos_mempool_in_use_count(const char *mp);
 
 #endif /* COS_DPDK_H */
