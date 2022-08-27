@@ -103,10 +103,11 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 
 	obj = (struct netshmem_pkt_buf*)shm_bm_take_net_pkt_buf(client_sessions[thd].shemem_info.shm, objid);
 
+	buf.obj = obj;
 	buf.pkt = pkt_offset + obj->data;
 
 	u64_t data_paddr = client_sessions[thd].shemem_info.paddr 
-		+ (u64_t)buf.pkt - (u64_t)client_sessions[thd].shemem_info.shm;
+		+ (u64_t)buf.obj - (u64_t)client_sessions[thd].shemem_info.shm;
 	
 	buf.paddr = data_paddr;
 	buf.pkt_len = pkt_len;

@@ -20,6 +20,7 @@ struct shemem_info {
 };
 
 struct pkt_buf {
+	char   *obj;
 	char   *pkt;
 	u64_t   paddr;
 	int     pkt_len;

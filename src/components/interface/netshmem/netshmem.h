@@ -4,9 +4,8 @@
 #include <cos_component.h>
 #include <shm_bm.h>
 
-#define PKT_BUF_NUM 1024
-#define PKT_BUF_SIZE 2000
-#define PKT_BUF_HEAD_ROOM 500
+#define PKT_BUF_NUM 3000
+#define PKT_BUF_SIZE 2048
 
 struct netshmem {
 	size_t shmsz;
@@ -28,6 +27,9 @@ struct netshmem {
  * HEADROOM is used for lwip to set ether & ip & tcp/udp headers
  */
 #define NETSHMEM_HEADROOM 128
+
+/* This tailroom is the last few bytes in the shmem, used to store user specific data */
+#define NETSHMEM_TAILROOM 128
 
 struct netshmem_pkt_buf {
 	char data[PKT_BUF_SIZE];
@@ -58,5 +60,10 @@ static inline void* netshmem_get_data_buf(struct netshmem_pkt_buf *pkt_buf)
 static inline u16_t netshmem_get_data_offset(void)
 {
 	return NETSHMEM_HEADROOM;
+}
+
+static inline void* netshmem_get_tailroom(struct netshmem_pkt_buf *pkt_buf)
+{
+	return (char *)pkt_buf + (PKT_BUF_SIZE - NETSHMEM_TAILROOM);
 }
 #endif

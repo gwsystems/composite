@@ -109,14 +109,17 @@ process_tx_packets(void)
 {
 	struct pkt_buf buf;
 	char* mbuf;
+	void *ext_shinfo;
 
 	while (!pkt_ring_buf_empty(g_tx_ring))
 	{
 		pkt_ring_buf_dequeue(g_tx_ring, g_tx_ringbuf, &buf);
 
 		mbuf = cos_allocate_mbuf(g_tx_mp);
-		cos_attach_external_mbuf(mbuf, buf.pkt, PKT_BUF_SIZE, ext_buf_free_callback_fn, buf.paddr);
-		cos_send_external_packet(mbuf, buf.pkt_len);
+		ext_shinfo = netshmem_get_tailroom(buf.obj);
+
+		cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
+		cos_send_external_packet(mbuf, (buf.pkt -  buf.obj), buf.pkt_len);
 	}
 }
 

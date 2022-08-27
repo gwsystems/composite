@@ -1,4 +1,6 @@
+
 #include <rte_eal.h>
+#include "adapter/cos_dpdk_adapter.h"
 #include <rte_bus_pci.h>
 #include <rte_ethdev.h>
 #include <rte_mempool.h>
@@ -10,7 +12,6 @@
 
 #include <arpa/inet.h>
 
-#include "adapter/cos_dpdk_adapter.h"
 #include "cos_dpdk.h"
 extern struct rte_pci_bus rte_pci_bus;
 
@@ -295,7 +296,7 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 	// txq_conf.tx_thresh.pthresh = 1;
 	// txq_conf.tx_thresh.hthresh = 1;
 	// txq_conf.tx_thresh.wthresh = 1;
-	// txq_conf.tx_free_thresh = 1020;
+	// txq_conf.tx_free_thresh = 1;
 	// txq_conf.offloads = 0;
 
 	ret = rte_eth_tx_queue_setup(real_port_id, tx_queue_id, nb_tx_desc,
@@ -537,31 +538,39 @@ cos_allocate_mbuf(char* mp) {
 	return (char *)rte_pktmbuf_alloc((struct rte_mempool *)mp);
 }
 
-int
-cos_attach_external_mbuf(char *mbuf, void *buf_vaddr, uint16_t buf_len,
-			void (*ext_buf_free_cb)(void *addr, void *opaque),
-			uint64_t buf_paddr)
+static inline void
+cos_pktmbuf_ext_shinfo_init_helper(void *ext_shinfo_addr, rte_mbuf_extbuf_free_callback_t free_cb, void *fcb_opaque)
 {
-	struct rte_mbuf_ext_shared_info *ret_shinfo = NULL;
-	rte_iova_t buf_iova =buf_paddr ;
+	struct rte_mbuf_ext_shared_info *shinfo = ext_shinfo_addr;
 
-	uint16_t ext_buf_len = buf_len + sizeof(struct rte_mbuf_ext_shared_info);
+	shinfo->free_cb = free_cb;
+	shinfo->fcb_opaque = fcb_opaque;
+	rte_mbuf_ext_refcnt_set(shinfo, 1);
+}
+
+int
+cos_attach_external_mbuf(char *mbuf, void *buf_vaddr,
+			uint64_t buf_paddr, uint16_t buf_len,
+			void (*ext_buf_free_cb)(void *addr, void *opaque),
+			void *ext_shinfo)
+{
+	rte_iova_t buf_iova = buf_paddr ;
 
 	struct rte_mbuf *_mbuf = (struct rte_mbuf *)mbuf;
 
-	ret_shinfo = rte_pktmbuf_ext_shinfo_init_helper(buf_vaddr, &ext_buf_len, ext_buf_free_cb, 0);
-	rte_pktmbuf_attach_extbuf(_mbuf, buf_vaddr, buf_iova, ext_buf_len, ret_shinfo);
-	assert(_mbuf->ol_flags == RTE_MBUF_F_EXTERNAL);
+	cos_pktmbuf_ext_shinfo_init_helper(ext_shinfo, ext_buf_free_cb, 0);
+	rte_pktmbuf_attach_extbuf(_mbuf, buf_vaddr, buf_iova, buf_len, ext_shinfo);
 
 	return 0;
 }
 
 int
-cos_send_external_packet(char*mbuf, uint16_t pkt_len)
+cos_send_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len)
 {
 	struct rte_mbuf *_mbuf = (struct rte_mbuf *)mbuf;
 	_mbuf->data_len = pkt_len;
 	_mbuf->pkt_len = pkt_len;
+	_mbuf->data_off = data_offset;
 
 	return cos_dev_port_tx_burst(0, 0, &mbuf, 1);
 }
@@ -576,4 +585,10 @@ int
 cos_mempool_in_use_count(const char *mp)
 {
 	return rte_mempool_in_use_count(mp);
+}
+
+int
+cos_eth_tx_done_cleanup(uint16_t port_id, uint16_t queue_id, uint32_t free_cnt)
+{
+	return rte_eth_tx_done_cleanup(port_id, queue_id, free_cnt);
 }

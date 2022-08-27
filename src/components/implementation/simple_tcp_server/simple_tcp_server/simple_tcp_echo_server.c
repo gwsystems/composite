@@ -99,7 +99,6 @@ main(void)
 		printc("sever recv(%d):%s\n", objid, data);
 
 		tx_obj = shm_bm_alloc_net_pkt_buf(netshmem_get_shm(), &objid);
-		printc("app tx obj:%p\n", tx_obj);
 		assert(tx_obj);
 		memcpy(netshmem_get_data_buf(tx_obj), data, data_len);
 
