@@ -1,5 +1,5 @@
 [system]
-description = "Simple DPDK component: test if it can drive NIC and sent/receive packets"
+description = "Simple TCP echo server"
 
 [[components]]
 name = "booter"
