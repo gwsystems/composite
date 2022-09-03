@@ -38,7 +38,7 @@ implements = [{interface = "netmgr"}]
 constructor = "booter"
 
 [[components]]
-name = "simple_tcp_server"
-img  = "simple_tcp_server.simple_tcp_server"
+name = "simple_udp_echo_server"
+img  = "simple_udp_echo_server.simple_udp_echo_server"
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "netmgr", interface = "netmgr"}]
 constructor = "booter"
