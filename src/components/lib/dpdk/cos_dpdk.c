@@ -143,7 +143,7 @@ static struct rte_eth_conf default_port_conf = {
 char*
 cos_create_pkt_mbuf_pool(const char *name, size_t nb_mbufs)
 {
-	#define MEMPOOL_CACHE_SIZE 256
+	#define MEMPOOL_CACHE_SIZE 0
 	return (char *)rte_pktmbuf_pool_create(name, nb_mbufs,
 		MEMPOOL_CACHE_SIZE, 0, COS_MBUF_DEFAULT_BUF_SIZE,
 		rte_socket_id());

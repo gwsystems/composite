@@ -21,7 +21,7 @@
  */
 
 #define SHM_BM_BITMAP_BLOCK (sizeof (word_t) * CHAR_BIT)
-#define SHM_BM_ALIGN (1 << 22)
+#define SHM_BM_ALIGN (1 << 24)
 #define SHM_BM_BITS_TO_WORDS(bits) (round_up_to_pow2(bits, SHM_BM_BITMAP_BLOCK) / SHM_BM_BITMAP_BLOCK)
 
 typedef void *        shm_bm_t;

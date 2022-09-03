@@ -17,14 +17,14 @@ i = 0
 while True:
 	data = 'hello from client: %s' % i
 	sock.sendto(data.encode(), udp_server_addr)
-	try:
-		data = sock.recv(100)
-	except:
-		print('data %s not received' %i)
-		i = i + 1
-		# continue
-		exit(0)
-	print(data.decode())
+	# try:
+	# 	data = sock.recv(100)
+	# except:
+	# 	print('data %s not received' %i)
+	# 	i = i + 1
+	# 	# continue
+	# 	exit(0)
+	# print(data.decode())
 	# time.sleep(1)
 	i = i + 1
 

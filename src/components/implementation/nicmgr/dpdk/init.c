@@ -11,7 +11,7 @@
 #define NB_RX_DESC_DEFAULT 1024
 #define NB_TX_DESC_DEFAULT 1024
 
-#define MAX_PKT_BURST 512
+#define MAX_PKT_BURST NB_RX_DESC_DEFAULT
 
 #define NIPQUAD(addr) \
 ((unsigned char *)&addr)[0], \
@@ -80,7 +80,7 @@ char* g_tx_mp = NULL;
 
 static u16_t nic_ports = 0;
 
-static struct client_session *
+static inline struct client_session *
 find_session(uint32_t dst_ip, uint16_t dst_port)
 {
 	int i;
@@ -116,6 +116,7 @@ process_tx_packets(void)
 		pkt_ring_buf_dequeue(g_tx_ring, g_tx_ringbuf, &buf);
 
 		mbuf = cos_allocate_mbuf(g_tx_mp);
+		assert(mbuf);
 		ext_shinfo = netshmem_get_tailroom(buf.obj);
 
 		cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
@@ -123,10 +124,11 @@ process_tx_packets(void)
 	}
 }
 
+int enqueued = 0, missed = 0, bursted = 0, ttt=0;
 static void
 process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 {
-	int i;
+	int i, ret;
 	int len = 0;
 
 	struct eth_hdr      *eth;
@@ -149,7 +151,13 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 				continue;
 			}
 			buf.pkt = rx_pkts[i];
-			pkt_ring_buf_enqueue(session->ring, session->ringbuf, &buf);
+			if (!pkt_ring_buf_enqueue(session->ring, session->ringbuf, &buf)){
+				cos_free_packet(buf.pkt);
+				missed++;
+				continue;
+			} else{
+				enqueued++;
+			}
 			sched_thd_wakeup(session->thd);
 		} else if (htons(eth->ether_type) == 0x0806) {
 			arp_hdr = (char*)eth + sizeof(struct eth_hdr);
@@ -159,7 +167,6 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			}
 			buf.pkt = rx_pkts[i];
 			pkt_ring_buf_enqueue(session->ring, session->ringbuf, &buf);
-			
 			sched_thd_wakeup(session->thd);
 		} else {
 
@@ -174,42 +181,47 @@ cos_free_rx_buf()
 {
 	struct pkt_buf buf;
 	char* mbuf;
+	int ret;
 
 	while (!pkt_ring_buf_empty(g_free_ring))
 	{
-		pkt_ring_buf_dequeue(g_free_ring, g_free_ringbuf, &buf);
+		ret = pkt_ring_buf_dequeue(g_free_ring, g_free_ringbuf, &buf);
+		assert(ret);
 		cos_free_packet(buf.pkt);
 	}
 }
 
+int max_burst = 0;
 static void
 cos_nic_start(){
-	int i;
+	int i, loop = 100000000;
 	uint16_t nb_pkts = 0;
 
 	char* rx_packets[MAX_PKT_BURST];
 
-	while (1)
+	while (--loop)
 	{
-		cos_free_rx_buf();
 		/* infinite loop to process packets */
+		cos_free_rx_buf();
+		process_tx_packets();
 		for (i = 0; i < nic_ports; i++) {
 			/* process rx */
 			nb_pkts = cos_dev_port_rx_burst(i, 0, rx_packets, MAX_PKT_BURST);
+			bursted+=nb_pkts;
+			if(max_burst<nb_pkts) max_burst = nb_pkts;
 
 			if (nb_pkts != 0) process_rx_packets(i, rx_packets, nb_pkts);
-
-			process_tx_packets();
 		}
 	}
+
+	cos_get_port_stats(0);
+	printc("enqueued:%d, missed:%d, bursted:%d, max_burst:%d\n", enqueued, missed, bursted, max_burst);
 }
 
 static void
 cos_nic_init(void)
 {
 	int argc, ret, nb_pkts;
-
-	#define MAX_PKT_BURST 512
 
 	const char *rx_mpool_name = "cos_app_rx_pool";
 	const char *tx_mpool_name = "cos_app_tx_pool";
@@ -221,7 +233,8 @@ cos_nic_init(void)
 	 * set max_mbufs 2 times than nb_rx_desc, so that there is enough room
 	 * to store packets, or this will fail if nb_rx_desc <= max_mbufs.
 	 */
-	const size_t max_mbufs = 2 * nb_rx_desc;
+	const size_t max_rx_mbufs = 8 * nb_rx_desc;
+	const size_t max_tx_mbufs = 2 * nb_tx_desc;
 
 	char *argv[] =	{
 			"COS_DPDK_BOOTER", /* single core, the first argument has to be the program name */
@@ -249,11 +262,11 @@ cos_nic_init(void)
 	assert(nic_ports > 0);
 
 	/* 3. create mbuf pool where packets will be stored, user can create multiple pools */
-	char* mp = cos_create_pkt_mbuf_pool(rx_mpool_name, max_mbufs);
+	char* mp = cos_create_pkt_mbuf_pool(rx_mpool_name, max_rx_mbufs);
 	assert(mp != NULL);
 	g_rx_mp = mp;
 
-	g_tx_mp = cos_create_pkt_mbuf_pool(tx_mpool_name, max_mbufs);
+	g_tx_mp = cos_create_pkt_mbuf_pool(tx_mpool_name, max_tx_mbufs);
 	assert(g_tx_mp);
 
 	/* 4. config each port */

@@ -32,9 +32,7 @@ pkt_ring_buf_enqueue(struct ck_ring *ring, struct pkt_buf *ringbuf, struct pkt_b
 {
 	assert(ring && ringbuf);
 
-	if (ck_ring_enqueue_spsc_pkt_ring_buf(ring, ringbuf, buf) == false) return -1;
-
-	return 0;
+	return CK_RING_ENQUEUE_SPSC(pkt_ring_buf, ring, ringbuf, buf);
 }
 
 int
@@ -42,9 +40,7 @@ pkt_ring_buf_dequeue(struct ck_ring *ring, struct pkt_buf *ringbuf, struct pkt_b
 {
 	assert(ring && ringbuf);
 
-	if (ck_ring_dequeue_spsc_pkt_ring_buf(ring, ringbuf, buf) == true) return 1;
-
-	return 0;
+	return CK_RING_DEQUEUE_SPSC(pkt_ring_buf, ring, ringbuf, buf);
 }
 
 int
@@ -63,17 +59,18 @@ nic_get_a_packet(u16_t *pkt_len)
 	struct pkt_buf         buf;
 	shm_bm_objid_t         objid;
 	struct netshmem_pkt_buf    *obj;
-	int i, len;
+	int len;
 
 	thd = cos_thdid();
 	assert(thd < NIC_MAX_SESSION);
 
 	session = &client_sessions[thd];
+	
 	while (pkt_ring_buf_empty(session->ring)) {
 		sched_thd_block(0);
 	}
 
-	pkt_ring_buf_dequeue(session->ring, session->ringbuf, &buf);
+	while(!pkt_ring_buf_dequeue(session->ring, session->ringbuf, &buf))
 	assert(buf.pkt);
 
 	obj = shm_bm_alloc_net_pkt_buf(session->shemem_info.shm, &objid);
@@ -83,7 +80,8 @@ nic_get_a_packet(u16_t *pkt_len)
 	assert(len < PKT_BUF_SIZE);
 
 	memcpy(obj->data, pkt, len);
-	pkt_ring_buf_enqueue(g_free_ring, g_free_ringbuf, &buf);
+
+	while(!pkt_ring_buf_enqueue(g_free_ring, g_free_ringbuf, &buf));
 
 	*pkt_len = len;
 

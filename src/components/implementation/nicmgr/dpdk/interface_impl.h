@@ -6,7 +6,7 @@
 #include <shm_bm.h>
 #include <ck_ring.h>
 
-#define NIC_MAX_SESSION 1024
+#define NIC_MAX_SESSION 32
 #define NIC_MAX_SHEMEM_REGION 3
 
 #define NIC_SHMEM_RX 0
@@ -47,18 +47,18 @@ extern struct pkt_buf *g_free_ringbuf;
 
 extern struct client_session client_sessions[NIC_MAX_SESSION];
 
-#define RX_PKT_RBUF_NUM 64
+#define RX_PKT_RBUF_NUM 8192
 #define RX_PKT_RBUF_SZ (RX_PKT_RBUF_NUM * sizeof(struct pkt_buf))
 #define RX_PKT_RING_SZ   (sizeof(struct ck_ring) + RX_PKT_RBUF_SZ)
 #define RX_PKT_RING_PAGES (round_up_to_page(RX_PKT_RING_SZ)/PAGE_SIZE)
 
-#define TX_PKT_RBUF_NUM 64
-#define TX_PKT_RBUF_SZ (64 * sizeof(struct pkt_buf))
+#define TX_PKT_RBUF_NUM 8192
+#define TX_PKT_RBUF_SZ (TX_PKT_RBUF_NUM * sizeof(struct pkt_buf))
 #define TX_PKT_RING_SZ   (sizeof(struct ck_ring) + TX_PKT_RBUF_SZ)
 #define TX_PKT_RING_PAGES (round_up_to_page(TX_PKT_RING_SZ)/PAGE_SIZE)
 
-#define FREE_PKT_RBUF_NUM 64
-#define FREE_PKT_RBUF_SZ (64 * sizeof(struct pkt_buf))
+#define FREE_PKT_RBUF_NUM 8192
+#define FREE_PKT_RBUF_SZ (FREE_PKT_RBUF_NUM * sizeof(struct pkt_buf))
 #define FREE_PKT_RING_SZ   (sizeof(struct ck_ring) + FREE_PKT_RBUF_SZ)
 #define FREE_PKT_RING_PAGES (round_up_to_page(FREE_PKT_RING_SZ)/PAGE_SIZE)
 

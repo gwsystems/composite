@@ -16,3 +16,4 @@ LIBRARY_DEPENDENCIES = component dpdk shm_bm ck
 # minimality; that's on you!
 
 include Makefile.subsubdir
+CFLAGS+=-mno-sse -mno-sse2

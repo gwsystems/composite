@@ -96,7 +96,6 @@ main(void)
 		/* application would like to own the shmem because it does not want ohters to free it. */
 		rx_obj = shm_bm_transfer_net_pkt_buf(netshmem_get_shm(), objid);
 		data = rx_obj->data + data_offset;
-		printc("sever recv(%d):%s\n", objid, data);
 
 		tx_obj = shm_bm_alloc_net_pkt_buf(netshmem_get_shm(), &objid);
 		assert(tx_obj);
@@ -105,7 +104,6 @@ main(void)
 		/* application free unused rx buf */
 		shm_bm_free_net_pkt_buf(rx_obj);
 
-		printc("write shmem:%d\n", objid);
 		netmgr_udp_shmem_write(objid, netshmem_get_data_offset(), data_len);
 		shm_bm_free_net_pkt_buf(tx_obj);
 	}

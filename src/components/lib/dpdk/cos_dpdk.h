@@ -8,8 +8,23 @@
 
 #define COS_ETH_NAME_SZ 16
 
-#define	COS_MBUF_DEFAULT_DATAROOM	2048
+#define	COS_MBUF_DEFAULT_DATAROOM	1500
 #define COS_PKTMBUF_HEADROOM 128
+
+/* 
+ * Be careful to set the mbuf size, we intentionally make the size less than 2k, 
+ * so that one page(4k) can contain 2 mbufs, this enables DPDK to create more mbufs and 
+ * save memory.
+ * 
+ * eg: currently we give 128M memory to DPDK. This can create around (128 * 1024 / 4k) * 2 = 65536
+ * mbufs totally. The actually created mbufs in our tests is slightly less than this number, around 
+ * 65000 mbufs. This is due to not all 128M memory is used as mempool memory. If you set the mbuf size
+ * larger, you may end up with DPDK storing one mbuf per page(4k). This will drastically reduce the
+ * number of mbufs DPDK can create.
+ * 
+ * In fact, if you don't want to support jumbo frame, this setting is enough since normal packet size
+ * is less than 1500.
+ */
 #define	COS_MBUF_DEFAULT_BUF_SIZE	\
 	(COS_MBUF_DEFAULT_DATAROOM + COS_PKTMBUF_HEADROOM)
 

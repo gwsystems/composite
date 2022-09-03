@@ -223,11 +223,13 @@ cos_clock_gettime(clockid_t clock_id, struct timespec *ts)
 }
 
 /* TODO: init tls when creating components */
-char tls_space[8192] = {0};
+#define PER_THD_TLS_MEM_SZ 8192
+char tls_space[PER_THD_TLS_MEM_SZ] = {0};
 void tls_init()
 {
-	vaddr_t* tls_addr	= (vaddr_t *)&tls_space;
-	*tls_addr 		= (vaddr_t)&tls_space;
+	/* NOTE: GCC uses tls space similar to a stack, memory is accessed from high address to low address */
+	vaddr_t* tls_addr	= (vaddr_t *)((char *)&tls_space + PER_THD_TLS_MEM_SZ - sizeof(vaddr_t));
+	*tls_addr		= (vaddr_t)&tls_addr;
 
 	sched_set_tls((void*)tls_addr);
 }
