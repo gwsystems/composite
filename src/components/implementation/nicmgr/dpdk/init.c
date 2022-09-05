@@ -199,7 +199,7 @@ cos_nic_start(){
 
 	char* rx_packets[MAX_PKT_BURST];
 
-	while (--loop)
+	while (1)
 	{
 		/* infinite loop to process packets */
 		cos_free_rx_buf();

@@ -3,6 +3,9 @@
 #include <arpa/inet.h>
 #include <netmgr.h>
 #include <netshmem.h>
+#include <mc.h>
+
+static int fd;
 
 void
 cos_init(void)
@@ -14,8 +17,12 @@ cos_init(void)
 	netshmem_create();
 
 	netmgr_shmem_map(netshmem_get_shm_id());
+	mc_map_shmem(netshmem_get_shm_id());
 
-	printc("app init shm done\n");
+	fd = mc_conn_init(UDP_PROTO);
+	assert(fd);
+
+	printc("mc server init done, got a fd: %d\n", fd);
 }
 
 int
@@ -39,16 +46,11 @@ main(void)
 		objid  = netmgr_udp_shmem_read(&data_offset, &data_len);
 		/* application would like to own the shmem because it does not want ohters to free it. */
 		rx_obj = shm_bm_transfer_net_pkt_buf(netshmem_get_shm(), objid);
-		data = rx_obj->data + data_offset;
 
-		tx_obj = shm_bm_alloc_net_pkt_buf(netshmem_get_shm(), &objid);
-		assert(tx_obj);
-		memcpy(netshmem_get_data_buf(tx_obj), data, data_len);
-
-		/* application free unused rx buf */
-		shm_bm_free_net_pkt_buf(rx_obj);
+		data_len = mc_process_command(fd, objid, data_offset, data_len);
 
 		netmgr_udp_shmem_write(objid, netshmem_get_data_offset(), data_len);
-		shm_bm_free_net_pkt_buf(tx_obj);
+
+		shm_bm_free_net_pkt_buf(rx_obj);
 	}
 }

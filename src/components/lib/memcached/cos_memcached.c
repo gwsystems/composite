@@ -1,11 +1,10 @@
 #include <string.h>
 #include <cos_component.h>
-#include <netshmem.h>
 #include "cos_adapter/cos_mc_adapter.h"
 #include "cos_memcached.h"
 #include "cos_memcached_exp.h"
 
-char *client_query = "\0\0\0\0\0\1\0\0set GWU_SYS 0 0 5\r\nGREAT\r\n";
+static char *client_query = "\0\0\0\0\0\1\0\0set GWU_SYS 0 0 5\r\nGREAT\r\n";
 
 int
 cos_new_fd(enum network_transport transport)
@@ -14,7 +13,6 @@ cos_new_fd(enum network_transport transport)
 		/* TODO: allocate fd, take care of multiple thread case */
 		return 1;
 	} else {
-		/* TODO: find the thread's conn fd is enough for UDP */
 		return cos_thdid();;
 	}
 
@@ -30,28 +28,33 @@ cos_free_fd(int fd)
 ssize_t
 cos_tcp_read(conn *c, void *buf, size_t count)
 {
-	/* TODO: copy shmem data to Memcached's buf */
 	assert (c != NULL);
-	memcpy(buf, client_query, strlen(client_query));
-	return strlen(client_query);
+
+	memcpy(buf, c->cos_r_buf, c->cos_r_sz);
+
+	return c->cos_r_sz;
 }
 
+/* Both TCP and UDP conn will write data back to c->cos_w_buf */
 ssize_t
 cos_sendmsg(conn *c, struct msghdr *msg, int flags)
 {
 	/* TODO: copy shm data from Memcached to shmem */
 	assert (c != NULL);
 	ssize_t sent_len = 0;
-	shm_bm_t shm = netshmem_get_shm();
-	struct netshmem_pkt_buf *pkt_buf = shm_bm_take_net_pkt_buf(shm, c->shm_objid);
-	char w_buf = netshmem_get_data_buf(pkt_buf);
 
-	cos_printf("iov len:%d\n",msg->msg_iovlen);
 	for (ssize_t i = 0; i < msg->msg_iovlen; i++) {
+		memcpy(c->cos_w_buf + sent_len, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len);
 		sent_len += msg->msg_iov[i].iov_len;
-		memcpy(w_buf + sent_len, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len);
-		cos_printf("sent msg (sz: %d): %s\n",msg->msg_iov[i].iov_len, msg->msg_iov[i].iov_base);
+
+		/* This can be used to debug return message */
+		// cos_printf("sent msg (sz: %d): %s\n",msg->msg_iov[i].iov_len, msg->msg_iov[i].iov_base);
 	}
+
+	/* sent data size cannot exceed buffer size */
+	assert(sent_len < c->cos_w_sz);
+	c->cos_w_sz = sent_len;
+
 	return sent_len;
 }
 
@@ -68,12 +71,9 @@ ssize_t
 cos_recvfrom(conn *c)
 {
 	assert (c != NULL);
-	// ssize_t len = strlen(client_query + 8) + 8;
-	shm_bm_t shm = netshmem_get_shm();
-	char *data_buf = (char*)shm_bm_take_net_pkt_buf(shm, c->shm_objid);
 
-	memcpy(c->rbuf, data_buf, c->shm_data_sz);
-	return c->shm_data_sz;
+	memcpy(c->rbuf, c->cos_r_buf, c->cos_r_sz);
+	return c->cos_r_sz;
 }
 
 LIBEVENT_THREAD*
@@ -94,7 +94,7 @@ cos_mc_init(int argc, char **argv)
 
 /* each thread needs to create a new connection once */
 int
-cos_mc_new_conn(void)
+cos_mc_new_conn(int proto)
 {
 	int fd;
 	conn *c;
@@ -113,6 +113,9 @@ cos_mc_new_conn(void)
 
 	// c = cos_mc_get_conn(COS_MC_LISTEN_FD);
 	transport = settings.udpport == 0 ? tcp_transport:udp_transport;
+
+	/* make sure client use the same proto as memcached */
+	assert(proto == transport);
 
 	fd = cos_new_fd(transport);
 
@@ -151,18 +154,20 @@ cos_mc_new_conn(void)
 	return fd;
 }
 
-void
-cos_mc_process_command(int fd, shm_bm_objid_t objid, u16_t data_offset, u16_t data_len)
+u16_t
+cos_mc_process_command(int fd, char *r_buf, u16_t r_buf_len, char *w_buf, u16_t w_buf_len)
 {
 	conn *c;
 	c = cos_mc_get_conn(fd);
 
-	c->shm_objid = objid;
-	c->shm_data_offset = data_offset;
-	c->shm_data_sz = data_len;
-
+	c->cos_r_buf	= r_buf;
+	c->cos_r_sz	= r_buf_len;
+	c->cos_w_buf	= w_buf;
+	c->cos_w_sz	= w_buf_len;
 
 	cos_mc_event_handler(fd, c);
+
+	return c->cos_w_sz;
 }
 
 void
@@ -172,7 +177,7 @@ mc_test(void)
 	int fd;
 
 	/* Initialize a new connection and get a fd back */
-	fd = cos_mc_new_conn();
+	fd = cos_mc_new_conn(udp_transport);
 
 	/* Assuming some data comes, trigger the event_hander to deal with it */
 	cos_mc_event_handler(fd, cos_mc_get_conn(fd));

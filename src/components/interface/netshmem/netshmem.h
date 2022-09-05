@@ -62,6 +62,11 @@ static inline u16_t netshmem_get_data_offset(void)
 	return NETSHMEM_HEADROOM;
 }
 
+static inline u16_t netshmem_get_max_data_buf_sz(void)
+{
+	return (PKT_BUF_SIZE - NETSHMEM_HEADROOM);
+}
+
 static inline void* netshmem_get_tailroom(struct netshmem_pkt_buf *pkt_buf)
 {
 	return (char *)pkt_buf + (PKT_BUF_SIZE - NETSHMEM_TAILROOM);

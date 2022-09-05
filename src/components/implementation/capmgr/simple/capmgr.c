@@ -46,7 +46,7 @@ struct cm_asnd {
  * Shared memory should be manager -> client, and between
  * point-to-point channel recipients
  */
-#define MM_MAPPINGS_MAX 3
+#define MM_MAPPINGS_MAX 5
 
 struct mm_mapping {
 	SS_STATE_T(struct cm_comp *) comp;

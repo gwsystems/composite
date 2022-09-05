@@ -25,7 +25,7 @@ while True:
 	# 	# continue
 	# 	exit(0)
 	# print(data.decode())
-	# time.sleep(1)
+	time.sleep(1)
 	i = i + 1
 
 print('udp sent done')
