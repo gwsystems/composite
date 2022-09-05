@@ -25,7 +25,7 @@ int netmgr_tcp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_l
 
 int netmgr_udp_bind(u32_t ip_addr, u16_t port);
 
-shm_bm_objid_t netmgr_udp_shmem_read(u16_t *data_offset, u16_t *data_len);
-int netmgr_udp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len);
+shm_bm_objid_t netmgr_udp_shmem_read(u16_t *data_offset, u16_t *data_len, u32_t *remote_addr, u16_t *remote_port);
+int netmgr_udp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len, u32_t remote_ip, u16_t remote_port);
 
 #endif /* NETMGR_H */

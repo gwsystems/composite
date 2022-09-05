@@ -30,13 +30,15 @@ main(void)
 	struct netshmem_pkt_buf *tx_obj;
 	char *data;
 	u16_t data_offset, data_len;
+	u16_t remote_port;
+	u32_t remote_addr;
 
 	ret = netmgr_udp_bind(ip, port);
 	assert(ret == NETMGR_OK);
 
 	while (1)
 	{
-		objid  = netmgr_udp_shmem_read(&data_offset, &data_len);
+		objid  = netmgr_udp_shmem_read(&data_offset, &data_len, &remote_addr, &remote_port);
 		/* application would like to own the shmem because it does not want ohters to free it. */
 		rx_obj = shm_bm_transfer_net_pkt_buf(netshmem_get_shm(), objid);
 		data = rx_obj->data + data_offset;
@@ -48,7 +50,7 @@ main(void)
 		/* application free unused rx buf */
 		shm_bm_free_net_pkt_buf(rx_obj);
 
-		netmgr_udp_shmem_write(objid, netshmem_get_data_offset(), data_len);
+		netmgr_udp_shmem_write(objid, netshmem_get_data_offset(), data_len, remote_addr, remote_port);
 		shm_bm_free_net_pkt_buf(tx_obj);
 	}
 }

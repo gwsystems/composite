@@ -17,9 +17,15 @@
 
 #include <netmgr.h>
 
-int back_to_app = 0;
-shm_bm_objid_t           g_objid;
-u16_t g_data_offset, g_data_len;
+static int back_to_app = 0;
+
+static shm_bm_objid_t           g_objid;
+
+static u16_t g_data_offset, g_data_len;
+
+static ip_addr_t g_remote_addr;
+static u16_t g_remote_port;
+
 struct pbuf *g_pbuf = NULL;
 
 #define TCP_MAX_SERVER (16)
@@ -245,6 +251,8 @@ cos_lwip_udp_recv(void *arg, struct udp_pcb *up, struct pbuf *p, const ip_addr_t
 	if(p != NULL) {
 		back_to_app = 1;
 		g_pbuf = p;
+		g_remote_addr = *addr;
+		g_remote_port = port;
 	}
 
 	return ERR_OK;
@@ -279,7 +287,7 @@ netmgr_udp_bind(u32_t ip_addr, u16_t port)
 }
 
 shm_bm_objid_t
-netmgr_udp_shmem_read(u16_t *data_offset, u16_t *data_len)
+netmgr_udp_shmem_read(u16_t *data_offset, u16_t *data_len, u32_t *remote_addr, u16_t *remote_port)
 {
 	shm_bm_objid_t           objid;
 	struct netshmem_pkt_buf *obj;
@@ -303,17 +311,18 @@ netmgr_udp_shmem_read(u16_t *data_offset, u16_t *data_len)
 
 	*data_offset = (char*)g_pbuf->payload - obj->data;
 	*data_len = g_pbuf->len;
+	*remote_addr = g_remote_addr.addr;
+	*remote_port = g_remote_port;
 
 	back_to_app = 0;
 	return g_objid;
 }
 
 int
-netmgr_udp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len)
+netmgr_udp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len, u32_t remote_ip, u16_t remote_port)
 {
 	struct netshmem_pkt_buf *obj;
 	struct pbuf *p;
-	ip_addr_t dst_ip;
 	
 	thdid_t thd = cos_thdid();
 	char *data;
@@ -326,9 +335,7 @@ netmgr_udp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len)
 
 	p->payload = data;
 
-	IP4_ADDR(&dst_ip, 10,10,1,1);
-
-	udp_sendto_if(lwip_pcbs[thd].up, p , &dst_ip, 10000, &net_interface);
+	udp_sendto_if(lwip_pcbs[thd].up, p , &remote_ip, remote_port, &net_interface);
 	pbuf_free(p);
 
 	return 0;
