@@ -6,7 +6,7 @@
 #include <sched.h>
 #include <arpa/inet.h>
 #include <cos_headers.h>
-#include "interface_impl.h"
+#include "nicmgr.h"
 
 #define NB_RX_DESC_DEFAULT 1024
 #define NB_TX_DESC_DEFAULT 1024

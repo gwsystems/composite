@@ -1,5 +1,5 @@
-#ifndef INTERFACE_IMPL_H
-#define INTERFACE_IMPL_H
+#ifndef NICMGR_H
+#define NICMGR_H
 
 #include <cos_types.h>
 #include <cos_component.h>
@@ -69,4 +69,4 @@ int pkt_ring_buf_enqueue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf)
 int pkt_ring_buf_dequeue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf);
 int pkt_ring_buf_empty(struct pkt_ring_buf *pkt_ring_buf);
 
-#endif /* INTERFACE_IMPL_H */
+#endif /* NICMGR_H */

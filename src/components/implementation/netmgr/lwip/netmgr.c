@@ -27,7 +27,7 @@ static u16_t g_data_offset, g_data_len;
 static ip_addr_t g_remote_addr;
 static u16_t g_remote_port;
 
-struct pbuf *g_pbuf = NULL;
+static struct pbuf *g_pbuf = NULL;
 
 #define LWIP_MAX_CONNS (16)
 

@@ -7,7 +7,7 @@
 #include <nic.h>
 #include <cos_dpdk.h>
 #include <ck_ring.h>
-#include "interface_impl.h"
+#include "nicmgr.h"
 
 typedef unsigned long cos_paddr_t; /* physical address */
 typedef unsigned long cos_vaddr_t; /* virtual address */
