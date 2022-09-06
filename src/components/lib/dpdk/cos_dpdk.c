@@ -110,7 +110,7 @@ cos_eth_ports_init(void)
 
 	COS_DPDK_APP_LOG(NOTICE, "cos_eth_ports_init success, find %d ports\n", nb_ports);
 
-	for(i = 0; i < nb_ports; i++) {
+	for (i = 0; i < nb_ports; i++) {
 		cos_eth_info_print(ports_ids[i]);
 	}
 
@@ -376,7 +376,7 @@ cos_dev_port_set_promiscuous_mode(cos_portid_t port_id, bool mode)
 {
 	int ret;
 	cos_portid_t real_port_id = ports_ids[port_id];
-	if(mode == COS_DPDK_SWITCH_ON) {
+	if (mode == COS_DPDK_SWITCH_ON) {
 		ret = rte_eth_promiscuous_enable(real_port_id);
 		if (ret != 0) {
 			rte_exit(EXIT_FAILURE,

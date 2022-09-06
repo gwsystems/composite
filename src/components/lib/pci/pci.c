@@ -59,7 +59,7 @@ pci_scan(struct pci_dev *devices, int sz)
 				}
 				
 				dev_num++;
-				if(dev_num >= sz || dev_num >= PCI_DEVICE_MAX) {
+				if (dev_num >= sz || dev_num >= PCI_DEVICE_MAX) {
 					return 0;
 				}
 			}

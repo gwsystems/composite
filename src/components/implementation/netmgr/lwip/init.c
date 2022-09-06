@@ -27,29 +27,35 @@ struct ether_hdr {
 	uint16_t ether_type;
 } __attribute__((__packed__));
 
-
-
-shm_bm_t shm;
-shm_bm_objid_t  objid;
-
 static err_t
 cos_interface_output(struct netif *ni, struct pbuf *p)
 {
-	char * data = p->payload;
-	shm_bm_objid_t  objid;
-	struct netshmem_pkt_buf *obj;
+	char *data = p->payload;	
+	struct netshmem_pkt_buf *obj = NULL;
+
+	shm_bm_objid_t objid;
+
 	u16_t pkt_offset, pkt_len;
 
+	/* 
+	 * We assume that lwip always produces either a contiguous packet, 
+	 * or a packet of headers followed by a single packet with payload.
+	 */
+	assert(p->next == NULL || p->next->next == NULL);
 	if (p->type_internal & PBUF_RAM) {
-		if(p->next != NULL && p->next->type_internal & PBUF_ROM) {
+		if (p->next != NULL && p->next->type_internal & PBUF_ROM) {
 			/* shemem case, pbuf is chained with a header pbuf and a data pbuf that points to shemem */
-			obj = (struct netshmem_pkt_buf*)(p->next->payload - netshmem_get_data_offset());
+			obj   = (struct netshmem_pkt_buf*)(p->next->payload - netshmem_get_data_offset());
 			objid = shm_bm_get_objid_net_pkt_buf(obj);
-			data = netshmem_get_data_buf(obj) ;
+			data  = netshmem_get_data_buf(obj) ;
+
 			memcpy(data - p->len, p->payload, p->len);
+
 			pkt_offset = netshmem_get_data_offset() - p->len;
-			pkt_len = p->len;
+
+			pkt_len  = p->len;
 			pkt_len += p->next->len;
+
 			nic_send_packet(objid, pkt_offset, pkt_len);
 		} else {
 			/* other cases that don't use shmem */
@@ -91,8 +97,6 @@ cos_interface_init(struct netif *ni)
 	return ERR_OK;
 }
 
-
-
 void
 cos_init(void)
 {
@@ -100,15 +104,12 @@ cos_init(void)
 	cbuf_t id;
 	size_t shmsz;
 
-
 	printc("netmgr init...\n");
 
 	IP4_ADDR(&ip, 10,10,1,2);
 	IP4_ADDR(&mask, 255,255,255,0);
 	IP4_ADDR(&gw, 10,10,1,10);
 	IP4_ADDR(&client, 10,10,1,2);
-
-
 
 	lwip_init();
 	netif_add(&net_interface, &ip, &mask, &gw, NULL, cos_interface_init, ethernet_input);
@@ -126,18 +127,4 @@ cos_init(void)
 	// ethaddr.addr[4] = 0x11;
 	// ethaddr.addr[5] = 0x11;
 	// etharp_add_static_entry(&client, &ethaddr);
-}
-
-
-int
-main(void)
-{
-	printc("netmgr main started\n");
-
-	while (1)
-	{
-
-	}
-
-	return 0;
 }

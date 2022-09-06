@@ -17,9 +17,10 @@
 
 #include <netmgr.h>
 
+/* This is used to indicate whether the packet is a data packet to application or a state packet to lwip */
 static int back_to_app = 0;
 
-static shm_bm_objid_t           g_objid;
+static shm_bm_objid_t g_objid;
 
 static u16_t g_data_offset, g_data_len;
 
@@ -28,7 +29,7 @@ static u16_t g_remote_port;
 
 struct pbuf *g_pbuf = NULL;
 
-#define TCP_MAX_SERVER (16)
+#define LWIP_MAX_CONNS (16)
 
 extern struct netif net_interface;
 
@@ -38,7 +39,7 @@ struct lwip_pcb
 	struct udp_pcb *up;
 };
 
-struct lwip_pcb lwip_pcbs[TCP_MAX_SERVER];
+static struct lwip_pcb lwip_connections[LWIP_MAX_CONNS];
 
 static err_t
 cos_lwip_tcp_sent(void *arg, struct tcp_pcb *tp, u16_t len)
@@ -51,12 +52,10 @@ cos_lwip_tcp_sent(void *arg, struct tcp_pcb *tp, u16_t len)
 static err_t
 cos_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p, err_t err)
 {
-	err_t ret_err;
-
-	if(p != NULL) {
+	if (p != NULL) {
 		back_to_app = 1;
 		g_pbuf = p;
-		// tcp_recved(tp, p->tot_len);
+		tcp_recved(tp, p->tot_len);
 	}
 
 	return ERR_OK;
@@ -66,7 +65,6 @@ cos_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p, err_t err)
 static void
 cos_lwip_tcp_err(void *arg,  err_t err)
 {
-	printc("lwip tcp err\n");
 	assert(0);
 	return;
 }
@@ -82,7 +80,7 @@ cos_lwip_tcp_accept(void *arg, struct tcp_pcb *tp, err_t err)
 	tcp_recv(tp, cos_lwip_tcp_recv);
 	tcp_sent(tp, cos_lwip_tcp_sent);
 
-	lwip_pcbs[thd].tp = tp;
+	lwip_connections[thd].tp = tp;
 
 	tcp_nagle_disable(tp);
 
@@ -99,14 +97,15 @@ void netmgr_shmem_map(cbuf_t shm_id)
 int
 netmgr_tcp_bind(u32_t ip_addr, u16_t port)
 {
-
 	unsigned long npages;
-	void         *mem;
-	shm_bm_t shm;
+	shm_bm_t      shm;
+
+	void                    *mem;
 	struct netshmem_pkt_buf *obj;
 
 	struct tcp_pcb *tp;
 	struct ip4_addr ipa = *(struct ip4_addr*)&ip_addr;
+
 	err_t ret;
 
 	thdid_t thd = cos_thdid();
@@ -116,7 +115,7 @@ netmgr_tcp_bind(u32_t ip_addr, u16_t port)
 	tp = tcp_new();
 	assert(tp != NULL);
 
-	lwip_pcbs[thd].tp = tp;
+	lwip_connections[thd].tp = tp;
 
 	ret = tcp_bind(tp, &ipa, port);
 
@@ -129,9 +128,10 @@ netmgr_tcp_listen(u8_t backlog)
 	struct tcp_pcb *new_tp = NULL;
 	thdid_t thd = cos_thdid();
 
-	new_tp = tcp_listen_with_backlog(lwip_pcbs[thd].tp, backlog);
+	new_tp = tcp_listen_with_backlog(lwip_connections[thd].tp, backlog);
 	assert(new_tp);
-	lwip_pcbs[thd].tp = new_tp;
+
+	lwip_connections[thd].tp = new_tp;
 
 	return ERR_OK;
 }
@@ -139,13 +139,12 @@ netmgr_tcp_listen(u8_t backlog)
 static void
 net_interface_input(void * pkt, int len)
 {
-	void *pl;
+	void        *pl;
 	struct pbuf *p;
 	
 	pl = pkt;
 
 	p = pbuf_alloc(PBUF_LINK, len, PBUF_ROM);
-
 	assert(p);
 
 	p->payload = pl;
@@ -175,19 +174,16 @@ netmgr_tcp_accept(struct conn_addr *client_addr)
 	size_t shmsz;
 	cbuf_t rx_shm_id;
 	void  *mem;
-	u16_t pkt_len;
+	u16_t  pkt_len;
 
 	thdid_t thd = cos_thdid();
 
 	netif_set_link_up(&net_interface);
-	tcp_accept(lwip_pcbs[thd].tp, cos_lwip_tcp_accept);
+	tcp_accept(lwip_connections[thd].tp, cos_lwip_tcp_accept);
 
-	// should block here
-	while (!back_to_app)
-	{
+	while (!back_to_app) {
 		objid = nic_get_a_packet(&pkt_len);
-		obj = shm_bm_take_net_pkt_buf(netshmem_get_shm(), objid);
-
+		obj   = shm_bm_take_net_pkt_buf(netshmem_get_shm(), objid);
 		net_receive_packet(obj->data, pkt_len);
 	}
 	g_objid = objid;
@@ -204,8 +200,7 @@ netmgr_tcp_shmem_read(u16_t *data_offset, u16_t *data_len)
 
 	obj = shm_bm_take_net_pkt_buf(netshmem_get_shm(), g_objid);
 
-	while (!back_to_app)
-	{
+	while (!back_to_app) {
 		objid = nic_get_a_packet(&pkt_len);
 		obj = shm_bm_take_net_pkt_buf(netshmem_get_shm(), objid);
 		assert(obj);
@@ -233,11 +228,11 @@ netmgr_tcp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len)
 	obj = shm_bm_take_net_pkt_buf(netshmem_get_shm(), objid);
 	data = obj->data + data_offset;
 
-	err_t wr_err = tcp_write(lwip_pcbs[thd].tp, data, data_len, 0);
+	err_t wr_err = tcp_write(lwip_connections[thd].tp, data, data_len, 0);
 	assert(wr_err == ERR_OK);
 
 	/* tcp_output() might be needed in the future */
-	// wr_err = tcp_output(lwip_pcbs[thd].tp);
+	// wr_err = tcp_output(lwip_connections[thd].tp);
 	// assert(wr_err == ERR_OK);
 
 	return 0;
@@ -246,9 +241,7 @@ netmgr_tcp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len)
 static void
 cos_lwip_udp_recv(void *arg, struct udp_pcb *up, struct pbuf *p, const ip_addr_t *addr, u16_t port)
 {
-	err_t ret_err;
-
-	if(p != NULL) {
+	if (p != NULL) {
 		back_to_app = 1;
 		g_pbuf = p;
 		g_remote_addr = *addr;
@@ -259,10 +252,10 @@ cos_lwip_udp_recv(void *arg, struct udp_pcb *up, struct pbuf *p, const ip_addr_t
 int
 netmgr_udp_bind(u32_t ip_addr, u16_t port)
 {
-
 	unsigned long npages;
 	void         *mem;
-	shm_bm_t shm;
+	shm_bm_t      shm;
+
 	struct netshmem_pkt_buf *obj;
 
 	struct ip4_addr ipa = *(struct ip4_addr*)&ip_addr;
@@ -272,13 +265,13 @@ netmgr_udp_bind(u32_t ip_addr, u16_t port)
 
 	nic_bind_port(ip_addr, htons(port));
 
-	lwip_pcbs[thd].up = udp_new();
-	assert(lwip_pcbs[thd].up != NULL);
+	lwip_connections[thd].up = udp_new();
+	assert(lwip_connections[thd].up != NULL);
 
-	ret = udp_bind(lwip_pcbs[thd].up, &ipa, port);
+	ret = udp_bind(lwip_connections[thd].up, &ipa, port);
 	assert(ret == ERR_OK);
 
-	udp_recv(lwip_pcbs[thd].up, cos_lwip_udp_recv, 0);
+	udp_recv(lwip_connections[thd].up, cos_lwip_udp_recv, 0);
 
 	return ret;
 }
@@ -290,8 +283,7 @@ netmgr_udp_shmem_read(u16_t *data_offset, u16_t *data_len, u32_t *remote_addr, u
 	struct netshmem_pkt_buf *obj;
 	u16_t pkt_len;
 
-	while (1)
-	{
+	while (1) {
 		objid = nic_get_a_packet(&pkt_len);
 		obj = shm_bm_borrow_net_pkt_buf(netshmem_get_shm(), objid);
 		assert(obj);
@@ -307,7 +299,7 @@ netmgr_udp_shmem_read(u16_t *data_offset, u16_t *data_len, u32_t *remote_addr, u
 	}
 
 	*data_offset = (char*)g_pbuf->payload - obj->data;
-	*data_len = g_pbuf->len;
+	*data_len    = g_pbuf->len;
 	*remote_addr = g_remote_addr.addr;
 	*remote_port = g_remote_port;
 
@@ -319,22 +311,23 @@ int
 netmgr_udp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len, u32_t remote_ip, u16_t remote_port)
 {
 	struct netshmem_pkt_buf *obj;
-	struct pbuf *p;
+	struct pbuf             *p;
+
 	ip_addr_t dst_ip;
 	
 	thdid_t thd = cos_thdid();
 	char *data;
 
-	obj = shm_bm_borrow_net_pkt_buf(netshmem_get_shm(), objid);
+	obj  = shm_bm_borrow_net_pkt_buf(netshmem_get_shm(), objid);
 	data = obj->data + data_offset;
 
 	p = pbuf_alloc(PBUF_LINK, data_len, PBUF_ROM);
 	assert(p);
 
-	p->payload = data;
+	p->payload  = data;
 	dst_ip.addr = remote_ip;
 
-	udp_sendto_if(lwip_pcbs[thd].up, p , &dst_ip, remote_port, &net_interface);
+	udp_sendto_if(lwip_connections[thd].up, p , &dst_ip, remote_port, &net_interface);
 	pbuf_free(p);
 
 	return 0;

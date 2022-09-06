@@ -21,44 +21,55 @@ struct client_session client_sessions[NIC_MAX_SESSION];
 
 CK_RING_PROTOTYPE(pkt_ring_buf, pkt_buf);
 
-struct ck_ring *g_tx_ring = NULL;
-struct pkt_buf *g_tx_ringbuf = NULL;
+struct pkt_ring_buf g_tx_ring;
+struct pkt_ring_buf g_free_ring;
 
-struct ck_ring *g_free_ring = NULL;
-struct pkt_buf *g_free_ringbuf = NULL;
-
-int
-pkt_ring_buf_enqueue(struct ck_ring *ring, struct pkt_buf *ringbuf, struct pkt_buf *buf)
+void
+pkt_ring_buf_init(struct pkt_ring_buf *pkt_ring_buf, size_t ringbuf_num, size_t ringbuf_sz)
 {
-	assert(ring && ringbuf);
+	struct ck_ring *buf_addr;
 
-	return CK_RING_ENQUEUE_SPSC(pkt_ring_buf, ring, ringbuf, buf);
+	buf_addr = (struct ck_ring *)malloc(ringbuf_sz);
+	assert(buf_addr);
+
+	ck_ring_init(buf_addr, ringbuf_num);
+
+	pkt_ring_buf->ring    = buf_addr;
+	pkt_ring_buf->ringbuf = (struct pkt_buf *)((char *)buf_addr + sizeof(struct ck_ring));
 }
 
-int
-pkt_ring_buf_dequeue(struct ck_ring *ring, struct pkt_buf *ringbuf, struct pkt_buf *buf)
+inline int
+pkt_ring_buf_enqueue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf)
 {
-	assert(ring && ringbuf);
+	assert(pkt_ring_buf->ring && pkt_ring_buf->ringbuf);
 
-	return CK_RING_DEQUEUE_SPSC(pkt_ring_buf, ring, ringbuf, buf);
+	return CK_RING_ENQUEUE_SPSC(pkt_ring_buf, pkt_ring_buf->ring, pkt_ring_buf->ringbuf, buf);
 }
 
-int
-pkt_ring_buf_empty(struct ck_ring *ring)
+inline int
+pkt_ring_buf_dequeue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf)
 {
-	assert(ring);
+	assert(pkt_ring_buf->ring && pkt_ring_buf->ringbuf);
 
-	return (!ck_ring_size(ring));
+	return CK_RING_DEQUEUE_SPSC(pkt_ring_buf, pkt_ring_buf->ring, pkt_ring_buf->ringbuf, buf);
+}
+
+inline int
+pkt_ring_buf_empty(struct pkt_ring_buf *pkt_ring_buf)
+{
+	assert(pkt_ring_buf->ring);
+
+	return (!ck_ring_size(pkt_ring_buf->ring));
 }
 
 shm_bm_objid_t
 nic_get_a_packet(u16_t *pkt_len)
 {
-	thdid_t                thd;
-	struct client_session *session;
-	struct pkt_buf         buf;
-	shm_bm_objid_t         objid;
-	struct netshmem_pkt_buf    *obj;
+	thdid_t                    thd;	
+	struct pkt_buf             buf;
+	shm_bm_objid_t             objid;
+	struct client_session     *session;
+	struct netshmem_pkt_buf   *obj;
 	int len;
 
 	thd = cos_thdid();
@@ -66,22 +77,22 @@ nic_get_a_packet(u16_t *pkt_len)
 
 	session = &client_sessions[thd];
 	
-	while (pkt_ring_buf_empty(session->ring)) {
+	while (pkt_ring_buf_empty(&session->pkt_ring_buf)) {
 		sched_thd_block(0);
 	}
 
-	while(!pkt_ring_buf_dequeue(session->ring, session->ringbuf, &buf))
+	while (!pkt_ring_buf_dequeue(&session->pkt_ring_buf, &buf))
 	assert(buf.pkt);
 
 	obj = shm_bm_alloc_net_pkt_buf(session->shemem_info.shm, &objid);
 	assert(obj);
 
-	char * pkt = cos_get_packet(buf.pkt, &len);
+	char *pkt = cos_get_packet(buf.pkt, &len);
 	assert(len < PKT_BUF_SIZE);
 
 	memcpy(obj->data, pkt, len);
 
-	while(!pkt_ring_buf_enqueue(g_free_ring, g_free_ringbuf, &buf));
+	while (!pkt_ring_buf_enqueue(&g_free_ring, &buf));
 
 	*pkt_len = len;
 
@@ -91,10 +102,10 @@ nic_get_a_packet(u16_t *pkt_len)
 int
 nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 {
-	thdid_t thd;
-	shm_bm_objid_t   objid;
+	thdid_t                  thd;
+	shm_bm_objid_t           objid;
+	struct pkt_buf           buf;
 	struct netshmem_pkt_buf *obj;
-	struct pkt_buf buf;
 
 	thd = cos_thdid();
 	objid = pktid;
@@ -110,23 +121,9 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	buf.paddr = data_paddr;
 	buf.pkt_len = pkt_len;
 
-	pkt_ring_buf_enqueue(g_tx_ring, g_tx_ringbuf, &buf);
+	pkt_ring_buf_enqueue(&g_tx_ring, &buf);
 
 	return 0;
-}
-
-void
-pkt_ring_buf_init(struct ck_ring **ring, struct pkt_buf **ringbuf, size_t ringbuf_num, size_t ringbuf_sz)
-{
-	struct ck_ring *buf_addr;
-
-	buf_addr = (struct ck_ring *)malloc(ringbuf_sz);
-	assert(buf_addr);
-
-	ck_ring_init(buf_addr, ringbuf_num);
-
-	*ring    = buf_addr;
-	*ringbuf = (struct pkt_buf *)((char *)buf_addr + sizeof(struct ck_ring));
 }
 
 void
@@ -140,10 +137,11 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 {
 	unsigned long npages;
 	void         *mem;
-	shm_bm_t shm;
-	cbuf_t shmid;
+
+	shm_bm_t    shm;
+	cbuf_t      shmid;
 	cos_paddr_t paddr = 0;
-	thdid_t thd;
+	thdid_t     thd;
 
 	thd = cos_thdid();
 	assert(thd < NIC_MAX_SESSION);
@@ -161,6 +159,6 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 	client_sessions[thd].shemem_info.shm   = shm;
 	client_sessions[thd].shemem_info.paddr = paddr;
 
-	pkt_ring_buf_init(&client_sessions[thd].ring, &client_sessions[thd].ringbuf, RX_PKT_RBUF_NUM, RX_PKT_RING_SZ);
+	pkt_ring_buf_init(&client_sessions[thd].pkt_ring_buf, RX_PKT_RBUF_NUM, RX_PKT_RING_SZ);
 	return 0;
 }

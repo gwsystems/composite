@@ -23,7 +23,7 @@ ssize_t
 write_bytes_to_stdout(const char *buf, size_t count)
 {
 	size_t i;
-	for(i = 0; i < count; i++) printc("%c", buf[i]);
+	for (i = 0; i < count; i++) printc("%c", buf[i]);
 	return count;
 }
 
@@ -49,7 +49,7 @@ cos_writev(int fd, const struct iovec *iov, int iovcnt)
 		ps_lock_take(&stdout_lock);
 		int i;
 		ssize_t ret = 0;
-		for(i=0; i<iovcnt; i++) {
+		for (i=0; i<iovcnt; i++) {
 			ret += write_bytes_to_stdout((const void *)iov[i].iov_base, iov[i].iov_len);
 		}
 		ps_lock_release(&stdout_lock);

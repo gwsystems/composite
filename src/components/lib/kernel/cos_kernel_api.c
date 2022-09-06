@@ -569,7 +569,7 @@ __cos_meminfo_populate(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned lo
 	assert(untyped_ptr == round_up_to_pgd_page(untyped_ptr));
 
 #if defined(__x86_64__)
-	for(pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
+	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
 		retaddr = __bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz, pgtbl_lvl);
 		assert(retaddr);
 	}
@@ -616,7 +616,7 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 
 #if defined(__x86_64__)
 	/* Just need to map COS_PGTBL_DEPTH - 1 levels page tables, assuming root page table is already there */
-	for(pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
+	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
 		if (heap_vaddr + sz > ci->vasrange_frontier[pgtbl_lvl]) {
 			retaddr = __bump_mem_expand_range(ci, ci->pgtbl_cap, heap_vaddr, sz, pgtbl_lvl);
 			assert(retaddr);

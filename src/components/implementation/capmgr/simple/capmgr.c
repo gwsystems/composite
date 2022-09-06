@@ -221,14 +221,14 @@ memmgr_virt_to_phys(vaddr_t vaddr)
 	return call_cap_op(c->comp.comp_res->ci.pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
 }
 
-void
-check_contigmem(vaddr_t vaddr, int npages)
+static void
+contigmem_check(vaddr_t vaddr, int npages)
 {
-	u64_t paddr_pre = 0, paddr_next = 0;
+	vaddr_t paddr_pre = 0, paddr_next = 0;
 
 	paddr_pre = memmgr_virt_to_phys(vaddr);
 
-	for(int i = 1;i < npages; i++) {
+	for (int i = 1; i < npages; i++) {
 		paddr_next = memmgr_virt_to_phys(vaddr + i * PAGE_SIZE);
 		assert(paddr_next - paddr_pre == PAGE_SIZE);
 
@@ -241,8 +241,10 @@ contigmem_alloc(unsigned long npages)
 {
 	struct cm_comp *c;
 	struct mm_page *p;
+
 	struct mm_mapping *m;
-	vaddr_t     vaddr;
+
+	vaddr_t vaddr;
 	unsigned long i;
 
 	c = ss_comp_get(cos_inv_token());
@@ -267,7 +269,7 @@ contigmem_alloc(unsigned long npages)
 		ss_page_activate(p);
 	}
 
-	check_contigmem((vaddr_t)vaddr, npages);
+	contigmem_check((vaddr_t)vaddr, npages);
 	return vaddr;
 }
 
@@ -276,9 +278,12 @@ contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_
 {
 	struct cm_comp *c;
 	struct mm_page *p, *initial = NULL;
-	struct mm_mapping *m;
 	struct mm_span *s;
-	vaddr_t     vaddr;
+
+	struct mm_mapping *m;
+
+	vaddr_t vaddr;
+
 	unsigned long i;
 	int ret;
 
@@ -322,7 +327,7 @@ contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_
 
 	*pgaddr = initial->mappings[0].addr;
 
-	check_contigmem((vaddr_t)vaddr, npages);
+	contigmem_check((vaddr_t)vaddr, npages);
 	return ret;
 }
 

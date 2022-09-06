@@ -5,75 +5,13 @@
 #include <netshmem.h>
 #include <sched.h>
 #include <arpa/inet.h>
-
+#include <cos_headers.h>
 #include "interface_impl.h"
 
 #define NB_RX_DESC_DEFAULT 1024
 #define NB_TX_DESC_DEFAULT 1024
 
 #define MAX_PKT_BURST NB_RX_DESC_DEFAULT
-
-#define NIPQUAD(addr) \
-((unsigned char *)&addr)[0], \
-((unsigned char *)&addr)[1], \
-((unsigned char *)&addr)[2], \
-((unsigned char *)&addr)[3]
-#define NIPQUAD_FMT "%u.%u.%u.%u"
-
-struct eth_hdr {
-	u8_t dst_addr[6];
-	u8_t src_addr[6];
-	u16_t ether_type;
-} __attribute__((packed));
-
-struct ether_addr {
-	uint8_t addr_bytes[6]; /**< Addr bytes in tx order */
-} __attribute__((packed));
-
-struct arp_ipv4 {
-	struct ether_addr arp_sha;  /**< sender hardware address */
-	uint32_t          arp_sip;  /**< sender IP address */
-	struct ether_addr arp_tha;  /**< target hardware address */
-	uint32_t          arp_tip;  /**< target IP address */
-} __attribute__((packed));
-
-struct arp_hdr {
-	uint16_t arp_hardware;    /* format of hardware address */
-#define RTE_ARP_HRD_ETHER     1  /* ARP Ethernet address format */
-
-	uint16_t arp_protocol;    /* format of protocol address */
-	uint8_t  arp_hlen;    /* length of hardware address */
-	uint8_t  arp_plen;    /* length of protocol address */
-	uint16_t arp_opcode;     /* ARP opcode (command) */
-#define	RTE_ARP_OP_REQUEST    1 /* request to resolve address */
-#define	RTE_ARP_OP_REPLY      2 /* response to previous request */
-#define	RTE_ARP_OP_REVREQUEST 3 /* request proto addr given hardware */
-#define	RTE_ARP_OP_REVREPLY   4 /* response giving protocol address */
-#define	RTE_ARP_OP_INVREQUEST 8 /* request to identify peer */
-#define	RTE_ARP_OP_INVREPLY   9 /* response identifying peer */
-
-	struct arp_ipv4 arp_data;
-} __attribute__((packed));
-
-struct ip_hdr {
-	u8_t ihl:4;
-	u8_t version:4;
-	u8_t tos;
-	u16_t total_len;
-	u16_t id;
-	u16_t frag_off;
-	u8_t ttl;
-	u8_t proto;
-	u16_t checksum;
-	u32_t src_addr;
-	u32_t dst_addr;
-} __attribute__((packed));
-
-struct tcp_udp_port
-{
-	u16_t src_port;
-	u16_t dst_port;
-};
 
 char* g_rx_mp = NULL;
 char* g_tx_mp = NULL;
@@ -83,6 +21,7 @@ static u16_t nic_ports = 0;
 static inline struct client_session *
 find_session(uint32_t dst_ip, uint16_t dst_port)
 {
+	/* TODO: change this search to hash-table in next version */
 	int i;
 	for (i = 0; i < NIC_MAX_SESSION; i++) {
 		if (client_sessions[i].ip_addr == dst_ip /*&& client_sessions[i].port == dst_port*/) {
@@ -98,7 +37,7 @@ ext_buf_free_callback_fn(void *addr, void *opaque)
 {
 	if (addr == NULL) {
 		printc("External buffer address is invalid\n");
-		return;
+		assert(0);
 	}
 
 	shm_bm_free_net_pkt_buf(addr);
@@ -111,9 +50,8 @@ process_tx_packets(void)
 	char* mbuf;
 	void *ext_shinfo;
 
-	while (!pkt_ring_buf_empty(g_tx_ring))
-	{
-		pkt_ring_buf_dequeue(g_tx_ring, g_tx_ringbuf, &buf);
+	while (!pkt_ring_buf_empty(&g_tx_ring)) {
+		pkt_ring_buf_dequeue(&g_tx_ring, &buf);
 
 		mbuf = cos_allocate_mbuf(g_tx_mp);
 		assert(mbuf);
@@ -124,7 +62,6 @@ process_tx_packets(void)
 	}
 }
 
-int enqueued = 0, missed = 0, bursted = 0, ttt=0;
 static void
 process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 {
@@ -147,32 +84,26 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			port	= (struct tcp_udp_port *)((char*)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
 
 			session = find_session(iph->dst_addr, port->dst_port);
-			if(session == NULL) {
-				continue;
-			}
+			if (session == NULL) continue;
+
 			buf.pkt = rx_pkts[i];
-			if (!pkt_ring_buf_enqueue(session->ring, session->ringbuf, &buf)){
+			if (!pkt_ring_buf_enqueue(&session->pkt_ring_buf, &buf)){
 				cos_free_packet(buf.pkt);
-				missed++;
 				continue;
-			} else{
-				enqueued++;
 			}
+
 			sched_thd_wakeup(session->thd);
 		} else if (htons(eth->ether_type) == 0x0806) {
 			arp_hdr = (struct arp_hdr *)((char*)eth + sizeof(struct eth_hdr));
+
 			session = find_session(arp_hdr->arp_data.arp_tip, 0);
-			if(session == NULL) {
-				continue;
-			}
+			if (session == NULL) continue;
+
 			buf.pkt = rx_pkts[i];
-			pkt_ring_buf_enqueue(session->ring, session->ringbuf, &buf);
+			pkt_ring_buf_enqueue(&session->pkt_ring_buf, &buf);
+
 			sched_thd_wakeup(session->thd);
-		} else {
-
-			continue;
 		}
-
 	}
 }
 
@@ -183,39 +114,33 @@ cos_free_rx_buf()
 	char* mbuf;
 	int ret;
 
-	while (!pkt_ring_buf_empty(g_free_ring))
-	{
-		ret = pkt_ring_buf_dequeue(g_free_ring, g_free_ringbuf, &buf);
+	while (!pkt_ring_buf_empty(&g_free_ring)) {
+		ret = pkt_ring_buf_dequeue(&g_free_ring, &buf);
 		assert(ret);
 		cos_free_packet(buf.pkt);
 	}
 }
 
-int max_burst = 0;
 static void
 cos_nic_start(){
-	int i, loop = 100000000;
+	int i;
 	uint16_t nb_pkts = 0;
 
 	char* rx_packets[MAX_PKT_BURST];
 
-	while (1)
-	{
+	while (1) {
 		/* infinite loop to process packets */
 		cos_free_rx_buf();
 		process_tx_packets();
 		for (i = 0; i < nic_ports; i++) {
 			/* process rx */
 			nb_pkts = cos_dev_port_rx_burst(i, 0, rx_packets, MAX_PKT_BURST);
-			bursted+=nb_pkts;
-			if(max_burst<nb_pkts) max_burst = nb_pkts;
 
 			if (nb_pkts != 0) process_rx_packets(i, rx_packets, nb_pkts);
 		}
 	}
 
 	cos_get_port_stats(0);
-	printc("enqueued:%d, missed:%d, bursted:%d, max_burst:%d\n", enqueued, missed, bursted, max_burst);
 }
 
 static void
@@ -289,8 +214,8 @@ cos_init(void)
 {
 	printc("nicmgr init...\n");
 	cos_nic_init();
-	pkt_ring_buf_init(&g_tx_ring, &g_tx_ringbuf, TX_PKT_RBUF_NUM, TX_PKT_RING_SZ);
-	pkt_ring_buf_init(&g_free_ring, &g_free_ringbuf, FREE_PKT_RBUF_NUM, FREE_PKT_RING_SZ);
+	pkt_ring_buf_init(&g_tx_ring, TX_PKT_RBUF_NUM, TX_PKT_RING_SZ);
+	pkt_ring_buf_init(&g_free_ring, FREE_PKT_RBUF_NUM, FREE_PKT_RING_SZ);
 
 	printc("dpdk init end\n");
 }
