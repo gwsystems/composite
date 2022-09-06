@@ -31,8 +31,11 @@
 #define MAX_SERVICE_DEPTH 31
 #define MAX_NUM_THREADS (64 * NUM_CPU)
 
-/* Stacks are 2 * page_size (expressed in words) */
-#define MAX_STACK_SZ_BYTE_ORDER 12
+/*
+ * Stacks are 4 * page_size (expressed in words) 
+ * Thus, usually this would be 4 * 4k = 16k bytes
+ */
+#define MAX_STACK_SZ_BYTE_ORDER 14
 /* Stack size in bytes */
 #define COS_STACK_SZ (1 << MAX_STACK_SZ_BYTE_ORDER)
 /* Stack size in words */
@@ -41,9 +44,11 @@
 #define ALL_STACK_SZ ((MAX_NUM_THREADS + 1) * MAX_STACK_SZ)
 /* 
  * 4096B / 4 * (64+1) : to flatten the math because of the below error
- *cos_asm_upcall_simple_stacks.S:28: Error: bad or irreducible absolute expression
+ * cos_asm_upcall_simple_stacks.S:28: Error: bad or irreducible absolute expression
+ * Use a 66506 * 4 all stack size simply because the statck size is changed to 4 * 4k,
+ * and applications like DPDK would require a larger stack size
  */
-#define ALL_STACK_SZ_FLAT 66560
+#define ALL_STACK_SZ_FLAT (66560*4)
 #define MAX_SPD_VAS_LOCATIONS 8
 
 /* a kludge:  should not use a tmp stack on a stack miss */

@@ -1,10 +1,9 @@
-
 use initargs::ArgsKV;
-use passes::{component, deps, exports, BuildState, ComponentId, SystemState};
+use passes::{component, deps, exports, AddrSpcName, BuildState, ComponentId, SystemState};
+use std::env;
 use std::fs::File;
 use syshelpers::{dir_exists, emit_file, exec_pipeline, reset_dir};
 use tar::Builder;
-use std::env;
 
 // Interact with the composite build system to "seal" the components.
 // This requires linking them with all dependencies, and with libc,
@@ -115,7 +114,6 @@ fn constructor_serialize_args(
     b: &dyn BuildState,
 ) -> Result<String, String> {
     let mut sinvs = Vec::new();
-    let mut ids = Vec::new();
 
     for s in s.get_invs_id(id).invocations().iter() {
         let mut sinv = Vec::new();
@@ -146,6 +144,7 @@ fn constructor_serialize_args(
         sinvs.push(ArgsKV::new_arr(String::from("_"), sinv));
     }
 
+    let mut ids = Vec::new();
     s.get_named().ids().iter().for_each(|(id, _cname)| {
         let info_addr = s.get_objs_id(&id).comp_symbs().comp_info;
         let cinfo = ArgsKV::new_arr(
@@ -159,10 +158,74 @@ fn constructor_serialize_args(
     });
 
     let ids_copy: Vec<ArgsKV> = ids.into_iter().rev().collect();
-    
+
+    // Find the id of the address space with a specific name
+    fn addrspc_parent_id(s: &SystemState, asname: &AddrSpcName) -> String {
+        s.get_named()
+            .addrspc_components_shared()
+            .iter()
+            .find_map(|(id2, a)| {
+                if &a.name == asname {
+                    Some(id2.to_string())
+                } else {
+                    None
+                }
+            })
+            .unwrap()
+    }
+
+    let ases = s
+        .get_named()
+        .addrspc_components_shared()
+        .iter()
+        .map(|(id, a)| {
+            ArgsKV::new_arr(id.to_string(), {
+                let mut v = vec![
+                    ArgsKV::new_key("name".to_string(), a.name.clone()),
+                    ArgsKV::new_arr(
+                        "components".to_string(),
+                        a.components
+                            .iter()
+                            .map(|c| {
+                                ArgsKV::new_key(
+                                    "_".to_string(),
+                                    s.get_named().rmap().get(c).unwrap().to_string(),
+                                )
+                            })
+                            .collect(),
+                    ),
+                ];
+                if let Some(ref p) = a.parent {
+                    v.push(ArgsKV::new_key(
+                        "parent".to_string(),
+                        addrspc_parent_id(&s, &p),
+                    ));
+                }
+                v
+            })
+        })
+        .rev()
+        .collect();
+    let excl_ases = s
+        .get_named()
+        .addrspc_components_exclusive()
+        .iter()
+        .map(|c| {
+            ArgsKV::new_key(
+                "_".to_string(),
+                s.get_named().rmap().get(c).unwrap().to_string(),
+            )
+        })
+        .collect();
+
     let mut topkv = Vec::new();
     topkv.push(ArgsKV::new_arr(String::from("sinvs"), sinvs));
     topkv.push(ArgsKV::new_arr(String::from("components"), ids_copy));
+    topkv.push(ArgsKV::new_arr(String::from("addrspc_shared"), ases));
+    topkv.push(ArgsKV::new_arr(
+        String::from("addrspc_exclusive"),
+        excl_ases,
+    ));
     s.get_param_id(&id)
         .param_list()
         .iter()
@@ -220,10 +283,14 @@ fn comp_gen_make_cmd(
     }
     let decomp: Vec<&str> = c.source.split(".").collect();
     assert!(decomp.len() == 2);
-    let name = format!("{}.{}", &c.name.scope_name, &c.name.var_name);
+    // unwrap as we've already validated the name.
+    let compid = s.get_named().rmap().get(&c.name).unwrap();
+    let baseaddr = s.get_address_assignments().component_baseaddr(compid);
 
-    let cmd = format!(r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={} {} component"#,
-                      if_exp, if_deps, &decomp[0], &decomp[1], &name, output_name, &c.base_vaddr, &optional_cmds);
+    let cmd = format!(
+        r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={:#X} {} component"#,
+        if_exp, if_deps, &decomp[0], &decomp[1], &c.name, output_name, baseaddr, &optional_cmds
+    );
 
     cmd
 }
@@ -290,10 +357,7 @@ impl BuildState for DefaultBuilder {
 
     fn comp_obj_file(&self, c: &ComponentId, s: &SystemState) -> String {
         let comp = component(&s, &c);
-        format!(
-            "{}.{}.{}",
-            &comp.source, &comp.name.scope_name, &comp.name.var_name
-        )
+        format!("{}.{}", &comp.source, &comp.name)
     }
 
     fn comp_obj_path(&self, c: &ComponentId, s: &SystemState) -> Result<String, String> {
@@ -310,8 +374,8 @@ impl BuildState for DefaultBuilder {
 
         let name = state.get_named().ids().get(id).unwrap();
         println!(
-            "Compiling component {}.{} with the following command line:\n\t{}",
-            name.scope_name, name.var_name, cmd
+            "Compiling component {} with the following command line:\n\t{}",
+            name, cmd
         );
 
         let (out, err) = exec_pipeline(vec![cmd.clone()]);

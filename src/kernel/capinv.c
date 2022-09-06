@@ -1210,7 +1210,8 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t tlsaddr = __userregs_get2(regs);
 
 			assert(op_cap->captbl);
-			if (thd_tls_set(op_cap->captbl, thd_cap, tlsaddr, thd)) cos_throw(err, -EINVAL);
+			ret = thd_tls_set(op_cap->captbl, thd_cap, tlsaddr, thd);
+			if (ret) cos_throw(err, -EINVAL);
 			break;
 		}
 		case CAPTBL_OP_THDDEACTIVATE_ROOT: {

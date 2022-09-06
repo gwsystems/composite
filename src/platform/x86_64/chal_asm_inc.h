@@ -8,7 +8,9 @@
 #define SEL_UDSEG (0x18 | SEL_RPL_USR) /* User data selector. */
 #define SEL_TSS 0x28                   /* Task-state segment. */
 #define SEL_UGSEG (0x38 | SEL_RPL_USR) /* User TLS selector. */
-#define SEL_CNT 8                      /* Number of segments. */
+#define SEL_UFSEG (0x40 | SEL_RPL_USR) /* User TLS selector in x86_64. */
+
+#define SEL_CNT 9                      /* Number of segments. */
 
 #define STK_INFO_SZ 144                 /* sizeof(struct cos_cpu_local_info) */
 #define STK_INFO_OFF (STK_INFO_SZ + 8) /* sizeof(struct cos_cpu_local_info) + sizeof(long) */

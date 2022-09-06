@@ -792,6 +792,13 @@ chal_pgtbl_introspect(struct cap_header *ch, vaddr_t addr)
 	unsigned long *pte;
 	word_t         flags;
 	int            ret = 0;
+#if defined(__x86_64__)
+	unsigned long		*f, old_v;
+
+	f = pgtbl_lkup_lvl(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags, 0, PGTBL_DEPTH);
+	old_v = *f;
+	return old_v;
+#endif
 	/* Is this a pte or a pgd? */
 	pte = pgtbl_lkup_pgd(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
 	if (pte) {

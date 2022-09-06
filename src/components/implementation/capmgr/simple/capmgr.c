@@ -72,7 +72,7 @@ SS_STATIC_SLAB(asnd, struct cm_asnd, MAX_NUM_THREADS);
 
 /* 64 MiB */
 #define MB2PAGES(mb) (round_up_to_page(mb * 1024 * 1024) / PAGE_SIZE)
-#define MM_NPAGES (MB2PAGES(64))
+#define MM_NPAGES (MB2PAGES(256))
 SS_STATIC_SLAB(page, struct mm_page, MM_NPAGES);
 SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 
@@ -112,7 +112,6 @@ cm_comp_alloc_with(char *name, compid_t id, struct crt_comp_resources *resources
 
 	return c;
 }
-
 
 struct cm_rcv *
 cm_rcv_alloc_in(struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t closure_id, crt_rcv_flags_t flags)
@@ -222,6 +221,28 @@ memmgr_heap_page_allocn_aligned(unsigned long num_pages, unsigned long align)
 	if (!p) return 0;
 
 	return (vaddr_t)p->mappings[0].addr;
+}
+
+vaddr_t
+memmgr_virt_to_phys(vaddr_t vaddr)
+{
+	struct cm_comp *c;
+
+	c = ss_comp_get(cos_inv_token());
+	if (!c) return 0;
+	
+	return call_cap_op(c->comp.comp_res->ci.pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
+}
+
+vaddr_t
+memmgr_map_phys_to_virt(paddr_t paddr, size_t size)
+{
+	struct cm_comp *c;
+
+	c = ss_comp_get(cos_inv_token());
+	if (!c) return 0;
+
+	return (vaddr_t)cos_hw_map(&c->comp.comp_res->ci, BOOT_CAPTBL_SELF_INITHW_BASE, paddr, size);
 }
 
 vaddr_t
@@ -484,6 +505,15 @@ void
 execute(void)
 {
 	crt_compinit_execute(crtcomp_get);
+}
+
+void
+capmgr_set_tls(thdcap_t cap, void* tls_addr)
+{
+	compid_t cid = (compid_t)cos_inv_token();
+	struct crt_comp* c = crtcomp_get(cid);
+
+	cos_thd_mod(&c->comp_res->ci, cap, tls_addr);
 }
 
 void

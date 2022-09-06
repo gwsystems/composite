@@ -1,0 +1,14 @@
+[binaries]
+c = 'musl-gcc'
+strip = 'strip'
+
+[host_machine]
+system = 'linux'
+cpu_family = 'x86_64'
+cpu = 'native'
+endian = 'little'
+
+[properties]
+skip_sanity_check = false
+#c_args = ['-target', 'aarch64-linux-gnu', '--sysroot', '/usr/aarch64-linux-gnu']
+#c_link_args = ['-target', 'aarch64-linux-gnu', '-fuse-ld=lld', '--gcc-toolchain=/usr']

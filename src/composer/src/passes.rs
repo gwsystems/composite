@@ -14,12 +14,14 @@
 use std::collections::{BTreeMap, HashMap};
 
 use initargs::ArgsKV;
+use std::fmt;
 
 pub struct SystemState {
     spec: String,
 
     parse: Option<Box<dyn SpecificationPass>>,
     named: Option<Box<dyn OrderedSpecPass>>,
+    address_assignment: Option<Box<dyn AddressAssignmentPass>>,
     properties: Option<Box<dyn PropertiesPass>>,
     restbls: Option<Box<dyn ResPass>>,
     param: HashMap<ComponentId, Box<dyn InitParamPass>>,
@@ -34,6 +36,7 @@ impl SystemState {
             spec,
             parse: None,
             named: None,
+	    address_assignment: None,
             properties: None,
             restbls: None,
             param: HashMap::new(),
@@ -49,6 +52,10 @@ impl SystemState {
 
     pub fn add_named(&mut self, n: Box<dyn OrderedSpecPass>) {
         self.named = Some(n);
+    }
+
+    pub fn add_address_assign(&mut self, a: Box<dyn AddressAssignmentPass>) {
+        self.address_assignment = Some(a);
     }
 
     pub fn add_properties(&mut self, n: Box<dyn PropertiesPass>) {
@@ -85,6 +92,10 @@ impl SystemState {
 
     pub fn get_named(&self) -> &dyn OrderedSpecPass {
         &**(self.named.as_ref().unwrap())
+    }
+
+    pub fn get_address_assignments(&self) -> &dyn AddressAssignmentPass {
+        &**(self.address_assignment.as_ref().unwrap())
     }
 
     pub fn get_properties(&self) -> &dyn PropertiesPass {
@@ -164,6 +175,7 @@ pub type Interface = String;
 pub type Variant = String;
 pub type Library = String;
 pub type VAddr = u64;
+pub type AddrSpcName = String;
 
 // unique identifier for a component
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
@@ -181,6 +193,12 @@ impl ComponentName {
     }
 }
 
+impl fmt::Display for ComponentName {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+	write!(f, "{}.{}", self.scope_name, self.var_name)
+    }
+}
+
 pub type ComponentId = u32;
 
 // This structure carries throughout the entire process.
@@ -192,7 +210,7 @@ pub struct Component {
     pub scheduler: ComponentName,   // our scheduler (that creates or initial thread)
 
     pub source: String,      // Where is the component source located?
-    pub base_vaddr: String, // The lowest virtual address for the component -- could be hex, so not a VAddr
+    pub base_vaddr: String,  // The lowest virtual address for the component -- could be hex, so not a VAddr
     pub params: Vec<ArgsKV>, // initialization parameters
     pub fsimg: Option<String>,
 }
@@ -209,6 +227,16 @@ pub struct Dependency {
 }
 
 #[derive(Clone, Debug)]
+pub struct AddrSpace {
+    pub name: AddrSpcName,
+    pub components: Vec<ComponentName>,
+    pub parent: Option<AddrSpcName>,
+    pub children: Vec<AddrSpcName>
+}
+
+pub type AddrSpaces = HashMap<AddrSpcName, AddrSpace>;
+
+#[derive(Clone, Debug)]
 pub struct Export {
     pub interface: Interface,
     pub variant: Variant,
@@ -220,15 +248,19 @@ pub trait SpecificationPass {
     fn deps_named(&self, id: &ComponentName) -> &Vec<Dependency>;
     fn exports_named(&self, id: &ComponentName) -> &Vec<Export>;
     fn libs_named(&self, id: &ComponentName) -> &Vec<Library>;
+    fn address_spaces(&self) -> &AddrSpaces;
 }
 
-// Integer namspacing pass. Convert the component variable names to
+// Integer namespacing pass. Convert the component variable names to
 // component ids, and create a total order for the components based on
 // their stated dependencies (lower ids are more trusted (more
 // depended on).
 pub trait OrderedSpecPass {
     fn ids(&self) -> &BTreeMap<ComponentId, ComponentName>;
     fn rmap(&self) -> &BTreeMap<ComponentName, ComponentId>;
+    // An ordering of address spaces, and of components without a shared address space.
+    fn addrspc_components_shared(&self) -> &BTreeMap<usize, AddrSpace>;
+    fn addrspc_components_exclusive(&self) -> &Vec<ComponentName>;
 }
 
 // Helper access functions
@@ -284,6 +316,11 @@ pub trait PropertiesPass {
     fn service_is_a(&self, id: &ComponentId, t: ServiceType) -> bool;
     fn service_clients(&self, id: &ComponentId, t: ServiceType) -> Option<&Vec<ComponentId>>;
     fn service_dependency(&self, id: &ComponentId, t: ServiceType) -> Option<ComponentId>;
+}
+
+// Each component must be compiled starting
+pub trait AddressAssignmentPass {
+    fn component_baseaddr(&self, id: &ComponentId) -> u64;
 }
 
 // Compute the resource table, and resource allocations for each
