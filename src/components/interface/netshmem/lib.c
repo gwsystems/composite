@@ -32,7 +32,7 @@ netshmem_get_shm_id()
 }
 
 shm_bm_t
-netshmem_get_shm(thdid_t thd)
+netshmem_get_shm()
 {
 	return netshmems[cos_thdid()].shm;
 }
