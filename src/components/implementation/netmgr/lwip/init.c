@@ -33,7 +33,7 @@ shm_bm_t shm;
 shm_bm_objid_t  objid;
 
 static err_t
-cos_interface_output(struct netif *ni, struct pbuf *p, const ip4_addr_t *ip)
+cos_interface_output(struct netif *ni, struct pbuf *p)
 {
 	char * data = p->payload;
 	shm_bm_objid_t  objid;

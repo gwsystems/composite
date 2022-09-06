@@ -14,4 +14,8 @@ int cos_getpeername(int fd, struct sockaddr *restrict addr, socklen_t *restrict 
 
 int cos_printf(const char *fmt,...);
 
+void* cos_select_thd(void);
+
+ssize_t cos_recvfrom(void *c);
+ssize_t cos_sendmsg(void *c, struct msghdr *msg, int flags);
 #endif /* COS_MC_ADAPTER_H */

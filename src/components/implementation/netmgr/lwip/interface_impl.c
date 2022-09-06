@@ -170,7 +170,7 @@ net_receive_packet(char* pkt, size_t pkt_len)
 int
 netmgr_tcp_accept(struct conn_addr *client_addr)
 {
-	shm_bm_objid_t           objid;
+	shm_bm_objid_t           objid = 0;
 	struct netshmem_pkt_buf *obj;
 	size_t shmsz;
 	cbuf_t rx_shm_id;
@@ -254,9 +254,6 @@ cos_lwip_udp_recv(void *arg, struct udp_pcb *up, struct pbuf *p, const ip_addr_t
 		g_remote_addr = *addr;
 		g_remote_port = port;
 	}
-
-	return ERR_OK;
-
 }
 
 int
@@ -323,6 +320,7 @@ netmgr_udp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len, 
 {
 	struct netshmem_pkt_buf *obj;
 	struct pbuf *p;
+	ip_addr_t dst_ip;
 	
 	thdid_t thd = cos_thdid();
 	char *data;
@@ -334,8 +332,9 @@ netmgr_udp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len, 
 	assert(p);
 
 	p->payload = data;
+	dst_ip.addr = remote_ip;
 
-	udp_sendto_if(lwip_pcbs[thd].up, p , &remote_ip, remote_port, &net_interface);
+	udp_sendto_if(lwip_pcbs[thd].up, p , &dst_ip, remote_port, &net_interface);
 	pbuf_free(p);
 
 	return 0;

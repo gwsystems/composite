@@ -578,13 +578,13 @@ cos_send_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len)
 int
 cos_mempool_full(const char *mp)
 {
-	return rte_mempool_full(mp);
+	return rte_mempool_full((struct rte_mempool *)mp);
 }
 
 int
 cos_mempool_in_use_count(const char *mp)
 {
-	return rte_mempool_in_use_count(mp);
+	return rte_mempool_in_use_count((struct rte_mempool *)mp);
 }
 
 int

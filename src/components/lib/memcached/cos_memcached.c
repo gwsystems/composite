@@ -4,6 +4,8 @@
 #include "cos_memcached.h"
 #include "cos_memcached_exp.h"
 
+extern int cos_mc_main (int argc, char **argv);
+
 static char *client_query = "\0\0\0\0\0\1\0\0set GWU_SYS 0 0 5\r\nGREAT\r\n";
 
 int
@@ -37,14 +39,15 @@ cos_tcp_read(conn *c, void *buf, size_t count)
 
 /* Both TCP and UDP conn will write data back to c->cos_w_buf */
 ssize_t
-cos_sendmsg(conn *c, struct msghdr *msg, int flags)
+cos_sendmsg(void *c, struct msghdr *msg, int flags)
 {
+	conn *_c = (conn *)c;
 	/* TODO: copy shm data from Memcached to shmem */
 	assert (c != NULL);
 	ssize_t sent_len = 0;
 
 	for (ssize_t i = 0; i < msg->msg_iovlen; i++) {
-		memcpy(c->cos_w_buf + sent_len, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len);
+		memcpy(_c->cos_w_buf + sent_len, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len);
 		sent_len += msg->msg_iov[i].iov_len;
 
 		/* This can be used to debug return message */
@@ -52,8 +55,8 @@ cos_sendmsg(conn *c, struct msghdr *msg, int flags)
 	}
 
 	/* sent data size cannot exceed buffer size */
-	assert(sent_len < c->cos_w_sz);
-	c->cos_w_sz = sent_len;
+	assert(sent_len < _c->cos_w_sz);
+	_c->cos_w_sz = sent_len;
 
 	return sent_len;
 }
@@ -68,15 +71,16 @@ cos_tcp_write(conn *c, void *buf, size_t count)
 
 /* UDP connection uses this to copy packet data to its buffer */
 ssize_t
-cos_recvfrom(conn *c)
+cos_recvfrom(void *c)
 {
+	conn *_c = (conn *)c;
 	assert (c != NULL);
 
-	memcpy(c->rbuf, c->cos_r_buf, c->cos_r_sz);
-	return c->cos_r_sz;
+	memcpy(_c->rbuf, _c->cos_r_buf, _c->cos_r_sz);
+	return _c->cos_r_sz;
 }
 
-LIBEVENT_THREAD*
+void*
 cos_select_thd(void)
 {
 	return get_worker_thread(cos_thdid());
@@ -139,7 +143,7 @@ cos_mc_new_conn(int proto)
 		c = cos_mc_get_conn(fd);
 
 		c->read = cos_tcp_read;
-		c->sendmsg = cos_sendmsg;
+		c->sendmsg = (void *)cos_sendmsg;
 		c->write = cos_tcp_write;
 
 		/* 

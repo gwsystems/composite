@@ -18,7 +18,7 @@ OBJECT_OUTPUT =
 INCLUDE_PATHS = .
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES =
+INTERFACE_DEPENDENCIES = contigmem
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
 LIBRARY_DEPENDENCIES = stubs shm_bm

@@ -117,7 +117,7 @@ process_tx_packets(void)
 
 		mbuf = cos_allocate_mbuf(g_tx_mp);
 		assert(mbuf);
-		ext_shinfo = netshmem_get_tailroom(buf.obj);
+		ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
 
 		cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
 		cos_send_external_packet(mbuf, (buf.pkt -  buf.obj), buf.pkt_len);
@@ -131,20 +131,20 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 	int i, ret;
 	int len = 0;
 
-	struct eth_hdr      *eth;
-	struct ip_hdr       *iph;
-	struct arp_hdr      *arp_hdr;
-	struct tcp_udp_port *port;
-	struct client_session * session;
+	struct eth_hdr		*eth;
+	struct ip_hdr		*iph;
+	struct arp_hdr		*arp_hdr;
+	struct tcp_udp_port	*port;
+	struct client_session	*session;
 	struct pkt_buf buf;
 
 	for (i = 0; i < nb_pkts; i++) {
 		char * pkt = cos_get_packet(rx_pkts[i], &len);
-		eth = pkt;
+		eth = (struct eth_hdr *)pkt;
 
 		if (htons(eth->ether_type) == 0x0800) {
-			iph = (char*)eth + sizeof(struct eth_hdr);
-			port = (char*)eth + sizeof(struct eth_hdr) + iph->ihl * 4;
+			iph	= (struct ip_hdr *)((char*)eth + sizeof(struct eth_hdr));
+			port	= (struct tcp_udp_port *)((char*)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
 
 			session = find_session(iph->dst_addr, port->dst_port);
 			if(session == NULL) {
@@ -160,7 +160,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			}
 			sched_thd_wakeup(session->thd);
 		} else if (htons(eth->ether_type) == 0x0806) {
-			arp_hdr = (char*)eth + sizeof(struct eth_hdr);
+			arp_hdr = (struct arp_hdr *)((char*)eth + sizeof(struct eth_hdr));
 			session = find_session(arp_hdr->arp_data.arp_tip, 0);
 			if(session == NULL) {
 				continue;

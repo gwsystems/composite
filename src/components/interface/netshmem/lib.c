@@ -1,4 +1,5 @@
 #include <cos_component.h>
+#include <contigmem.h>
 #include "netshmem.h"
 
 struct netshmem netshmems[NETSHMEM_REGION_SZ] = {0};
@@ -16,7 +17,7 @@ netshmem_create(void)
 	/* init rx shmem */
 	netshmems[thd].shmsz	= round_up_to_page(shm_bm_size_net_pkt_buf());
 	netshmems[thd].shm_id	= contigmem_shared_alloc_aligned(netshmems[thd].shmsz/PAGE_SIZE, SHM_BM_ALIGN, (vaddr_t *)&mem);
-	netshmems[thd].shm		= shm_bm_create_net_pkt_buf(mem, netshmems[thd].shmsz);
+	netshmems[thd].shm	= shm_bm_create_net_pkt_buf(mem, netshmems[thd].shmsz);
 
 	/* shmem cannot be NULL */
 	assert(netshmems[thd].shm);

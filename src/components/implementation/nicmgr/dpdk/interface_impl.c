@@ -101,7 +101,7 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 
 	obj = (struct netshmem_pkt_buf*)shm_bm_take_net_pkt_buf(client_sessions[thd].shemem_info.shm, objid);
 
-	buf.obj = obj;
+	buf.obj = (char *)obj;
 	buf.pkt = pkt_offset + obj->data;
 
 	u64_t data_paddr = client_sessions[thd].shemem_info.paddr 
@@ -118,15 +118,15 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 void
 pkt_ring_buf_init(struct ck_ring **ring, struct pkt_buf **ringbuf, size_t ringbuf_num, size_t ringbuf_sz)
 {
-	vaddr_t buf_addr = NULL;
+	struct ck_ring *buf_addr;
 
-	buf_addr = malloc(ringbuf_sz);
+	buf_addr = (struct ck_ring *)malloc(ringbuf_sz);
 	assert(buf_addr);
 
 	ck_ring_init(buf_addr, ringbuf_num);
 
 	*ring    = buf_addr;
-	*ringbuf = buf_addr + sizeof(struct ck_ring);
+	*ringbuf = (struct pkt_buf *)((char *)buf_addr + sizeof(struct ck_ring));
 }
 
 void
