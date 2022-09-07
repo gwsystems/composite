@@ -9,7 +9,7 @@
 
 #include "cos_dpdk_adapter.h"
 
-static struct pci_dev cos_pci_devices[PCI_DEVICE_MAX];
+static struct pci_dev cos_pci_devices[PCI_DEVICE_NUM];
 static int pci_dev_nb = 0;
 
 #define PRINT_BUF_SZ 512
@@ -193,3 +193,5 @@ cos_get_tsc_freq(void)
 COS_DPDK_DECLARE_NIC_MODULE(net_e1000_em);
 COS_DPDK_DECLARE_NIC_MODULE(net_i40e);
 COS_DPDK_DECLARE_NIC_MODULE(mempool_ring);
+COS_DPDK_DECLARE_NIC_MODULE(net_ice);
+COS_DPDK_DECLARE_NIC_MODULE(net_ice_dcf);
