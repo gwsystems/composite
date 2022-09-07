@@ -1,3 +1,6 @@
+# You can run this test script using this command:
+# python3 src/components/implementation/simple_mc_udp_server/simple_mc_udp_test.py 
+
 import socket
 import time
 

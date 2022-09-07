@@ -1,3 +1,6 @@
+# You can run this test script using this command:
+# python3 src/components/implementation/simple_udp_echo_server/simple_udp_test.py
+
 import socket
 import time
 
@@ -14,18 +17,16 @@ sock.settimeout(timeout_seconds)
 sock.bind(local_addr)
 
 i = 0
-while True:
+while i < 100:
 	data = 'hello from client: %s' % i
 	sock.sendto(data.encode(), udp_server_addr)
-	# try:
-	# 	data = sock.recv(100)
-	# except:
-	# 	print('data %s not received' %i)
-	# 	i = i + 1
-	# 	# continue
-	# 	exit(0)
-	# print(data.decode())
-	time.sleep(1)
+	try:
+		data = sock.recv(100)
+	except:
+		print('TEST FAILED: data %s not received' %i)
+		i = i + 1
+		exit(0)
+	print(data.decode())
 	i = i + 1
 
-print('udp sent done')
+print('TEST SUCCESS: Simple UDP test done')
