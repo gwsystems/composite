@@ -52,7 +52,7 @@ shm_bm_t netshmem_get_shm();
 /* map a shmem for a client component */
 void netshmem_map_shmem(cbuf_t shm_id);
 
-static inline void* netshmem_get_data_buf(struct netshmem_pkt_buf *pkt_buf)
+static inline void * netshmem_get_data_buf(struct netshmem_pkt_buf *pkt_buf)
 {
 	return (char *)pkt_buf + NETSHMEM_HEADROOM;
 }
@@ -67,7 +67,7 @@ static inline u16_t netshmem_get_max_data_buf_sz(void)
 	return (PKT_BUF_SIZE - NETSHMEM_HEADROOM);
 }
 
-static inline void* netshmem_get_tailroom(struct netshmem_pkt_buf *pkt_buf)
+static inline void * netshmem_get_tailroom(struct netshmem_pkt_buf *pkt_buf)
 {
 	return (char *)pkt_buf + (PKT_BUF_SIZE - NETSHMEM_TAILROOM);
 }

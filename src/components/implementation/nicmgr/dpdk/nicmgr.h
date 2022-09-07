@@ -13,10 +13,9 @@
 #define NIC_SHMEM_TX 1
 
 struct shemem_info {
-	cbuf_t shmid;
+	cbuf_t   shmid;
 	shm_bm_t shm;
-
-	paddr_t paddr;
+	paddr_t  paddr;
 };
 
 struct pkt_buf {

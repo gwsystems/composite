@@ -13,8 +13,8 @@
 
 #define MAX_PKT_BURST NB_RX_DESC_DEFAULT
 
-char* g_rx_mp = NULL;
-char* g_tx_mp = NULL;
+char *g_rx_mp = NULL;
+char *g_tx_mp = NULL;
 
 static u16_t nic_ports = 0;
 
@@ -47,7 +47,7 @@ static void
 process_tx_packets(void)
 {
 	struct pkt_buf buf;
-	char* mbuf;
+	char *mbuf;
 	void *ext_shinfo;
 
 	while (!pkt_ring_buf_empty(&g_tx_ring)) {
@@ -58,7 +58,7 @@ process_tx_packets(void)
 		ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
 
 		cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
-		cos_send_external_packet(mbuf, (buf.pkt -  buf.obj), buf.pkt_len);
+		cos_send_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len);
 	}
 }
 
@@ -73,15 +73,16 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 	struct arp_hdr		*arp_hdr;
 	struct tcp_udp_port	*port;
 	struct client_session	*session;
-	struct pkt_buf buf;
+	char                    *pkt;
+	struct pkt_buf           buf;
 
 	for (i = 0; i < nb_pkts; i++) {
-		char * pkt = cos_get_packet(rx_pkts[i], &len);
+		pkt = cos_get_packet(rx_pkts[i], &len);
 		eth = (struct eth_hdr *)pkt;
 
 		if (htons(eth->ether_type) == 0x0800) {
-			iph	= (struct ip_hdr *)((char*)eth + sizeof(struct eth_hdr));
-			port	= (struct tcp_udp_port *)((char*)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
+			iph	= (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
+			port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
 
 			session = find_session(iph->dst_addr, port->dst_port);
 			if (session == NULL) continue;
@@ -94,7 +95,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 
 			sched_thd_wakeup(session->thd);
 		} else if (htons(eth->ether_type) == 0x0806) {
-			arp_hdr = (struct arp_hdr *)((char*)eth + sizeof(struct eth_hdr));
+			arp_hdr = (struct arp_hdr *)((char *)eth + sizeof(struct eth_hdr));
 
 			session = find_session(arp_hdr->arp_data.arp_tip, 0);
 			if (session == NULL) continue;
@@ -110,9 +111,9 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 static void
 cos_free_rx_buf()
 {
+	int            ret;
 	struct pkt_buf buf;
-	char* mbuf;
-	int ret;
+	char          *mbuf;
 
 	while (!pkt_ring_buf_empty(&g_free_ring)) {
 		ret = pkt_ring_buf_dequeue(&g_free_ring, &buf);
@@ -126,7 +127,7 @@ cos_nic_start(){
 	int i;
 	uint16_t nb_pkts = 0;
 
-	char* rx_packets[MAX_PKT_BURST];
+	char *rx_packets[MAX_PKT_BURST];
 
 	while (1) {
 		/* infinite loop to process packets */
@@ -150,6 +151,7 @@ cos_nic_init(void)
 
 	const char *rx_mpool_name = "cos_app_rx_pool";
 	const char *tx_mpool_name = "cos_app_tx_pool";
+
 	uint16_t i;
 	uint16_t nb_rx_desc = NB_RX_DESC_DEFAULT;
 	uint16_t nb_tx_desc = NB_TX_DESC_DEFAULT;
@@ -187,7 +189,7 @@ cos_nic_init(void)
 	assert(nic_ports > 0);
 
 	/* 3. create mbuf pool where packets will be stored, user can create multiple pools */
-	char* mp = cos_create_pkt_mbuf_pool(rx_mpool_name, max_rx_mbufs);
+	char *mp = cos_create_pkt_mbuf_pool(rx_mpool_name, max_rx_mbufs);
 	assert(mp != NULL);
 	g_rx_mp = mp;
 

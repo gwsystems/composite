@@ -13,8 +13,8 @@ typedef unsigned long cos_paddr_t; /* physical address */
 typedef unsigned long cos_vaddr_t; /* virtual address */
 
 extern cos_paddr_t cos_map_virt_to_phys(cos_vaddr_t addr);
-extern char* g_tx_mp;
-extern char* g_rx_mp;
+extern char *g_tx_mp;
+extern char *g_rx_mp;
 
 /* indexed by thread id */
 struct client_session client_sessions[NIC_MAX_SESSION];
@@ -107,10 +107,10 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	struct pkt_buf           buf;
 	struct netshmem_pkt_buf *obj;
 
-	thd = cos_thdid();
+	thd   = cos_thdid();
 	objid = pktid;
 
-	obj = (struct netshmem_pkt_buf*)shm_bm_take_net_pkt_buf(client_sessions[thd].shemem_info.shm, objid);
+	obj = (struct netshmem_pkt_buf *)shm_bm_take_net_pkt_buf(client_sessions[thd].shemem_info.shm, objid);
 
 	buf.obj = (char *)obj;
 	buf.pkt = pkt_offset + obj->data;
@@ -118,7 +118,7 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	u64_t data_paddr = client_sessions[thd].shemem_info.paddr 
 		+ (u64_t)buf.obj - (u64_t)client_sessions[thd].shemem_info.shm;
 	
-	buf.paddr = data_paddr;
+	buf.paddr   = data_paddr;
 	buf.pkt_len = pkt_len;
 
 	pkt_ring_buf_enqueue(&g_tx_ring, &buf);
@@ -150,7 +150,7 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 	client_sessions[thd].port    = port;
 	client_sessions[thd].thd     = thd;
 
-	shm = netshmem_get_shm();
+	shm   = netshmem_get_shm();
 	shmid = netshmem_get_shm_id();
 	paddr = cos_map_virt_to_phys((cos_vaddr_t)shm);
 	assert(paddr);

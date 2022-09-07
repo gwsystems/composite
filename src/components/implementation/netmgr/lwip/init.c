@@ -24,7 +24,7 @@ struct ether_addr {
 struct ether_hdr {
 	struct ether_addr dst_addr;
 	struct ether_addr src_addr;
-	uint16_t ether_type;
+	uint16_t          ether_type;
 } __attribute__((__packed__));
 
 static err_t

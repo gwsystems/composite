@@ -142,9 +142,9 @@ cos_mc_new_conn(int proto)
 		/* Reset conn read and write to Composite variant */
 		c = cos_mc_get_conn(fd);
 
-		c->read = cos_tcp_read;
+		c->read    = cos_tcp_read;
 		c->sendmsg = (void *)cos_sendmsg;
-		c->write = cos_tcp_write;
+		c->write   = cos_tcp_write;
 
 		/* 
 		* This will make the connection state to be conn_waiting,thus the following calls to

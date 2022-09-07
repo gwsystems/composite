@@ -42,7 +42,7 @@ netshmem_map_shmem(cbuf_t shm_id)
 {
 	unsigned long npages;
 	void         *mem;
-	shm_bm_t shm;
+	shm_bm_t      shm;
 
 	thdid_t thd = cos_thdid();
 

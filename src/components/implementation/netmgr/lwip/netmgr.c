@@ -59,7 +59,6 @@ cos_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p, err_t err)
 	}
 
 	return ERR_OK;
-
 }
 
 static void
@@ -99,14 +98,13 @@ netmgr_tcp_bind(u32_t ip_addr, u16_t port)
 {
 	unsigned long npages;
 	shm_bm_t      shm;
+	err_t         ret;
 
 	void                    *mem;
 	struct netshmem_pkt_buf *obj;
 
 	struct tcp_pcb *tp;
 	struct ip4_addr ipa = *(struct ip4_addr*)&ip_addr;
-
-	err_t ret;
 
 	thdid_t thd = cos_thdid();
 
@@ -126,7 +124,7 @@ int
 netmgr_tcp_listen(u8_t backlog)
 {
 	struct tcp_pcb *new_tp = NULL;
-	thdid_t thd = cos_thdid();
+	thdid_t         thd    = cos_thdid();
 
 	new_tp = tcp_listen_with_backlog(lwip_connections[thd].tp, backlog);
 	assert(new_tp);
@@ -137,7 +135,7 @@ netmgr_tcp_listen(u8_t backlog)
 }
 
 static void
-net_interface_input(void * pkt, int len)
+net_interface_input(void *pkt, int len)
 {
 	void        *pl;
 	struct pbuf *p;
@@ -160,7 +158,7 @@ net_interface_input(void * pkt, int len)
 }
 
 int
-net_receive_packet(char* pkt, size_t pkt_len)
+net_receive_packet(char *pkt, size_t pkt_len)
 {
 	net_interface_input(pkt, pkt_len);
 	return 0;
@@ -209,7 +207,7 @@ netmgr_tcp_shmem_read(u16_t *data_offset, u16_t *data_len)
 		g_objid = objid;
 	}
 
-	*data_offset = (char*)g_pbuf->payload - obj->data;
+	*data_offset = (char *)g_pbuf->payload - obj->data;
 	*data_len = g_pbuf->len;
 
 	back_to_app = 0;
@@ -258,7 +256,7 @@ netmgr_udp_bind(u32_t ip_addr, u16_t port)
 
 	struct netshmem_pkt_buf *obj;
 
-	struct ip4_addr ipa = *(struct ip4_addr*)&ip_addr;
+	struct ip4_addr ipa = *(struct ip4_addr *)&ip_addr;
 	err_t ret;
 
 	thdid_t thd = cos_thdid();
@@ -298,7 +296,7 @@ netmgr_udp_shmem_read(u16_t *data_offset, u16_t *data_len, u32_t *remote_addr, u
 		}
 	}
 
-	*data_offset = (char*)g_pbuf->payload - obj->data;
+	*data_offset = (char *)g_pbuf->payload - obj->data;
 	*data_len    = g_pbuf->len;
 	*remote_addr = g_remote_addr.addr;
 	*remote_port = g_remote_port;
