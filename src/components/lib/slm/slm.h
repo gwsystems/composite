@@ -169,7 +169,7 @@ int slm_init_done(void);
 /* After a thread has been initialized, activate it! Calls `slm_thd_sched_update`. */
 int slm_thd_commit_updates(struct slm_thd *t);
 
-int  slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid, struct cos_dcb_info *dcb);
+int  slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid, arcvcap_t rcv, struct cos_dcb_info *dcb);
 void slm_thd_deinit(struct slm_thd *t);
 
 /* forward declarations, not part of the public API. */

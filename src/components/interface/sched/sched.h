@@ -57,6 +57,11 @@ int COS_STUB_DECL(sched_thd_delete)(thdid_t tid);
 int sched_thd_exit(void);
 int COS_STUB_DECL(sched_thd_exit)(void);
 
+arcvcap_t sched_arcv_create(thdid_t t);
+arcvcap_t COS_STUB_DECL(sched_arcv_create)(thdid_t);
+
+asndcap_t sched_asnd_create(thdid_t t);
+asndcap_t COS_STUB_DECL(sched_asnd_create)(thdid_t);
 /* TODO: lock i/f */
 
 #endif /* SCHED_H */

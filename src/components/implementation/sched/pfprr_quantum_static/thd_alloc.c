@@ -16,13 +16,13 @@ slm_thd_alloc(thd_fn_t fn, void *data, thdcap_t *thd, thdid_t *tid, struct cos_d
 }
 
 struct slm_thd_container *
-slm_thd_alloc_in(compid_t cid, thdclosure_index_t idx, thdcap_t *thd, thdid_t *tid, struct cos_dcb_info **dcb_info)
+slm_thd_alloc_in(compid_t cid, thdclosure_index_t idx, thdcap_t *thd, thdid_t *tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb_info)
 {
 	struct slm_thd_container *ret = NULL;
 	thdid_t _tid;
 	thdcap_t _cap;
 
-	_cap = capmgr_thd_create_ext(cid, idx, &_tid, dcb_info);
+	_cap = capmgr_thd_create_ext(cid, idx, &_tid, arcv, asnd, dcb_info);
 	if (_cap <= 0) return NULL;
 
 	return slm_thd_mem_alloc(_cap, _tid, thd, tid);
@@ -57,7 +57,7 @@ thd_alloc(thd_fn_t fn, void *data, sched_param_t *parameters, int reschedule)
 	thd = slm_thd_from_container(t);
 
 	slm_cs_enter(current, SLM_CS_NONE);
-	if (slm_thd_init(thd, thdcap, tid, dcb)) ERR_THROW(NULL, free);
+	if (slm_thd_init(thd, thdcap, tid, 0, dcb)) ERR_THROW(NULL, free);
 
 	for (i = 0; parameters[i] != 0; i++) {
 		sched_param_type_t type;
@@ -91,6 +91,8 @@ thd_alloc_in(compid_t id, thdclosure_index_t idx, sched_param_t *parameters, int
 	struct slm_thd *current = slm_thd_current_extern();
 	struct cos_dcb_info *dcb = NULL;
 	thdcap_t thdcap;
+	asndcap_t asnd;
+	arcvcap_t arcv;
 	thdid_t tid;
 	int i;
 
@@ -103,12 +105,12 @@ thd_alloc_in(compid_t id, thdclosure_index_t idx, sched_param_t *parameters, int
 		assert(current);
 	}
 
-	t = slm_thd_alloc_in(id, idx, &thdcap, &tid, &dcb);
+	t = slm_thd_alloc_in(id, idx, &thdcap, &tid, &arcv, &asnd, &dcb);
 	if (!t) ERR_THROW(NULL, done);
 	thd = slm_thd_from_container(t);
 
 	slm_cs_enter(current, SLM_CS_NONE);
-	if (slm_thd_init(thd, thdcap, tid, dcb)) ERR_THROW(NULL, free);
+	if (slm_thd_init(thd, thdcap, tid, asnd, dcb)) ERR_THROW(NULL, free);
 
 	for (i = 0; parameters[i] != 0; i++) {
 		sched_param_type_t type;

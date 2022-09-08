@@ -3,13 +3,10 @@
 
 COS_SERVER_3RET_STUB(arcvcap_t, capmgr_rcv_create)
 {
-	spdid_t child = p0 >> 16;
-	thdid_t tid   = (p0 << 16) >> 16;
-	cos_channelkey_t key = p1 >> 16;
-	microsec_t ipiwin = (p1 << 16) >> 16;
-	u32_t ipimax = p2;
+	spdid_t child   = p0;
+	thdcap_t thdcap = p1;
 
-	return capmgr_rcv_create(child, tid, key, ipiwin, ipimax);
+	return capmgr_rcv_create(child, thdcap);
 }
 
 
@@ -31,10 +28,12 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_create_ext)
 	thdid_t retthd = 0;
 	struct cos_dcb_info *retdcb;
 	thdcap_t ret;
+	asndcap_t asnd;
+	arcvcap_t arcv;
 
-	ret = capmgr_thd_create_ext(p0, p1, &retthd, &retdcb);
-	*r1 = retthd;
-	*r2 = (word_t)retdcb;
+	ret = capmgr_thd_create_ext(p0, p1, &retthd, &arcv, &asnd, &retdcb);
+	*r1 = retthd | (asnd << 16);
+	*r2 = (word_t)retdcb | arcv;
 
 	return ret;
 }

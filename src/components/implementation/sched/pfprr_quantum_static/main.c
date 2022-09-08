@@ -158,6 +158,10 @@ sched_set_tls(void* tls_addr)
 	capmgr_set_tls(thdcap, tls_addr);
 }
 
+arcvcap_t sched_arcv_create(thdid_t tid) { BUG(); return 0; }
+
+asndcap_t sched_asnd_create(thdid_t tid) { BUG(); return 0; }
+
 int
 thd_block(void)
 {

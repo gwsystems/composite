@@ -12,7 +12,7 @@ void slm_thd_mem_free(struct slm_thd_container *t);
 
 /* Thread allocation functions */
 struct slm_thd_container *slm_thd_alloc(thd_fn_t fn, void *data, thdcap_t *thd, thdid_t *tid, struct cos_dcb_info **dcb_info);
-struct slm_thd_container *slm_thd_alloc_in(compid_t cid, thdclosure_index_t idx, thdcap_t *thd, thdid_t *tid, struct cos_dcb_info **dcb_info);
+struct slm_thd_container *slm_thd_alloc_in(compid_t cid, thdclosure_index_t idx, thdcap_t *thd, thdid_t *tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb_info);
 struct slm_thd *thd_alloc(thd_fn_t fn, void *data, sched_param_t *parameters, int reschedule);
 struct slm_thd *thd_alloc_in(compid_t id, thdclosure_index_t idx, sched_param_t *parameters, int reschedule);
 

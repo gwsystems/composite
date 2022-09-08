@@ -1106,17 +1106,21 @@ crt_rcv_alias_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resources
 	assert(r && c && res);
 
 	if (flags & CRT_RCV_ALIAS_RCV) {
+		assert(r->aep->rcv);
 		if (crt_alias_alloc_helper(r->aep->rcv, CAP_ARCV, c, &res->rcv)) BUG();
 		/*
 		 * Creating a snd requires that we have the rcv cap
 		 * within the owning components captbl
 		 */
 		r->child_rcv = res->rcv;
+		//printc("rcv: %d, *c: %x\n", res->rcv, c);
 	}
 	if (flags & CRT_RCV_ALIAS_THD) {
+		assert(r->aep->thd);
 		if (crt_alias_alloc_helper(r->aep->thd, CAP_THD, c, &res->thd)) BUG();
 	}
 	if (flags & CRT_RCV_ALIAS_TCAP) {
+		assert(r->aep->tc);
 		if (crt_alias_alloc_helper(r->aep->tc, CAP_TCAP, c, &res->tc)) BUG();
 	}
 

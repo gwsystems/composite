@@ -10,14 +10,13 @@
 #include <cos_defkernel_api.h>
 #include <cos_stubs.h>
 
-COS_CLIENT_STUB(arcvcap_t, capmgr_rcv_create, spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
+COS_CLIENT_STUB(arcvcap_t, capmgr_rcv_create, spdid_t child, thdcap_t thdcap)
 {
 	COS_CLIENT_INVCAP;
-	word_t spd_tid    = (child << 16) | tid;
-	word_t key_ipimax = (key << 16) | ipimax;
-	word_t ipiwin32b  = (u32_t)ipiwin;
+	word_t spd = child;
+	word_t thd = thdcap;
 
-	return cos_sinv(uc->cap_no, spd_tid, key_ipimax, ipiwin32b, 0);
+	return cos_sinv(uc->cap_no, spd, thdcap, 0, 0);
 }
 
 COS_CLIENT_STUB(thdcap_t, capmgr_initthd_create, spdid_t child, thdid_t *tid)
@@ -45,15 +44,17 @@ COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_thunk, thdclosure_index_t id, thdid_
 	return ret;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext, spdid_t child, thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info **dcb)
+COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext, spdid_t child, thdclosure_index_t idx, thdid_t *tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb)
 {
 	COS_CLIENT_INVCAP;
-	word_t dcb_ret, tid_ret;
+	word_t dcbarcv, tidasnd;
 	thdcap_t ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, child, idx, 0, 0, &tid_ret, &dcb_ret);
-	*dcb = (struct cos_dcb_info *)dcb_ret;
-	*tid = tid_ret;
+	ret  = cos_sinv_2rets(uc->cap_no, child, idx, 0, 0, &tidasnd, &dcbarcv);
+	*dcb  = (struct cos_dcb_info *)((dcbarcv >> 10) << 10);
+	*arcv = (dcbarcv << 22) >> 22;
+	*asnd = (tidasnd >> 16);
+	*tid  = (tidasnd << 16) >> 16;
 
 	return ret;
 }
