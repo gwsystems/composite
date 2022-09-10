@@ -147,12 +147,14 @@ lapic_read_reg(u32_t off)
 static int
 lapic_tscdeadline_supported(void)
 {
-	u32_t a, b, c, d;
+	u32_t a = 0, b = 0, c = 0, d = 0;
 
-	chal_cpuid(6, &a, &b, &c, &d);
+	a = 6;
+	chal_cpuid(&a, &b, &c, &d);
 	if (a & (1 << 1)) printk("LAPIC Timer runs at Constant Rate!!\n");
 
-	chal_cpuid(1, &a, &b, &c, &d);
+	a = 1;
+	chal_cpuid(&a, &b, &c, &d);
 	if (c & (1 << 24)) return 1;
 
 	return 0;
@@ -173,9 +175,10 @@ lapic_cycles_to_timer(u32_t cycles)
 static int
 lapic_apicid(void)
 {
-	u32_t a, b, c, d;
+	u32_t a = 0, b = 0, c = 0, d = 0;
 
-	chal_cpuid(1, &a, &b, &c, &d);
+	a = 1;
+	chal_cpuid(&a, &b, &c, &d);
 
 	return (int)(b >> 24); /* Vol 2, 3-205: high byte is apicid */
 }
@@ -376,9 +379,10 @@ void
 lapic_timer_init(void)
 {
 	u32_t low, high;
-	u32_t a, b, c, d;
+	u32_t a = 0, b = 0, c = 0, d = 0;
 
-	chal_cpuid(1, &a, &b, &c, &d);
+	a = 1;
+	chal_cpuid(&a, &b, &c, &d);
 	if (c & (1 << 21)) printk("\tLAPIC:  processor supports x2APIC, IGNORED.\n");
 
 	if (!lapic_tscdeadline_supported()) {

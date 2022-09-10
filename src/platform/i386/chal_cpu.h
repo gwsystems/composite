@@ -18,6 +18,16 @@ typedef enum {
 	CR4_SMAP     = 1 << 21  /* Supervisor Mode Access Protection Enable */
 } cr4_flags_t;
 
+typedef enum {
+	XCR0    = 0,  /* XCR0 register */
+} xcr_regs_t;
+
+typedef enum {
+	XCR0_x87      = 1 << 0,  /* X87(must be 1) */
+	XCR0_SSE      = 1 << 1,  /* SSE enable */
+	XCR0_AVX      = 1 << 2,  /* AVX enable */
+} xcr0_flags_t;
+
 enum
 {
 	CR0_PG    = 1 << 31, /* enable paging */
@@ -48,6 +58,32 @@ chal_cpu_cr4_set(cr4_flags_t flags)
 #elif defined(__i386__)
 	asm("movl %0, %%cr4" : : "r"(config));
 #endif
+}
+
+static inline u64_t
+chal_cpu_xgetbv(u32_t xcr_n)
+{
+	u32_t low, high; 
+	u64_t ret;
+
+	asm volatile(
+		"xgetbv\n\t"
+		:"=a"(low),"=d"(high) : "c"(xcr_n));
+
+	ret = ((u64_t)high << 32) | low;
+	return ret;
+}
+
+static inline void
+chal_cpu_xsetbv(u32_t xcr_n, u64_t config)
+{
+	u32_t low, high;
+	low  = (u32_t)config;
+	high = config >> 32;
+
+	asm volatile(
+		"xsetbv\n\t" \
+		::"a"(low), "d"(high), "c"(xcr_n));
 }
 
 static inline void
@@ -110,21 +146,11 @@ readmsr(u32_t reg, u32_t *low, u32_t *high)
 }
 
 static inline void
-chal_cpuid(int code, u32_t *a, u32_t *b, u32_t *c, u32_t *d)
+chal_cpuid(u32_t *a, u32_t *b, u32_t *c, u32_t *d)
 {
-	asm volatile("cpuid" : "=a"(*a), "=b"(*b), "=c"(*c), "=d"(*d) : "a"(code));
+	asm volatile("cpuid" : "+a"(*a), "+b"(*b), "+c"(*c), "+d"(*d));
 }
 
-static inline void
-chal_avx_enable(void)
-{
-	__asm__ __volatile__(
-		"xor %%rcx, %%rcx\n\t" \
-		"xgetbv\n\t" \
-		"or $7, %%eax\n\t" \
-		"xsetbv\n\t" \
-		:::"rax","rdx","rcx");
-}
 
 static void
 chal_cpu_init(void)
@@ -134,9 +160,49 @@ chal_cpu_init(void)
 
 #if defined(__x86_64__)
 	u32_t low = 0, high = 0;
+	u64_t xcr0_config = 0;
+	u32_t a = 0, b = 0, c = 0, d = 0;
 
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE);
-	chal_avx_enable();
+
+	/* Check if the CPU support XSAVE and AVX */
+	a = 0x01;
+	chal_cpuid(&a, &b, &c, &d);
+	/* bit 26 is XSAVE, bit 28 is AVX */
+	assert((c & (1 << 26)) && (c & (1 << 28)));
+	/* Check if SSE3 and SSE4 is supported */
+	assert((c & (1 << 0)) && (c & (1 << 9)) && (c & (1 << 19)) && (c & (1 << 20)));
+	/* Check if AVX2 is supported */
+	a = 0x07;
+	c = 0;
+	chal_cpuid(&a, &b, &c, &d);
+	assert(b & (1 < 5));
+	printk("The CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE\n");
+
+	/* Check if the CPU suppor XSAVEOPT, XSAVEC and XSAVES instructions*/
+	a = 0x0d;
+	c = 1;
+	chal_cpuid(&a, &b, &c, &d);
+	assert((a & (1 << 0)) && (a & (1 << 1)) && (a & (1 << 3)));
+	printk("The CPU supports XSAVEOPT, XSAVEC and XSAVES instructions\n");
+
+	/* Get the maximum size of XSAVE area of available XCR0 features */
+	a = 0x0d;
+	c = 0;
+	chal_cpuid(&a, &b, &c, &d);
+	assert(c > 0);
+	printk("The CPU maximum XSAVE area is: %u\n", c);
+
+	/* Check the AVX state component offset from the beginning of XSAVE Area*/
+	a = 0x0d;
+	c = 2;
+	chal_cpuid(&a, &b, &c, &d);
+	printk("The AVX area offset is: %u\n", b);
+
+	/* Now enable SSE and AVX in XCR0, so that XSAVE features can be used */
+	xcr0_config = chal_cpu_xgetbv(XCR0);
+	xcr0_config |= XCR0_x87 | XCR0_SSE | XCR0_AVX;
+	chal_cpu_xsetbv(XCR0, xcr0_config);
 
 	readmsr(MSR_IA32_EFER, &low, &high);
 	writemsr(MSR_IA32_EFER,low | 0x1, high);
