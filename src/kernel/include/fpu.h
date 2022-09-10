@@ -114,6 +114,48 @@ fpu_init(void)
 	return 0;
 }
 
+static inline void
+fpu_disable(void)
+{
+	if (fpu_is_disabled()) return;
+
+	fpu_set(FPU_DISABLE);
+	*PERCPU_GET(fpu_disabled) = 1;
+
+	return;
+}
+
+static inline int
+fpu_is_disabled(void)
+{
+	int *disabled = PERCPU_GET(fpu_disabled);
+	assert(fpu_read_cr0() & FPU_DISABLED_MASK ? *disabled : !*disabled);
+
+	return *disabled;
+}
+
+static inline unsigned long
+fpu_read_cr0(void)
+{
+	unsigned long val;
+	asm volatile("mov %%cr0, %0" : "=r"(val));
+
+	return val;
+}
+
+static inline void
+fpu_set(int status)
+{
+	unsigned long val, cr0;
+
+	cr0 = fpu_read_cr0();
+	val = status ? (cr0 & ~FPU_DISABLED_MASK)
+	             : (cr0 | FPU_DISABLED_MASK); // ENABLE(status == 1) : DISABLE(status == 0)
+	asm volatile("mov %0, %%cr0" : : "r"(val));
+
+	return;
+}
+
 static inline int
 fpu_disabled_exception_handler(void)
 {

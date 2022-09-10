@@ -63,7 +63,7 @@ invalid_opcode_fault_handler(struct pt_regs *regs)
 int
 device_not_avail_fault_handler(struct pt_regs *regs)
 {
-	print_regs_state(regs);
+	print_pt_regs(regs);
 
 	return fpu_disabled_exception_handler();
 }

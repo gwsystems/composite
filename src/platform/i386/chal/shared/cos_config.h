@@ -81,6 +81,7 @@
 #define COMPONENT_ASSERTIONS 1 // activate assertions in components?
 
 #define FPU_ENABLED
+#define FPU_SUPPORT_SSE 1
 #define FPU_SUPPORT_FXSR 1 /* >0 : CPU supports FXSR. */
 
 /* the CPU that does initialization for Composite */
