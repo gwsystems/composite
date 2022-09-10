@@ -257,6 +257,31 @@ fxrstor(struct thread *thd)
 #endif
 	return;
 }
+
+static inline void
+xsaves(struct thread *thd)
+{
+	asm volatile("fxsave %0" : "=m"(thd->fpu));
+}
+
+static inline void
+xrestors(struct thread *thd)
+{
+	asm volatile("xrstors %0" : : "m"(thd->fpu));
+}
+
+static inline void
+xsaves64(struct thread *thd)
+{
+	asm volatile("fxsave64 %0" : "=m"(thd->fpu));
+}
+
+static inline void
+xrestors64(struct thread *thd)
+{
+	asm volatile("xrstors64 %0" : : "m"(thd->fpu));
+}
+
 #else
 /* if FPU_DISABLED is not defined, then we use these dummy functions */
 static inline int

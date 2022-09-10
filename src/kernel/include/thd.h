@@ -52,11 +52,11 @@ typedef enum {
  * components.
  */
 struct thread {
+	struct cos_fpu fpu; /* fpu has alignment requirement, thus put it first */
 	thdid_t        tid;
 	u16_t          invstk_top;
 	struct pt_regs regs;
 	struct pt_regs fault_regs;
-	struct cos_fpu fpu;
 
 	/* TODO: same cache-line as the tid */
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
@@ -439,6 +439,8 @@ thd_tls_set(struct captbl *ct, capid_t thd_cap, vaddr_t tlsaddr, struct thread *
 static void
 thd_init(void)
 {
+	/* Make sure all members of a struct thread is in a page */
+	assert(sizeof(struct thread) < PAGE_SIZE);
 	assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD));
 	// assert(offsetof(struct thread, regs) == 4); /* see THD_REGS in entry.S */
 }
