@@ -24,3 +24,5 @@ cos_asm_stub(sched_thd_delete);
 cos_asm_stub(sched_set_tls);
 cos_asm_stub(sched_arcv_create);
 cos_asm_stub(sched_asnd_create);
+cos_asm_stub(sched_arcv);
+cos_asm_stub(sched_asnd);

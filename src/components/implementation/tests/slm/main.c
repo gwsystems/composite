@@ -107,7 +107,7 @@ thd_alloc(thd_fn_t fn, void *data, sched_param_t *parameters, int reschedule)
 	if (!t) ERR_THROW(NULL, done);
 
 	slm_cs_enter(current, SLM_CS_NONE);
-	if (slm_thd_init(&t->thd, thdcap, tid, 0, NULL)) ERR_THROW(NULL, free);
+	if (slm_thd_init(&t->thd, thdcap, tid, 0, 0, NULL)) ERR_THROW(NULL, free);
 
 	for (i = 0; parameters[i] != 0; i++) {
 		sched_param_type_t type;

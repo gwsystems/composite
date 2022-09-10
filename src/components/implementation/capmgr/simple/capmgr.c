@@ -141,29 +141,20 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, asndcap_t *asnd, thdcl
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci        = cos_compinfo_get(defci);
-	//struct cos_compinfo    *target_ci = cos_compinfo_get(c->comp.comp_res);
-	struct cos_compinfo    *sched_ci = cos_compinfo_get(sched->comp.comp_res);
+	struct cos_compinfo    *sched_ci  = cos_compinfo_get(sched->comp.comp_res);
 	struct cos_aep_info    *sched_aep;
-	struct cm_thd  *t = ss_thd_alloc();
-	struct cm_rcv  *r_curr = ss_rcv_alloc();
-	//struct cm_rcv  *r_target= ss_rcv_alloc();
-	struct cm_asnd *s = ss_asnd_alloc();
-	struct crt_thd_resources res = { 0 };
-	struct crt_rcv_resources _rcv = (struct crt_rcv_resources) {
-		.tc  = 0,
-		.thd = 0,
-		.rcv = 0,
-	};
 
-	struct crt_asnd_resources _asnd = (struct crt_asnd_resources) {
-		.asnd = 0,
-	};
+	struct cm_thd  *t = ss_thd_alloc();
+	struct cm_rcv  *r = ss_rcv_alloc();
+	struct cm_asnd *s = ss_asnd_alloc();
+
+	struct crt_rcv_resources _rcv   = (struct crt_rcv_resources) { 0 };
+	struct crt_asnd_resources _asnd = (struct crt_asnd_resources) { 0 };
 
 	tcap_t    tcap;
 	arcvcap_t rcvcap;
-	asndcap_t sndcap;
 
-	if (!t || !r_curr || !s) return NULL;
+	if (!t || !r || !s) return NULL;
 	if (crt_thd_create_in(&t->thd, &c->comp, closure_id)) {
 		ss_thd_free(t);
 		printc("capmgr: couldn't create new thread correctly.\n");
@@ -172,17 +163,12 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, asndcap_t *asnd, thdcl
 	ss_thd_activate(t);
 
 	sched_aep = cos_sched_aep_get(defci);
-	//crt_refcnt_take(&c->comp.refcnt);
-	//assert(target_ci->comp_cap);
 	assert(sched_ci->comp_cap);
 
 	tcap = cos_tcap_alloc(ci);
 	assert(tcap);
 	rcvcap = cos_arcv_alloc(ci, t->thd.cap, tcap, sched_ci->comp_cap, sched_aep->rcv);
 	assert(rcvcap);
-//	printc("rcvcap: %d\n", rcvcap);
-//	sndcap = cos_asnd_alloc(ci, rcvcap, ci->captbl_cap);
-//	assert(sndcap);
 
 	struct crt_rcv_resources resrcv = (struct crt_rcv_resources) {
 		.tc = tcap,
@@ -190,23 +176,18 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, asndcap_t *asnd, thdcl
 		.tid = 0,
 		.rcv = rcvcap,
 	};
-	if (crt_rcv_create_with(&r_curr->rcv, &sched->comp, &resrcv)) BUG();
-	ss_rcv_activate(r_curr);
+	if (crt_rcv_create_with(&r->rcv, &sched->comp, &resrcv)) BUG();
+	ss_rcv_activate(r);
 
-	if (crt_rcv_alias_in(&r_curr->rcv, &sched->comp, &_rcv, CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_RCV | CRT_RCV_ALIAS_TCAP)) BUG();
-	//if (crt_rcv_create_with(&r_target->rcv, &sched->comp, &_rcv)) BUG();
-	//ss_rcv_activate(r_target);
+	if (crt_rcv_alias_in(&r->rcv, &sched->comp, &_rcv, CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_RCV | CRT_RCV_ALIAS_TCAP)) BUG();
 
-	if (crt_asnd_create(&s->asnd, &r_curr->rcv)) BUG();
+	if (crt_asnd_create(&s->asnd, &r->rcv)) BUG();
 	ss_asnd_activate(s);
 	if (crt_asnd_alias_in(&s->asnd, &sched->comp, &_asnd)) BUG();
 
 	t->sched       = sched;
 	t->aliased_cap = _rcv.thd;
 	t->arcv_cap    = _rcv.rcv;
-	//t->aliased_cap = res.cap;
-	//printc("t->aliased_cap: %d\n", t->aliased_cap);
-	//t->aliased_cap = _rcv.thd;
 	t->client      = c;
 	*asnd          = _asnd.asnd;
 	/* FIXME: should take a reference to the scheduler */

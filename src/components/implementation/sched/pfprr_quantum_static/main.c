@@ -163,6 +163,29 @@ arcvcap_t sched_arcv_create(thdid_t tid) { BUG(); return 0; }
 asndcap_t sched_asnd_create(thdid_t tid) { BUG(); return 0; }
 
 int
+sched_asnd(thdid_t tid)
+{
+	struct slm_thd *thd = slm_thd_lookup(tid);
+
+	assert(thd->asnd);
+	int ret = cos_asnd(thd->asnd, 1);
+
+	return ret;
+}
+
+int
+sched_arcv(thdid_t tid)
+{
+	int rcvd = 0, pending = 0;
+	struct slm_thd *thd = slm_thd_lookup(tid);
+
+	assert(thd->rcv);
+	pending = cos_rcv(thd->rcv, RCV_ALL_PENDING, &rcvd);
+
+	return rcvd;
+}
+
+int
 thd_block(void)
 {
 	struct slm_thd *current = slm_thd_current();

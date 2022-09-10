@@ -62,6 +62,11 @@ arcvcap_t COS_STUB_DECL(sched_arcv_create)(thdid_t);
 
 asndcap_t sched_asnd_create(thdid_t t);
 asndcap_t COS_STUB_DECL(sched_asnd_create)(thdid_t);
+
+int sched_arcv(thdid_t t);
+int COS_STUB_DECL(sched_arcv)(thdid_t);
+int sched_asnd(thdid_t t);
+int COS_STUB_DECL(sched_asnd)(thdid_t);
 /* TODO: lock i/f */
 
 #endif /* SCHED_H */

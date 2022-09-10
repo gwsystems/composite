@@ -57,7 +57,7 @@ thd_alloc(thd_fn_t fn, void *data, sched_param_t *parameters, int reschedule)
 	thd = slm_thd_from_container(t);
 
 	slm_cs_enter(current, SLM_CS_NONE);
-	if (slm_thd_init(thd, thdcap, tid, 0, dcb)) ERR_THROW(NULL, free);
+	if (slm_thd_init(thd, thdcap, tid, 0, 0, dcb)) ERR_THROW(NULL, free);
 
 	for (i = 0; parameters[i] != 0; i++) {
 		sched_param_type_t type;
@@ -110,7 +110,7 @@ thd_alloc_in(compid_t id, thdclosure_index_t idx, sched_param_t *parameters, int
 	thd = slm_thd_from_container(t);
 
 	slm_cs_enter(current, SLM_CS_NONE);
-	if (slm_thd_init(thd, thdcap, tid, asnd, dcb)) ERR_THROW(NULL, free);
+	if (slm_thd_init(thd, thdcap, tid, arcv, asnd, dcb)) ERR_THROW(NULL, free);
 
 	for (i = 0; parameters[i] != 0; i++) {
 		sched_param_type_t type;
