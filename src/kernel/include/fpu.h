@@ -40,7 +40,7 @@ static inline int           fpu_check_fxsr(void);
 static inline int           fpu_check_sse(void);
 #include "thd.h"
 
-#ifdef FPU_ENABLED
+#if FPU_ENABLED
 static inline int
 fpu_get_info(void)
 {
@@ -148,6 +148,11 @@ fpu_set(int status)
 {
 	unsigned long val, cr0;
 
+	/*
+	 * Set CR0.TS = 1 to disable any use of x87 FPU/MMX/SSE/SSE2/SSE3/SSSE3/SSE4/AVX/AVX2 instruction, it will cause a #NM.
+	 * The system uses this feature to detect if a user uses instructions, if it doesn't use, don't execute related context
+	 * switch (save & restore the registers above).
+	 */
 	cr0 = fpu_read_cr0();
 	val = status ? (cr0 & ~FPU_DISABLED_MASK)
 	             : (cr0 | FPU_DISABLED_MASK); // ENABLE(status == 1) : DISABLE(status == 0)
@@ -285,6 +290,11 @@ xrestors64(struct thread *thd)
 
 #else
 /* if FPU_DISABLED is not defined, then we use these dummy functions */
+static inline int
+fpu_init(void)
+{
+	return 1;
+}
 static inline int
 fpu_disabled_exception_handler(void)
 {

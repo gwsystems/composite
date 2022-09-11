@@ -186,6 +186,7 @@ chal_cpu_init(void)
 	u32_t a = 0, b = 0, c = 0, d = 0;
 	word_t cr0;
 
+	/* CR4_OSXSAVE has to be set to enable xgetbv/xsetbv */
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE);
 
 	/* Check if the CPU support XSAVE and AVX */
