@@ -7,15 +7,30 @@
 #include "tss.h"
 
 typedef enum {
-	CR4_TSD      = 1 << 2,  /* time stamp (rdtsc) access at user-level disabled */
-	CR4_PSE      = 1 << 4,  /* page size extensions (superpages) */
-	CR4_PGE      = 1 << 7,  /* page global bit enabled */
-	CR4_PCE      = 1 << 8,  /* user-level access to performance counters enabled (rdpmc) */
-	CR4_OSFXSR   = 1 << 9,  /* floating point enabled */
-	CR4_FSGSBASE = 1 << 16, /* user level fs/gs access permission bit */
-	CR4_OSXSAVE  = 1 << 18, /* XSAVE and Processor Extended States Enable */
-	CR4_SMEP     = 1 << 20, /* Supervisor Mode Execution Protection Enable */
-	CR4_SMAP     = 1 << 21  /* Supervisor Mode Access Protection Enable */
+	CR0_PE    = 1 << 0,  /* Protected Mode Enable */
+	CR0_MP    = 1 << 1,  /* Monitor co-processor */
+	CR0_EM    = 1 << 2,  /* Emulation x87 FPU */
+	CR0_TS    = 1 << 3,  /* Task switched */
+	CR0_ET    = 1 << 4,  /* Extension type */
+	CR0_NE    = 1 << 5,  /* Numeric error */
+	CR0_WP    = 1 << 16, /* Write protect */
+	CR0_AM    = 1 << 18, /* Alignment mask */
+	CR0_NW    = 1 << 29, /* Not-write through */
+	CR0_CD    = 1 << 30, /* Cache disable */
+	CR0_PG    = 1 << 31  /* Paging */
+} cr0_flags_t;
+
+typedef enum {
+	CR4_TSD        = 1 << 2,  /* time stamp (rdtsc) access at user-level disabled */
+	CR4_PSE        = 1 << 4,  /* page size extensions (superpages) */
+	CR4_PGE        = 1 << 7,  /* page global bit enabled */
+	CR4_PCE        = 1 << 8,  /* user-level access to performance counters enabled (rdpmc) */
+	CR4_OSFXSR     = 1 << 9,  /* if set, enable SSE instructions and fast FPU save & restore, or using SSE instructions will cause #UD */
+	CR4_OSXMMEXCPT = 1 << 10, /* Operating System Support for Unmasked SIMD Floating-Point Exceptions */
+	CR4_FSGSBASE   = 1 << 16, /* user level fs/gs access permission bit */
+	CR4_OSXSAVE    = 1 << 18, /* XSAVE and Processor Extended States Enable */
+	CR4_SMEP       = 1 << 20, /* Supervisor Mode Execution Protection Enable */
+	CR4_SMAP       = 1 << 21  /* Supervisor Mode Access Protection Enable */
 } cr4_flags_t;
 
 typedef enum {
@@ -28,12 +43,20 @@ typedef enum {
 	XCR0_AVX      = 1 << 2,  /* AVX enable */
 } xcr0_flags_t;
 
-enum
+static inline word_t 
+chal_cpu_cr0_get(void)
 {
-	CR0_PG    = 1 << 31, /* enable paging */
-	CR0_FPEMU = 1 << 2,  /* disable floating point, enable emulation */
-	CR0_PRMOD = 1 << 0   /* in protected-mode (vs real-mode) */
-};
+	word_t config;
+	asm("mov %%cr0, %0" : "=r"(config));
+
+	return config;
+}
+
+static inline void
+chal_cpu_cr0_set(word_t config)
+{
+	asm("mov %0, %%cr0" : : "r"(config));
+}
 
 static inline unsigned long
 chal_cpu_cr4_get(void)
@@ -161,6 +184,7 @@ chal_cpu_init(void)
 	u32_t low = 0, high = 0;
 	u64_t xcr0_config = 0;
 	u32_t a = 0, b = 0, c = 0, d = 0;
+	word_t cr0;
 
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE);
 
@@ -199,6 +223,15 @@ chal_cpu_init(void)
 	printk("The AVX area offset is: %u\n", b);
 
 	/* Now enable SSE and AVX in XCR0, so that XSAVE features can be used */
+
+	/* 1. Enable SSE */
+	cr0  = chal_cpu_cr0_get();
+	cr0 &= ~((word_t)(CR0_EM)); /* clear EM bit*/
+	cr0 |= (word_t)(CR0_MP);    /* set MP bit */
+	chal_cpu_cr0_set(cr0);
+	chal_cpu_cr4_set(CR4_OSFXSR);
+
+	/* 2. Enable AVX */
 	xcr0_config = chal_cpu_xgetbv(XCR0);
 	xcr0_config |= XCR0_x87 | XCR0_SSE | XCR0_AVX;
 	chal_cpu_xsetbv(XCR0, xcr0_config);
