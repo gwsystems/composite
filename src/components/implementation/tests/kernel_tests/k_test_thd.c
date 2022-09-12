@@ -166,23 +166,24 @@ test_thds_tls(void)
         EXIT_FN();
 #endif
 }
+
 static void
 thds_fpu(void *d)
 {
         float    PI   = 3.0;
         int      flag = 1;
-        int      i;
+        word_t      i;
         for (i = 2; i < 20; i += 2) {	
                 if (flag) {
                         PI += (4.0 / (i * (i + 1) * (i + 2)));
                 } else {
                         PI -= (4.0 / (i * (i + 1) * (i + 2)));
                 }
-                if ((int) d == 1) {
+                if ((word_t) d == 1) {
                         cos_thd_switch(thds[2]);
-                } else if ((int) d == 2) {
+                } else if ((word_t) d == 2) {
                         cos_thd_switch(thds[1]);		
-                } else if ((int) d == 3) {
+                } else if ((word_t) d == 3) {
                         cos_thd_switch(thds[0]);		
                 }
                 flag = !flag;
@@ -199,6 +200,7 @@ test_thds_reg(void *d)
         while (1) cos_thd_switch(thds[3]);
         PRINTC("Error, shouldn't get here!\n");
 }
+
 static void
 test_thds_fpu(void)
 {
@@ -214,12 +216,13 @@ test_thds_fpu(void)
         }
         for (i = 0; i < 3; i++) {
                 ret = cos_thd_switch(thds[i]);
-                if (EXPECT_LL_NEQ(0, ret, "Thread TLS: COS Switch Error")) return;
+                if (EXPECT_LL_NEQ(0, ret, "Thread FPU: COS Switch Error")) return;
         }
         CHECK_STATUS_FLAG();
         PRINTC("\t%s: \t\t\tSuccess\n", "THD => FPU Thd Switch");
         EXIT_FN();
 }
+
 void
 test_thds(void)
 {

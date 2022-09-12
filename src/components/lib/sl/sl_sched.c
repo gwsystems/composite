@@ -436,6 +436,13 @@ done:
 	return;
 }
 
+CWEAKSYMB void
+capmgr_set_tls(thdcap_t cap, void* tls_addr)
+{
+	/* TODO: implement this when some tests depend on lib sl without capmgr */
+	assert(0);
+}
+
 void sched_set_tls(void* tls_addr)
 {
 	struct sl_thd *t = sl_thd_curr();
