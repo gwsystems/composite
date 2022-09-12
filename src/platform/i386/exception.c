@@ -63,9 +63,14 @@ invalid_opcode_fault_handler(struct pt_regs *regs)
 int
 device_not_avail_fault_handler(struct pt_regs *regs)
 {
-	print_pt_regs(regs);
+	int ret = fpu_disabled_exception_handler();
 
-	return fpu_disabled_exception_handler();
+	if (!ret) {
+		print_pt_regs(regs);
+		die("FAULT: Device not available\n");
+	}
+
+	return ret;
 }
 
 int

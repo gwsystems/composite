@@ -23,6 +23,8 @@ static inline int  fpu_init(void);
 static inline int  fpu_disabled_exception_handler(void);
 static inline void fpu_thread_init(struct thread *thd);
 static inline int  fpu_switch(struct thread *next);
+static inline void fpu_save(struct thread *);
+static inline void fpu_restore(struct thread *);
 
 /* packed functions for FPU operation */
 static inline void fpu_enable(void);
@@ -150,7 +152,7 @@ fpu_set(int status)
 
 	/*
 	 * Set CR0.TS = 1 to disable any use of x87 FPU/MMX/SSE/SSE2/SSE3/SSSE3/SSE4/AVX/AVX2 instruction, it will cause a #NM.
-	 * The system uses this feature to detect if a user uses instructions, if it doesn't use, don't execute related context
+	 * The system uses this feature to detect if a user uses these instructions, if it doesn't use, don't execute related context
 	 * switch (save & restore the registers above).
 	 */
 	cr0 = fpu_read_cr0();
@@ -165,11 +167,11 @@ static inline int
 fpu_disabled_exception_handler(void)
 {
 	struct thread *curr_thd;
-	/*printk("COS KERNEL: SUCCESS fpu enabled, now in exception handler \n");*/
+	curr_thd = cos_get_curr_thd();
+	assert(curr_thd != NULL);
 
-	if ((curr_thd = cos_get_curr_thd()) == NULL) return 1;
-
-	assert(fpu_is_disabled());
+	/* If this thread enables fpu and there is still a #NM, tell the handler to deal with */
+	if(!fpu_is_disabled()) return 0;
 
 	curr_thd->fpu.status = 1;
 	fpu_switch(curr_thd);
@@ -181,8 +183,13 @@ static inline void
 fpu_thread_init(struct thread *thd)
 {
 	memset(&thd->fpu, 0, sizeof(struct cos_fpu));
+	thd->fpu.first_access = 1;
 	thd->fpu.cwd = 0x37f;
 #if FPU_SUPPORT_SSE > 0
+	/* 
+	 * Mask all SSE exceptions, this will make processor ingore the exceptions
+	 * and the user program has to deal with invalid SSE results. 
+	 */
 	thd->fpu.mxcsr = 0x1f80;
 #endif
 	return;
@@ -217,9 +224,12 @@ fpu_switch(struct thread *next)
 	 * fpu_last_used exists
 	 * if fpu_last_used != next, then we save current fpu states to fpu_last_used, restore next thread's fpu state
 	 */
-	fxsave(*last_used);
+	fpu_save(*last_used);
 store:
-	fxrstor(next);
+	if (!next->fpu.first_access) {
+		fpu_restore(next);
+		next->fpu.first_access = 0;
+	}
 	*last_used = next;
 
 	return 0;
@@ -267,25 +277,41 @@ fxrstor(struct thread *thd)
 static inline void
 xsaves(struct thread *thd)
 {
-	asm volatile("fxsave %0" : "=m"(thd->fpu));
+#ifdef __x86_64__
+	asm volatile("xsaves64 %0" : "=m"(thd->fpu));
+#else
+	asm volatile("xsaves %0" : "=m"(thd->fpu));
+#endif
 }
 
 static inline void
 xrestors(struct thread *thd)
 {
-	asm volatile("xrstors %0" : : "m"(thd->fpu));
-}
-
-static inline void
-xsaves64(struct thread *thd)
-{
-	asm volatile("fxsave64 %0" : "=m"(thd->fpu));
-}
-
-static inline void
-xrestors64(struct thread *thd)
-{
+#ifdef __x86_64__
 	asm volatile("xrstors64 %0" : : "m"(thd->fpu));
+#else
+	asm volatile("xrstors %0" : : "m"(thd->fpu));
+#endif
+}
+
+static inline void
+fpu_save(struct thread *thd)
+{
+#if FPU_SUPPORT_XSAVES
+	xsaves(thd);
+#else
+	fxsave(thd);
+#endif
+}
+
+static inline void
+fpu_restore(struct thread *thd)
+{
+#if FPU_SUPPORT_XSAVES
+	xrestors(thd);
+#else
+	fxrstor(thd);
+#endif
 }
 
 #else
@@ -346,6 +372,16 @@ static inline int
 fpu_check_sse(void)
 {
 	return 0;
+}
+static inline void
+fpu_save(struct thread *)
+{
+	return;
+}
+static inline void
+fpu_restore(struct thread *)
+{
+	return;
 }
 #endif
 

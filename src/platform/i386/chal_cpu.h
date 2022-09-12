@@ -3,6 +3,7 @@
 
 #include <pgtbl.h>
 #include <thd.h>
+#include <fpu.h>
 #include "isr.h"
 #include "tss.h"
 
@@ -252,7 +253,8 @@ chal_cpu_init(void)
 	writemsr(IA32_SYSENTER_ESP, (u32_t)tss[cpu_id].esp0, 0);
 	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, 0);
 #endif
-	
+
+	fpu_init();
 	chal_cpu_eflags_init();
 }
 
