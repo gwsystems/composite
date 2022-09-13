@@ -61,7 +61,6 @@ struct cos_fpu {
 	u8_t xsave_ext_area[800]; 
 
 	int status;
-	int first_access;
 #endif
 } __attribute__((aligned(64)));
 

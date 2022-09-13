@@ -1,6 +1,8 @@
 #ifndef FPU_H
 #define FPU_H
 
+/* TODO: Make this file architecture independent */
+
 #include "per_cpu.h"
 #define FPU_DISABLED_MASK 0x8
 #define FXSR (1 << 24)
@@ -183,7 +185,8 @@ static inline void
 fpu_thread_init(struct thread *thd)
 {
 	memset(&thd->fpu, 0, sizeof(struct cos_fpu));
-	thd->fpu.first_access = 1;
+	/* Have to set bit 63 of xcomp_bv to 1, or it will cause a #GP */
+	thd->fpu.xcomp_bv |= ((u64_t)1 << 63);
 	thd->fpu.cwd = 0x37f;
 #if FPU_SUPPORT_SSE > 0
 	/* 
@@ -226,10 +229,7 @@ fpu_switch(struct thread *next)
 	 */
 	fpu_save(*last_used);
 store:
-	if (!next->fpu.first_access) {
-		fpu_restore(next);
-		next->fpu.first_access = 0;
-	}
+	fpu_restore(next);
 	*last_used = next;
 
 	return 0;
@@ -278,9 +278,10 @@ static inline void
 xsaves(struct thread *thd)
 {
 #ifdef __x86_64__
-	asm volatile("xsaves64 %0" : "=m"(thd->fpu));
+	/* 0x7: XCR0_x87 | XCR0_x87 | XCR0_x87 */
+	asm volatile("xsaves64 %0" : "=m"(thd->fpu): "a"(0x7), "d"(0):"memory");
 #else
-	asm volatile("xsaves %0" : "=m"(thd->fpu));
+	asm volatile("xsaves %0" : "=m"(thd->fpu): "a"(0x7), "d"(0):"memory");
 #endif
 }
 
@@ -288,9 +289,10 @@ static inline void
 xrestors(struct thread *thd)
 {
 #ifdef __x86_64__
-	asm volatile("xrstors64 %0" : : "m"(thd->fpu));
+	/* 0x7: XCR0_x87 | XCR0_x87 | XCR0_x87 */
+	asm volatile("xrstors64 %0" : :"m"(thd->fpu), "a"(0x7), "d"(0):"memory");
 #else
-	asm volatile("xrstors %0" : : "m"(thd->fpu));
+	asm volatile("xrstors %0" : :"m"(thd->fpu), "a"(0x7), "d"(0):"memory");
 #endif
 }
 
