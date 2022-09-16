@@ -43,7 +43,7 @@ fpu1_thd_fn()
 		for (i = 0; i < YMM_N_REGS; i++) {
 			for (j = 0; j < YMM_SIZE; j++) {
 				rdtscll(rand);
-				fpu_thd1_load[i][j] = rand;
+				fpu_thd1_load[i][j] = rand << 32 | rand;;
 			}
 		}
 
@@ -113,7 +113,7 @@ fpu2_thd_fn()
 		for (i = 0; i < YMM_N_REGS; i++) {
 			for (j = 0; j < YMM_SIZE; j++) {
 				rdtscll(rand);
-				fpu_thd2_load[i][j] = rand;
+				fpu_thd2_load[i][j] = rand << 32 | rand;
 			}
 		}
 
