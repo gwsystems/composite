@@ -27,8 +27,8 @@ thdid_t g_thd2 = 0;
 u64_t fpu_thd2_load[YMM_N_REGS][YMM_SIZE];
 u64_t fpu_thd2_read[YMM_N_REGS][YMM_SIZE];
 
-volatile static int g_thd1_done = 0;
-volatile static int g_thd2_done = 0;
+static volatile int g_thd1_done = 0;
+static volatile int g_thd2_done = 0;
 
 static void
 fpu1_thd_fn()
