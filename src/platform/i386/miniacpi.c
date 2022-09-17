@@ -294,17 +294,18 @@ acpi_shutdown_init(void)
 void
 acpi_shutdown(void)
 {
+	u32_t i;
+	u32_t spin_until = ~0;
+	word_t tmp;
+
 	if (!shutdown_ready) return;
 
 	/* Enable ACPI. First, check if acpi is already enabled */
 	if (!inw((unsigned int) pm1a_cnt)) {
-		u32_t i;
-		u32_t spin_until = ~0;
-
 		/* check if acpi can be enabled */
 		if (smi_cmd == 0 || acpi_enable == 0) return;
 
-		outb((unsigned int)smi_cmd, acpi_enable); /* send acpi enable command */
+		outb(acpi_enable, (unsigned int)smi_cmd); /* send acpi enable command */
 		/* takes up to 3 seconds time to enable acpi? */
 		for (i = 0; i < spin_until; i++) {
 			if (inw((unsigned int)pm1a_cnt) == 1) break;
@@ -319,11 +320,16 @@ acpi_shutdown(void)
 		if (i == spin_until) return; /* couldn't enable in time */
 	}
 
-
 	/* Found everything we need from the dsdt, now shutdown! */
-	outw((unsigned int)pm1a_cnt, slp_type_a | slp_en );
+	outw(slp_type_a | slp_en, (unsigned int)pm1a_cnt);
 	if (pm1b_cnt != 0) {
-		outw((unsigned int)pm1b_cnt, slp_type_b | slp_en);
+		outw(slp_type_b | slp_en, (unsigned int)pm1b_cnt);
+	}
+
+	/* spin for the shutdown command to be executed */
+	spin_until = 1 << 19;
+	for (i = 0; i < spin_until; i++) {
+		rdtscll(tmp);
 	}
 }
 
