@@ -1,4 +1,6 @@
+
 #include <rte_eal.h>
+#include "adapter/cos_dpdk_adapter.h"
 #include <rte_bus_pci.h>
 #include <rte_ethdev.h>
 #include <rte_mempool.h>
@@ -10,7 +12,6 @@
 
 #include <arpa/inet.h>
 
-#include "adapter/cos_dpdk_adapter.h"
 #include "cos_dpdk.h"
 extern struct rte_pci_bus rte_pci_bus;
 
@@ -109,7 +110,7 @@ cos_eth_ports_init(void)
 
 	COS_DPDK_APP_LOG(NOTICE, "cos_eth_ports_init success, find %d ports\n", nb_ports);
 
-	for(i = 0; i < nb_ports; i++) {
+	for (i = 0; i < nb_ports; i++) {
 		cos_eth_info_print(ports_ids[i]);
 	}
 
@@ -142,7 +143,7 @@ static struct rte_eth_conf default_port_conf = {
 char*
 cos_create_pkt_mbuf_pool(const char *name, size_t nb_mbufs)
 {
-	#define MEMPOOL_CACHE_SIZE 256
+	#define MEMPOOL_CACHE_SIZE 0
 	return (char *)rte_pktmbuf_pool_create(name, nb_mbufs,
 		MEMPOOL_CACHE_SIZE, 0, COS_MBUF_DEFAULT_BUF_SIZE,
 		rte_socket_id());
@@ -290,6 +291,14 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 	ret = rte_eth_dev_info_get(real_port_id, &dev_info);
 	txq_conf = dev_info.default_txconf;
 
+	/* This commented code might be used in the future to adjust tx configurations */
+	// txq_conf.tx_rs_thresh = 2;
+	// txq_conf.tx_thresh.pthresh = 1;
+	// txq_conf.tx_thresh.hthresh = 1;
+	// txq_conf.tx_thresh.wthresh = 1;
+	// txq_conf.tx_free_thresh = 1;
+	// txq_conf.offloads = 0;
+
 	ret = rte_eth_tx_queue_setup(real_port_id, tx_queue_id, nb_tx_desc,
 				rte_eth_dev_socket_id(real_port_id),
 				&txq_conf);
@@ -367,7 +376,7 @@ cos_dev_port_set_promiscuous_mode(cos_portid_t port_id, bool mode)
 {
 	int ret;
 	cos_portid_t real_port_id = ports_ids[port_id];
-	if(mode == COS_DPDK_SWITCH_ON) {
+	if (mode == COS_DPDK_SWITCH_ON) {
 		ret = rte_eth_promiscuous_enable(real_port_id);
 		if (ret != 0) {
 			rte_exit(EXIT_FAILURE,
@@ -432,8 +441,9 @@ cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
  * cos_parse_pkts: return data pointer of this packet
  */
 char*
-cos_get_packet(char* mbuf)
+cos_get_packet(char* mbuf, int *len)
 {
+	*len = ((struct rte_mbuf*)mbuf)->pkt_len;
 	return (char *)rte_pktmbuf_mtod((struct rte_mbuf*)mbuf, struct rte_ether_hdr *);
 }
 
@@ -520,10 +530,65 @@ uint16_t cos_send_a_packet(char * pkt, uint32_t pkt_size, char* mp)
 	mbuf->data_len = pkt_size + sizeof(struct rte_ether_hdr);
 	mbuf->pkt_len = pkt_size + sizeof(struct rte_ether_hdr);
 
-	return cos_dev_port_tx_burst(0, 0, (char**)&mbuf, 1);
+	return cos_dev_port_tx_burst(0, 0, (char **)&mbuf, 1);
 }
 
 char*
 cos_allocate_mbuf(char* mp) {
-	return (char*)rte_pktmbuf_alloc((struct rte_mempool *)mp);
+	return (char *)rte_pktmbuf_alloc((struct rte_mempool *)mp);
+}
+
+static inline void
+cos_pktmbuf_ext_shinfo_init_helper(void *ext_shinfo_addr, rte_mbuf_extbuf_free_callback_t free_cb, void *fcb_opaque)
+{
+	struct rte_mbuf_ext_shared_info *shinfo = ext_shinfo_addr;
+
+	shinfo->free_cb = free_cb;
+	shinfo->fcb_opaque = fcb_opaque;
+	rte_mbuf_ext_refcnt_set(shinfo, 1);
+}
+
+int
+cos_attach_external_mbuf(char *mbuf, void *buf_vaddr,
+			uint64_t buf_paddr, uint16_t buf_len,
+			void (*ext_buf_free_cb)(void *addr, void *opaque),
+			void *ext_shinfo)
+{
+	rte_iova_t buf_iova = buf_paddr ;
+
+	struct rte_mbuf *_mbuf = (struct rte_mbuf *)mbuf;
+
+	cos_pktmbuf_ext_shinfo_init_helper(ext_shinfo, ext_buf_free_cb, 0);
+	rte_pktmbuf_attach_extbuf(_mbuf, buf_vaddr, buf_iova, buf_len, ext_shinfo);
+
+	return 0;
+}
+
+int
+cos_send_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len)
+{
+	struct rte_mbuf *_mbuf = (struct rte_mbuf *)mbuf;
+	_mbuf->data_len = pkt_len;
+	_mbuf->pkt_len = pkt_len;
+	_mbuf->data_off = data_offset;
+
+	return cos_dev_port_tx_burst(0, 0, &mbuf, 1);
+}
+
+int
+cos_mempool_full(const char *mp)
+{
+	return rte_mempool_full((struct rte_mempool *)mp);
+}
+
+int
+cos_mempool_in_use_count(const char *mp)
+{
+	return rte_mempool_in_use_count((struct rte_mempool *)mp);
+}
+
+int
+cos_eth_tx_done_cleanup(uint16_t port_id, uint16_t queue_id, uint32_t free_cnt)
+{
+	return rte_eth_tx_done_cleanup(port_id, queue_id, free_cnt);
 }

@@ -4,8 +4,17 @@
 #include <cos_types.h>
 #include <cos_component.h>
 #include <cos_stubs.h>
+#include <shm_bm.h>
 
-int nic_send_packet(char* pkt, size_t pkt_size);
-int nic_bind_port(u32_t ip_addr, u16_t port, void* share_mem, size_t share_mem_sz);
+void nic_shmem_map(cbuf_t shm_id);
 
+int nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len);
+int nic_bind_port(u32_t ip_addr, u16_t port);
+
+/*
+ * caller will be suspended until there is a packet for this thread,
+ * dpdk will then copy the packet to this shmem region specified by the shmid
+ * and return its shmem objectid.
+ */
+shm_bm_objid_t nic_get_a_packet(u16_t *pkt_len);
 #endif /* NIC_H */

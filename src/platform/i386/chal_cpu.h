@@ -3,27 +3,61 @@
 
 #include <pgtbl.h>
 #include <thd.h>
+#include <fpu.h>
 #include "isr.h"
 #include "tss.h"
 
 typedef enum {
-	CR4_TSD      = 1 << 2,  /* time stamp (rdtsc) access at user-level disabled */
-	CR4_PSE      = 1 << 4,  /* page size extensions (superpages) */
-	CR4_PGE      = 1 << 7,  /* page global bit enabled */
-	CR4_PCE      = 1 << 8,  /* user-level access to performance counters enabled (rdpmc) */
-	CR4_OSFXSR   = 1 << 9,  /* floating point enabled */
-	CR4_FSGSBASE = 1 << 16, /* user level fs/gs access permission bit */
-	CR4_OSXSAVE  = 1 << 18, /* XSAVE and Processor Extended States Enable */
-	CR4_SMEP     = 1 << 20, /* Supervisor Mode Execution Protection Enable */
-	CR4_SMAP     = 1 << 21  /* Supervisor Mode Access Protection Enable */
+	CR0_PE    = 1 << 0,  /* Protected Mode Enable */
+	CR0_MP    = 1 << 1,  /* Monitor co-processor */
+	CR0_EM    = 1 << 2,  /* Emulation x87 FPU */
+	CR0_TS    = 1 << 3,  /* Task switched */
+	CR0_ET    = 1 << 4,  /* Extension type */
+	CR0_NE    = 1 << 5,  /* Numeric error */
+	CR0_WP    = 1 << 16, /* Write protect */
+	CR0_AM    = 1 << 18, /* Alignment mask */
+	CR0_NW    = 1 << 29, /* Not-write through */
+	CR0_CD    = 1 << 30, /* Cache disable */
+	CR0_PG    = 1 << 31  /* Paging */
+} cr0_flags_t;
+
+typedef enum {
+	CR4_TSD        = 1 << 2,  /* time stamp (rdtsc) access at user-level disabled */
+	CR4_PSE        = 1 << 4,  /* page size extensions (superpages) */
+	CR4_PGE        = 1 << 7,  /* page global bit enabled */
+	CR4_PCE        = 1 << 8,  /* user-level access to performance counters enabled (rdpmc) */
+	CR4_OSFXSR     = 1 << 9,  /* if set, enable SSE instructions and fast FPU save & restore, or using SSE instructions will cause #UD */
+	CR4_OSXMMEXCPT = 1 << 10, /* Operating System Support for Unmasked SIMD Floating-Point Exceptions */
+	CR4_FSGSBASE   = 1 << 16, /* user level fs/gs access permission bit */
+	CR4_OSXSAVE    = 1 << 18, /* XSAVE and Processor Extended States Enable */
+	CR4_SMEP       = 1 << 20, /* Supervisor Mode Execution Protection Enable */
+	CR4_SMAP       = 1 << 21  /* Supervisor Mode Access Protection Enable */
 } cr4_flags_t;
 
-enum
+typedef enum {
+	XCR0    = 0,  /* XCR0 register */
+} xcr_regs_t;
+
+typedef enum {
+	XCR0_x87      = 1 << 0,  /* X87(must be 1) */
+	XCR0_SSE      = 1 << 1,  /* SSE enable */
+	XCR0_AVX      = 1 << 2,  /* AVX enable */
+} xcr0_flags_t;
+
+static inline word_t 
+chal_cpu_cr0_get(void)
 {
-	CR0_PG    = 1 << 31, /* enable paging */
-	CR0_FPEMU = 1 << 2,  /* disable floating point, enable emulation */
-	CR0_PRMOD = 1 << 0   /* in protected-mode (vs real-mode) */
-};
+	word_t config;
+	asm("mov %%cr0, %0" : "=r"(config));
+
+	return config;
+}
+
+static inline void
+chal_cpu_cr0_set(word_t config)
+{
+	asm("mov %0, %%cr0" : : "r"(config));
+}
 
 static inline unsigned long
 chal_cpu_cr4_get(void)
@@ -48,6 +82,32 @@ chal_cpu_cr4_set(cr4_flags_t flags)
 #elif defined(__i386__)
 	asm("movl %0, %%cr4" : : "r"(config));
 #endif
+}
+
+static inline u64_t
+chal_cpu_xgetbv(u32_t xcr_n)
+{
+	u32_t low, high; 
+	u64_t ret;
+
+	asm volatile(
+		"xgetbv\n\t"
+		:"=a"(low),"=d"(high) : "c"(xcr_n));
+
+	ret = ((u64_t)high << 32) | low;
+	return ret;
+}
+
+static inline void
+chal_cpu_xsetbv(u32_t xcr_n, u64_t config)
+{
+	u32_t low, high;
+	low  = (u32_t)config;
+	high = config >> 32;
+
+	asm volatile(
+		"xsetbv\n\t" \
+		::"a"(low), "d"(high), "c"(xcr_n));
 }
 
 static inline void
@@ -110,20 +170,9 @@ readmsr(u32_t reg, u32_t *low, u32_t *high)
 }
 
 static inline void
-chal_cpuid(int code, u32_t *a, u32_t *b, u32_t *c, u32_t *d)
+chal_cpuid(u32_t *a, u32_t *b, u32_t *c, u32_t *d)
 {
-	asm volatile("cpuid" : "=a"(*a), "=b"(*b), "=c"(*c), "=d"(*d) : "a"(code));
-}
-
-static inline void
-chal_avx_enable(void)
-{
-	__asm__ __volatile__(
-		"xor %%rcx, %%rcx\n\t" \
-		"xgetbv\n\t" \
-		"or $7, %%eax\n\t" \
-		"xsetbv\n\t" \
-		:::"rax","rdx","rcx");
+	asm volatile("cpuid" : "+a"(*a), "+b"(*b), "+c"(*c), "+d"(*d));
 }
 
 static void
@@ -134,9 +183,60 @@ chal_cpu_init(void)
 
 #if defined(__x86_64__)
 	u32_t low = 0, high = 0;
+	u64_t xcr0_config = 0;
+	u32_t a = 0, b = 0, c = 0, d = 0;
+	word_t cr0;
 
+	/* CR4_OSXSAVE has to be set to enable xgetbv/xsetbv */
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE);
-	chal_avx_enable();
+
+	/* Check if the CPU support XSAVE and AVX */
+	a = 0x01;
+	chal_cpuid(&a, &b, &c, &d);
+	/* bit 26 is XSAVE, bit 28 is AVX */
+	assert((c & (1 << 26)) && (c & (1 << 28)));
+	/* Check if SSE3 and SSE4 is supported */
+	assert((c & (1 << 0)) && (c & (1 << 9)) && (c & (1 << 19)) && (c & (1 << 20)));
+	/* Check if AVX2 is supported */
+	a = 0x07;
+	c = 0;
+	chal_cpuid(&a, &b, &c, &d);
+	assert(b & (1 < 5));
+	printk("The CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE\n");
+
+	/* Check if the CPU suppor XSAVEOPT, XSAVEC and XSAVES instructions*/
+	a = 0x0d;
+	c = 1;
+	chal_cpuid(&a, &b, &c, &d);
+	assert((a & (1 << 0)) && (a & (1 << 1)) && (a & (1 << 3)));
+	printk("The CPU supports XSAVEOPT, XSAVEC and XSAVES instructions\n");
+
+	/* Get the maximum size of XSAVE area of available XCR0 features */
+	a = 0x0d;
+	c = 0;
+	chal_cpuid(&a, &b, &c, &d);
+	assert(c > 0);
+	printk("The CPU maximum XSAVE area is: %u\n", c);
+
+	/* Check the AVX state component offset from the beginning of XSAVE Area*/
+	a = 0x0d;
+	c = 2;
+	chal_cpuid(&a, &b, &c, &d);
+	printk("The AVX area offset is: %u\n", b);
+
+	/* Now enable SSE and AVX in XCR0, so that XSAVE features can be used */
+
+	/* 1. Enable SSE */
+	cr0  = chal_cpu_cr0_get();
+	cr0 &= ~((word_t)(CR0_EM)); /* clear EM bit*/
+	cr0 |= (word_t)(CR0_MP);    /* set MP bit */
+	chal_cpu_cr0_set(cr0);
+	chal_cpu_cr4_set(CR4_OSFXSR);
+
+	/* 2. Enable AVX */
+	xcr0_config = chal_cpu_xgetbv(XCR0);
+	xcr0_config |= XCR0_x87 | XCR0_SSE | XCR0_AVX;
+	chal_cpu_xsetbv(XCR0, xcr0_config);
 
 	readmsr(MSR_IA32_EFER, &low, &high);
 	writemsr(MSR_IA32_EFER,low | 0x1, high);
@@ -153,7 +253,8 @@ chal_cpu_init(void)
 	writemsr(IA32_SYSENTER_ESP, (u32_t)tss[cpu_id].esp0, 0);
 	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, 0);
 #endif
-	
+
+	fpu_init();
 	chal_cpu_eflags_init();
 }
 

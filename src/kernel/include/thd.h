@@ -52,17 +52,17 @@ typedef enum {
  * components.
  */
 struct thread {
+	struct cos_fpu fpu; /* fpu has alignment requirement, thus put it first */
 	thdid_t        tid;
 	u16_t          invstk_top;
 	struct pt_regs regs;
 	struct pt_regs fault_regs;
-	struct cos_fpu fpu;
 
 	/* TODO: same cache-line as the tid */
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
 
 	thd_state_t    state;
-	u32_t          tls;
+	word_t          tls;
 	cpuid_t        cpuid;
 	unsigned int   refcnt;
 	tcap_res_t     exec; /* execution time */
@@ -75,7 +75,7 @@ struct thread {
 	struct list        event_head; /* all events for *this* end-point */
 	struct list_node   event_list; /* the list of events for another end-point */
 } CACHE_ALIGNED;
-
+#include "fpu.h"
 /*
  * Thread capability descriptor that is minimal and contains only
  * consistency checking information (cpuid to ensure we're accessing
@@ -347,12 +347,11 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd_scheduler_set(thd, thd_current(cli));
 
 	thd_rcvcap_init(thd);
+	fpu_thread_init(thd); 
 	list_head_init(&thd->event_head);
 	list_init(&thd->event_list, thd);
 
 	thd_upcall_setup(thd, compc->entry_addr, COS_UPCALL_THD_CREATE, init_data, 0, 0);
-
-	/* initialize the capability */
 	tc->t     = thd;
 	tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD);
@@ -439,6 +438,8 @@ thd_tls_set(struct captbl *ct, capid_t thd_cap, vaddr_t tlsaddr, struct thread *
 static void
 thd_init(void)
 {
+	/* Make sure all members of a struct thread is in a page */
+	assert(sizeof(struct thread) < PAGE_SIZE);
 	assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD));
 	// assert(offsetof(struct thread, regs) == 4); /* see THD_REGS in entry.S */
 }
@@ -541,8 +542,7 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 {
 	int preempt = 0;
 
-	/* TODO: check FPU */
-	/* fpu_save(thd); */
+	fpu_switch(thd);
 	if (thd->state & THD_STATE_PREEMPTED) {
 		assert(!(thd->state & THD_STATE_RCVING));
 		thd->state &= ~THD_STATE_PREEMPTED;

@@ -40,7 +40,6 @@ fi
 if [ "${debug_flag}" == "debug" ]
 then
 	debug_flag="-S"
-	kvm_flag=""
 	if [ "${nic_flag}" == "enable-nic" ]
 	then
 		nic_flag=" -netdev type=tap,id=net0,ifname=tap0,script=no,downscript=no -device e1000e,netdev=net0,mac=66:66:66:66:66:66 "
@@ -53,7 +52,7 @@ fi
 
 if [ "${arch}" == "x86_64" ]
 then
-	qemu-system-x86_64 ${kvm_flag} -cpu max,+avx -smp ${vcpus},cores=${num_cores},threads=${num_threads},sockets=${num_sockets} -m ${mem_size} -cdrom $1 -no-reboot -nographic -s ${debug_flag} ${nic_flag}
+	qemu-system-x86_64 ${kvm_flag} -cpu max -smp ${vcpus},cores=${num_cores},threads=${num_threads},sockets=${num_sockets} -m ${mem_size} -cdrom $1 -no-reboot -nographic -s ${debug_flag} ${nic_flag}
 elif [ "${arch}" == "i386" ]
 then
 	qemu-system-i386 ${kvm_flag} -cpu max -smp ${vcpus},cores=${num_cores},threads=${num_threads},sockets=${num_sockets} -m ${mem_size} -cdrom $1 -no-reboot -nographic -s ${debug_flag} ${nic_flag}

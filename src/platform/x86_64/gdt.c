@@ -20,8 +20,6 @@ static void flush_selectors(void);
 void
 chal_tls_update(vaddr_t addr)
 {
-	int cpu_id = get_cpuid();
-
 	writemsr(MSR_FSBASE, (u32_t)(addr), (u32_t)((addr) >> 32));
 }
 

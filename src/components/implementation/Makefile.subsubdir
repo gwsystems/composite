@@ -97,17 +97,18 @@ component: clean comp_header $(COMPOBJ)
 	$(MUSLCC) $(COMPNAME).linked_libs_ifs.o $(MUSLCFLAGS) $(LINKFLAG) -o $(COMPNAME).linked_musl.o
 	$(LD) $(LDFLAGS) -Ttext=$(COMP_BASEADDR) -T $(COMP_LD_SCRIPT) -o $(COMP_OUTPUT) $(COMPNAME).linked_musl.o
 
+# NOTE: make CFLAGS/CXXFLAGS/ASFLAGS argument first because it includes kernel headers/musl headers first 
 %.o:%.c
 	$(info |     [CC]   $<: Compiling)
-	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
+	@$(CC) $(CFLAGS) $(INCLUDE) -o $@ -c $<
 
 %.o:%.cc
 	$(info |     [CXX]  $<: Compiling)
-	@$(CXX) $(INCLUDE) $(LIBSTDCXXINC) $(CXXFLAGS) -o $@ -c $<
+	@$(CXX) $(CXXFLAGS) $(INCLUDE) $(LIBSTDCXXINC) -o $@ -c $<
 
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)
-	@$(AS) $(INCLUDE) $(ASFLAGS) -c -o $@ $^
+	@$(AS) $(ASFLAGS) $(INCLUDE) -c -o $@ $^
 
 # see the make manual: create the .d dependencies from include
 # statements.

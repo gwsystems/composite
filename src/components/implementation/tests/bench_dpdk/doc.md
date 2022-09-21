@@ -10,6 +10,7 @@ sudo apt install -y python3-scapy netsniff-ng
 ```shell
 sudo ip tuntap add dev tap0 mode tap
 sudo ip link set tap0 up
+sudo ip addr add 10.10.1.1/24 dev tap0
 ```
 This will create a `tap` device called `tap0` within your system. You can use `ip a` to check it. After test, you can use this command to delete the `tap0` device:
 ```shell

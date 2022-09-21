@@ -41,7 +41,6 @@ LIBRARY_DEPENDENCIES = component kernel ck
 # custom Makefile (e.g. if you use an existing
 # (non-composite-specific) library. An example of this is `kernel`.
 include Makefile.lib
-
 ## Type 2, external library: If you need to specialize the Makefile
 ## for an external library, you can add the external code as a
 ## subdirectory, and drive its compilation, and integration with the
