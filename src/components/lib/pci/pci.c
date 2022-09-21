@@ -48,7 +48,7 @@ pci_scan_type_dev(struct pci_dev *dev)
 			if (dev->bar[i].mem.memType == PCI_MEM_BAR_64) {
 				assert(i + 1 < PCI_BAR_NUM);
 				pci_reg_next = (i + 1 + PCI_BAR_START) << 2;
-				dev->bar[i + 1].raw = pci_config_read(dev->bus, dev->dev, dev->func, pci_reg_curr); 
+				dev->bar[i + 1].raw = pci_config_read(dev->bus, dev->dev, dev->func, pci_reg_next); 
 
 				/* 
 				 * paddr is combined of 2 bars if it is a 64-bit type. The
@@ -193,9 +193,9 @@ pci_dev_print(struct pci_dev *devices, int sz)
 				printc("\tbar[%d]: type %s, paddr %llx, len %llu\n", j, devices[i].bar[j].mem.memType == PCI_MEM_BAR_32 ? "32-bit" : "64-bit", devices[i].bar[j].paddr, devices[i].bar[j].len);
 			}
 		} else if (devices[i].pci_type == PCI_TYPE_PCI_TO_PCI_BRIDGE) {
-			printc("type: %s, ", "PCI_TYPE_PCI_TO_PCI_BRIDGE");
+			printc("type: %s\n", "PCI_TYPE_PCI_TO_PCI_BRIDGE");
 		} else if (devices[i].pci_type == PCI_TYPE_PCI_TO_CARDBUS_BRIDGE) {
-			printc("type: %s, ", "PCI_TYPE_PCI_TO_CARDBUS_BRIDGE");
+			printc("type: %s\n", "PCI_TYPE_PCI_TO_CARDBUS_BRIDGE");
 		} else {
 			printc("Invalid pci device\n");
 		}

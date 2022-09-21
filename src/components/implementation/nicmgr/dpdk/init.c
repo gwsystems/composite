@@ -26,7 +26,7 @@ find_session(uint32_t dst_ip, uint16_t dst_port)
 	for (i = 0; i < NIC_MAX_SESSION; i++) {
 		if (client_sessions[i].ip_addr == dst_ip /*&& client_sessions[i].port == dst_port*/) {
 			return &client_sessions[i];
-		} 
+		}
 	}
 
 	return NULL;
