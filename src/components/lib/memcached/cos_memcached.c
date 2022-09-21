@@ -49,9 +49,6 @@ cos_sendmsg(void *c, struct msghdr *msg, int flags)
 	for (ssize_t i = 0; i < msg->msg_iovlen; i++) {
 		memcpy(_c->cos_w_buf + sent_len, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len);
 		sent_len += msg->msg_iov[i].iov_len;
-
-		/* This can be used to debug return message */
-		// cos_printf("sent msg (sz: %d): %s\n",msg->msg_iov[i].iov_len, msg->msg_iov[i].iov_base);
 	}
 
 	/* sent data size cannot exceed buffer size */
@@ -115,7 +112,6 @@ cos_mc_new_conn(int proto)
 	LIBEVENT_THREAD *me = get_worker_thread(tid);
 	cos_mc_init_thd(me);
 
-	// c = cos_mc_get_conn(COS_MC_LISTEN_FD);
 	transport = settings.udpport == 0 ? tcp_transport:udp_transport;
 
 	/* make sure client use the same proto as memcached */
