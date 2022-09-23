@@ -217,7 +217,7 @@ memmgr_virt_to_phys(vaddr_t vaddr)
 
 	c = ss_comp_get(cos_inv_token());
 	if (!c) return 0;
-	
+
 	return call_cap_op(c->comp.comp_res->ci.pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
 }
 
@@ -725,10 +725,28 @@ cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
+	struct initargs curr, comps;
+	struct initargs_iter i;
+	int cont, found_shared = 0;
 	int ret;
 
 	printc("Starting the capability manager.\n");
 	assert(atol(args_get("captbl_end")) >= BOOT_CAPTBL_FREE);
+
+	/* Example code to walk through the components in shared address spaces */
+	printc("Components in shared address spaces: ");
+	ret = args_get_entry("addrspc_shared", &comps);
+	assert(!ret);
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		compid_t id = atoi(args_value(&curr));
+
+		found_shared = 1;
+		printc("%ld ", id);
+	}
+	if (!found_shared) {
+		printc("none");
+	}
+	printc("\n");
 
 	/* Get our house in order. Initialize ourself and our data-structures */
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
