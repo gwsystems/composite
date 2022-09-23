@@ -504,7 +504,7 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 }
 
 static inline int
-thd_invstk_push_ulk(struct thread *thd, struct comp_info *ci, struct cos_cpu_local_info *cos_info)
+thd_invstk_push_ulk(struct thread *thd, struct comp_info *ci, pgtbl_t pgtbl, struct cos_cpu_local_info *cos_info)
 {
 	struct invstk_entry *top;
 
@@ -513,6 +513,7 @@ thd_invstk_push_ulk(struct thread *thd, struct comp_info *ci, struct cos_cpu_loc
 	top  = &thd->invstk[curr_invstk_top(cos_info) + 1];
 	curr_invstk_inc(cos_info);
 	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
+	top->comp_info.pgtblinfo.pgtbl = pgtbl;
 	
 	if (likely(thd->ulk_invstk)) top->ulk_stkoff = THD_UL_INV_ORIGIN;
 
@@ -588,7 +589,7 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 		 * invstk so we dont have to walk the UL 
 		 * stk again 
 		 * */
-		thd_invstk_push_ulk(curr_thd, ci, cos_info);
+		thd_invstk_push_ulk(curr_thd, ci, curr->comp_info.pgtblinfo.pgtbl, cos_info);
 	}
 	else {
 		ci = &curr->comp_info;

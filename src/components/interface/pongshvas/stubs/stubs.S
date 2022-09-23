@@ -1,12 +1,12 @@
 #include <cos_asm_stubs.h>
 
-cos_asm_stub_shared(pongshvas_call)
-cos_asm_stub_shared(pongshvas_ret)
-cos_asm_stub_shared(pongshvas_arg)
-cos_asm_stub_shared(pongshvas_args)
+cos_asm_stub(pongshvas_call)
+cos_asm_stub(pongshvas_ret)
+cos_asm_stub(pongshvas_arg)
+cos_asm_stub(pongshvas_args)
 
-cos_asm_stub_indirect_shared(pongshvas_wideargs)
-cos_asm_stub_indirect_shared(pongshvas_argsrets)
-cos_asm_stub_indirect_shared(pongshvas_widerets)
-cos_asm_stub_indirect_shared(pongshvas_subset)
-cos_asm_stub_indirect_shared(pongshvas_ids)
+cos_asm_stub_indirect(pongshvas_wideargs)
+cos_asm_stub_indirect(pongshvas_argsrets)
+cos_asm_stub_indirect(pongshvas_widerets)
+cos_asm_stub_indirect(pongshvas_subset)
+cos_asm_stub_indirect(pongshvas_ids)

@@ -74,6 +74,7 @@ chal_pgtbl_update(struct pgtbl_info *pt)
 {
 	asm volatile("mov %0, %%cr3" : : "r"(pt->pgtbl));
 	pkey_enable(pt->protdom);
+	//wrpkru(0);
 }
 
 static inline asid_t

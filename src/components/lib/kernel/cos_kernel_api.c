@@ -840,10 +840,12 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	int      ret;
 
 	printd("cos_thd_alloc\n");
+	printc("COMP %d\n", cos_compid());
 
 	assert(ci && comp > 0);
 
 	ulkcap = __cos_thd_ulk_page_alloc(ci, tid);
+	//assert(ulkcap);
 
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
 	assert(!(init_data & ~((1 << 16) - 1)));

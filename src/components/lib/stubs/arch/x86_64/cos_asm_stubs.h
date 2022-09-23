@@ -36,17 +36,13 @@ __cosrt_s_##name:						\
 	mov %rax, %r8;						\
 	mov $RET_CAP, %rax;					\
 	COS_ASM_RET_STACK					\
-	syscall;
-
-#define cos_asm_stub_shared(name)				\
-.globl __cosrt_s_##name;					\
-.type  __cosrt_s_##name, @function ;				\
-.align 16 ;							\
-__cosrt_s_##name:						\
+	syscall;						\
+__cosrt_s_shared_##name:					\
+.align 16;							\
 	/* callee saved */					\
 	pushq	%rbp;						\
 	pushq	%r13; /* tid      */				\
-	pushq	%r14; /* struct ulk_invstk ptr  */				\
+	pushq	%r14; /* struct ulk_invstk ptr  */		\
 	pushq	%r15; /* auth tok */				\
 	movq    %rcx, %r8;					\
 	movq    %rdx, %r9;					\
@@ -121,13 +117,9 @@ __cosrt_s_##name:				\
 	mov %rax, %r8;				\
 	mov $RET_CAP, %rax;			\
 	COS_ASM_RET_STACK			\
-	syscall;
-
-#define cos_asm_stub_indirect_shared(name)			\
-.globl __cosrt_s_##name;					\
-.type  __cosrt_s_##name, @function ;				\
+	syscall;				\
+__cosrt_s_shared_##name:					\
 .align 16 ;							\
-__cosrt_s_##name:						\
 	/* callee saved */					\
 	pushq	%rbp;						\
 	pushq   %rbx;						\
@@ -237,7 +229,8 @@ __cosrt_s_##name:						\
 name:						\
 __cosrt_extern_##name:				\
 	movabs $__cosrt_ucap_##name, %rax ;	\
-	jmp *INVFN(%rax) ;			\
+	callq *INVFN(%rax) ;			\
+	retq ;					\
 						\
 .section .ucap, "a", @progbits ;		\
 .globl __cosrt_ucap_##name ;			\

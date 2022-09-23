@@ -258,7 +258,6 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 		if (existing->names[i].state & (CRT_NS_STATE_ALLOCATED | CRT_NS_STATE_ALIASED)) {
 			new->names[i].state = (new->names[i].state & ~CRT_NS_STATE_RESERVED) | CRT_NS_STATE_ALIASED;
 			new->names[i].comp = existing->names[i].comp;
-
 			cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(new->names[i].comp->comp_res), new->top_lvl_pgtbl);
 			if (cons_ret != 0) {
 				printc("cons failed: %d\n", cons_ret);
@@ -288,14 +287,25 @@ crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt
 	return 0;
 }
 
-int
-crt_ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2)
+static struct crt_ns_vas *
+ns_vas_parent(struct crt_ns_vas *vas)
 {
-	struct cos_compinfo *ci1 = cos_compinfo_get(c1->comp_res);
-	struct cos_compinfo *ci2 = cos_compinfo_get(c2->comp_res);
+	assert(vas);
 
-	if (ci1->pgtbl_cap_shared && ci1->pgtbl_cap_shared == ci2->pgtbl_cap_shared) {
-		return 1;
+	while(vas->parent != 0) vas = vas->parent;
+	return vas;
+}
+
+int
+crt_ns_vas_shared(struct crt_comp *client, struct crt_comp *server)
+{
+	if (!client->ns_vas || !server->ns_vas) return 0;
+
+	struct crt_ns_vas *vas = client->ns_vas;
+
+	while (vas) {
+		if (vas == server->ns_vas) return 1;
+		vas = vas->parent;
 	}
 
 	return 0;
@@ -376,14 +386,6 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	if (cons_ret != 0) {
 		printc("cons failed: %d\n", cons_ret);
 		assert(0);
-	}
-
-	if (vas->parent) {
-		cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->parent->top_lvl_pgtbl);
-		if (cons_ret != 0) {
-			printc("cons failed: %d\n", cons_ret);
-			assert(0);
-		}
 	}
 
 	vas->names[name_index].state |= CRT_NS_STATE_ALLOCATED;
@@ -730,7 +732,6 @@ crt_comp_sched_delegate(struct crt_comp *child, struct crt_comp *self, tcap_prio
 	assert(child && self);
 
 	sched_aep = cos_sched_aep_get(self->comp_res);
-
 	return cos_tcap_delegate(child->exec_ctxt.exec.sched.sched_asnd.asnd, sched_aep->tc, res, prio, TCAP_DELEG_YIELD);
 }
 
@@ -749,75 +750,16 @@ crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp_res
 	target_ci = cos_compinfo_get(c->comp_res);
 
 	if (flags & CRT_COMP_ALIAS_COMP) {
-		if (crt_alias_alloc_helper(target_ci->comp_cap, CAP_COMP, c_in, &res->compc)) BUG();
+		capid_t compc = (target_ci->comp_cap_shared) ? target_ci->comp_cap_shared : target_ci->comp_cap;
+		if (crt_alias_alloc_helper(compc, CAP_COMP, c_in, &res->compc)) BUG();
 	}
 	if (flags & CRT_COMP_ALIAS_PGTBL) {
-		if (crt_alias_alloc_helper(target_ci->pgtbl_cap, CAP_PGTBL, c_in, &res->ptc)) BUG();
+		capid_t ptc = (target_ci->pgtbl_cap_shared) ? target_ci->pgtbl_cap_shared : target_ci->pgtbl_cap;
+		if (crt_alias_alloc_helper(ptc, CAP_PGTBL, c_in, &res->ptc)) BUG();
 	}
 	if (flags & CRT_COMP_ALIAS_CAPTBL) {
 		if (crt_alias_alloc_helper(target_ci->captbl_cap, CAP_CAPTBL, c_in, &res->ctc)) BUG();
 	}
-	return 0;
-}
-
-int
-crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client,
-		vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr)
-{
-	struct cos_compinfo *cli;
-	struct cos_compinfo *srv;
-	unsigned int ucap_off, callgate_off;
-	struct usr_inv_cap *ucap;
-	u64_t   client_auth_tok, server_auth_tok;
-	vaddr_t callgate_addr;
-	compcap_t comp_s;
-	
-	assert(sinv && name && server && client);
-
-	cli = cos_compinfo_get(client->comp_res);
-	srv = cos_compinfo_get(server->comp_res);
-
-	assert(crt_refcnt_alive(&server->refcnt) && crt_refcnt_alive(&client->refcnt));
-	crt_refcnt_take(&client->refcnt);
-	crt_refcnt_take(&server->refcnt);
-
-	assert(cli && cli->memsrc && srv && srv->memsrc && srv->comp_cap);
-	assert(!crt_is_booter(client));
-
-	*sinv = (struct crt_sinv) {
-		.name        = name,
-		.server      = server,
-		.client      = client,
-		.c_fn_addr   = c_fn_addr,
-		.c_ucap_addr = c_ucap_addr,
-		.s_fn_addr   = s_fn_addr
-	};
-
-	/* values set for debugging; we need to implement a CSPRNG */
-	client_auth_tok = 0xfefefefefefefefe; /* = CSPRNG() */
-	server_auth_tok = 0xabababababababab; /* = CSPRNG() */
-
-	comp_s = (srv->comp_cap_shared) ? srv->comp_cap_shared : srv->comp_cap;
-	
-	sinv->sinv_cap = cos_sinv_alloc(cli, comp_s, sinv->s_fn_addr, client->id);
-	assert(sinv->sinv_cap);
-
-	callgate_off  = s_fn_addr - sinv->server->ro_addr;
-	callgate_addr = (vaddr_t)sinv->server->mem + callgate_off;
-	jitutils_jitcallgate(callgate_addr, sinv->client->protdom, sinv->server->protdom, client_auth_tok, server_auth_tok, client->id, sinv->sinv_cap);
-
-	printc("sinv %s cap %ld\n", name, sinv->sinv_cap);
-
-	/* poor-mans virtual address translation from client VAS -> our ptrs */
-	assert(sinv->c_ucap_addr - sinv->client->ro_addr > 0);
-	ucap_off = sinv->c_ucap_addr - sinv->client->ro_addr;
-	ucap = (struct usr_inv_cap *)(sinv->client->mem + ucap_off);
-	*ucap = (struct usr_inv_cap) {
-		.invocation_fn = sinv->c_fn_addr,
-		.cap_no        = sinv->sinv_cap,
-		.data          = (void *)sinv->s_fn_addr
-	};
-
 	return 0;
 }
 
@@ -830,6 +772,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 	unsigned int ucap_off;
 	struct usr_inv_cap *ucap;
 	compcap_t comp_s;
+	void *ucap_data = NULL;
 
 	assert(sinv && name && server && client);
 
@@ -855,9 +798,23 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 
 	comp_s = (srv->comp_cap_shared) ? srv->comp_cap_shared : srv->comp_cap;
 	sinv->sinv_cap = cos_sinv_alloc(cli, comp_s, sinv->s_fn_addr, client->id);
-
 	assert(sinv->sinv_cap);
 	printc("sinv %s cap %ld\n", name, sinv->sinv_cap);
+
+	if (crt_ns_vas_shared(client, server)) {
+		/* values set for debugging; we need to implement a CSPRNG */
+		u64_t client_auth_tok = 0xfefefefefefefefe; /* = CSPRNG() */
+		u64_t server_auth_tok = 0xabababababababab; /* = CSPRNG() */
+
+		vaddr_t server_fn_off  = s_fn_addr - sinv->server->ro_addr;
+		vaddr_t server_fn_addr = (vaddr_t)sinv->server->mem + server_fn_off;
+		unsigned int callgate_off  = jitutils_callgate_offset(server_fn_addr);
+
+		vaddr_t callgate_addr = (vaddr_t)sinv->server->mem + server_fn_off + callgate_off;
+		jitutils_jitcallgate(callgate_addr, sinv->client->protdom, sinv->server->protdom, client_auth_tok, server_auth_tok, client->id, sinv->sinv_cap);
+	
+		ucap_data = (void *)(sinv->s_fn_addr + callgate_off);
+	}
 
 	/* poor-mans virtual address translation from client VAS -> our ptrs */
 	assert(sinv->c_ucap_addr - sinv->client->ro_addr > 0);
@@ -866,7 +823,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 	*ucap = (struct usr_inv_cap) {
 		.invocation_fn = sinv->c_fn_addr,
 		.cap_no        = sinv->sinv_cap,
-		.data          = NULL
+		.data          = ucap_data,
 	};
 
 	return 0;
@@ -1002,22 +959,17 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 	target_aep = cos_sched_aep_get(c->comp_res);
 
 	assert(target_ci->comp_cap);
+	capid_t comp_cap = (target_ci->comp_cap_shared) ? target_ci->comp_cap_shared : target_ci->comp_cap;
 	if (closure_id == 0) {
 		if (target_aep->thd != 0) return -1; /* should not allow double initialization */
 
 		crt_refcnt_take(&c->refcnt);
 		assert(target_ci->comp_cap);
-
-		if (target_ci->comp_cap_shared) {
-			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap_shared);
-		}
-		else {
-			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap);
-		}
+		thdcap = target_aep->thd = cos_initthd_alloc(ci, comp_cap);
 		assert(target_aep->thd);
 	} else {
 		crt_refcnt_take(&c->refcnt);
-		thdcap = cos_thd_alloc_ext(ci, target_ci->comp_cap, closure_id);
+		thdcap = cos_thd_alloc_ext(ci, comp_cap, closure_id);
 		assert(thdcap);
 	}
 
@@ -1127,10 +1079,11 @@ crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, 
 	/* Note that this increases the component's reference count */
 	crt_refcnt_take(&c->refcnt);
 	assert(target_ci->comp_cap);
+	capid_t comp_cap = (target_ci->comp_cap_shared) ? target_ci->comp_cap_shared : target_ci->comp_cap;
 	if (closure_id == 0) {
-		thdcap = cos_initthd_alloc(cos_compinfo_get(defci), target_ci->comp_cap);
+		thdcap = cos_initthd_alloc(cos_compinfo_get(defci), comp_cap);
 	} else {
-		thdcap = cos_thd_alloc_ext(cos_compinfo_get(defci), target_ci->comp_cap, closure_id);
+		thdcap = cos_thd_alloc_ext(cos_compinfo_get(defci), comp_cap, closure_id);
 	}
 	assert(thdcap);
 

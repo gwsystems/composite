@@ -392,7 +392,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	}
 
 	thd_current_update(next, curr, cos_info);
-	if (likely(ci->pgtblinfo.pgtbl != next_ci->pgtblinfo.pgtbl)) {
+	if (likely(ci->pgtblinfo.pgtbl != next_ci->pgtblinfo.pgtbl || ci->pgtblinfo.protdom != next_ci->pgtblinfo.protdom)) {
 		pgtbl_update(&next_ci->pgtblinfo);
 	}
 
@@ -1538,7 +1538,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			struct thread *  n;
 			tcap_prio_t      prio;
 			int              yield;
-
 			/* highest-order bit is dispatch flag */
 			yield       = prio_higher >> ((sizeof(prio_higher) * 8) - 1);
 			prio_higher = (prio_higher << 1) >> 1;
