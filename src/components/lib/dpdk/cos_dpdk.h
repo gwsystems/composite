@@ -8,8 +8,23 @@
 
 #define COS_ETH_NAME_SZ 16
 
-#define	COS_MBUF_DEFAULT_DATAROOM	2048
+#define	COS_MBUF_DEFAULT_DATAROOM	1500
 #define COS_PKTMBUF_HEADROOM 128
+
+/* 
+ * Be careful to set the mbuf size, we intentionally make the size less than 2k, 
+ * so that one page(4k) can contain 2 mbufs, this enables DPDK to create more mbufs and 
+ * save memory.
+ * 
+ * eg: currently we give 128M memory to DPDK. This can create around (128 * 1024 / 4k) * 2 = 65536
+ * mbufs totally. The actually created mbufs in our tests is slightly less than this number, around 
+ * 65000 mbufs. This is due to not all 128M memory is used as mempool memory. If you set the mbuf size
+ * larger, you may end up with DPDK storing one mbuf per page(4k). This will drastically reduce the
+ * number of mbufs DPDK can create.
+ * 
+ * In fact, if you don't want to support jumbo frame, this setting is enough since normal packet size
+ * is less than 1500.
+ */
 #define	COS_MBUF_DEFAULT_BUF_SIZE	\
 	(COS_MBUF_DEFAULT_DATAROOM + COS_PKTMBUF_HEADROOM)
 
@@ -72,8 +87,19 @@ uint16_t cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
 
 void cos_get_port_stats(cos_portid_t port_id);
 
-char* cos_get_packet(char* mbuf);
+char* cos_get_packet(char* mbuf, int *len);
 uint16_t cos_send_a_packet(char * pkt, uint32_t pkt_size, char* mp);
 char* cos_allocate_mbuf(char* mp);
+
+/* ext_shinfo: user needs to provide a small region within the external buffer to be used by DPDK storing data*/
+int cos_attach_external_mbuf(char *mbuf, void *buf_vaddr,
+			uint64_t buf_paddr, uint16_t buf_len,
+			void (*ext_buf_free_cb)(void *addr, void *opaque),
+			void *ext_shinfo);
+
+int cos_send_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len);
+int cos_mempool_full(const char *mp);
+int cos_mempool_in_use_count(const char *mp);
+int cos_eth_tx_done_cleanup(uint16_t port_id, uint16_t queue_id, uint32_t free_cnt);
 
 #endif /* COS_DPDK_H */

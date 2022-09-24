@@ -15,6 +15,7 @@
 #include <posix.h>
 #include <ps_list.h>
 #include <memmgr.h>
+#include <contigmem.h>
 
 static struct ps_lock stdout_lock;
 
@@ -22,7 +23,7 @@ ssize_t
 write_bytes_to_stdout(const char *buf, size_t count)
 {
 	size_t i;
-	for(i = 0; i < count; i++) printc("%c", buf[i]);
+	for (i = 0; i < count; i++) printc("%c", buf[i]);
 	return count;
 }
 
@@ -48,7 +49,7 @@ cos_writev(int fd, const struct iovec *iov, int iovcnt)
 		ps_lock_take(&stdout_lock);
 		int i;
 		ssize_t ret = 0;
-		for(i=0; i<iovcnt; i++) {
+		for (i=0; i<iovcnt; i++) {
 			ret += write_bytes_to_stdout((const void *)iov[i].iov_base, iov[i].iov_len);
 		}
 		ps_lock_release(&stdout_lock);
@@ -96,7 +97,7 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		return MAP_FAILED;
 	}
 
-	addr = (void *)memmgr_heap_page_allocn((length / PAGE_SIZE));
+	addr = (void *)contigmem_alloc((length / PAGE_SIZE));
 	if (!addr){
 		ret = (void *) -1;
 	} else {

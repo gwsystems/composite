@@ -37,7 +37,7 @@ ssize_t
 write_bytes_to_stdout(const char *buf, size_t count)
 {
 	size_t i;
-	for(i = 0; i < count; i++) printc("%c", buf[i]);
+	for (i = 0; i < count; i++) printc("%c", buf[i]);
 	return count;
 }
 
@@ -63,7 +63,7 @@ cos_writev(int fd, const struct iovec *iov, int iovcnt)
 		sl_lock_take(&stdout_lock);
 		int i;
 		ssize_t ret = 0;
-		for(i=0; i<iovcnt; i++) {
+		for (i=0; i<iovcnt; i++) {
 			ret += write_bytes_to_stdout((const void *)iov[i].iov_base, iov[i].iov_len);
 		}
 		sl_lock_release(&stdout_lock);
@@ -291,7 +291,7 @@ cos_clone(int (*func)(void *), void *stack, int flags, void *arg, pid_t *ptid, v
 		return -1;
 	}
 
-	struct sl_thd * thd = sl_thd_alloc((cos_thd_fn_t)func, arg);
+	struct sl_thd * thd = sl_thd_alloc((cos_thd_fn_t)(void *)func, arg);
 	if (tls) {
 		setup_thread_area(thd, tls);
 	}
@@ -489,7 +489,7 @@ syscall_emulation_setup(void)
 	libc_syscall_override((cos_syscall_t)(void*)cos_mprotect, __NR_mprotect);
 
 	libc_syscall_override((cos_syscall_t)(void*)cos_gettid, __NR_gettid);
-	libc_syscall_override((cos_syscall_t)cos_tkill, __NR_tkill);
+	libc_syscall_override((cos_syscall_t)(void*)cos_tkill, __NR_tkill);
 #if defined(__x86__)
 	libc_syscall_override((cos_syscall_t)(void*)cos_mmap, __NR_mmap);
 	libc_syscall_override((cos_syscall_t)(void*)cos_set_thread_area, __NR_set_thread_area);

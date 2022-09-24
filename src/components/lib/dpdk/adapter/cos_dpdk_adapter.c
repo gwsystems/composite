@@ -9,7 +9,7 @@
 
 #include "cos_dpdk_adapter.h"
 
-static struct pci_dev cos_pci_devices[PCI_DEVICE_MAX];
+static struct pci_dev cos_pci_devices[PCI_DEVICE_NUM];
 static int pci_dev_nb = 0;
 
 #define PRINT_BUF_SZ 512
@@ -115,6 +115,7 @@ cos_pci_scan(void)
 	struct rte_pci_device *pci_device_list, *rte_dev;
 	struct pci_dev *cos_dev;
 
+	cos_printf("cos pci sanning\n");
 	cos_bus_scan();
 
 	pci_device_list = malloc(sizeof(*rte_dev) * pci_dev_nb);
@@ -123,38 +124,35 @@ cos_pci_scan(void)
 
 	memset(pci_device_list, 0, sizeof(*rte_dev) * pci_dev_nb);
 
-	cos_printf("cos pci sanning\n");
-
 	for (i = 0; i < pci_dev_nb; i++) {
 		rte_dev = &pci_device_list[i];
 		cos_dev = &cos_pci_devices[i];
-		/* rte_dev->device = NULL; */
-		rte_dev->addr.bus = cos_dev->bus;
-		rte_dev->addr.devid = cos_dev->dev;
-		rte_dev->addr.function = cos_dev->func;
-		rte_dev->id.class_id = cos_dev->classcode;
-		rte_dev->id.vendor_id = cos_dev->vendor;
-		rte_dev->id.device_id = cos_dev->device;
-		rte_dev->id.subsystem_vendor_id = RTE_PCI_ANY_ID;
-		rte_dev->id.subsystem_device_id = RTE_PCI_ANY_ID;
-		for (j = 0; j < PCI_MAX_RESOURCE; j++) {
-			rte_dev->mem_resource[j].phys_addr = cos_dev->bar[j].raw & 0xFFFFFFF0;
-			if (!cos_dev->bar[j].raw) continue;
 
-			uint32_t buf = 0;
-			uint8_t offset;
-			buf = 0xFFFFFFFF;
-			offset = (j + 4) << 2;
-			cos_pci_write_config(rte_dev, &buf, sizeof(buf), offset);
-			cos_pci_read_config(rte_dev, &buf, sizeof(buf), offset);
-			buf = ~(buf & ~0xF) + 1;
-			rte_dev->mem_resource[j].len = buf;
-			buf = cos_dev->bar[j].raw;
-			cos_pci_write_config(rte_dev, &buf, sizeof(buf), offset);
-			rte_dev->mem_resource[j].addr = NULL; /* Has yet to be mapped */
+		/* skip non-device type pci, DPDK does not care them */
+		if (cos_dev->pci_type != PCI_TYPE_DEVICE) continue;
+
+		rte_dev->addr.bus               = cos_dev->bus;
+		rte_dev->addr.devid             = cos_dev->dev;
+		rte_dev->addr.function          = cos_dev->func;
+		rte_dev->id.class_id            = cos_dev->classcode;
+		rte_dev->id.vendor_id           = cos_dev->vendor;
+		rte_dev->id.device_id           = cos_dev->device;
+		rte_dev->id.subsystem_vendor_id = cos_dev->subsystem_vendor_id;
+		rte_dev->id.subsystem_device_id = cos_dev->subsystem_device_id;
+
+		for (j = 0; j < PCI_MAX_RESOURCE; j++) {
+			if (!cos_dev->bar[j].accessibility) continue;
+
+			rte_dev->mem_resource[j].phys_addr = cos_dev->bar[j].paddr;
+			rte_dev->mem_resource[j].len       = cos_dev->bar[j].len;
+
+			/* The virtual memory of this bar's space has yet to be mapped */
+			rte_dev->mem_resource[j].addr      = NULL;
 		}
+
 		rte_dev->max_vfs = 0;
 		rte_dev->kdrv = RTE_PCI_KDRV_UIO_GENERIC;
+
 		pci_name_set(rte_dev);
 		rte_pci_add_device(rte_dev);
 	}
@@ -191,4 +189,7 @@ cos_get_tsc_freq(void)
 }
 
 COS_DPDK_DECLARE_NIC_MODULE(net_e1000_em);
+COS_DPDK_DECLARE_NIC_MODULE(net_i40e);
 COS_DPDK_DECLARE_NIC_MODULE(mempool_ring);
+COS_DPDK_DECLARE_NIC_MODULE(net_ice);
+COS_DPDK_DECLARE_NIC_MODULE(net_ice_dcf);

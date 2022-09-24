@@ -1,8 +1,8 @@
 #include <stdint.h>
 #include "kernel_tests.h"
 
-static int          failure = 0;
-
+static int              failure = 0;
+static thdcap_t         thds[4];
 /*
  * Fundamental check & test
  * checks thd creation, arg passing and basic swich
@@ -167,6 +167,62 @@ test_thds_tls(void)
 #endif
 }
 
+static void
+thds_fpu(void *d)
+{
+        float    PI   = 3.0;
+        int      flag = 1;
+        word_t      i;
+        for (i = 2; i < 20; i += 2) {	
+                if (flag) {
+                        PI += (4.0 / (i * (i + 1) * (i + 2)));
+                } else {
+                        PI -= (4.0 / (i * (i + 1) * (i + 2)));
+                }
+                if ((word_t) d == 1) {
+                        cos_thd_switch(thds[2]);
+                } else if ((word_t) d == 2) {
+                        cos_thd_switch(thds[1]);		
+                } else if ((word_t) d == 3) {
+                        cos_thd_switch(thds[0]);		
+                }
+                flag = !flag;
+        }
+        if ((int)PI != 3) PRINTC("\t%s: \t\t\tPI = %f ERROR\n", "PI VALUE", PI);
+        cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
+        return;
+}
+
+static void
+test_thds_reg(void *d)
+{
+        int ret = 0;
+        while (1) cos_thd_switch(thds[3]);
+        PRINTC("Error, shouldn't get here!\n");
+}
+
+static void
+test_thds_fpu(void)
+{
+        intptr_t i = 0;
+        int      ret;
+        
+        thds[0] = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_thds_reg, (void *)i);
+        for (i = 1; i <= 3; i++) {
+                thds[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thds_fpu, (void *)i);
+                if (EXPECT_LL_LT(1, thds[i], "Thread FPU: Cannot Allocate")) {
+                        return;
+                }
+        }
+        for (i = 0; i < 3; i++) {
+                ret = cos_thd_switch(thds[i]);
+                if (EXPECT_LL_NEQ(0, ret, "Thread FPU: COS Switch Error")) return;
+        }
+        CHECK_STATUS_FLAG();
+        PRINTC("\t%s: \t\t\tSuccess\n", "THD => FPU Thd Switch");
+        EXIT_FN();
+}
+
 void
 test_thds(void)
 {
@@ -174,5 +230,7 @@ test_thds(void)
         test_thds_tls();
         test_mthds_classic();
         test_mthds_ring();
+        test_thds_fpu();
 }
+
 

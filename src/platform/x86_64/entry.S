@@ -69,14 +69,14 @@ sysenter_entry:
 	RET_TO_USER		
 /* we are changing thread contexts, reload all registers */
 
+/* on restoring path, only the %ds will be taken care of. */
 .align 16
 restore_from_thd:
-	popq %rax
-	movq %rax, %ds
-	popq %rax
-	movq %rax, %es
-	popq %rax
-	movq %rax, %gs
+	/* %ds is constant, and %es, %fs, %gs are not used because they cannot be modified by user space and kernel also does not modify them, thus we just add 0x20 to %rsp */
+	addq $0x20, %rsp
+	/* user space will only use one constant %ds selector, thus we don't push/pop it, instead we just set the value in order to save some cycles. */
+	mov $(SEL_UDSEG), %rax
+	mov %rax, %ds
 	RESTORE_REGS_GENERAL
 
 	addq $8, %rsp
@@ -84,14 +84,10 @@ restore_from_thd:
 	sti
 	iretq
 
+/* %ds, %es, %fs, %gs are all ingored when saving. */
 #define IRQPROC(fn)  \
 	SAVE_REGS_GENERAL; 	\
-	movq %gs, %rax;		\
-	pushq %rax;			\
-	movq %es, %rax;		\
-	pushq %rax;			\
-	movq %ds, %rax;		\
-	pushq %rax;			\
+	subq $0x20, %rsp;	\
 	movq $(SEL_KDSEG), %rax;\
 	mov %rax, %ds;		\
 	mov %rsp, %rdi; 	\
@@ -149,7 +145,7 @@ IRQ_CODE(page_fault)
 IRQ(x87_float_pt_except_fault)
 IRQ_CODE(align_check_fault)
 IRQ(machine_check_abort)
-IRQ(smid_float_pt_except_fault)
+IRQ(simd_float_pt_except_fault)
 IRQ(virtualization_except_fault)
 IRQ_CODE(security_except_fault)
 
