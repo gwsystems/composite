@@ -76,6 +76,9 @@ cos_interface_output(struct netif *ni, struct pbuf *p)
 static err_t
 cos_interface_init(struct netif *ni)
 {
+	uint64_t mac_addr = nic_get_port_mac_address(0);
+	char *mac_addr_arr = (char *)&mac_addr;
+
 	ni->name[0] = 'u';
 	ni->name[1] = 's';
 	ni->mtu     = 1500;
@@ -86,12 +89,12 @@ cos_interface_init(struct netif *ni)
 	ni->flags |= NETIF_FLAG_ETHARP;
 	ni->flags |= NETIF_FLAG_ETHERNET;
 
-	ni->hwaddr[0] = 0x66;
-	ni->hwaddr[1] = 0x66;
-	ni->hwaddr[2] = 0x66;
-	ni->hwaddr[3] = 0x66;
-	ni->hwaddr[4] = 0x66;
-	ni->hwaddr[5] = 0x66;
+	ni->hwaddr[0] = mac_addr_arr[5];
+	ni->hwaddr[1] = mac_addr_arr[4];
+	ni->hwaddr[2] = mac_addr_arr[3];
+	ni->hwaddr[3] = mac_addr_arr[2];
+	ni->hwaddr[4] = mac_addr_arr[1];
+	ni->hwaddr[5] = mac_addr_arr[0];
 	ni->hwaddr_len = ETH_HWADDR_LEN;
 
 	return ERR_OK;

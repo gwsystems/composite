@@ -614,6 +614,18 @@ cos_create_pkt_mbuf_pool_by_ops(const char *name, size_t nb_mbufs, char* ops_nam
 		COS_MBUF_DEFAULT_BUF_SIZE, rte_socket_id(), ops_name);
 }
 
+uint64_t
+cos_get_port_mac_address(uint16_t port_id)
+{
+	uint64_t mac_addr_ret = 0;
+	struct rte_ether_addr mac_addr;
+
+	rte_eth_macaddr_get(ports_ids[port_id], &mac_addr);
+	rte_ether_addr_copy(&mac_addr, (struct rte_ether_addr *)&mac_addr_ret);
+
+	return mac_addr_ret;
+}
+
 void cos_rte_flow(void)
 {
 	#define MAX_PATTERN_NUM		3
@@ -661,6 +673,7 @@ void cos_rte_flow(void)
 		flow = rte_flow_create(0, &attr, pattern, action, error);
 	/* >8 End of validation the rule and create it. */
 
+	assert(flow);
 	cos_printf("flow :%p\n", flow);
 	// return flow;
 

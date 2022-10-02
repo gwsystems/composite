@@ -172,3 +172,9 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 	pkt_ring_buf_init(&client_sessions[thd].pkt_ring_buf, RX_PKT_RBUF_NUM, RX_PKT_RING_SZ);
 	return 0;
 }
+
+u64_t
+nic_get_port_mac_address(u16_t port)
+{
+	return cos_get_port_mac_address(port);
+}

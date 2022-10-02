@@ -113,5 +113,6 @@ int cos_send_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len);
 int cos_mempool_full(const char *mp);
 unsigned int cos_mempool_in_use_count(const char *mp);
 int cos_eth_tx_done_cleanup(uint16_t port_id, uint16_t queue_id, uint32_t free_cnt);
+uint64_t cos_get_port_mac_address(uint16_t port_id);
 
 #endif /* COS_DPDK_H */
