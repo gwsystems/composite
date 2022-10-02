@@ -151,7 +151,6 @@ cos_nic_start(){
 		process_tx_packets();
 		for (i = 0; i < nic_ports; i++) {
 			for (j = 0; j < nic_queues; j++) {
-				/* process rx */
 				nb_pkts = cos_dev_port_rx_burst(i, j, rx_packets, MAX_PKT_BURST);
 				if (nb_pkts != 0) process_rx_packets(i, rx_packets, nb_pkts);
 			}

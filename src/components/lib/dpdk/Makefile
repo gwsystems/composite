@@ -80,7 +80,7 @@ else
 endif
 
 $(SHLIB_FILE): build $(OBJS)
-CFLAGS+=-mfma
+CFLAGS+=-mfma -DCOMPOSITE_EXISTS
 
 armv7a_init:
 

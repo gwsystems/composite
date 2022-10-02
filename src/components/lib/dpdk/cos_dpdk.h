@@ -77,6 +77,7 @@ int cos_dpdk_init(int argc, char **argv);
 uint16_t cos_eth_ports_init(void);
 
 char* cos_create_pkt_mbuf_pool(const char *name, size_t nb_mbufs);
+char* cos_create_pkt_mbuf_pool_by_ops(const char *name, size_t nb_mbufs, char* ops_name);
 int cos_free_packet(char* packet);
 
 int cos_config_dev_port_queue(cos_portid_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q);
