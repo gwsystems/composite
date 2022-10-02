@@ -50,7 +50,7 @@ $(SHLIB_FILE): $(OBJS)
 
 clean:
 	$(info |     [RM]   Cleaning up library $(LIBNAME)'s directory)
-	@rm -f *.a *.d.* *.d *~ $(OBJS) $(SOURCE_DEPENDENCIES) $(SOURCE_DEPENDENCIES:%.d=%.d.*)
+	@rm -f *.a *.d.* *.d *~ $(OBJS) $(SOURCE_DEPENDENCIES) $(SOURCE_DEPENDENCIES:%.d=%.d.*) $(SHLIB_FILE) $(SHLIB_BIN)
 
 init:
 distclean: clean

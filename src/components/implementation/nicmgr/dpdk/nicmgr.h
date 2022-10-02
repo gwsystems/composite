@@ -68,4 +68,5 @@ int pkt_ring_buf_enqueue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf)
 int pkt_ring_buf_dequeue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf);
 int pkt_ring_buf_empty(struct pkt_ring_buf *pkt_ring_buf);
 
+#define USE_CK_RING_FREE_MBUF 1
 #endif /* NICMGR_H */

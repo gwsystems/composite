@@ -581,7 +581,7 @@ cos_mempool_full(const char *mp)
 	return rte_mempool_full((struct rte_mempool *)mp);
 }
 
-int
+unsigned int
 cos_mempool_in_use_count(const char *mp)
 {
 	return rte_mempool_in_use_count((struct rte_mempool *)mp);
@@ -591,4 +591,77 @@ int
 cos_eth_tx_done_cleanup(uint16_t port_id, uint16_t queue_id, uint32_t free_cnt)
 {
 	return rte_eth_tx_done_cleanup(port_id, queue_id, free_cnt);
+}
+
+/*
+ * cos_create_pkt_mbuf: wrapper function of rte_pktmbuf_pool_create_by_ops 
+ *
+ * @name: pkt pool name
+ * @nb_mbufs: number of mbufs within this pool, thus the maximum packets
+ *            that can be stored in this single mem pool.
+ * @ops_name: the name of the operations mode of mempool ring
+ * 
+ * @return: NULL on allocate failure, others on success
+ * 
+ * note: this function assumes that the size of each mbuf is COS_MBUF_DEFAULT_BUF_SIZE.
+ *       this setting should be enough for most use cases and thus is intended to simplify
+ *       users' programming overhead.
+ */
+char*
+cos_create_pkt_mbuf_pool_by_ops(const char *name, size_t nb_mbufs, char* ops_name)
+{
+	return (char *)rte_pktmbuf_pool_create_by_ops(name, nb_mbufs, 0, 0,
+		COS_MBUF_DEFAULT_BUF_SIZE, rte_socket_id(), ops_name);
+}
+
+void cos_rte_flow(void)
+{
+	#define MAX_PATTERN_NUM		3
+	#define MAX_ACTION_NUM		2
+
+	struct rte_flow_attr attr;
+	struct rte_flow_item pattern[MAX_PATTERN_NUM];
+	struct rte_flow_action action[MAX_ACTION_NUM];
+	struct rte_flow *flow = NULL;
+	struct rte_flow_action_queue queue = { .index = 0 };
+	struct rte_flow_item_ipv4 ip_spec;
+	struct rte_flow_item_ipv4 ip_mask;
+	struct rte_flow_error *error;
+	int res;
+
+ 	memset(pattern, 0, sizeof(pattern));
+	memset(action, 0, sizeof(action));
+	/* set the rule attribute. in this case only ingress packets will be checked. */
+	memset(&attr, 0, sizeof(struct rte_flow_attr));
+	attr.ingress = 1;
+	action[0].type = RTE_FLOW_ACTION_TYPE_QUEUE;
+	action[0].conf = &queue;
+	action[1].type = RTE_FLOW_ACTION_TYPE_END;
+
+	pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
+
+	memset(&ip_spec, 0, sizeof(struct rte_flow_item_ipv4));
+	memset(&ip_mask, 0, sizeof(struct rte_flow_item_ipv4));
+
+	ip_spec.hdr.dst_addr = htonl(0xA0A0101);
+	ip_mask.hdr.dst_addr = 0xFFFFFFFF; //exact match
+
+	ip_spec.hdr.src_addr = htonl(0);
+	ip_mask.hdr.src_addr = 0; //any src
+
+	pattern[1].type = RTE_FLOW_ITEM_TYPE_IPV4;
+	pattern[1].spec = &ip_spec;
+	pattern[1].mask = &ip_mask;
+ 
+	/* the final level must be always type end */
+	pattern[2].type = RTE_FLOW_ITEM_TYPE_END;
+
+	res = rte_flow_validate(0, &attr, pattern, action, error);
+	if (!res)
+		flow = rte_flow_create(0, &attr, pattern, action, error);
+	/* >8 End of validation the rule and create it. */
+
+	cos_printf("flow :%p\n", flow);
+	// return flow;
+
 }

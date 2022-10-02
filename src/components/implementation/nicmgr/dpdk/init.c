@@ -6,6 +6,7 @@
 #include <sched.h>
 #include <arpa/inet.h>
 #include <cos_headers.h>
+#include <rte_atomic.h>
 #include "nicmgr.h"
 
 #define NB_RX_DESC_DEFAULT 1024
@@ -13,10 +14,15 @@
 
 #define MAX_PKT_BURST NB_RX_DESC_DEFAULT
 
+/* rx and tx stats */
+u64_t rx_enqueued_miss = 0;
+extern rte_atomic64_t tx_enqueued_miss;
+
 char *g_rx_mp = NULL;
 char *g_tx_mp = NULL;
 
 static u16_t nic_ports = 0;
+static u16_t nic_queues = 1;
 
 static inline struct client_session *
 find_session(uint32_t dst_ip, uint16_t dst_port)
@@ -35,12 +41,11 @@ find_session(uint32_t dst_ip, uint16_t dst_port)
 static void
 ext_buf_free_callback_fn(void *addr, void *opaque)
 {
+	/* Shared mem uses borrow api, thus do not need to free it here */
 	if (addr == NULL) {
 		printc("External buffer address is invalid\n");
 		assert(0);
 	}
-
-	shm_bm_free_net_pkt_buf(addr);
 }
 
 static void
@@ -85,11 +90,15 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
 
 			session = find_session(iph->dst_addr, port->dst_port);
-			if (session == NULL) continue;
+			if (unlikely(session == NULL)) {
+				cos_free_packet(rx_pkts[i]);
+				continue;
+			}
 
 			buf.pkt = rx_pkts[i];
-			if (!pkt_ring_buf_enqueue(&session->pkt_ring_buf, &buf)){
+			if (unlikely(!pkt_ring_buf_enqueue(&session->pkt_ring_buf, &buf))){
 				cos_free_packet(buf.pkt);
+				rx_enqueued_miss++;
 				continue;
 			}
 
@@ -98,7 +107,11 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			arp_hdr = (struct arp_hdr *)((char *)eth + sizeof(struct eth_hdr));
 
 			session = find_session(arp_hdr->arp_data.arp_tip, 0);
-			if (session == NULL) continue;
+			if (unlikely(session == NULL)) 
+			{
+				cos_free_packet(buf.pkt);
+				continue;
+			}
 
 			buf.pkt = rx_pkts[i];
 			pkt_ring_buf_enqueue(&session->pkt_ring_buf, &buf);
@@ -124,24 +137,31 @@ cos_free_rx_buf()
 
 static void
 cos_nic_start(){
-	int i;
+	#define MAX_RECV_LOOP 100000000
+
+	int i, j, recv_round;
 	uint16_t nb_pkts = 0;
 
 	char *rx_packets[MAX_PKT_BURST];
 
-	while (1) {
-		/* infinite loop to process packets */
+	for (recv_round = 0; recv_round < MAX_RECV_LOOP; recv_round++) {
+#if USE_CK_RING_FREE_MBUF
 		cos_free_rx_buf();
+#endif
 		process_tx_packets();
 		for (i = 0; i < nic_ports; i++) {
-			/* process rx */
-			nb_pkts = cos_dev_port_rx_burst(i, 0, rx_packets, MAX_PKT_BURST);
-
-			if (nb_pkts != 0) process_rx_packets(i, rx_packets, nb_pkts);
+			for (j = 0; j < nic_queues; j++) {
+				/* process rx */
+				nb_pkts = cos_dev_port_rx_burst(i, j, rx_packets, MAX_PKT_BURST);
+				if (nb_pkts != 0) process_rx_packets(i, rx_packets, nb_pkts);
+			}
 		}
 	}
 
 	cos_get_port_stats(0);
+	printc("rx mempool in use:%u\n", cos_mempool_in_use_count(g_rx_mp));
+	printc("rx enqueued miss:%llu\n", rx_enqueued_miss);
+	printc("tx enqueued miss:%lu\n", tx_enqueued_miss.cnt);
 }
 
 static void
@@ -189,11 +209,11 @@ cos_nic_init(void)
 	assert(nic_ports > 0);
 
 	/* 3. create mbuf pool where packets will be stored, user can create multiple pools */
-	char *mp = cos_create_pkt_mbuf_pool(rx_mpool_name, max_rx_mbufs);
+	char *mp = cos_create_pkt_mbuf_pool_by_ops(rx_mpool_name, max_rx_mbufs, COS_MEMPOOL_MT_RTS_OPS);
 	assert(mp != NULL);
 	g_rx_mp = mp;
 
-	g_tx_mp = cos_create_pkt_mbuf_pool(tx_mpool_name, max_tx_mbufs);
+	g_tx_mp = cos_create_pkt_mbuf_pool_by_ops(tx_mpool_name, max_tx_mbufs, COS_MEMPOOL_MT_RTS_OPS);
 	assert(g_tx_mp);
 
 	/* 4. config each port */

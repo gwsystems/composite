@@ -62,6 +62,17 @@ enum cos_dpdk_switch_t {
 	COS_DPDK_SWITCH_ON = 1,
 };
 
+/* 
+ * Mempool opeartions are actually ring enqueue/dequeue opeartions,
+ * the rts/hts mode enables multiple threads on a same core to operate
+ * multiple consumers/producers, which means enable multiple threads on 
+ * a same core to allocate/free mbufs safely.
+ */
+#define COS_MEMPOOL_DEFAULT_OPS (0)
+#define COS_MEMPOOL_MP_MD_OPS "ring_mp_mc"
+#define COS_MEMPOOL_MT_RTS_OPS "ring_mt_rts"
+#define COS_MEMPOOL_MT_HTS_OPS "ring_mt_hts"
+
 int cos_dpdk_init(int argc, char **argv);
 uint16_t cos_eth_ports_init(void);
 
@@ -99,7 +110,7 @@ int cos_attach_external_mbuf(char *mbuf, void *buf_vaddr,
 
 int cos_send_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len);
 int cos_mempool_full(const char *mp);
-int cos_mempool_in_use_count(const char *mp);
+unsigned int cos_mempool_in_use_count(const char *mp);
 int cos_eth_tx_done_cleanup(uint16_t port_id, uint16_t queue_id, uint32_t free_cnt);
 
 #endif /* COS_DPDK_H */
