@@ -148,13 +148,13 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	gdt_init(INIT_CORE);
 	idt_init(INIT_CORE);
 
-#ifdef ENABLE_SERIAL
+#if ENABLE_SERIAL
 	serial_init();
 #endif
-#ifdef ENABLE_CONSOLE
+#if ENABLE_CONSOLE
 	console_init();
 #endif
-#ifdef ENABLE_VGA
+#if ENABLE_VGA
 	vga_init();
 #endif
 	boot_state_transition(INIT_BOOTED, INIT_CPU);

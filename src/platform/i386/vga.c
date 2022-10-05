@@ -160,6 +160,12 @@ cls(void)
 	move_csr();
 }
 
+static void
+vga_puts(const char *s)
+{
+	puts((unsigned char *)s);
+}
+
 /*
  * VIDEO virtual address set to HIGH address.
  */
@@ -201,12 +207,6 @@ putchar(int c)
 
 	csr_x++;
 	if (csr_x >= COLUMNS) goto newline;
-}
-
-void
-vga_puts(const char *s)
-{
-	puts((unsigned char *)s);
 }
 
 /* Uses the above routine to output a string... */
