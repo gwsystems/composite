@@ -90,7 +90,7 @@ syscall_emulation_setup()
 CWEAKSYMB long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f, long g)
 {
-	printc("Default syscall handler callled (syscall: %d), faulting!", syscall_num);
+	printc("Default syscall handler called (syscall: %d, first arg: %ld), faulting!", syscall_num, a);
 	assert(0);
 	return 0;
 }
@@ -168,7 +168,26 @@ cos_thd_entry_static(u32_t idx)
 	return 0;
 }
 
-const char *cos_print_str[PRINT_LEVEL_MAX] = {
+CWEAKSYMB int
+cos_print_str(char *s, int len)
+{
+	int written = 0;
+
+	while (written < len) {
+		u32_t *s_ints = (u32_t *)&s[written];
+		int ret;
+
+		ret = call_cap(PRINT_CAP_TEMP, s_ints[0], s_ints[1], s_ints[2], len - written);
+		/* Bomb out. Can't use a print out here as we must avoid recursion. */
+		if (ret < 0) written = *(int *)NULL;
+		written += ret;
+	}
+
+	return written;
+}
+
+
+const char *cos_print_lvl[PRINT_LEVEL_MAX] = {
 	"ERR:",
 	"WARN:",
 	"DBG:",
@@ -228,10 +247,11 @@ start_execution(coreid_t cid, int init_core, int ncores)
 			cos_init();
 			/* continue only if there is no user-defined main, or parallel exec */
 			COS_EXTERN_INV(init_done)(parallel_init, main_type);
+			/* Shouldn't return if we don't want to run parallel init or main */
 			assert(parallel_init || main_type != INIT_MAIN_NONE);
 		}
 
-		/* Parallel initialization */
+		/* Parallel initialization awaits `cos_init` completion */
 		COS_EXTERN_INV(init_parallel_await_init)();
 		if (parallel_init) {
 			cos_parallel_init(cid, init_core, init_parallelism());
@@ -242,6 +262,7 @@ start_execution(coreid_t cid, int init_core, int ncores)
 	}
 	/* No main? we shouldn't have continued here... */
 	assert(main_type != INIT_MAIN_NONE);
+	/* Either parallel main, or a single main with only the initial core executing here. */
 	assert(main_type == INIT_MAIN_PARALLEL || (main_type == INIT_MAIN_SINGLE && init_core));
 
 	/* Execute the main: either parallel or normal */
@@ -327,8 +348,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		if (arg1 == 0) {
 			static unsigned long first_core = 1;
 
+			/* FIXME: assume that core 0 is the initial core for now */
 			start_execution(cos_coreid(), ps_cas(&first_core, 1, 0), init_parallelism());
-
 		} else {
 			word_t idx = (word_t)arg1 - 1;
 			if (idx >= COS_THD_INIT_REGION_SIZE) {

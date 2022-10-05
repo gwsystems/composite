@@ -111,10 +111,10 @@ cos_vasfrontier_init(struct cos_compinfo *ci, vaddr_t heap_ptr)
 	 * The asumption here is that the last 4-k page lower than heap_ptr has been mapped ,
 	 * because loader loads the components into memory region lower than heap_ptr, so initially,
 	 * heap_ptr is set to be round_up_to_page(virtual address of component's binary frontier),
-	 * thus we can calculate which pate tables have been allocated, thus set corresponding page 
+	 * thus we can calculate which pate tables have been allocated, thus set corresponding page
 	 * table frontiers.
 	 */
-	vaddr_t last_page = round_to_page(heap_ptr - 1);	
+	vaddr_t last_page = round_to_page(heap_ptr - 1);
 
 	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
 		ci->vasrange_frontier[pgtbl_lvl] = cos_pgtbl_round_up_to_page(pgtbl_lvl, last_page);
@@ -612,7 +612,7 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 
 	assert(sz % PAGE_SIZE == 0);
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
-	heap_vaddr = ps_faa(mem_addr, sz);        /* allocate our memory addresses */	
+	heap_vaddr = ps_faa(mem_addr, sz);        /* allocate our memory addresses */
 
 #if defined(__x86_64__)
 	/* Just need to map COS_PGTBL_DEPTH - 1 levels page tables, assuming root page table is already there */
@@ -634,7 +634,7 @@ __page_bump_mem_alloc(struct cos_compinfo *ci, vaddr_t *mem_addr, vaddr_t *mem_f
 			}
 		}
 	}
-	
+
 #else
 	rounded    = sz + (heap_vaddr - round_to_pgd_page(heap_vaddr));
 
@@ -926,6 +926,7 @@ arcvcap_t
 cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap, arcvcap_t arcvcap)
 {
 	capid_t cap;
+	int ret;
 
 	assert(ci && thdcap && tcapcap && compcap);
 
@@ -933,7 +934,7 @@ cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap
 
 	cap = __capid_bump_alloc(ci, CAP_ARCV);
 	if (!cap) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ARCVACTIVATE, cap, thdcap | (tcapcap << 16), compcap, arcvcap)) BUG();
+	if ((ret = call_cap_op(ci->captbl_cap, CAPTBL_OP_ARCVACTIVATE, cap, thdcap | (tcapcap << 16), compcap, arcvcap))) BUG();
 
 	return cap;
 }

@@ -48,12 +48,12 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
         if !found {
             let mut aggdeps = String::from("");
             for d in deps(&s, &id) {
-                aggdeps.push_str(&format!(" {:?}", d.server.clone()));
+                aggdeps.push_str(&format!(" {}", d.server.clone()));
             }
 
             errors.push_str(&format!(
-                "Error: Undefined dependency for unresolved function.  Component {:?} has an undefined function call to {} that is not satisfied by any of its dependencies (i.e. that function isn't provided by any of{}).\n",
-                component(&s, &id).name, sname, aggdeps));
+                r#"Error: Undefined dependency for unresolved function.  Component {} has an undefined function call to {} that is not satisfied by any of its dependencies (i.e. that function isn't provided by any of{}).\nReasons this could happen include:\n- None of the dependent servers provide that function. Make sure to include a function that exports an interface with {}.\n- The stubs in one of the servers don't properly export the function (search for __crt_s_{} in the server's exported symbols using `nm` or `objdump`) to see if this is the problem.\n- Every function in an interface must have a namespace matching the interface name (interface "pong" must only export functions named "pong_*"). Make sure that your functions are properly named in the interface.\n"#,
+                component(&s, &id).name, sname, aggdeps, sname, sname));
         }
     }
 

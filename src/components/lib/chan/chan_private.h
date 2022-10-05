@@ -2,7 +2,7 @@
 #define CHAN_PRIVATE_H
 
 #include <cos_component.h>
-#include <crt_blkpt.h>
+#include <sync_blkpt.h>
 #include <chanmgr_evt.h>
 #include <chan_types.h>
 
@@ -26,9 +26,9 @@ struct __chan_meta {
  * coherency seem to be 128 bytes rather than 64 (CACHE_LINE).
  */
 #if NUM_CPU > 1
-#define CRT_PADDING(num, prevsz) char _padding##num[CACHE_LINE * 2 - prevsz];
+#define CHAN_PADDING(num, prevsz) char _padding##num[CACHE_LINE * 2 - prevsz];
 #else
-#define CRT_PADDING(num, prevsz)
+#define CHAN_PADDING(num, prevsz)
 #endif
 
 /*
@@ -42,13 +42,13 @@ struct __chan_mem {
 	u32_t producer;
 	u32_t producer_update;
 	/* If the ring is empty, recving threads will block on this blkpt. */
-	struct crt_blkpt empty;
-	CRT_PADDING(1, (sizeof(struct crt_blkpt) + 2 * sizeof(u32_t)));
+	struct sync_blkpt empty;
+	CHAN_PADDING(1, (sizeof(struct sync_blkpt) + 2 * sizeof(u32_t)));
  	u32_t consumer;
 	u32_t consumer_update;
 	/* If the ring is full, sending thread will block on this blkpt. */
-	struct crt_blkpt full;
-	CRT_PADDING(2, (sizeof(struct crt_blkpt) + 2* sizeof(u32_t)));
+	struct sync_blkpt full;
+	CHAN_PADDING(2, (sizeof(struct sync_blkpt) + 2* sizeof(u32_t)));
 	/* The memory for the channel. */
 	char mem[0];
 };
@@ -78,8 +78,8 @@ __chan_init_with(struct __chan_meta *meta, sched_blkpt_id_t full, sched_blkpt_id
 	/* Certainly don't "initialize" if channel has been produced into! */
 	if (m->producer != 0) return;
 
-	crt_blkpt_init_w_id(&m->empty, empty);
-	crt_blkpt_init_w_id(&m->full,  full);
+	sync_blkpt_init_w_id(&m->empty, empty);
+	sync_blkpt_init_w_id(&m->full,  full);
 
 	m->producer = m->consumer = 0;
 
@@ -141,14 +141,14 @@ __chan_send_pow2(struct chan_snd *s, void *item, u32_t wraparound_mask, u32_t it
 	struct __chan_mem *m = s->meta.mem;
 
 	while (1) {
-		struct crt_blkpt_checkpoint chkpt;
+		struct sync_blkpt_checkpoint chkpt;
 
-		crt_blkpt_checkpoint(&m->full, &chkpt);
+		sync_blkpt_checkpoint(&m->full, &chkpt);
 		if (!__chan_produce_pow2(m, item, wraparound_mask, item_sz)) {
 			struct __chan_meta *meta = &s->meta;
 
 			/* success! */
-			crt_blkpt_id_trigger(&m->empty, s->meta.blkpt_empty_id, 0);
+			sync_blkpt_id_trigger(&m->empty, s->meta.blkpt_empty_id, 0);
 			if (unlikely(meta->mem->producer_update)) {
 				meta->mem->producer_update = 0;
 				__chan_meta_evt_update(meta);
@@ -161,10 +161,10 @@ __chan_send_pow2(struct chan_snd *s, void *item, u32_t wraparound_mask, u32_t it
 		if (!blking) return 1;
 
 		/* Post that we want to block */
-		if (crt_blkpt_id_blocking(&m->full, s->meta.blkpt_full_id, 0, &chkpt)) continue;
+		if (sync_blkpt_id_blocking(&m->full, s->meta.blkpt_full_id, 0, &chkpt)) continue;
 		/* has a preemption before wait opened an empty slot? */
 		if (!__chan_full_pow2(m, wraparound_mask)) continue;
-		crt_blkpt_id_wait(&m->full, s->meta.blkpt_full_id, 0, &chkpt);
+		sync_blkpt_id_wait(&m->full, s->meta.blkpt_full_id, 0, &chkpt);
 	}
 
 	return 0;
@@ -176,20 +176,20 @@ __chan_recv_pow2(struct chan_rcv *r, void *item, u32_t wraparound_mask, u32_t it
 	struct __chan_mem *m = r->meta.mem;
 
 	while (1) {
-		struct crt_blkpt_checkpoint chkpt;
+		struct sync_blkpt_checkpoint chkpt;
 
-		crt_blkpt_checkpoint(&m->empty, &chkpt);
+		sync_blkpt_checkpoint(&m->empty, &chkpt);
 		if (!__chan_consume_pow2(m, item, wraparound_mask, item_sz)) {
 			/* success! */
-			crt_blkpt_id_trigger(&m->full, r->meta.blkpt_full_id, 0);
+			sync_blkpt_id_trigger(&m->full, r->meta.blkpt_full_id, 0);
 			break;
 		}
 		if (!blking) return 1;
 		/* Post that we want to block */
-		if (crt_blkpt_id_blocking(&m->empty, r->meta.blkpt_empty_id, 0, &chkpt)) continue;
+		if (sync_blkpt_id_blocking(&m->empty, r->meta.blkpt_empty_id, 0, &chkpt)) continue;
 		/* has a preemption before wait added data into a slot? */
 		if (!__chan_empty_pow2(m, wraparound_mask)) continue;
-		crt_blkpt_id_wait(&m->empty, r->meta.blkpt_empty_id, 0, &chkpt);
+		sync_blkpt_id_wait(&m->empty, r->meta.blkpt_empty_id, 0, &chkpt);
 	}
 
 	return 0;

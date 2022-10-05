@@ -13,7 +13,6 @@
 #include <cos_component.h>
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
-#include <sl.h>
 #include <initargs.h>
 #include <addr.h>
 #include <contigmem.h>
@@ -30,7 +29,6 @@ struct cm_comp {
 };
 
 struct cm_thd {
-	struct sl_thd  *sched_thd; /* scheduler data-structure for the thread */
 	struct crt_thd  thd;
 
 	struct cm_comp *client; /* component thread begins execution in */
@@ -494,6 +492,56 @@ capmgr_comp_sched_get(compid_t cid)
 }
 
 static void
+capmgr_execution_init(int is_init_core)
+{
+	struct initargs cap_entries, exec_entries, curr;
+	struct initargs_iter i;
+	vaddr_t vasfr = 0;
+	capid_t capfr = 0;
+	int ret, cont;
+
+	/* Create execution in the relevant components */
+	ret = args_get_entry("execute", &exec_entries);
+	assert(!ret);
+	if (is_init_core) printc("Capmgr: %d components that need execution\n", args_len(&exec_entries));
+	for (cont = args_iter(&exec_entries, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		struct cm_comp    *cmc;
+		struct crt_comp   *comp;
+		int      keylen;
+		compid_t id        = atoi(args_key(&curr, &keylen));
+		char    *exec_type = args_value(&curr);
+		struct crt_comp_exec_context ctxt = { 0 };
+
+		assert(exec_type);
+		assert(id != cos_compid());
+		cmc  = ss_comp_get(id);
+		assert(cmc);
+		comp = &cmc->comp;
+
+		if (!strcmp(exec_type, "sched")) {
+			struct cm_rcv *r = ss_rcv_alloc();
+
+			assert(r);
+			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, &r->rcv))) BUG();
+			ss_rcv_activate(r);
+			if (is_init_core) printc("\tCreated scheduling execution for %ld\n", id);
+		} else if (!strcmp(exec_type, "init")) {
+			struct cm_thd *t = ss_thd_alloc();
+
+			assert(t);
+			if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, &t->thd))) BUG();
+			ss_thd_activate(t);
+			if (is_init_core) printc("\tCreated thread for %ld\n", id);
+		} else {
+			printc("Error: Found unknown execution schedule type %s.\n", exec_type);
+			BUG();
+		}
+	}
+
+	return;
+}
+
+static void
 capmgr_comp_init(void)
 {
 	struct initargs cap_entries, exec_entries, curr;
@@ -552,51 +600,11 @@ capmgr_comp_init(void)
 		snprintf(id_serialized, 20, "names/%ld", id);
 		name = args_get(id_serialized);
 		assert(name);
-		printc("\tCreating component %s: ", name);
-		printc("id %ld, caps (captbl:%ld, pgtbl:%ld,comp:%ld)",
-		       id, comp_res.ctc, comp_res.ptc, comp_res.compc);
-		printc(", captbl frontier %d, heap pointer %ld, scheduler %ld\n",
-		       comp_res.captbl_frontier, comp_res.heap_ptr, sched_id);
+		printc("\tCreating component %s: id %ld\n", name, id);
+		printc("\t\tcaptbl:%ld, pgtbl:%ld, comp:%ld, captbl/pgtbl frontiers %d & %lx, sched %ld\n",
+		       comp_res.ctc, comp_res.ptc, comp_res.compc, comp_res.captbl_frontier, comp_res.heap_ptr, sched_id);
 		comp = cm_comp_alloc_with(name, id, &comp_res);
 		assert(comp);
-	}
-
-	/* Create execution in the relevant components */
-	ret = args_get_entry("execute", &exec_entries);
-	assert(!ret);
-	printc("Capmgr: %d components that need execution\n", args_len(&exec_entries));
-	for (cont = args_iter(&exec_entries, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct cm_comp    *cmc;
-		struct crt_comp   *comp;
-		int      keylen;
-		compid_t id        = atoi(args_key(&curr, &keylen));
-		char    *exec_type = args_value(&curr);
-		struct crt_comp_exec_context ctxt = { 0 };
-
-		assert(exec_type);
-		assert(id != cos_compid());
-		cmc  = ss_comp_get(id);
-		assert(cmc);
-		comp = &cmc->comp;
-
-		if (!strcmp(exec_type, "sched")) {
-			struct cm_rcv *r = ss_rcv_alloc();
-
-			assert(r);
-			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, &r->rcv))) BUG();
-			ss_rcv_activate(r);
-			printc("\tCreated scheduling execution for %ld\n", id);
-		} else if (!strcmp(exec_type, "init")) {
-			struct cm_thd *t = ss_thd_alloc();
-
-			assert(t);
-			if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, &t->thd))) BUG();
-			ss_thd_activate(t);
-			printc("\tCreated thread for %ld\n", id);
-		} else {
-			printc("Error: Found unknown execution schedule type %s.\n", exec_type);
-			BUG();
-		}
 	}
 
 	return;
@@ -746,20 +754,18 @@ cos_init(void)
 	/* Initialize the other component's for which we're responsible */
 	capmgr_comp_init();
 
-	sl_init(SL_MIN_PERIOD_US);
-
 	return;
 }
 
 void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
-	if (!init_core) cos_defcompinfo_sched_init();
+	cos_defcompinfo_sched_init();
+	capmgr_execution_init(init_core);
 }
 
 void
 parallel_main(coreid_t cid)
 {
 	execute();
-	sl_init(SL_MIN_PERIOD_US);
 }
