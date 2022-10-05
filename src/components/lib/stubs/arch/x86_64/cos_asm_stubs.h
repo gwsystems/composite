@@ -73,6 +73,11 @@ __cosrt_s_shared_##name:					\
 	movq	%rax, %r8;					\
 	/* save server authentication token */			\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
+	/* thread ID */						\
+	movq    %rsp, %rdx;					\
+	andq    $0xfffffffffffff000, %rdx;			\
+	movzwq  0xff0(%rdx), %r13;				\
+	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0x0)				\
 	COS_ULINV_POP_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
@@ -165,6 +170,11 @@ __cosrt_s_shared_##name:					\
 	popq	%rsi;						\
 	/* save server authentication token */			\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
+	/* thread ID */						\
+	movq    %rsp, %rdx;					\
+	andq    $0xfffffffffffff000, %rdx;			\
+	movzwq  0xff0(%rdx), %r13;				\
+	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0x0)				\
 	COS_ULINV_POP_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\

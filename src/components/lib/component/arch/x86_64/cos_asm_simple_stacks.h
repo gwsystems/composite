@@ -26,9 +26,9 @@
 #define COS_ASM_REQUEST_STACK
 
 #define COS_ULINV_SWITCH_DOMAIN(pkru)				\
-	movl    $pkru, %eax;					\
-	xor     %rcx, %rcx;					\
-	xor     %rdx, %rdx;					\
+	movl    $pkru,  %eax;					\
+	xor     %rcx,   %rcx;					\
+	xor     %rdx,   %rdx;					\
 	wrpkru;	
 
 /* r13 = tid -> r14 = &stack*/
@@ -36,7 +36,7 @@
 	movabs	$ULK_BASE_ADDR, %r14;				\
 	/* get perthread invstack */				\
 	movq	%r13, %rax;					\
-	shlq    $7, %rax;	    				\
+	shlq    $9, %rax;	    				\
 	/* r14 = &stack */	 				\
 	addq    %rax, %r14; 					
 
@@ -45,13 +45,15 @@
 #define COS_ULINV_PUSH_INVSTK					\
 	movq    (%r14), %rdx;					\
 	addq    $1,     %rdx;					\
-	shlq    $4,     %rdx;					\
+	shlq    $5,     %rdx;					\
 	/* rdx = &stack_entry */	 			\
 	addq    %r14,   %rdx;					\
-	/* store cap no and sp */				\
+	/* store pkru, cap no and sp */				\
+	movl    $0xfffffffe,  %eax;				\
+	movl    %eax,   (%rdx);					\
 	movq    $0x0123456789abcdef, %rax; 			\
-	movq    %rax, (%rdx); 					\
-	movq    %rsp, 8(%rdx); 					\
+	movq    %rax, 8(%rdx); 					\
+	movq    %rsp, 16(%rdx); 				\
 	/* increment tos */					\
 	movq    (%r14), %rax;					\
 	addq    $1, %rax;					\
@@ -60,11 +62,11 @@
 /* r14 = &stack */
 #define COS_ULINV_POP_INVSTK					\
 	movq    (%r14), %rdx;					\
-	shlq    $4,     %rdx;					\
+	shlq    $5,     %rdx;					\
 	/* rdx = &stack_entry */	 			\
 	addq    %r14,   %rdx;					\
 	/* restore sp */					\
-	movq    8(%rdx),%rsp; 					\
+	movq    16(%rdx),%rsp; 					\
 	/* decrement tos */					\
 	movq    (%r14), %rax;					\
 	subq    $1, %rax;					\

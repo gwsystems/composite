@@ -8,16 +8,31 @@
 #include "tss.h"
 
 typedef enum {
-	CR4_TSD      = 1 << 2,  /* time stamp (rdtsc) access at user-level disabled */
-	CR4_PSE      = 1 << 4,  /* page size extensions (superpages) */
-	CR4_PGE      = 1 << 7,  /* page global bit enabled */
-	CR4_PCE      = 1 << 8,  /* user-level access to performance counters enabled (rdpmc) */
-	CR4_OSFXSR   = 1 << 9,  /* floating point enabled */
-	CR4_FSGSBASE = 1 << 16, /* user level fs/gs access permission bit */
-	CR4_OSXSAVE  = 1 << 18, /* XSAVE and Processor Extended States Enable */
-	CR4_SMEP     = 1 << 20, /* Supervisor Mode Execution Protection Enable */
-	CR4_SMAP     = 1 << 21, /* Supervisor Mode Access Protection Enable */
-	CR4_PKE      = 1 << 22,
+	CR0_PE    = 1 << 0,  /* Protected Mode Enable */
+	CR0_MP    = 1 << 1,  /* Monitor co-processor */
+	CR0_EM    = 1 << 2,  /* Emulation x87 FPU */
+	CR0_TS    = 1 << 3,  /* Task switched */
+	CR0_ET    = 1 << 4,  /* Extension type */
+	CR0_NE    = 1 << 5,  /* Numeric error */
+	CR0_WP    = 1 << 16, /* Write protect */
+	CR0_AM    = 1 << 18, /* Alignment mask */
+	CR0_NW    = 1 << 29, /* Not-write through */
+	CR0_CD    = 1 << 30, /* Cache disable */
+	CR0_PG    = 1 << 31  /* Paging */
+} cr0_flags_t;
+
+typedef enum {
+	CR4_TSD        = 1 << 2,  /* time stamp (rdtsc) access at user-level disabled */
+	CR4_PSE        = 1 << 4,  /* page size extensions (superpages) */
+	CR4_PGE        = 1 << 7,  /* page global bit enabled */
+	CR4_PCE        = 1 << 8,  /* user-level access to performance counters enabled (rdpmc) */
+	CR4_OSFXSR     = 1 << 9,  /* if set, enable SSE instructions and fast FPU save & restore, or using SSE instructions will cause #UD */
+	CR4_OSXMMEXCPT = 1 << 10, /* Operating System Support for Unmasked SIMD Floating-Point Exceptions */
+	CR4_FSGSBASE   = 1 << 16, /* user level fs/gs access permission bit */
+	CR4_OSXSAVE    = 1 << 18, /* XSAVE and Processor Extended States Enable */
+	CR4_SMEP       = 1 << 20, /* Supervisor Mode Execution Protection Enable */
+	CR4_SMAP       = 1 << 21,  /* Supervisor Mode Access Protection Enable */
+	CR4_PKE        = 1 << 22  /* MPK Support */
 } cr4_flags_t;
 
 typedef enum {
@@ -173,13 +188,11 @@ chal_cpu_init(void)
 	u32_t a = 0, b = 0, c = 0, d = 0;
 	word_t cr0;
 
-<<<<<<< HEAD
-
-	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE | CR4_PKE);
-	chal_avx_enable();
-=======
 	/* CR4_OSXSAVE has to be set to enable xgetbv/xsetbv */
-	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE);
+	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE | CR4_PKE);
+
+	/* I'm not sure this is the best spot for this */
+	assert(sizeof(struct ulk_invstk) == ULK_INVSTK_SZ);
 
 	/* Check if the CPU support XSAVE and AVX */
 	a = 0x01;
@@ -228,7 +241,6 @@ chal_cpu_init(void)
 	xcr0_config = chal_cpu_xgetbv(XCR0);
 	xcr0_config |= XCR0_x87 | XCR0_SSE | XCR0_AVX;
 	chal_cpu_xsetbv(XCR0, xcr0_config);
->>>>>>> f580b71313c1841449916ffe2ef3b7a22bb2f368
 
 	readmsr(MSR_IA32_EFER, &low, &high);
 	writemsr(MSR_IA32_EFER,low | 0x1, high);

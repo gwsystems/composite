@@ -312,13 +312,22 @@ crt_ns_vas_shared(struct crt_comp *client, struct crt_comp *server)
 }
 
 int
-crt_ns_vas_ulk_map(struct crt_ns_vas *vas)
+crt_ulk_init(void)
 {
-	assert(vas->top_lvl_pgtbl);
-
-	if (cos_ulk_map_in(vas->top_lvl_pgtbl)) BUG();
+	cos_ulk_info_init(cos_compinfo_get(cos_defcompinfo_curr_get()));
+	cos_ulk_map_in(cos_compinfo_get(cos_defcompinfo_curr_get())->pgtbl_cap);
 
 	return 0;
+}
+
+int
+crt_ulk_map_in(struct crt_comp *comp)
+{
+	assert(comp);
+
+	struct cos_compinfo *ci = cos_compinfo_get(comp->comp_res);
+	return cos_ulk_map_in(ci->pgtbl_cap);
+
 }
 
 /* Since the NS implementation is architecture-aware, it can provide this abstraction */
@@ -1526,7 +1535,6 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		if (comp->flags & CRT_COMP_SCHED) {
 			struct cos_defcompinfo *defci     = comp->comp_res;
 			struct cos_aep_info    *child_aep = cos_sched_aep_get(defci);
-
 			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, child_aep->rcv, cos_sched_sync())) BUG();
 		} else {
 			if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync())) BUG();

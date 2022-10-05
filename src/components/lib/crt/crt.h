@@ -306,7 +306,8 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 
 int crt_ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2);
 
-int crt_ns_vas_ulk_map(struct crt_ns_vas *ns);
+int crt_ulk_init(void);
+int crt_ulk_map_in(struct crt_comp *c);
 
 
 /*

@@ -434,17 +434,21 @@ struct cos_stack_freelists {
  * COMP_INFO_TMEM_STK_RELINQ != 0.  Change the defines, or change the assembly" */
 /* #endif */
 
-/* Maybe this should be somewhere else... */
+/* padded to power-of-2 alignment to make IPC fast-path computations faster*/
 struct ulk_invstk_entry {
+	u32_t   pkru_state;
+	u32_t   pad; /* only enabled on 64b, align to 64b words*/
 	capid_t sinv_cap;
 	vaddr_t sp;
+	u64_t   pad_align;
 } __attribute__((packed));
 
-#define ULK_INVSTK_SZ 7
+#define ULK_INVSTK_NUM_ENT 15
+#define ULK_INVSTK_SZ 512ul
 
 struct ulk_invstk {
-	u64_t top, pad;
-	struct ulk_invstk_entry stk[ULK_INVSTK_SZ];
+	u64_t top, pad[3];
+	struct ulk_invstk_entry stk[ULK_INVSTK_NUM_ENT];
 } CACHE_ALIGNED __attribute__((packed));
 
 #define ULK_STACKS_PER_PAGE (PAGE_SIZE / sizeof(struct ulk_invstk))

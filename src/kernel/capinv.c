@@ -369,9 +369,12 @@ static int
 cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struct comp_info *ci,
                struct cos_cpu_local_info *cos_info)
 {
-	struct next_thdinfo *nti     = &cos_info->next_ti;
-	struct comp_info *   next_ci = &(next->invstk[next->invstk_top].comp_info);
+	struct next_thdinfo *nti = &cos_info->next_ti;
+	struct comp_info *   next_ci;
+	pgtbl_t              next_pt;
 	int                  preempt = 0;
+
+	next_ci = thd_invstk_current_comp(next, &next_pt, cos_info);
 
 	assert(next_ci && curr && next);
 	assert(curr->cpuid == get_cpuid() && next->cpuid == get_cpuid());
@@ -391,9 +394,10 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 		copy_all_regs(regs, &curr->regs);
 	}
 
+	curr->pkru_state = rdpkru();
 	thd_current_update(next, curr, cos_info);
-	if (likely(ci->pgtblinfo.pgtbl != next_ci->pgtblinfo.pgtbl || ci->pgtblinfo.protdom != next_ci->pgtblinfo.protdom)) {
-		pgtbl_update(&next_ci->pgtblinfo);
+	if (likely(ci->pgtblinfo.pgtbl != next_pt || ci->pgtblinfo.protdom != next->pkru_state)) {
+		pgtbl_update_pkru(next_pt, next->pkru_state);
 	}
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
@@ -1002,14 +1006,17 @@ composite_syscall_handler(struct pt_regs *regs)
 	switch (ch->type) {
 	case CAP_THD:
 		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, ci, cos_info);
+		//thd_invstk_pop_ulk(thd, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	case CAP_ASND:
 		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, ci, cos_info);
+		//thd_invstk_pop_ulk(thd, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	case CAP_ARCV:
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
+		//thd_invstk_pop_ulk(thd, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	default:
@@ -1020,7 +1027,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	ret = composite_syscall_slowpath(regs, &thd_switch);
 
 	/* if we pushed a ulk invstk entry to our stack, we need to pop it */
-	thd_invstk_pop_ulk(thd, cos_info);
+	//thd_invstk_pop_ulk(thd, cos_info);
 
 	if (ret < 0) cos_throw(done, ret);
 	

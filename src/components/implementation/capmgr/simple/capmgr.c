@@ -496,7 +496,7 @@ capmgr_comp_sched_get(compid_t cid)
 static void
 capmgr_comp_init(void)
 {
-	struct initargs cap_entries, exec_entries, curr;
+	struct initargs cap_entries, exec_entries, shared_comps, curr;
 	struct initargs_iter i;
 	vaddr_t vasfr = 0;
 	capid_t capfr = 0;
@@ -559,6 +559,19 @@ capmgr_comp_init(void)
 		       comp_res.captbl_frontier, comp_res.heap_ptr, sched_id);
 		comp = cm_comp_alloc_with(name, id, &comp_res);
 		assert(comp);
+	}
+
+	/* Create ULK memory region for UL sinvs and map it into comps that need it */
+	ret = crt_ulk_init();
+	assert(!ret);
+	ret = args_get_entry("addrspc_shared", &shared_comps);
+	assert(!ret);
+	for (cont = args_iter(&shared_comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		compid_t        id  = atoi(args_value(&curr));
+		struct cm_comp *cmc = ss_comp_get(id);
+
+		/* if this fails, we already aliased the ICB memory into this shared pt */
+		crt_ulk_map_in(&cmc->comp);
 	}
 
 	/* Create execution in the relevant components */

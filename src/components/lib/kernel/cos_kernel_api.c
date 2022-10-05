@@ -561,13 +561,8 @@ __cos_meminfo_populate(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned lo
 	assert(untyped_ptr == round_up_to_pgd_page(untyped_ptr));
 
 #if defined(__x86_64__)
-<<<<<<< HEAD
 	for(pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
 		retaddr = __bump_mem_expand_range(__compinfo_metacap(ci), ci->mi.pgtbl_cap, untyped_ptr, untyped_sz, pgtbl_lvl);
-=======
-	for (pgtbl_lvl = 0; pgtbl_lvl < COS_PGTBL_DEPTH - 1; pgtbl_lvl++) {
-		retaddr = __bump_mem_expand_range(ci, ci->mi.pgtbl_cap, untyped_ptr, untyped_sz, pgtbl_lvl);
->>>>>>> f580b71313c1841449916ffe2ef3b7a22bb2f368
 		assert(retaddr);
 	}
 #else
@@ -739,6 +734,24 @@ __alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
 	return 0;
 }
 
+/* 
+ * We're doing the thread id allocation here. The kernel initially
+ * allocates N threads, one per core, and uses the coreid + 1 as the
+ * thread's id. Thus, we want to start our thread ids at NUM_CPU + 2.
+ */
+unsigned long __thdid_alloc = NUM_CPU + 2;
+
+thdid_t
+cos_thd_id_alloc(void)
+{
+  unsigned long id = ps_faa(&__thdid_alloc, 1);
+  thdid_t assignment = (thdid_t)id;
+
+  assert((unsigned long)assignment == id);
+
+  return assignment;
+}
+
 /*
  * This is here in order to simplify the thd allocation interface. 
  * It will make more sense for this data to be managed in a higher
@@ -757,7 +770,7 @@ void
 cos_ulk_info_init(struct cos_compinfo *ci)
 {
 	__cos_ulk_info.toplvl = cos_ulk_pgtbl_create(ci, &__cos_ulk_info.secondlvl);
-	__cos_ulk_info.pg_frontier = ULK_BASE_ADDR;
+	__cos_ulk_info.pg_frontier = ULK_BASE_ADDR + __thdid_alloc * sizeof(struct ulk_invstk);
 	assert(__cos_ulk_info.toplvl);
 }
 
@@ -815,8 +828,7 @@ cos_ulk_map_in(pgtblcap_t ptc)
 	assert(ptc && __cos_ulk_info.secondlvl);
 	
 	if (call_cap_op(ptc, CAPTBL_OP_CONS, __cos_ulk_info.secondlvl, ULK_BASE_ADDR, 0, 0)) {
-		assert(0); /* race? */
-		return -1;
+		return -1; /* page is already mapped */
 	}
 
 	return 0;
@@ -845,12 +857,10 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	int      ret;
 
 	printd("cos_thd_alloc\n");
-	printc("COMP %d\n", cos_compid());
 
 	assert(ci && comp > 0);
 
 	ulkcap = __cos_thd_ulk_page_alloc(ci, tid);
-	//assert(ulkcap);
 
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
 	assert(!(init_data & ~((1 << 16) - 1)));
@@ -860,25 +870,6 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	if (ret) BUG();
 
 	return cap;
-}
-
-/* 
- * We're doing the thread id allocation here. The kernel initially
- * allocates N threads, one per core, and uses the coreid + 1 as the
- * thread's id. Thus, we want to start our thread ids at NUM_CPU + 2.
- */
-unsigned long __thdid_alloc = NUM_CPU + 2;
-
-
-thdid_t
-cos_thd_id_alloc(void)
-{
-  unsigned long id = ps_faa(&__thdid_alloc, 1);
-  thdid_t assignment = (thdid_t)id;
-
-  assert((unsigned long)assignment == id);
-
-  return assignment;
 }
 
 #include <cos_thd_init.h>

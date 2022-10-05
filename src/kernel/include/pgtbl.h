@@ -79,6 +79,12 @@ pgtbl_update(struct pgtbl_info *ptinfo)
 	chal_pgtbl_update(ptinfo);
 }
 
+static inline void
+pgtbl_update_pkru(pgtbl_t pt, u32_t pkru)
+{
+	chal_pgtbl_update_pkru(pt, pkru);
+}
+
 extern unsigned long __cr3_contents;
 
 static void

@@ -13,7 +13,7 @@ ulinvstk_current(struct ulk_invstk *stk, struct comp_info *origin, unsigned long
     unsigned long              i;
 
 	/* upper-bounded by ulinvstk sz */
-	for (i = offset; i < ULK_INVSTK_SZ && i < stk->top; i++) {
+	for (i = offset; i < ULK_INVSTK_NUM_ENT && i < stk->top; i++) {
 		ent = &stk->stk[i];
 		sinvcap = (struct cap_sinv *)captbl_lkup(ci->captbl, ent->sinv_cap);
 		if (!CAP_TYPECHK(sinvcap, CAP_SINV)) return NULL;

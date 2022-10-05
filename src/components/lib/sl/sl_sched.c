@@ -731,7 +731,6 @@ pending_events:
 
 			sl_cs_exit();
 		} while (pending > 0);
-
 		if (sl_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
 		sl_cs_exit_schedule_nospin();

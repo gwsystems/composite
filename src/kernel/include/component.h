@@ -66,7 +66,6 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	ltbl_get(lid, &compc->info.liveness);
 	__cap_capactivate_post(&compc->h, CAP_COMP);
 
-
 	return 0;
 
 undo_ctc:

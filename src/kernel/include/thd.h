@@ -86,6 +86,7 @@ struct thread {
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
 
 	struct ulk_invstk  *ulk_invstk;
+	u32_t               pkru_state; /* updated when we switch threads */
 
 	thd_state_t    state;
 	word_t          tls;
@@ -371,6 +372,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->invstk_top                       = 0;
 	thd->cpuid                            = get_cpuid();
 	thd->ulk_invstk                       = ulinvstk;
+	thd->pkru_state                       = pkru_state(compc->info.pgtblinfo.protdom);
 	assert(thd->tid <= MAX_NUM_THREADS);
 	thd_scheduler_set(thd, thd_current(cli));
 
@@ -504,50 +506,59 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 	return 0;
 }
 
-static inline int
-thd_invstk_push_ulk(struct thread *thd, struct comp_info *ci, pgtbl_t pgtbl, struct cos_cpu_local_info *cos_info)
-{
-	struct invstk_entry *top;
-
-	if (unlikely(curr_invstk_top(cos_info) >= THD_INVSTK_MAXSZ)) return -1;
-
-	top  = &thd->invstk[curr_invstk_top(cos_info) + 1];
-	curr_invstk_inc(cos_info);
-	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
-	top->comp_info.pgtblinfo.pgtbl = pgtbl;
-	
-	if (likely(thd->ulk_invstk)) top->ulk_stkoff = THD_UL_INV_ORIGIN;
-
-	return 0;
-}
-
-static inline void
-thd_invstk_pop_ulk(struct thread *thd, struct cos_cpu_local_info *cos_info)
-{
-	struct invstk_entry *curr;
-
-	if (unlikely(curr_invstk_top(cos_info) == 0)) return;
-	curr = &thd->invstk[curr_invstk_top(cos_info)-1];
-
-	if (curr->ulk_stkoff == THD_UL_INV_ORIGIN) {
-		curr_invstk_dec(cos_info);
-	}
-
-}
-
 static inline struct comp_info *
 thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
 {
 	struct invstk_entry *curr;
+	struct ulk_invstk   *ulk_invstk;
 	struct comp_info    *ci;
 
 	if (unlikely(curr_invstk_top(cos_info) == 0)) return NULL;
 	curr_invstk_dec(cos_info);
 	curr = &thd->invstk[curr_invstk_top(cos_info)];
 
-	/* if we pushed over a UL inv entry, need to pop that too */
-	if (curr->ulk_stkoff == THD_UL_INV_ORIGIN) {
+	ulk_invstk = thd->ulk_invstk;
+	if (unlikely(!ulk_invstk)) {
+		*ip = curr->ip;
+		*sp = curr->sp;
+		return &curr->comp_info;
+	}
+
+	if (ulk_invstk->top > curr->ulk_stkoff) {
 		curr_invstk_dec(cos_info);
+	}
+
+	ci  = &curr->comp_info;
+	*ip = curr->ip;
+	*sp = curr->sp;
+
+	return ci;
+}
+
+/* TODO: I do not know if this is a good abstraction for this operation */
+static inline struct comp_info *
+thd_invstk_pop_pkru(struct thread *thd, unsigned long *ip, unsigned long *sp, u32_t *pkru, struct cos_cpu_local_info *cos_info)
+{
+	struct invstk_entry *curr;
+	struct ulk_invstk   *ulk_invstk;
+	struct comp_info    *ci;
+
+	*pkru = 0;
+	ulk_invstk = thd->ulk_invstk;
+	if (unlikely(!ulk_invstk)) {
+		return thd_invstk_pop(thd, ip, sp, cos_info);
+	}
+
+	if (unlikely(curr_invstk_top(cos_info) == 0)) return NULL;
+	curr_invstk_dec(cos_info);
+	curr = &thd->invstk[curr_invstk_top(cos_info)];
+	
+	/* 
+	 * if this comp made UL-invs, we are returning 
+	 * to the the comp at the top of the UL invstk.
+	 */
+	if (ulk_invstk->top > curr->ulk_stkoff) {
+		*pkru = ulk_invstk->stk[ulk_invstk->top-1].pkru_state;
 	}
 
 	ci  = &curr->comp_info;
@@ -585,12 +596,6 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 	if (ulk_invstk->top > curr->ulk_stkoff) {
 		ci = ulinvstk_current(ulk_invstk, &curr->comp_info, curr->ulk_stkoff);
 		if (unlikely(!ci)) return NULL;
-		/* 
-		 * push this component over to the kernel 
-		 * invstk so we dont have to walk the UL 
-		 * stk again 
-		 * */
-		thd_invstk_push_ulk(curr_thd, ci, curr->comp_info.pgtblinfo.pgtbl, cos_info);
 	}
 	else {
 		ci = &curr->comp_info;
@@ -598,6 +603,39 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 
 	*ip = curr->ip;
 	*sp = curr->sp;
+	return ci;
+}
+
+static inline struct comp_info *
+thd_invstk_current_comp(struct thread *thd, pgtbl_t *current_pt, struct cos_cpu_local_info *cos_info)
+{
+	struct invstk_entry *curr;
+	struct ulk_invstk   *ulk_invstk;
+	struct comp_info    *ci;
+
+	curr = &thd->invstk[thd->invstk_top];
+	ulk_invstk = thd->ulk_invstk;
+
+	/* current pagetable is always on the kernel invstk */
+	*current_pt = curr->comp_info.pgtblinfo.pgtbl;
+
+	/* this thread makes no UL-invs */
+	if (unlikely(!ulk_invstk)) {
+		return &curr->comp_info;
+	}
+
+	/* 
+	 * if there are new entries on the UL stack, 
+	 * we must be coming from a comp on the UL stack 
+	 */
+	if (ulk_invstk->top > curr->ulk_stkoff) {
+		ci = ulinvstk_current(ulk_invstk, &curr->comp_info, curr->ulk_stkoff);
+		if (unlikely(!ci)) return NULL;
+	}
+	else {
+		ci = &curr->comp_info;
+	}
+
 	return ci;
 }
 

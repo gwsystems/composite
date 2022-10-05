@@ -67,11 +67,6 @@ config:
 	-Ddefault_library=static -Ddebug=true \
 	-Doptimization=0 -Dincludedir=$(shell pwd)/$(DPDK_INC_DIR) \
 	-Dprefix=$(shell pwd)/$(DPDK_INSTALL_DIR) $(DISABLED_DRIVERS)
-<<<<<<< HEAD
-
-=======
-	
->>>>>>> f580b71313c1841449916ffe2ef3b7a22bb2f368
 build:
 	$(info Building DPDK)
 ifneq ($(PLATFORM),x86_64)

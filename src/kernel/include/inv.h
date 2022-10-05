@@ -315,8 +315,9 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 {
 	struct comp_info *ci;
 	unsigned long     ip, sp;
+	u32_t             pkru;
 
-	ci = thd_invstk_pop(thd, &ip, &sp, cos_info);
+	ci = thd_invstk_pop_pkru(thd, &ip, &sp, &pkru, cos_info);
 	if (unlikely(!ci)) {
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
 		return;
@@ -329,7 +330,7 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 		return;
 	}
 
-	pgtbl_update(&ci->pgtblinfo);
+	pgtbl_update_pkru(ci->pgtblinfo.pgtbl, pkru);
 
 	/* Set return sp and ip and function return value in eax */
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);
