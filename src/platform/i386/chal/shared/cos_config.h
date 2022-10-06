@@ -127,7 +127,6 @@
 /**
  * Configuration to enable/disable functionality in Kernel.
  */
-#define ENABLE_VGA
 #define ENABLE_SERIAL
 
 #if defined(__x86_64__)

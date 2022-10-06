@@ -132,7 +132,7 @@ IRQ(virtualization_except_fault)
 IRQ_CODE(security_except_fault)
 
 IRQ(periodic)
-IRQ(keyboard)
+IRQ_ID(33)
 IRQ_ID(34)
 IRQ_ID(35)
 IRQ(serial)
