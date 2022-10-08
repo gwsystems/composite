@@ -38,3 +38,4 @@ src/components/lib/ck/share
 doc/dev_manual/composite_dev_manual.pdf
 doc/dev_manual/resources/*.pdf
 system_binaries/cos_build-*
+.vscode
