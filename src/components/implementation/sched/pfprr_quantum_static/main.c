@@ -549,7 +549,7 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	thdcap_t thdcap;
 	thdid_t tid;
 
-	if (!init_core) cos_defcompinfo_sched_init();
+	cos_defcompinfo_sched_init();
 
 	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid);
 	if (!t) BUG();

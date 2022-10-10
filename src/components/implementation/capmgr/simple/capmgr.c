@@ -510,12 +510,6 @@ crtcomp_get(compid_t id)
 }
 
 void
-execute(void)
-{
-	crt_compinit_execute(crtcomp_get);
-}
-
-void
 capmgr_set_tls(thdcap_t cap, void* tls_addr)
 {
 	compid_t cid = (compid_t)cos_inv_token();
@@ -656,5 +650,5 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 void
 parallel_main(coreid_t cid)
 {
-	execute();
+	crt_compinit_execute(crtcomp_get);
 }

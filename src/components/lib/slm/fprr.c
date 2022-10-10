@@ -138,7 +138,6 @@ slm_sched_fprr_init(void)
 {
 	int i;
 
-	memset(threads, 0, sizeof(threads));
 	for (i = 0 ; i < SLM_FPRR_NPRIOS ; i++) {
 		ps_list_head_init(&threads[cos_cpuid()].prio[i]);
 	}
