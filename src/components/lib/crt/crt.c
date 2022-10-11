@@ -1272,9 +1272,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 
 	/* Should only be called if initialization is necessary */
 	assert(target_ci->comp_cap);
-	if (ctxt->flags & CRT_COMP_CAPMGR && !(c->flags & CRT_COMP_SCHED)) ctxt->flags |= CRT_COMP_SCHED;
 	assert(!(ctxt->flags & CRT_COMP_INITIALIZE) || !(ctxt->flags & CRT_COMP_SCHED)); /* choose one */
-	assert((c->flags & ctxt->flags) == 0 || c->flags == ctxt->flags); /* already set, or set to the same value */
 
 	if (ctxt->flags & CRT_COMP_INITIALIZE) {
 		struct crt_comp_exec_context *cx = &c->exec_ctxt;
@@ -1295,7 +1293,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		struct crt_rcv_resources rcvres;
 		struct crt_rcv *r;
 
-		assert(c->exec_ctxt.exec[cos_coreid()].sched.sched_rcv == NULL && ctxt->exec[cos_coreid()].sched.sched_rcv);
+		assert(c->exec_ctxt.exec[cos_coreid()].sched.sched_rcv == NULL);
 		r = ctxt->exec[cos_coreid()].sched.sched_rcv;
 		assert(r);
 
@@ -1312,23 +1310,24 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		assert(target_aep->thd && target_aep->tc && target_aep->rcv);
 
 		/*
-		 * FIXME:
-		 * This is an ugly hack to allow components to do cos_introspect()
-		 * - to get thdid
-		 * - to get budget on tcap
-		 * - other introspect uses
-		 *
-		 * I don't know a way to get away from this for now!
-		 * If it were just thdid, capmgr could have returned the thdids!
+		 * Only map in the captbl once, on core 0.
 		 */
-		compres = (struct crt_comp_resources) {
-			.ctc = BOOT_CAPTBL_SELF_CT
-		};
-		/*
-		 * If we aren't the initialization core (i.e. the
-		 * component hasn't yet been set as a scheduler.
-		 */
-		if (!(c->flags & CRT_COMP_SCHED)) {
+		if (cos_coreid() == 0) { //!(c->flags & CRT_COMP_SCHED)) {
+			/*
+			 * FIXME: This is an ugly hack to allow
+			 * components to do cos_introspect()
+			 *
+			 * - to get thdid
+			 * - to get budget on tcap
+			 * - other introspect uses
+			 *
+			 * I don't know a way to get away from this
+			 * for now! If it were just thdid, capmgr
+			 * could have returned the thdids!
+			 */
+			compres = (struct crt_comp_resources) {
+				.ctc = BOOT_CAPTBL_SELF_CT
+			};
 			if (crt_comp_alias_in(c, c, &compres, CRT_COMP_ALIAS_CAPTBL)) BUG();
 		}
 
@@ -1351,8 +1350,6 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 	/* fall-through here */
 	if (ctxt->flags & CRT_COMP_CAPMGR) {
 		pgtblcap_t utpt;
-
-		assert((c->flags & CRT_COMP_SCHED) && !(c->flags & (CRT_COMP_INITIALIZE | CRT_COMP_CAPMGR)));
 
 		/* assume CT is already mapped in from sched_create */
 		compres = (struct crt_comp_resources) {

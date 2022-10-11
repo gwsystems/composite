@@ -17,7 +17,7 @@
 
 #include "cpu_ghz.h"
 
-#define NUM_CPU 1
+#define NUM_CPU 3
 #define NUM_CPU_BMP_BYTES ((NUM_CPU + 7) / 8)
 #define NUM_CPU_BMP_WORDS ((NUM_CPU_BMP_BYTES + 3) / 4)
 /*
@@ -132,7 +132,6 @@
 /**
  * Configuration to enable/disable functionality in Kernel.
  */
-#define ENABLE_VGA
 #define ENABLE_SERIAL
 
 #if defined(__x86_64__)

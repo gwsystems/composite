@@ -50,9 +50,9 @@ struct idt_ptr {
 struct idt_entry idt_entries[NUM_IDT_ENTRIES];
 struct idt_ptr   idt_ptr;
 
-static void 
+static void
 idt_flush(struct idt_ptr * idt_ptr_addr){
-	__asm__ __volatile__("lidt %0" : :"m"(*idt_ptr_addr)); 
+	__asm__ __volatile__("lidt %0" : :"m"(*idt_ptr_addr));
 }
 
 static void
@@ -142,7 +142,7 @@ idt_init(const cpuid_t cpu_id)
 	idt_set_gate(IRQ_SECURITY_EXCEPT_FAULT, (unsigned long)security_except_fault_irq, 0x08, 0x8E);
 
 	idt_set_gate(HW_PERIODIC, (unsigned long)periodic_irq, 0x08, 0x8E);
-	idt_set_gate(HW_KEYBOARD, (unsigned long)keyboard_irq, 0x08, 0x8E);
+	idt_set_gate(HW_ID2, (unsigned long)handler_hw_33, 0x08, 0x8E);
 	idt_set_gate(HW_ID3, (unsigned long)handler_hw_34, 0x08, 0x8E);
 	idt_set_gate(HW_ID4, (unsigned long)handler_hw_35, 0x08, 0x8E);
 	idt_set_gate(HW_SERIAL, (unsigned long)serial_irq, 0x08, 0x8E);

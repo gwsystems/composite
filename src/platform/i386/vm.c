@@ -86,11 +86,6 @@ kern_setup_image(void)
 
 	kernel_mapped_offset = j;
 
-	#ifdef ENABLE_VGA
-		/* uses virtual address for VGA */
-		vga_high_init();
-	#endif
-
 	for (; j < PAGE_SIZE / sizeof(unsigned long); i += PGD_RANGE, j++) {
 		boot_comp_pgd[j] = boot_comp_pgd[i / PGD_RANGE] = 0;
 	}
