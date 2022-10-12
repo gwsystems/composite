@@ -371,12 +371,13 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 {
 	struct next_thdinfo *nti = &cos_info->next_ti;
 	struct comp_info *   next_ci;
-	pgtbl_t              next_pt;
+	struct pgtbl_info *  next_pt;
 	int                  preempt = 0;
+	prot_domain_t        next_protdom;
 
-	next_ci = thd_invstk_current_comp(next, &next_pt, cos_info);
+	next_ci = thd_invstk_next_comp(next, &next_pt, cos_info);
 
-	assert(next_ci && curr && next);
+	assert(next_ci && curr && next && next_pt);
 	assert(curr->cpuid == get_cpuid() && next->cpuid == get_cpuid());
 	if (unlikely(curr == next)) return thd_switch_update(curr, regs, 1);
 
@@ -394,11 +395,16 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 		copy_all_regs(regs, &curr->regs);
 	}
 
-	curr->pkru_state = rdpkru();
+	/* store the protection domain state for the thread for when we wake it up. */
+	thd_invstk_protdom_update(curr, chal_protdom_read());
+	next_protdom = thd_invstk_protdom_curr(next);
+
 	thd_current_update(next, curr, cos_info);
-	if (likely(ci->pgtblinfo.pgtbl != next_pt || ci->pgtblinfo.protdom != next->pkru_state)) {
-		pgtbl_update_pkru(next_pt, next->pkru_state);
+	if (likely(ci->pgtblinfo.pgtbl != next_pt->pgtbl)) {
+		pgtbl_update(next_pt);
 	}
+	printk("NEXT: %d\n", next_protdom);
+	chal_protdom_write(next_protdom);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
 	if (next->tls != curr->tls) chal_tls_update(next->tls);
@@ -1696,15 +1702,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		}
 		case CAPTBL_OP_HW_TLBSTALL_RECOUNT: {
 			ret = chal_tlbstall_recount(0);
-			break;
-		}
-		case CAPTBL_OP_TEST_UL_INV: {
-			/* verify the kernel is determining which component
-			   is invoking it correctly after a user-level invocation
-			   by checking the mpk key */
-			u32_t expected_key = __userregs_get1(regs);
-			u32_t mpk_key = ci->pgtblinfo.protdom;
-			assert(expected_key == mpk_key);
 			break;
 		}
 		default:

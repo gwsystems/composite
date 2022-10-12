@@ -47,8 +47,6 @@ jitutils_jitcallgate(vaddr_t callgate, u32_t cli_pkey, u32_t srv_pkey, u64_t cli
 	u64_t tok_placeholder = JIT_TOK_PLACEHOLDER;
 	u64_t inv_placeholder = JIT_INV_PLACEHOLDER;
 	u32_t mpk_placeholder = JIT_MPK_PLACEHOLDER;
-	u32_t pkru_server = ~(0b11 << (2 * srv_pkey)) & ~0b11;
-	u32_t pkru_client = ~(0b11 << (2 * cli_pkey)) & ~0b11;
 
 	/* 
 	 * FIXME: 
@@ -63,9 +61,9 @@ jitutils_jitcallgate(vaddr_t callgate, u32_t cli_pkey, u32_t srv_pkey, u64_t cli
 	if (!jitutils_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), JIT_CALLGATE_LEN_BYTES)) BUG();
 	if (!jitutils_replace((u8_t *)callgate, (u8_t *)&inv_placeholder, (u8_t *)&cap_no,  sizeof(u64_t), JIT_CALLGATE_LEN_BYTES)) BUG();
 	if (!jitutils_replace((u8_t *)callgate, (u8_t *)&inv_placeholder, (u8_t *)&inv_tok, sizeof(u64_t), JIT_CALLGATE_LEN_BYTES)) BUG();
-	if (!jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&pkru_server, sizeof(u32_t), JIT_CALLGATE_LEN_BYTES)) BUG();
-	if (!jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&pkru_server, sizeof(u32_t), JIT_CALLGATE_LEN_BYTES)) BUG();
-	if (!jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&pkru_client, sizeof(u32_t), JIT_CALLGATE_LEN_BYTES)) BUG();
+	if (!jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&srv_pkey, sizeof(u32_t), JIT_CALLGATE_LEN_BYTES)) BUG();
+	if (!jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&srv_pkey, sizeof(u32_t), JIT_CALLGATE_LEN_BYTES)) BUG();
+	if (!jitutils_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&cli_pkey, sizeof(u32_t), JIT_CALLGATE_LEN_BYTES)) BUG();
 }
 
 /*

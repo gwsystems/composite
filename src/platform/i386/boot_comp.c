@@ -336,6 +336,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
 	kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
+	chal_protdom_write(0);
 
 	printk("\tBoot component initialization complete.\n");
 }

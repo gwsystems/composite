@@ -143,7 +143,6 @@ comps_init(void)
 		if (!parent) {
 			printc("Creating virtual address space %s (%d):\n", args_get_from("name", &curr), as_id);
 			if (crt_ns_vas_init(ns_vas, ns_asid) != 0) BUG();
-			//crt_ns_vas_ulk_map(ns_vas);
 		} else {
 			int parent_id = atoi(parent);
 			struct crt_ns_vas *parent_vas = ss_ns_vas_get(parent_id);
@@ -155,7 +154,6 @@ comps_init(void)
 
 			printc("Creating virtual address space %s (%d) split from VAS %d:\n", args_get_from("name", &curr), as_id, parent_id);
 			if (crt_ns_vas_split(ns_vas, parent_vas, ns_asid) != 0) BUG();
-			//crt_ns_vas_ulk_map(ns_vas);
 		}
 		ss_ns_vas_activate(ns_vas);
 

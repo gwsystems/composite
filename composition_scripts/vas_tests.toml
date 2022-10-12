@@ -4,6 +4,7 @@ description = "Simplest system with both capability manager and scheduler, from 
 [[components]]
 name = "booter"
 img  = "no_interface.llbooter"
+baseaddr = "0x1600000"
 implements = [{interface = "init"}, {interface = "addr"}]
 deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
 constructor = "kernel"
@@ -18,7 +19,6 @@ constructor = "booter"
 [[components]]
 name = "sched"
 img  = "sched.root_fprr"
-baseaddr = "0x1600000"
 deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
 implements = [{interface = "sched"}, {interface = "init"}]
 constructor = "booter"

@@ -32,8 +32,7 @@
 typedef struct pgtbl *pgtbl_t;
 
 struct pgtbl_info {
-	prot_domain_t protdom;
-	pgtbl_t       pgtbl;
+	pgtbl_t  pgtbl;
 } __attribute__((packed));
 
 /* identical to the capability structure */
@@ -61,29 +60,36 @@ wrpkru(u32_t pkru)
 static inline u32_t
 rdpkru(void)
 {
-	u32_t pkru = 0;
+	u32_t pkru;
 
 	asm volatile(
 		"xor %%rcx, %%rcx\n\t"
         "xor %%rdx, %%rdx\n\t"
         "rdpkru"
-        : : "a" (pkru) :
+        : "=a" (pkru) : :
 	);
 
 	return pkru;
 }
 
 static inline u32_t
-pkru_state(u8_t mpk_key)
+pkru_state(prot_domain_t mpk_key)
 {
 	return ~(0b11 << (2 * mpk_key)) & ~0b11;
 }
 
 static inline void
-pkey_enable(u8_t mpk_key)
+chal_protdom_write(prot_domain_t protdom)
 {
-	/* set all keys except the inputted key and key 0 to WD/AD */
-	wrpkru(pkru_state(mpk_key));
+	wrpkru(pkru_state(protdom));
+}
+
+static inline prot_domain_t
+chal_protdom_read(void)
+{
+	u32_t pkru = rdpkru();
+	assert(pkru);
+	return (32 - __builtin_clz(~pkru)) / 2 - 1;
 }
 
 /* Update the page table */
@@ -91,14 +97,6 @@ static inline void
 chal_pgtbl_update(struct pgtbl_info *pt)
 {
 	asm volatile("mov %0, %%cr3" : : "r"(pt->pgtbl));
-	pkey_enable(pt->protdom);
-}
-
-static inline void
-chal_pgtbl_update_pkru(pgtbl_t pgtbl, u32_t pkru)
-{
-	asm volatile("mov %0, %%cr3" : : "r"(pgtbl));
-	wrpkru(pkru);
 }
 
 static inline asid_t

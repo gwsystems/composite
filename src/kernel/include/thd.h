@@ -24,12 +24,11 @@ struct invstk_entry {
 	struct comp_info comp_info;
 	unsigned long    sp, ip;
 	unsigned long    ulk_stkoff;
+	prot_domain_t    protdom;
 } HALF_CACHE_ALIGNED;
 
-#define THD_UL_INV_ORIGIN ((unsigned long)(~0ul))
 
-
-#define THD_INVSTK_MAXSZ 32
+#define THD_INVSTK_MAXSZ 16
 
 /*
  * This is the data structure embedded in threads that are associated
@@ -86,7 +85,6 @@ struct thread {
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
 
 	struct ulk_invstk  *ulk_invstk;
-	u32_t               pkru_state; /* updated when we switch threads */
 
 	thd_state_t    state;
 	word_t          tls;
@@ -354,7 +352,6 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
 	struct cap_thd            *tc;
 	struct cap_comp           *compc;
-	struct cap_isb            *isbc;
 	int                        ret;
 
 	memset(thd, 0, sizeof(struct thread));
@@ -367,12 +364,12 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
+	thd->invstk[0].protdom                = compc->info.protdom;
 	thd->tid                              = tid;
 	thd->refcnt                           = 1;
 	thd->invstk_top                       = 0;
 	thd->cpuid                            = get_cpuid();
 	thd->ulk_invstk                       = ulinvstk;
-	thd->pkru_state                       = pkru_state(compc->info.pgtblinfo.protdom);
 	assert(thd->tid <= MAX_NUM_THREADS);
 	thd_scheduler_set(thd, thd_current(cli));
 
@@ -496,8 +493,9 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 	prev = &thd->invstk[curr_invstk_top(cos_info)];
 	top  = &thd->invstk[curr_invstk_top(cos_info) + 1];
 	curr_invstk_inc(cos_info);
-	prev->ip = ip;
-	prev->sp = sp;
+	prev->ip      = ip;
+	prev->sp      = sp;
+	prev->protdom = chal_protdom_read();
 	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
 	top->ip = top->sp = 0;
 	
@@ -507,7 +505,7 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 }
 
 static inline struct comp_info *
-thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
+thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, prot_domain_t *protdom, struct cos_cpu_local_info *cos_info)
 {
 	struct invstk_entry *curr;
 	struct ulk_invstk   *ulk_invstk;
@@ -517,55 +515,24 @@ thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, struct 
 	curr_invstk_dec(cos_info);
 	curr = &thd->invstk[curr_invstk_top(cos_info)];
 
-	ulk_invstk = thd->ulk_invstk;
-	if (unlikely(!ulk_invstk)) {
-		*ip = curr->ip;
-		*sp = curr->sp;
-		return &curr->comp_info;
-	}
-
-	if (ulk_invstk->top > curr->ulk_stkoff) {
-		curr_invstk_dec(cos_info);
-	}
-
-	ci  = &curr->comp_info;
-	*ip = curr->ip;
-	*sp = curr->sp;
+	ci       = &curr->comp_info;
+	*ip      = curr->ip;
+	*sp      = curr->sp;
+	*protdom = curr->protdom;
 
 	return ci;
 }
 
-/* TODO: I do not know if this is a good abstraction for this operation */
-static inline struct comp_info *
-thd_invstk_pop_pkru(struct thread *thd, unsigned long *ip, unsigned long *sp, u32_t *pkru, struct cos_cpu_local_info *cos_info)
+static inline void
+thd_invstk_protdom_update(struct thread *thd, prot_domain_t protdom)
 {
-	struct invstk_entry *curr;
-	struct ulk_invstk   *ulk_invstk;
-	struct comp_info    *ci;
+	thd->invstk[thd->invstk_top].protdom = protdom; 
+}
 
-	*pkru = 0;
-	ulk_invstk = thd->ulk_invstk;
-	if (unlikely(!ulk_invstk)) {
-		return thd_invstk_pop(thd, ip, sp, cos_info);
-	}
-
-	if (unlikely(curr_invstk_top(cos_info) == 0)) return NULL;
-	curr_invstk_dec(cos_info);
-	curr = &thd->invstk[curr_invstk_top(cos_info)];
-	
-	/* 
-	 * if this comp made UL-invs, we are returning 
-	 * to the the comp at the top of the UL invstk.
-	 */
-	if (ulk_invstk->top > curr->ulk_stkoff) {
-		*pkru = ulk_invstk->stk[ulk_invstk->top-1].pkru_state;
-	}
-
-	ci  = &curr->comp_info;
-	*ip = curr->ip;
-	*sp = curr->sp;
-
-	return ci;
+static inline prot_domain_t
+thd_invstk_protdom_curr(struct thread *thd)
+{
+	return thd->invstk[thd->invstk_top].protdom; 
 }
 
 /* defined in ulinv.c */
@@ -595,6 +562,7 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 	 */
 	if (ulk_invstk->top > curr->ulk_stkoff) {
 		ci = ulinvstk_current(ulk_invstk, &curr->comp_info, curr->ulk_stkoff);
+		curr->protdom = ci->protdom;
 		if (unlikely(!ci)) return NULL;
 	}
 	else {
@@ -607,7 +575,7 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 }
 
 static inline struct comp_info *
-thd_invstk_current_comp(struct thread *thd, pgtbl_t *current_pt, struct cos_cpu_local_info *cos_info)
+thd_invstk_next_comp(struct thread *thd, struct pgtbl_info **next_pt, struct cos_cpu_local_info *cos_info)
 {
 	struct invstk_entry *curr;
 	struct ulk_invstk   *ulk_invstk;
@@ -617,7 +585,7 @@ thd_invstk_current_comp(struct thread *thd, pgtbl_t *current_pt, struct cos_cpu_
 	ulk_invstk = thd->ulk_invstk;
 
 	/* current pagetable is always on the kernel invstk */
-	*current_pt = curr->comp_info.pgtblinfo.pgtbl;
+	*next_pt = &curr->comp_info.pgtblinfo;
 
 	/* this thread makes no UL-invs */
 	if (unlikely(!ulk_invstk)) {
