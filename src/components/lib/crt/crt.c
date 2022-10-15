@@ -1268,6 +1268,8 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 	struct crt_comp_resources compres;
 	int ret;
 
+	static	struct ps_lock _lock = {0};
+
 	assert(c && ctxt);
 
 	/* Should only be called if initialization is necessary */
@@ -1297,6 +1299,14 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		r = ctxt->exec[cos_coreid()].sched.sched_rcv;
 		assert(r);
 
+		/* FIXME: 
+		 * multi-core could contend the same capability cacheline if they are using
+		 * continuous cap ids of the same cacheline. For example, the 
+		 * BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE and BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE
+		 * are continuous cap ids for different cores. This could cause the initialization
+		 * fail. Thus, add a lock to prevent this temporarilily
+		 */
+		ps_lock_take(&_lock);
 		if (crt_rcv_create_in(r, c, NULL, 0, 0)) BUG();
 
 		rcvres = (struct crt_rcv_resources) {
@@ -1305,6 +1315,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 			.rcv = BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
 		};
 		if (crt_rcv_alias_in(r, c, &rcvres, CRT_RCV_ALIAS_RCV | CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP)) BUG();
+		ps_lock_release(&_lock);
 
 		*target_aep = r->local_aep; /* update the component's structures */
 		assert(target_aep->thd && target_aep->tc && target_aep->rcv);

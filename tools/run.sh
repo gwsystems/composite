@@ -9,7 +9,7 @@ num_sockets=1
 num_cores=8
 num_threads=1
 vcpus=$[${num_sockets}*${num_cores}*${num_threads}]
-mem_size=1024
+mem_size=4096
 kvm_flag=""
 
 arch=$2
