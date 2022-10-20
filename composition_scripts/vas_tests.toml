@@ -49,7 +49,7 @@ components = ["capmgr", "sched"]
 [[address_spaces]]
 name = "pong"
 components = ["pong"]
-#parent = "system"
+parent = "system"
 
 
 [[address_spaces]]

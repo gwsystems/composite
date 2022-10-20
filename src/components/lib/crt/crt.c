@@ -808,7 +808,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 	comp_s = (srv->comp_cap_shared) ? srv->comp_cap_shared : srv->comp_cap;
 	sinv->sinv_cap = cos_sinv_alloc(cli, comp_s, sinv->s_fn_addr, client->id);
 	assert(sinv->sinv_cap);
-	printc("sinv %s cap %ld\n", name, sinv->sinv_cap);
+	printc("sinv %s cap %ld %d %d %p\n", name, sinv->sinv_cap, sinv->client->id, sinv->server->id, sinv->s_fn_addr);
 
 	if (crt_ns_vas_shared(client, server)) {
 		/* values set for debugging; we need to implement a CSPRNG */

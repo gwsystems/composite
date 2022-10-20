@@ -396,14 +396,14 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	}
 
 	/* store the protection domain state for the thread for when we wake it up. */
-	thd_invstk_protdom_update(curr, chal_protdom_read());
+	thd_invstk_protdom_update(curr, cos_info, chal_protdom_read());
 	next_protdom = thd_invstk_protdom_curr(next);
 
 	thd_current_update(next, curr, cos_info);
 	if (likely(ci->pgtblinfo.pgtbl != next_pt->pgtbl)) {
 		pgtbl_update(next_pt);
 	}
-	printk("NEXT: %d\n", next_protdom);
+	
 	chal_protdom_write(next_protdom);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */

@@ -524,9 +524,9 @@ thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, prot_do
 }
 
 static inline void
-thd_invstk_protdom_update(struct thread *thd, prot_domain_t protdom)
+thd_invstk_protdom_update(struct thread *thd,struct cos_cpu_local_info *cos_info, prot_domain_t protdom)
 {
-	thd->invstk[thd->invstk_top].protdom = protdom; 
+	thd->invstk[curr_invstk_top(cos_info)].protdom = protdom; 
 }
 
 static inline prot_domain_t

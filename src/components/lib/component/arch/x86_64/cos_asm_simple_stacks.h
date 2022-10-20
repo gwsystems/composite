@@ -25,10 +25,15 @@
 
 #define COS_ASM_REQUEST_STACK
 
-#define COS_ULINV_SWITCH_DOMAIN(pkru)				\
-	movl    $pkru,  %eax;					\
-	xor     %rcx,   %rcx;					\
-	xor     %rdx,   %rdx;					\
+#define COS_ULINV_SWITCH_DOMAIN(protdom)			\
+	movl	$protdom,  %ecx;				\
+	addl	%ecx,      %ecx;				\
+	movl	$0b11,     %eax;				\
+	sall	%cl,       %eax;				\
+	notl	%eax;						\
+	andl	$-4,       %eax;				\
+	xor	%rcx,      %rcx;				\
+	xor	%rdx,      %rdx;				\
 	wrpkru;	
 
 /* r13 = tid -> r14 = &stack*/
