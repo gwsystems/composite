@@ -168,6 +168,7 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 	client_sessions[thd].shemem_info.shmid = shmid;
 	client_sessions[thd].shemem_info.shm   = shm;
 	client_sessions[thd].shemem_info.paddr = paddr;
+	cos_hash_add(client_sessions[thd].port, &client_sessions[thd]);
 
 	pkt_ring_buf_init(&client_sessions[thd].pkt_ring_buf, RX_PKT_RBUF_NUM, RX_PKT_RING_SZ);
 	return 0;

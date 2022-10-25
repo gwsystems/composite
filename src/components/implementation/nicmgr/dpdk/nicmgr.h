@@ -68,5 +68,8 @@ int pkt_ring_buf_enqueue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf)
 int pkt_ring_buf_dequeue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf);
 int pkt_ring_buf_empty(struct pkt_ring_buf *pkt_ring_buf);
 
+void cos_hash_add(uint16_t tenant_id, struct client_session *session);
+struct client_session *cos_hash_lookup(uint16_t tenant_id);
+
 #define USE_CK_RING_FREE_MBUF 1
 #endif /* NICMGR_H */

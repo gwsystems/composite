@@ -7,6 +7,9 @@
 #include <arpa/inet.h>
 #include <cos_headers.h>
 #include <rte_atomic.h>
+#include <rte_hash.h>
+#include <rte_jhash.h>
+#include <rte_hash_crc.h>
 #include "nicmgr.h"
 
 #define NB_RX_DESC_DEFAULT 1024
@@ -24,18 +27,48 @@ char *g_tx_mp = NULL;
 static u16_t nic_ports = 0;
 static u16_t nic_queues = 1;
 
-static inline struct client_session *
-find_session(uint16_t tenant_id)
-{
-	/* TODO: change this search to hash-table in next version */
-	int i;
-	for (i = 0; i < NIC_MAX_SESSION; i++) {
-		if (client_sessions[i].port == tenant_id) {
-			return &client_sessions[i];
-		}
-	}
+struct rte_hash *tenant_hash_tbl;
 
-	return NULL;
+static struct rte_hash_parameters rte_hash_params = {
+	.entries = NIC_MAX_SESSION,
+	.key_len = sizeof(uint16_t),
+	.hash_func = rte_jhash,
+	.hash_func_init_val = 0,
+	.socket_id = 0,
+	.extra_flag = RTE_HASH_EXTRA_FLAGS_MULTI_WRITER_ADD,
+};
+
+static void
+cos_hash_init()
+{
+	
+	int pos, ret;
+
+	rte_hash_params.name = "tenant_id_tbl";
+
+	tenant_hash_tbl = rte_hash_create(&rte_hash_params);
+
+	assert(tenant_hash_tbl);
+	printc("tenant hash table init done\n");
+}
+
+void 
+cos_hash_add(uint16_t tenant_id, struct client_session *session)
+{
+	int ret;
+	ret = rte_hash_add_key_data(tenant_hash_tbl, &tenant_id, session);
+	assert(ret >= 0);
+}
+
+struct client_session *
+cos_hash_lookup(uint16_t tenant_id)
+{
+	int ret;
+	struct client_session *session;
+	ret = rte_hash_lookup_data(tenant_hash_tbl, &tenant_id, (void *)&session);
+	assert(ret >= 0);
+
+	return session;
 }
 
 static void
@@ -89,7 +122,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			iph	= (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
 			port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
 
-			session = find_session(port->dst_port);
+			session = cos_hash_lookup(port->dst_port);
 			if (unlikely(session == NULL)) {
 				cos_free_packet(rx_pkts[i]);
 				continue;
@@ -223,6 +256,8 @@ cos_init(void)
 {
 	printc("nicmgr init...\n");
 	cos_nic_init();
+	cos_hash_init();
+
 	pkt_ring_buf_init(&g_tx_ring, TX_PKT_RBUF_NUM, TX_PKT_RING_SZ);
 	pkt_ring_buf_init(&g_free_ring, FREE_PKT_RBUF_NUM, FREE_PKT_RING_SZ);
 
