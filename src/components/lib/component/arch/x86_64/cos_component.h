@@ -55,7 +55,7 @@ call_cap_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word
 	__asm__ __volatile__(
 	                     "movq %%rbp, (%%rcx)\n\t"	\
 	                     "movq %%rsp, 8(%%rcx)\n\t"	\
-	                     "mov %%rcx, %%rbp\n\t"	\
+	                     "movq %%rcx, %%rbp\n\t"	\
 	                     "movabs $1f, %%r8\n\t"	\
 	                     "syscall\n\t"		\
 	                     ".align 8\n\t"		\
@@ -106,7 +106,7 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	__asm__ __volatile__(
 	                     "movq %%rbp, (%%rcx)\n\t"	\
 	                     "movq %%rsp, 8(%%rcx)\n\t"	\
-	                     "mov %%rcx, %%rbp\n\t"	\
+	                     "movq %%rcx, %%rbp\n\t"	\
 	                     "movabs $1f, %%r8\n\t"	\
 	                     "syscall\n\t"		\
 	                     ".align 8\n\t"		\
@@ -158,7 +158,7 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	__asm__ __volatile__(
 	                     "movq %%rbp, (%%rcx)\n\t"	\
 	                     "movq %%rsp, 8(%%rcx)\n\t"	\
-	                     "mov %%rcx, %%rbp\n\t"	\
+	                     "movq %%rcx, %%rbp\n\t"	\
 	                     "movabs $1f, %%r8\n\t"	\
 	                     "syscall\n\t"		\
 	                     ".align 8\n\t"		\
