@@ -19,7 +19,7 @@
 #include <addr.h>
 
 #ifndef BOOTER_MAX_SINV
-#define BOOTER_MAX_SINV 256
+#define BOOTER_MAX_SINV 512
 #endif
 #ifndef BOOTER_MAX_SCHED
 #define BOOTER_MAX_SCHED 1

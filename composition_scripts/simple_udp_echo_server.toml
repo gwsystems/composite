@@ -62,3 +62,16 @@ name = "simple_udp_echo_server2"
 img  = "simple_udp_echo_server.simple_udp_echo_server"
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "netmgr2", interface = "netmgr"}, {srv = "print", interface = "print"}]
 constructor = "booter"
+
+[[components]]
+name = "netmgr3"
+img  = "netmgr.lwip"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}, {srv = "print", interface = "print"}]
+implements = [{interface = "netmgr"}]
+constructor = "booter"
+
+[[components]]
+name = "simple_udp_echo_server3"
+img  = "simple_udp_echo_server.simple_udp_echo_server"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "netmgr3", interface = "netmgr"}, {srv = "print", interface = "print"}]
+constructor = "booter"
