@@ -742,7 +742,7 @@ cos_init(void)
 	 * after we've sealed in all initargs and sinvs. Regardless,
 	 * that is the *correct* approach.
 	 */
-	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER));
+	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER), 0);
 	if (!cm_comp_self_alloc("capmgr")) BUG();
 
 	/* Initialize the other component's for which we're responsible */

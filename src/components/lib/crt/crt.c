@@ -410,7 +410,7 @@ crt_alias_alloc_helper(capid_t cap, cap_t type, struct crt_comp *c, capid_t *ret
 
 	if (*retcap) {
 		/* If we need to expand out the captbls, do so */
-		cos_comp_capfrontier_update(target_ci, round_up_to_pow2(*retcap + 1, 4));
+		cos_comp_capfrontier_update(target_ci, round_up_to_pow2(*retcap + 1, 4), 1);
 		ret = cos_cap_cpy_at(target_ci, *retcap, ci, cap);
 		assert(ret == 0);
 	} else {
@@ -627,7 +627,7 @@ crt_comp_captbl_frontier_update(struct crt_comp *c, capid_t capid)
 {
 	assert(c);
 
-	cos_comp_capfrontier_update(cos_compinfo_get(c->comp_res), capid);
+	cos_comp_capfrontier_update(cos_compinfo_get(c->comp_res), capid, 0);
 }
 
 int
