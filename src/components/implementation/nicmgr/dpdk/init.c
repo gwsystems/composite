@@ -25,12 +25,12 @@ static u16_t nic_ports = 0;
 static u16_t nic_queues = 1;
 
 static inline struct client_session *
-find_session(uint32_t dst_ip, uint16_t dst_port)
+find_session(uint16_t tenant_id)
 {
 	/* TODO: change this search to hash-table in next version */
 	int i;
 	for (i = 0; i < NIC_MAX_SESSION; i++) {
-		if (client_sessions[i].ip_addr == dst_ip /*&& client_sessions[i].port == dst_port*/) {
+		if (client_sessions[i].port == tenant_id) {
 			return &client_sessions[i];
 		}
 	}
@@ -89,7 +89,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			iph	= (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
 			port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
 
-			session = find_session(iph->dst_addr, port->dst_port);
+			session = find_session(port->dst_port);
 			if (unlikely(session == NULL)) {
 				cos_free_packet(rx_pkts[i]);
 				continue;
@@ -104,19 +104,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 
 			sched_thd_wakeup(session->thd);
 		} else if (htons(eth->ether_type) == 0x0806) {
-			arp_hdr = (struct arp_hdr *)((char *)eth + sizeof(struct eth_hdr));
-
-			session = find_session(arp_hdr->arp_data.arp_tip, 0);
-			if (unlikely(session == NULL)) 
-			{
-				cos_free_packet(buf.pkt);
-				continue;
-			}
-
-			buf.pkt = rx_pkts[i];
-			pkt_ring_buf_enqueue(&session->pkt_ring_buf, &buf);
-
-			sched_thd_wakeup(session->thd);
+			assert(0);
 		}
 	}
 }
@@ -144,7 +132,7 @@ cos_nic_start(){
 
 	char *rx_packets[MAX_PKT_BURST];
 
-	for (recv_round = 0; recv_round < MAX_RECV_LOOP; recv_round++) {
+	for (recv_round = 0; ; recv_round++) {
 #if USE_CK_RING_FREE_MBUF
 		cos_free_rx_buf();
 #endif
@@ -242,8 +230,10 @@ cos_init(void)
 }
 
 int
-main(void)
+parallel_main(coreid_t cid)
 {
+	/* DPDK rx and tx will only run on core 0 */
+	if(cid != 0) return 0;
 	printc("NIC started\n");
 
 	cos_nic_start();
