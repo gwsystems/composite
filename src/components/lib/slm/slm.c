@@ -174,6 +174,7 @@ slm_thd_block(struct slm_thd *t)
 {
 	assert(t);
 	assert(slm_thd_normal(t));
+	if (t->state == SLM_THD_BLOCKED) return 0;
 
 	if (unlikely(t->state == SLM_THD_WOKEN)) {
 		assert(!(t->properties & SLM_THD_PROPERTY_SUSPENDED));
@@ -291,6 +292,8 @@ int
 slm_thd_wakeup(struct slm_thd *t, int redundant)
 {
 	assert(t);
+
+	if (t->state == SLM_THD_WOKEN) return 1;
 
 	if (unlikely(t->state == SLM_THD_RUNNABLE || (redundant && t->state == SLM_THD_WOKEN))) {
 		/*
