@@ -12,6 +12,9 @@
 #define NIC_SHMEM_RX 0
 #define NIC_SHMEM_TX 1
 
+#define CLIENT_RUNNING 1
+#define CLIENT_BLOCK 0
+
 struct shemem_info {
 	cbuf_t   shmid;
 	shm_bm_t shm;
@@ -38,7 +41,9 @@ struct client_session {
 
 	u32_t ip_addr; 
 	u16_t port;
+	int thd_state;
 
+	int batch_nb;
 	struct pkt_ring_buf pkt_ring_buf;
 };
 

@@ -135,7 +135,11 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 				continue;
 			}
 
-			sched_thd_wakeup(session->thd);
+			session->batch_nb++;
+			if (session->thd_state == CLIENT_BLOCK && session->batch_nb > 5) {
+				sched_thd_wakeup(session->thd);
+				session->batch_nb = 0;
+			}
 		} else if (htons(eth->ether_type) == 0x0806) {
 			assert(0);
 		}

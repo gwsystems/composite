@@ -81,8 +81,11 @@ nic_get_a_packet(u16_t *pkt_len)
 	session = &client_sessions[thd];
 	
 	while (pkt_ring_buf_empty(&session->pkt_ring_buf)) {
+		session->thd_state = CLIENT_BLOCK;
 		sched_thd_block(0);
 	}
+
+	session->thd_state = CLIENT_RUNNING;
 
 	while (!pkt_ring_buf_dequeue(&session->pkt_ring_buf, &buf))
 	assert(buf.pkt);
@@ -159,6 +162,8 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 	client_sessions[thd].ip_addr = ip_addr;
 	client_sessions[thd].port    = port;
 	client_sessions[thd].thd     = thd;
+	client_sessions[thd].thd_state = CLIENT_RUNNING;
+	client_sessions[thd].batch_nb = 0;
 
 	shm   = netshmem_get_shm();
 	shmid = netshmem_get_shm_id();
