@@ -4,7 +4,7 @@
 # The library names associated with .a files output that are linked
 # (via, for example, -lutil) into dependents. This list should be
 # "util" for output files such as libutil.a.
-LIBRARY_OUTPUT = netstack
+LIBRARY_OUTPUT = netdefs
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,
@@ -21,7 +21,7 @@ INCLUDE_PATHS = .
 INTERFACE_DEPENDENCIES =
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = component ps
+LIBRARY_DEPENDENCIES = component
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this
