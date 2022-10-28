@@ -37,61 +37,76 @@ __cosrt_s_##name:						\
 	mov $RET_CAP, %rax;					\
 	COS_ASM_RET_STACK					\
 	syscall;						\
-__cosrt_s_shared_##name:					\
-.align 16;							\
-	/* callee saved */					\
-	pushq	%rbp;						\
-	pushq	%r13; /* tid      */				\
-	pushq	%r14; /* struct ulk_invstk ptr  */		\
-	pushq	%r15; /* auth tok */				\
-	movq    %rcx, %r8;					\
-	movq    %rdx, %r9;					\
-	movq    $0xdeadbeefdeadbeef, %r15; 			\
-	/* thread ID */						\
-	movq    %rsp, %rdx;					\
-	andq    $0xfffffffffffff000, %rdx;			\
-	movzwq  0xff0(%rdx), %r13;				\
-	COS_ULINV_GET_INVSTK					\
-	COS_ULINV_SWITCH_DOMAIN(0x01)				\
-	COS_ULINV_PUSH_INVSTK					\
-	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
-	/* invocation token */					\
-	movabs  $0x0123456789abcdef, %rbp;			\
-	movq    %r13, %rax;					\
+								\
+.global __cosrt_s_fast_callgate_##name ;			\
+.type  __cosrt_s_fast_callgate_##name, @function ;		\
+.align 16 ;							\
+__cosrt_s_fast_callgate_##name: 				\
 	/* switch to server execution stack */			\
 	COS_ASM_GET_STACK_INVTOKEN				\
 	/* ABI mandate a 16-byte alignment stack pointer*/	\
 	and 	$~0xf, %rsp;					\
 	xor 	%rbp, %rbp;					\
-	/* check client token */				\
-	movq    $0xdeadbeefdeadbeef, %rax;			\
-	cmp     %rax, %r15;					\
-	/* TODO: jne     bad */					\
 	movq    %r8, %rcx;					\
 	movq    %r9, %rdx;					\
 	callq   name;						\
-	movq	%rax, %r8;					\
-	/* save server authentication token */			\
-	movq    $0xdeadbeefdeadbeef, %r15;			\
-	/* thread ID */						\
-	movq    %rsp, %rdx;					\
-	andq    $0xfffffffffffff000, %rdx;			\
-	movzwq  0xff0(%rdx), %r13;				\
-	COS_ULINV_GET_INVSTK					\
-	COS_ULINV_SWITCH_DOMAIN(0x01)				\
-	COS_ULINV_POP_INVSTK					\
-	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
-	/* check server token */				\
-	movq    $0xdeadbeefdeadbeef, %rax;			\
-	cmp     %rax, %r15;					\
-	/* TODO: jne     bad */					\
-	movq    %r8, %rax;					\
-	/* callee saved */					\
-	popq	%r15;						\
-	popq	%r14;						\
-	popq	%r13;						\
-	popq	%rbp;						\
-	retq;
+	retq ;							\
+								\
+// __cosrt_s_fast_##name:						\
+// .align 16;							\
+// 	/* callee saved */					\
+// 	pushq	%rbp;						\
+// 	pushq	%r13; /* tid      */				\
+// 	pushq	%r14; /* struct ulk_invstk ptr  */		\
+// 	pushq	%r15; /* auth tok */				\
+// 	movq    %rcx, %r8;					\
+// 	movq    %rdx, %r9;					\
+// 	movq    $0xdeadbeefdeadbeef, %r15; 			\
+// 	/* thread ID */						\
+// 	movq    %rsp, %rdx;					\
+// 	andq    $0xfffffffffffff000, %rdx;			\
+// 	movzwq  0xff0(%rdx), %r13;				\
+// 	COS_ULINV_GET_INVSTK					\
+// 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
+// 	COS_ULINV_PUSH_INVSTK					\
+// 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
+// 	/* invocation token */					\
+// 	movabs  $0x0123456789abcdef, %rbp;			\
+// 	movq    %r13, %rax;					\
+// 	/* switch to server execution stack */			\
+// 	COS_ASM_GET_STACK_INVTOKEN				\
+// 	/* ABI mandate a 16-byte alignment stack pointer*/	\
+// 	and 	$~0xf, %rsp;					\
+// 	xor 	%rbp, %rbp;					\
+// 	/* check client token */				\
+// 	movq    $0xdeadbeefdeadbeef, %rax;			\
+// 	cmp     %rax, %r15;					\
+// 	/* TODO: jne     bad */					\
+// 	movq    %r8, %rcx;					\
+// 	movq    %r9, %rdx;					\
+// 	callq   name;						\
+// 	movq	%rax, %r8;					\
+// 	/* save server authentication token */			\
+// 	movq    $0xdeadbeefdeadbeef, %r15;			\
+// 	/* thread ID */						\
+// 	movq    %rsp, %rdx;					\
+// 	andq    $0xfffffffffffff000, %rdx;			\
+// 	movzwq  0xff0(%rdx), %r13;				\
+// 	COS_ULINV_GET_INVSTK					\
+// 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
+// 	COS_ULINV_POP_INVSTK					\
+// 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
+// 	/* check server token */				\
+// 	movq    $0xdeadbeefdeadbeef, %rax;			\
+// 	cmp     %rax, %r15;					\
+// 	/* TODO: jne     bad */					\
+// 	movq    %r8, %rax;					\
+// 	/* callee saved */					\
+// 	popq	%r15;						\
+// 	popq	%r14;						\
+// 	popq	%r13;						\
+// 	popq	%rbp;						\
+// 	retq;
 
 /*
  * This stub enables three return values (%ecx, %esi, %edi), AND
@@ -123,76 +138,76 @@ __cosrt_s_##name:				\
 	mov $RET_CAP, %rax;			\
 	COS_ASM_RET_STACK			\
 	syscall;				\
-__cosrt_s_shared_##name:					\
-.align 16 ;							\
-	/* callee saved */					\
-	pushq	%rbp;						\
-	pushq   %rbx;						\
-	pushq   %r12;						\
-	pushq	%r13;						\
-	pushq	%r14;						\
-	pushq	%r15;						\
-	/* save the two return ptrs in perserved regs */	\
-	movq	%r8, %r12;					\
-	movq	%r9, %rbx;					\
-	movq    %rcx, %r8;					\
-	movq    %rdx, %r9;					\
-	movq    $0xdeadbeefdeadbeef, %r15; 			\
-	/* thread ID */						\
-	movq    %rsp, %rdx;					\
-	andq    $0xfffffffffffff000, %rdx;			\
-	movzwq  0xff0(%rdx), %r13;				\
-	COS_ULINV_GET_INVSTK					\
-	COS_ULINV_SWITCH_DOMAIN(0x01)				\
-	COS_ULINV_PUSH_INVSTK					\
-	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
-	/* invocation token */					\
-	movabs  $0x0123456789abcdef, %rbp;			\
-	movq    %r13, %rax;					\
-	/* switch to server execution stack */			\
-	COS_ASM_GET_STACK_INVTOKEN				\
-	/* ABI mandate a 16-byte alignment stack pointer*/	\
-	and 	$~0xf, %rsp;					\
-	xor 	%rbp, %rbp;					\
-	/* check client token */				\
-	movq    $0xdeadbeefdeadbeef, %rax;			\
-	cmp     %rax, %r15;					\
-	/* TODO: jne     bad */					\
-	movq    %r8, %rcx;					\
-	movq    %r9, %rdx;					\
-	pushq   $0;						\
-	movq    %rsp, %r8;					\
-	pushq   $0;						\
-	movq    %rsp, %r9;					\
-	callq   __cosrt_s_cstub_##name;				\
-	movq	%rax, %r8;					\
-	popq	%rdi;						\
-	popq	%rsi;						\
-	/* save server authentication token */			\
-	movq    $0xdeadbeefdeadbeef, %r15;			\
-	/* thread ID */						\
-	movq    %rsp, %rdx;					\
-	andq    $0xfffffffffffff000, %rdx;			\
-	movzwq  0xff0(%rdx), %r13;				\
-	COS_ULINV_GET_INVSTK					\
-	COS_ULINV_SWITCH_DOMAIN(0x01)				\
-	COS_ULINV_POP_INVSTK					\
-	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
-	/* check server token */				\
-	movq    $0xdeadbeefdeadbeef, %rax;			\
-	cmp     %rax, %r15;					\
-	/* TODO: jne     bad */					\
-	movq    %r8, %rax;					\
-	movq	%rsi, (%r12);					\
-	movq	%rdi, (%rbx);					\
-	/* callee saved */					\
-	popq	%r15;						\
-	popq	%r14;						\
-	popq	%r13;						\
-	popq	%r12;						\
-	popq	%rbx;						\
-	popq	%rbp;						\
-	retq;
+// __cosrt_s_fast_##name:						\
+// .align 16 ;							\
+// 	/* callee saved */					\
+// 	pushq	%rbp;						\
+// 	pushq   %rbx;						\
+// 	pushq   %r12;						\
+// 	pushq	%r13;						\
+// 	pushq	%r14;						\
+// 	pushq	%r15;						\
+// 	/* save the two return ptrs in perserved regs */	\
+// 	movq	%r8, %r12;					\
+// 	movq	%r9, %rbx;					\
+// 	movq    %rcx, %r8;					\
+// 	movq    %rdx, %r9;					\
+// 	movq    $0xdeadbeefdeadbeef, %r15; 			\
+// 	/* thread ID */						\
+// 	movq    %rsp, %rdx;					\
+// 	andq    $0xfffffffffffff000, %rdx;			\
+// 	movzwq  0xff0(%rdx), %r13;				\
+// 	COS_ULINV_GET_INVSTK					\
+// 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
+// 	COS_ULINV_PUSH_INVSTK					\
+// 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
+// 	/* invocation token */					\
+// 	movabs  $0x0123456789abcdef, %rbp;			\
+// 	movq    %r13, %rax;					\
+// 	/* switch to server execution stack */			\
+// 	COS_ASM_GET_STACK_INVTOKEN				\
+// 	/* ABI mandate a 16-byte alignment stack pointer*/	\
+// 	and 	$~0xf, %rsp;					\
+// 	xor 	%rbp, %rbp;					\
+// 	/* check client token */				\
+// 	movq    $0xdeadbeefdeadbeef, %rax;			\
+// 	cmp     %rax, %r15;					\
+// 	/* TODO: jne     bad */					\
+// 	movq    %r8, %rcx;					\
+// 	movq    %r9, %rdx;					\
+// 	pushq   $0;						\
+// 	movq    %rsp, %r8;					\
+// 	pushq   $0;						\
+// 	movq    %rsp, %r9;					\
+// 	callq   __cosrt_s_cstub_##name;				\
+// 	movq	%rax, %r8;					\
+// 	popq	%rdi;						\
+// 	popq	%rsi;						\
+// 	/* save server authentication token */			\
+// 	movq    $0xdeadbeefdeadbeef, %r15;			\
+// 	/* thread ID */						\
+// 	movq    %rsp, %rdx;					\
+// 	andq    $0xfffffffffffff000, %rdx;			\
+// 	movzwq  0xff0(%rdx), %r13;				\
+// 	COS_ULINV_GET_INVSTK					\
+// 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
+// 	COS_ULINV_POP_INVSTK					\
+// 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
+// 	/* check server token */				\
+// 	movq    $0xdeadbeefdeadbeef, %rax;			\
+// 	cmp     %rax, %r15;					\
+// 	/* TODO: jne     bad */					\
+// 	movq    %r8, %rax;					\
+// 	movq	%rsi, (%r12);					\
+// 	movq	%rdi, (%rbx);					\
+// 	/* callee saved */					\
+// 	popq	%r15;						\
+// 	popq	%r14;						\
+// 	popq	%r13;						\
+// 	popq	%r12;						\
+// 	popq	%rbx;						\
+// 	popq	%rbp;						\
+// 	retq;
 
 #endif
 #ifdef COS_UCAP_STUBS
@@ -229,30 +244,7 @@ __cosrt_s_shared_##name:					\
  * server function in an interface that it also exports.
  */
 
-#define cos_asm_stub(name)			\
-.text;						\
-.weak name;					\
-.globl __cosrt_extern_##name;			\
-.type  name, @function;				\
-.type  __cosrt_extern_##name, @function;	\
-.align 8 ;					\
-name:						\
-__cosrt_extern_##name:				\
-	movabs $__cosrt_ucap_##name, %rax ;	\
-	callq *INVFN(%rax) ;			\
-	retq ;					\
-						\
-.section .ucap, "a", @progbits ;		\
-.globl __cosrt_ucap_##name ;			\
-__cosrt_ucap_##name:				\
-	.rep UCAP_SZ ;				\
-	.quad 0 ;				\
-	.endr ;					\
-.text /* start out in the text segment, and always return there */
-
-#define cos_asm_stub_indirect(name) cos_asm_stub(name)
-
-#define cos_asm_stub_shared(name)				\
+#define cos_asm_stub(name)					\
 .text;								\
 .weak name;							\
 .globl __cosrt_extern_##name;					\
@@ -261,9 +253,63 @@ __cosrt_ucap_##name:				\
 .align 8 ;							\
 name:								\
 __cosrt_extern_##name:						\
-	movabs  $__cosrt_ucap_##name, %rax;			\
-	callq   *INVFN(%rax);					\
+	movabs $__cosrt_ucap_##name, %rax ;			\
+	movabs $__cosrt_fast_callgate_##name, %r11 ;		\
+	callq *INVFN(%rax) ;					\
+	retq ;							\
+								\
+.globl __cosrt_fast_callgate_##name;				\
+.type  __cosrt_fast_callgate_##name, @function;			\
+.align 16 ;							\
+__cosrt_fast_callgate_##name:					\
+	/* callee saved */					\
+	pushq	%rbp;						\
+	pushq	%r13; /* tid      */				\
+	pushq	%r14; /* struct ulk_invstk ptr  */		\
+	pushq	%r15; /* auth tok */				\
+	movq    %rcx, %r8;					\
+	movq    %rdx, %r9;					\
+	movq    $0xdeadbeefdeadbeef, %r15; 			\
+	/* thread ID */						\
+	movq    %rsp, %rdx;					\
+	andq    $0xfffffffffffff000, %rdx;			\
+	movzwq  0xff0(%rdx), %r13;				\
+	COS_ULINV_GET_INVSTK					\
+	COS_ULINV_SWITCH_DOMAIN(0x01)				\
+	COS_ULINV_PUSH_INVSTK					\
+	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
+	/* invocation token */					\
+	movabs  $0x0123456789abcdef, %rbp;			\
+	movq    %r13, %rax;					\
+	/* check client token */				\
+	movq    $0xdeadbeefdeadbeef, %rax;			\
+	cmp     %rax, %r15;					\
+	/* TODO: jne     bad */					\
+	movabs $__cosrt_ucap_##name, %rax;			\
+	callq   *SERVER_FN(%rax);				\
+	movq	%rax, %r8;					\
+	/* save server authentication token */			\
+	movq    $0xdeadbeefdeadbeef, %r15;			\
+	/* thread ID */						\
+	movq    %rsp, %rdx;					\
+	andq    $0xfffffffffffff000, %rdx;			\
+	movzwq  0xff0(%rdx), %r13;				\
+	COS_ULINV_GET_INVSTK					\
+	COS_ULINV_SWITCH_DOMAIN(0x01)				\
+	COS_ULINV_POP_INVSTK					\
+	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
+	/* check server token */				\
+	movq    $0xdeadbeefdeadbeef, %rax;			\
+	cmp     %rax, %r15;					\
+	/* TODO: jne     bad */					\
+	movq    %r8, %rax;					\
+	/* callee saved */					\
+	popq	%r15;						\
+	popq	%r14;						\
+	popq	%r13;						\
+	popq	%rbp;						\
 	retq;							\
+								\
 								\
 .section .ucap, "a", @progbits ;				\
 .globl __cosrt_ucap_##name ;					\
@@ -272,6 +318,8 @@ __cosrt_ucap_##name:						\
 	.quad 0 ;						\
 	.endr ;							\
 .text /* start out in the text segment, and always return there */
+
+#define cos_asm_stub_indirect(name) cos_asm_stub(name)
 
 #define cos_asm_stub_indirect_shared(name) cos_asm_stub_shared(name)
 
