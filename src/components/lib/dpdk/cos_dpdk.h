@@ -109,7 +109,7 @@ int cos_attach_external_mbuf(char *mbuf, void *buf_vaddr,
 			void (*ext_buf_free_cb)(void *addr, void *opaque),
 			void *ext_shinfo);
 
-int cos_send_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len);
+void cos_set_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len, int offload);
 int cos_mempool_full(const char *mp);
 unsigned int cos_mempool_in_use_count(const char *mp);
 int cos_eth_tx_done_cleanup(uint16_t port_id, uint16_t queue_id, uint32_t free_cnt);

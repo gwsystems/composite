@@ -11,6 +11,7 @@
 #include <rte_mbuf.h>
 
 #include <arpa/inet.h>
+#include <net_stack_types.h>
 
 #include "cos_dpdk.h"
 extern struct rte_pci_bus rte_pci_bus;
@@ -290,7 +291,13 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 
 	ret = rte_eth_dev_info_get(real_port_id, &dev_info);
 	txq_conf = dev_info.default_txconf;
+	/* We assume the NIC provides both IP & UDP offload capability */
+	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IPV4_CKSUM);
+	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM);
 
+	/* set the txq to enable IP and UDP offload */
+	txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
+	txq_conf.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
 	/* This commented code might be used in the future to adjust tx configurations */
 	// txq_conf.tx_rs_thresh = 2;
 	// txq_conf.tx_thresh.pthresh = 1;
@@ -564,15 +571,35 @@ cos_attach_external_mbuf(char *mbuf, void *buf_vaddr,
 	return 0;
 }
 
-int
-cos_send_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len)
+void
+cos_set_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len, int offload)
 {
 	struct rte_mbuf *_mbuf = (struct rte_mbuf *)mbuf;
+	struct rte_ipv4_hdr *ipv4_hdr;
+	struct rte_udp_hdr *udp_hdr;
+
 	_mbuf->data_len = pkt_len;
 	_mbuf->pkt_len = pkt_len;
 	_mbuf->data_off = data_offset;
 
-	return cos_dev_port_tx_burst(0, 0, &mbuf, 1);
+	if (offload) {
+		ipv4_hdr = _mbuf->buf_addr + _mbuf->data_off + 14;
+		udp_hdr =  _mbuf->buf_addr + _mbuf->data_off + 14 + 20;
+
+		/* Eth header should always be the stardand length */
+		_mbuf->l2_len = ETH_STD_LEN;
+
+		/* IP header length is (ihl * 4) */
+		_mbuf->l3_len = ipv4_hdr->ihl * 4;
+
+		/* if the original csum field is set, don't do the offload */
+		if (unlikely(ipv4_hdr->hdr_checksum != 0 || udp_hdr->dgram_cksum != 0)) return;
+
+		_mbuf->ol_flags = RTE_MBUF_F_TX_IPV4 | PKT_TX_IP_CKSUM| RTE_MBUF_F_TX_UDP_CKSUM;
+
+		/* NIC needs a pseudo-header L4 checksum before offload */
+		udp_hdr->dgram_cksum = rte_ipv4_phdr_cksum(ipv4_hdr, RTE_MBUF_F_TX_IPV4 | PKT_TX_IP_CKSUM| RTE_MBUF_F_TX_UDP_CKSUM);
+	}
 }
 
 int

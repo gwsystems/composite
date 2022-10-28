@@ -76,4 +76,8 @@ struct udp_hdr
 #define UDP_PROTO 17
 #define TCP_PROTO 6
 
+#define ETH_STD_LEN sizeof(struct eth_hdr)
+#define IP_STD_LEN sizeof(struct ip_hdr)
+#define UDP_STD_LEN sizeof(struct udp_hdr)
+
 #endif
