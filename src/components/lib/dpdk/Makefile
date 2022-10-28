@@ -12,7 +12,7 @@ INCLUDE_PATHS = . adapter dpdk/build/install/include
 
 INTERFACE_DEPENDENCIES =
 
-LIBRARY_DEPENDENCIES = component pci posix_cap posix_sched
+LIBRARY_DEPENDENCIES = component pci posix_cap posix_sched netstack
 
 # this is to stop non supported build target
 # this will override $(OBJS) so that compiler will not compile target files under unsupported cases

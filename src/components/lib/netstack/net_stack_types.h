@@ -1,5 +1,5 @@
-#ifndef COS_HEADERS_H
-#define COS_HEADERS_H
+#ifndef NET_STACK_TYPES_H
+#define NET_STACK_TYPES_H
 
 #include <cos_types.h>
 
@@ -63,6 +63,17 @@ struct tcp_udp_port
 {
 	u16_t src_port;
 	u16_t dst_port;
-};
+} __attribute__((packed));
+
+struct udp_hdr
+{
+	struct tcp_udp_port port;
+	u16_t len;
+	u16_t checksum;
+} __attribute__((packed));
+
+#define ICMP_PROTO 1
+#define UDP_PROTO 17
+#define TCP_PROTO 6
 
 #endif

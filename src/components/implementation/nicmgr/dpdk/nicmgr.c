@@ -166,6 +166,7 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 	client_sessions[thd].batch_nb = 0;
 
 	shm   = netshmem_get_shm();
+	assert(shm);
 	shmid = netshmem_get_shm_id();
 	paddr = cos_map_virt_to_phys((cos_vaddr_t)shm);
 	assert(paddr);
