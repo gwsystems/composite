@@ -63,7 +63,7 @@ parallel_main(coreid_t cid)
 		/* application free unused rx buf */
 		shm_bm_free_net_pkt_buf(rx_obj);
 
-		// udp_stack_shmem_write(objid, netshmem_get_data_offset(), data_len, remote_addr, remote_port);
+		udp_stack_shmem_write(objid, netshmem_get_data_offset(), data_len, remote_addr, remote_port);
 		shm_bm_free_net_pkt_buf(tx_obj);
 	}
 }
