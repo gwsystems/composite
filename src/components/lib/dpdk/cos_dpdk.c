@@ -298,13 +298,6 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 	/* set the txq to enable IP and UDP offload */
 	txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
 	txq_conf.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
-	/* This commented code might be used in the future to adjust tx configurations */
-	// txq_conf.tx_rs_thresh = 2;
-	// txq_conf.tx_thresh.pthresh = 1;
-	// txq_conf.tx_thresh.hthresh = 1;
-	// txq_conf.tx_thresh.wthresh = 1;
-	// txq_conf.tx_free_thresh = 1;
-	// txq_conf.offloads = 0;
 
 	ret = rte_eth_tx_queue_setup(real_port_id, tx_queue_id, nb_tx_desc,
 				rte_eth_dev_socket_id(real_port_id),
@@ -595,10 +588,10 @@ cos_set_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len, int o
 		/* if the original csum field is set, don't do the offload */
 		if (unlikely(ipv4_hdr->hdr_checksum != 0 || udp_hdr->dgram_cksum != 0)) return;
 
-		_mbuf->ol_flags = RTE_MBUF_F_TX_IPV4 | PKT_TX_IP_CKSUM| RTE_MBUF_F_TX_UDP_CKSUM;
+		_mbuf->ol_flags = RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM| RTE_MBUF_F_TX_UDP_CKSUM;
 
 		/* NIC needs a pseudo-header L4 checksum before offload */
-		udp_hdr->dgram_cksum = rte_ipv4_phdr_cksum(ipv4_hdr, RTE_MBUF_F_TX_IPV4 | PKT_TX_IP_CKSUM| RTE_MBUF_F_TX_UDP_CKSUM);
+		udp_hdr->dgram_cksum = rte_ipv4_phdr_cksum(ipv4_hdr, RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM| RTE_MBUF_F_TX_UDP_CKSUM);
 	}
 }
 

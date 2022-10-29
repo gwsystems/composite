@@ -5,7 +5,7 @@
 #include <netshmem.h>
 #include <sched.h>
 #include <arpa/inet.h>
-#include <cos_headers.h>
+#include <net_stack_types.h>
 #include <rte_atomic.h>
 #include <rte_hash.h>
 #include <rte_jhash.h>
@@ -87,8 +87,11 @@ process_tx_packets(void)
 	struct pkt_buf buf;
 	char *mbuf;
 	void *ext_shinfo;
+	char *tx_packets[MAX_PKT_BURST];
+	int i = 0;
 
 	while (!pkt_ring_buf_empty(&g_tx_ring)) {
+		i = 0;
 		pkt_ring_buf_dequeue(&g_tx_ring, &buf);
 
 		mbuf = cos_allocate_mbuf(g_tx_mp);
@@ -96,8 +99,12 @@ process_tx_packets(void)
 		ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
 
 		cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
-		cos_send_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len);
+		cos_set_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len, ENABLE_OFFLOAD);
+		tx_packets[i++] = mbuf;
+
+		cos_dev_port_tx_burst(0, 0, &tx_packets, i);
 	}
+
 }
 
 static void
@@ -120,6 +127,11 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 
 		if (htons(eth->ether_type) == 0x0800) {
 			iph	= (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
+			if (unlikely(iph->proto != UDP_PROTO)) {
+				cos_free_packet(buf.pkt);
+				rx_enqueued_miss++;
+				continue;
+			}
 			port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
 
 			session = cos_hash_lookup(port->dst_port);
@@ -136,7 +148,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			}
 
 			session->batch_nb++;
-			if (session->thd_state == CLIENT_BLOCK && session->batch_nb > 5) {
+			if (session->thd_state == CLIENT_BLOCK && session->batch_nb > 0) {
 				sched_thd_wakeup(session->thd);
 				session->batch_nb = 0;
 			}

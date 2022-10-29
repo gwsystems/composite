@@ -10,14 +10,14 @@
 ((unsigned char *)&addr)[3]
 #define NIPQUAD_FMT "%u.%u.%u.%u"
 
-struct eth_hdr {
-	u8_t dst_addr[6];
-	u8_t src_addr[6];
-	u16_t ether_type;
-} __attribute__((packed));
-
 struct ether_addr {
 	u8_t addr_bytes[6]; /**< Addr bytes in tx order */
+} __attribute__((packed));
+
+struct eth_hdr {
+	struct ether_addr dst_addr;
+	struct ether_addr src_addr;
+	u16_t ether_type;
 } __attribute__((packed));
 
 struct arp_ipv4 {
@@ -79,5 +79,10 @@ struct udp_hdr
 #define ETH_STD_LEN sizeof(struct eth_hdr)
 #define IP_STD_LEN sizeof(struct ip_hdr)
 #define UDP_STD_LEN sizeof(struct udp_hdr)
+
+#define IPv4 4
+
+/* enable IP and UDP offload by default */
+#define ENABLE_OFFLOAD 1
 
 #endif
