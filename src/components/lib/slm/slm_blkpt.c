@@ -2,7 +2,7 @@
 #include <slm_blkpt.h>
 #include <stacklist.h>
 
-#define NBLKPTS 64
+#define NBLKPTS 10240
 struct blkpt_mem {
 	sched_blkpt_id_t      id;
 	sched_blkpt_epoch_t   epoch;

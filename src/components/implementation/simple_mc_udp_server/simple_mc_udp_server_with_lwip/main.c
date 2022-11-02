@@ -26,18 +26,29 @@ cos_init(void)
 }
 
 int
-main(void)
+parallel_main(coreid_t cid)
 {
-	int ret		= 0;
-	u32_t ip	= inet_addr("10.10.1.2");
-	u16_t port	= 80;
-	shm_bm_objid_t           objid;
+	int ret;
+	u32_t ip;
+	compid_t compid;
+	u16_t port;
+	shm_bm_objid_t objid;
 	struct netshmem_pkt_buf *rx_obj;
 	struct netshmem_pkt_buf *tx_obj;
 	char *data;
 	u16_t data_offset, data_len;
 	u16_t remote_port;
 	u32_t remote_addr;
+
+	ret = 0;
+	ip = inet_addr("10.10.1.2");
+	compid = cos_compid();
+
+	/* we use comp id as UDP port, representing tenant id */
+	assert(compid < (1 << 16));
+	port	= (u16_t)compid;
+
+	printc("tenant id:%d\n", port);
 
 	ret = netmgr_udp_bind(ip, port);
 	assert(ret == NETMGR_OK);

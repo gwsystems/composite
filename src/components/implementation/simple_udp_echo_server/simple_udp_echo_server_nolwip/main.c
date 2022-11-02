@@ -28,7 +28,6 @@ parallel_main(coreid_t cid)
 	u32_t ip;
 	compid_t compid;
 	u16_t port;
-	struct conn_addr client_addr;
 	shm_bm_objid_t objid;
 	struct netshmem_pkt_buf *rx_obj;
 	struct netshmem_pkt_buf *tx_obj;
