@@ -1,27 +1,6 @@
 #ifndef COS_STUB_X86_64_H
 #define COS_STUB_X86_64_H
 
-typedef word_t (*callgate_fn_t)(word_t p0, word_t p1, word_t p2, word_t p3, word_t *r1, word_t *r2);
-
-static word_t
-cos_ul_sinv(callgate_fn_t *callgate, word_t p0, word_t p1, word_t p2, word_t p3)
-{
-    word_t r1, r2;
-    return ((callgate_fn_t)callgate)(p0, p1, p2, p3, &r1, &r2);
-}
-
-static word_t
-cos_ul_sinv_2rets(void *callgate, word_t p0, word_t p1, word_t p2, word_t p3, word_t *r1, word_t *r2)
-{
-    return ((callgate_fn_t)callgate)(p0, p1, p2, p3, r1, r2);
-}
-
-/* TODO: some docs */
-#define COS_SINV(ucap, args...) \
-    ((likely(ucap->data)) ? (cos_ul_sinv(callgate, args)) : (word_t)cos_sinv(ucap->cap_no, args));
-
-#define COS_SINV_2RETS(ucap, args...) \
-	((likely(ucap->data)) ? (cos_ul_sinv_2rets(callgate, args)) : (word_t)cos_sinv_2rets(ucap->cap_no, args));
 
 /*
  * Macros for defining C stubs for the client and server. These
@@ -31,9 +10,7 @@ cos_ul_sinv_2rets(void *callgate, word_t p0, word_t p1, word_t p2, word_t p3, wo
  */
 #define COS_CLIENT_STUB(_type, _client_fn, ...) _type __cosrt_c_##_client_fn(__VA_ARGS__)
 
-#define COS_CLIENT_INVCAP \
-    register struct usr_inv_cap *uc asm ("rax"); \
-    register callgate_fn_t callgate asm ("r11");    
+#define COS_CLIENT_INVCAP register struct usr_inv_cap *uc asm ("rax");
 
 /*
  * We marshal and demarshal double word arguments..

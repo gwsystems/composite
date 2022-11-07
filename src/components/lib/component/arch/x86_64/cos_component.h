@@ -14,6 +14,7 @@
 #include <string.h>
 #include <bitmap.h>
 #include <ps_plat.h>
+#include <cos_stubs.h>
 
 /*
  * dewarn: strtok_r()
@@ -138,22 +139,37 @@ cos_print(char *s, int len)
 	// FIXME: casting from a pointer to an int can be lossy
 	call_cap(PRINT_CAP_TEMP, (word_t) s, len, 0, 0);
 }
+
+typedef int (*callgate_fn_t)(word_t p0, word_t p1, word_t p2, word_t p3, word_t *r1, word_t *r2);
+
 static inline int
-cos_sinv(u32_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
+cos_sinv(word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
-	return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4);
+	register struct usr_inv_cap *uc __asm__ ("rax");
+	register callgate_fn_t callgate __asm__ ("r11");  
+    
+	word_t r1, r2;
+
+	if (likely(uc->data == COS_UCAP_UL_INV)) return (*callgate)(arg1, arg2, arg3, arg4, &r1, &r2);
+
+	return call_cap_op(uc->cap_no, 0, arg1, arg2, arg3, arg4);
+}
+
+static inline int
+cos_sinv_2rets(word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2)
+{
+	register struct usr_inv_cap *uc __asm__ ("rax");
+	register callgate_fn_t callgate __asm__ ("r11");  
+
+	if (likely(uc->data == COS_UCAP_UL_INV)) return (*callgate)(arg1, arg2, arg3, arg4, ret1, ret2);
+
+	return call_cap_2retvals_asm(uc->cap_no, 0, arg1, arg2, arg3, arg4, ret1, ret2);
 }
 
 static inline int
 cos_sinv_rets(u32_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2, word_t *ret3)
 {
 	return call_cap_retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret1, ret2, ret3);
-}
-
-static inline int
-cos_sinv_2rets(u32_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2)
-{
-	return call_cap_2retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret1, ret2);
 }
 
 /**

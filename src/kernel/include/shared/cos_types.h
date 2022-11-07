@@ -395,7 +395,7 @@ struct restartable_atomic_sequence {
 };
 
 
-#define UCAP_UL_INV 0x1
+#define COS_UCAP_UL_INV (void *)0x1
 
 /* see explanation in spd.h */
 struct usr_inv_cap {
