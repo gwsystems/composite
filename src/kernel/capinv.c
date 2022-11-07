@@ -1012,17 +1012,14 @@ composite_syscall_handler(struct pt_regs *regs)
 	switch (ch->type) {
 	case CAP_THD:
 		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, ci, cos_info);
-		//thd_invstk_pop_ulk(thd, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	case CAP_ASND:
 		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, ci, cos_info);
-		//thd_invstk_pop_ulk(thd, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	case CAP_ARCV:
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
-		//thd_invstk_pop_ulk(thd, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	default:
@@ -1031,9 +1028,6 @@ composite_syscall_handler(struct pt_regs *regs)
 
 	/* slowpath restbl (captbl and pgtbl) operations */
 	ret = composite_syscall_slowpath(regs, &thd_switch);
-
-	/* if we pushed a ulk invstk entry to our stack, we need to pop it */
-	//thd_invstk_pop_ulk(thd, cos_info);
 
 	if (ret < 0) cos_throw(done, ret);
 	
