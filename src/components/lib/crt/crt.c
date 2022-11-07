@@ -774,7 +774,7 @@ crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp_res
 
 int
 crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client,
-		vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr)
+		vaddr_t c_fn_addr, vaddr_t c_fast_callgate_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr, vaddr_t s_altfn_addr)
 {
 	struct cos_compinfo *cli;
 	struct cos_compinfo *srv;
@@ -810,19 +810,18 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 	assert(sinv->sinv_cap);
 	printc("sinv %s cap %ld %d %d %p\n", name, sinv->sinv_cap, sinv->client->id, sinv->server->id, sinv->s_fn_addr);
 
-	if (crt_ns_vas_shared(client, server)) {
+	if (crt_ns_vas_shared(client, server) && s_altfn_addr && c_fast_callgate_addr) {
 		/* values set for debugging; we need to implement a CSPRNG */
 		u64_t client_auth_tok = 0xfefefefefefefefe; /* = CSPRNG() */
 		u64_t server_auth_tok = 0xabababababababab; /* = CSPRNG() */
 
-		vaddr_t server_fn_off  = s_fn_addr - sinv->server->ro_addr;
-		vaddr_t server_fn_addr = (vaddr_t)sinv->server->mem + server_fn_off;
-		unsigned int callgate_off  = jitutils_callgate_offset(server_fn_addr);
+		vaddr_t callgate_off  = c_fast_callgate_addr - sinv->client->ro_addr;
+		vaddr_t callgate_addr = (vaddr_t)sinv->client->mem + callgate_off;
 
-		vaddr_t callgate_addr = (vaddr_t)sinv->server->mem + server_fn_off + callgate_off;
-		jitutils_jitcallgate(callgate_addr, sinv->client->protdom, sinv->server->protdom, client_auth_tok, server_auth_tok, client->id, sinv->sinv_cap);
+		jitutils_jitcallgate(callgate_addr, s_altfn_addr, sinv->client->protdom, sinv->server->protdom, client_auth_tok, server_auth_tok, client->id, sinv->sinv_cap);
 	
-		ucap_data = (void *)(sinv->s_fn_addr + callgate_off);
+		/* tell the client to use the user-level callgate when making the sinv */
+		ucap_data = UCAP_UL_INV;
 	}
 
 	/* poor-mans virtual address translation from client VAS -> our ptrs */

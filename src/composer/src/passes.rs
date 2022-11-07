@@ -352,7 +352,13 @@ pub trait InitParamPass {
 
 pub struct ClientSymb {
     pub func_addr: VAddr,
+    pub callgate_addr: VAddr,
     pub ucap_addr: VAddr,
+}
+
+pub struct ServerSymb {
+    pub func_addr: VAddr,
+    pub altfn_addr: VAddr,
 }
 
 pub struct CompSymbs {
@@ -362,7 +368,7 @@ pub struct CompSymbs {
 
 pub trait ObjectsPass {
     fn client_symbs(&self) -> &HashMap<String, ClientSymb>;
-    fn server_symbs(&self) -> &HashMap<String, VAddr>;
+    fn server_symbs(&self) -> &HashMap<String, ServerSymb>;
     fn comp_symbs(&self) -> &CompSymbs;
     fn comp_path(&self) -> &String;
 }
@@ -379,8 +385,10 @@ pub struct SInv {
     pub client: ComponentId,
     pub server: ComponentId,
     pub c_fn_addr: VAddr,
+    pub c_callgate_addr: VAddr,
     pub c_ucap_addr: VAddr,
     pub s_fn_addr: VAddr,
+    pub s_altfn_addr: VAddr,
 }
 
 pub trait InvocationsPass {

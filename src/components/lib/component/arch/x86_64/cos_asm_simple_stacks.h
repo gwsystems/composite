@@ -41,7 +41,7 @@
 	movabs	$ULK_BASE_ADDR, %r14;				\
 	/* get perthread invstack */				\
 	movq	%r13, %rax;					\
-	shlq    $9, %rax;	    				\
+	shlq    $8, %rax;	    				\
 	/* r14 = &stack */	 				\
 	addq    %rax, %r14; 					
 
@@ -50,15 +50,13 @@
 #define COS_ULINV_PUSH_INVSTK					\
 	movq    (%r14), %rdx;					\
 	addq    $1,     %rdx;					\
-	shlq    $5,     %rdx;					\
+	shlq    $4,     %rdx;					\
 	/* rdx = &stack_entry */	 			\
 	addq    %r14,   %rdx;					\
-	/* store pkru, cap no and sp */				\
-	movl    $0xfffffffe,  %eax;				\
-	movl    %eax,   (%rdx);					\
+	/* store cap no and sp */				\
 	movq    $0x0123456789abcdef, %rax; 			\
-	movq    %rax, 8(%rdx); 					\
-	movq    %rsp, 16(%rdx); 				\
+	movq    %rax, (%rdx); 					\
+	movq    %rsp, 8(%rdx); 					\
 	/* increment tos */					\
 	movq    (%r14), %rax;					\
 	addq    $1, %rax;					\
@@ -67,11 +65,11 @@
 /* r14 = &stack */
 #define COS_ULINV_POP_INVSTK					\
 	movq    (%r14), %rdx;					\
-	shlq    $5,     %rdx;					\
+	shlq    $4,     %rdx;					\
 	/* rdx = &stack_entry */	 			\
 	addq    %r14,   %rdx;					\
 	/* restore sp */					\
-	movq    16(%rdx),%rsp; 					\
+	movq    8(%rdx),%rsp; 					\
 	/* decrement tos */					\
 	movq    (%r14), %rax;					\
 	subq    $1, %rax;					\

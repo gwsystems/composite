@@ -719,6 +719,7 @@ capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid)
 		/* TODO: release resources */
 		return 0;
 	}
+
 	*tid = t->thd.tid;
 
 	return t->aliased_cap;

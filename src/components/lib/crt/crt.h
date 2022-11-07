@@ -182,7 +182,7 @@ int crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt);
 struct crt_rcv *crt_comp_exec_rcv(struct crt_comp *comp);
 struct crt_thd *crt_comp_exec_thd(struct crt_comp *comp);
 
-int crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr);
+int crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_fast_callgate_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr, vaddr_t s_altfn_addr);
 int crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr);
 
 int crt_sinv_alias_in(struct crt_sinv *s, struct crt_comp *c, struct crt_sinv_resources *res);

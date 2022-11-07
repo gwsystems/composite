@@ -394,6 +394,9 @@ struct restartable_atomic_sequence {
 	vaddr_t start, end;
 };
 
+
+#define UCAP_UL_INV 0x1
+
 /* see explanation in spd.h */
 struct usr_inv_cap {
 	vaddr_t       invocation_fn;
@@ -436,18 +439,15 @@ struct cos_stack_freelists {
 
 /* padded to power-of-2 alignment to make IPC fast-path computations faster*/
 struct ulk_invstk_entry {
-	u32_t   pkru_state;
-	u32_t   pad; /* only enabled on 64b, align to 64b words*/
 	capid_t sinv_cap;
 	vaddr_t sp;
-	u64_t   pad_align;
 } __attribute__((packed));
 
 #define ULK_INVSTK_NUM_ENT 15
-#define ULK_INVSTK_SZ 512ul
+#define ULK_INVSTK_SZ 256ul
 
 struct ulk_invstk {
-	u64_t top, pad[3];
+	u64_t top, pad;
 	struct ulk_invstk_entry stk[ULK_INVSTK_NUM_ENT];
 } CACHE_ALIGNED __attribute__((packed));
 
