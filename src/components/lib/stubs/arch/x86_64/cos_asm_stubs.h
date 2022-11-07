@@ -50,69 +50,14 @@ __cosrt_alts_##name: 						\
 	and 	$~0xf, %rsp;					\
 	xor 	%rbp, %rbp;					\
 	pushq	%rcx;						\
+	/* stack alignment */
 	pushq	%rcx;						\
 	movq    %r8, %rcx;					\
 	movq    %r9, %rdx;					\
 	callq   name;						\
 	popq	%rcx;						\
 	retq ;							\
-								\
-// __cosrt_s_fast_##name:						\
-// .align 16;							\
-// 	/* callee saved */					\
-// 	pushq	%rbp;						\
-// 	pushq	%r13; /* tid      */				\
-// 	pushq	%r14; /* struct ulk_invstk ptr  */		\
-// 	pushq	%r15; /* auth tok */				\
-// 	movq    %rcx, %r8;					\
-// 	movq    %rdx, %r9;					\
-// 	movq    $0xdeadbeefdeadbeef, %r15; 			\
-// 	/* thread ID */						\
-// 	movq    %rsp, %rdx;					\
-// 	andq    $0xfffffffffffff000, %rdx;			\
-// 	movzwq  0xff0(%rdx), %r13;				\
-// 	COS_ULINV_GET_INVSTK					\
-// 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
-// 	COS_ULINV_PUSH_INVSTK					\
-// 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
-// 	/* invocation token */					\
-// 	movabs  $0x0123456789abcdef, %rbp;			\
-// 	movq    %r13, %rax;					\
-// 	/* switch to server execution stack */			\
-// 	COS_ASM_GET_STACK_INVTOKEN				\
-// 	/* ABI mandate a 16-byte alignment stack pointer*/	\
-// 	and 	$~0xf, %rsp;					\
-// 	xor 	%rbp, %rbp;					\
-// 	/* check client token */				\
-// 	movq    $0xdeadbeefdeadbeef, %rax;			\
-// 	cmp     %rax, %r15;					\
-// 	/* TODO: jne     bad */					\
-// 	movq    %r8, %rcx;					\
-// 	movq    %r9, %rdx;					\
-// 	callq   name;						\
-// 	movq	%rax, %r8;					\
-// 	/* save server authentication token */			\
-// 	movq    $0xdeadbeefdeadbeef, %r15;			\
-// 	/* thread ID */						\
-// 	movq    %rsp, %rdx;					\
-// 	andq    $0xfffffffffffff000, %rdx;			\
-// 	movzwq  0xff0(%rdx), %r13;				\
-// 	COS_ULINV_GET_INVSTK					\
-// 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
-// 	COS_ULINV_POP_INVSTK					\
-// 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
-// 	/* check server token */				\
-// 	movq    $0xdeadbeefdeadbeef, %rax;			\
-// 	cmp     %rax, %r15;					\
-// 	/* TODO: jne     bad */					\
-// 	movq    %r8, %rax;					\
-// 	/* callee saved */					\
-// 	popq	%r15;						\
-// 	popq	%r14;						\
-// 	popq	%r13;						\
-// 	popq	%rbp;						\
-// 	retq;
-
+								
 /*
  * This stub enables three return values (%ecx, %esi, %edi), AND
  * requires that you provide separate stub functions that are
@@ -154,6 +99,7 @@ __cosrt_alts_##name: 						\
 	and 	$~0xf, %rsp;					\
 	xor 	%rbp, %rbp;					\
 	pushq	%rcx;						\
+	/* stack alignment */
 	pushq	%rcx;						\
 	movq    %r8, %rcx;					\
 	movq    %r9, %rdx;					\
@@ -165,78 +111,8 @@ __cosrt_alts_##name: 						\
 	popq	%rdi;						\
 	popq	%rsi;						\
 	popq	%rcx;						\
-	retq ;							\
-								\
-// __cosrt_s_fast_##name:					\
-// .align 16 ;							\
-// 	/* callee saved */					\
-// 	pushq	%rbp;						\
-// 	pushq   %rbx;						\
-// 	pushq   %r12;						\
-// 	pushq	%r13;						\
-// 	pushq	%r14;						\
-// 	pushq	%r15;						\
-// 	/* save the two return ptrs in perserved regs */	\
-// 	movq	%r8, %r12;					\
-// 	movq	%r9, %rbx;					\
-// 	movq    %rcx, %r8;					\
-// 	movq    %rdx, %r9;					\
-// 	movq    $0xdeadbeefdeadbeef, %r15; 			\
-// 	/* thread ID */						\
-// 	movq    %rsp, %rdx;					\
-// 	andq    $0xfffffffffffff000, %rdx;			\
-// 	movzwq  0xff0(%rdx), %r13;				\
-// 	COS_ULINV_GET_INVSTK					\
-// 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
-// 	COS_ULINV_PUSH_INVSTK					\
-// 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
-// 	/* invocation token */					\
-// 	movabs  $0x0123456789abcdef, %rbp;			\
-// 	movq    %r13, %rax;					\
-// 	/* switch to server execution stack */			\
-// 	COS_ASM_GET_STACK_INVTOKEN				\
-// 	/* ABI mandate a 16-byte alignment stack pointer*/	\
-// 	and 	$~0xf, %rsp;					\
-// 	xor 	%rbp, %rbp;					\
-// 	/* check client token */				\
-// 	movq    $0xdeadbeefdeadbeef, %rax;			\
-// 	cmp     %rax, %r15;					\
-// 	/* TODO: jne     bad */					\
-// 	movq    %r8, %rcx;					\
-// 	movq    %r9, %rdx;					\
-// 	pushq   $0;						\
-// 	movq    %rsp, %r8;					\
-// 	pushq   $0;						\
-// 	movq    %rsp, %r9;					\
-// 	callq   __cosrt_s_cstub_##name;				\
-// 	movq	%rax, %r8;					\
-// 	popq	%rdi;						\
-// 	popq	%rsi;						\
-// 	/* save server authentication token */			\
-// 	movq    $0xdeadbeefdeadbeef, %r15;			\
-// 	/* thread ID */						\
-// 	movq    %rsp, %rdx;					\
-// 	andq    $0xfffffffffffff000, %rdx;			\
-// 	movzwq  0xff0(%rdx), %r13;				\
-// 	COS_ULINV_GET_INVSTK					\
-// 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
-// 	COS_ULINV_POP_INVSTK					\
-// 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
-// 	/* check server token */				\
-// 	movq    $0xdeadbeefdeadbeef, %rax;			\
-// 	cmp     %rax, %r15;					\
-// 	/* TODO: jne     bad */					\
-// 	movq    %r8, %rax;					\
-// 	movq	%rsi, (%r12);					\
-// 	movq	%rdi, (%rbx);					\
-// 	/* callee saved */					\
-// 	popq	%r15;						\
-// 	popq	%r14;						\
-// 	popq	%r13;						\
-// 	popq	%r12;						\
-// 	popq	%rbx;						\
-// 	popq	%rbp;						\
-// 	retq;
+	retq ;							
+						
 
 #endif
 #ifdef COS_UCAP_STUBS
@@ -271,6 +147,44 @@ __cosrt_alts_##name: 						\
  *
  * The __cosrt_extern_* aliases are to support components to call a
  * server function in an interface that it also exports.
+ * 
+ * __cosrt_fast_callgate_* is the trampoline for making user-level
+ * synchronous invocations. It does the following:
+ * 	- save callee saved registers to the client stack
+ * 	- save the parameters in rcx and rdx; we will need these 
+ * 		for scratch registers
+ * 	- load the client AUTH token into r15; this value is JITed
+ * 		at boot time
+ * 	- get the tid off the stack
+ * 	- use the tid to index into the user-level kernel memory
+ * 		and get a pointer to this thread's user-level 
+ * 		invocation stack
+ * 	- switch to the user-level kernel's protection domain
+ * 	- push the call's invocation stack from
+ * 		- the client stack
+ * 		- the sinvcap for kernel usage
+ * 	- switch to the server's protection domain
+ * 	- put the invocation token into rbp, just like in 
+ * 		a normal sinv
+ * 	- check the client AUTH token to verify we got without
+ * 		tampering
+ * 	- save the return address into rcx; we are switching stacks
+ * 		and cant using the stack for control flow
+ * 	- jump to the server side of the callgate. this:
+ * 		- gets the server's stack 
+ * 		- sets up the server's stack with the
+ * 			invocation token and thdid
+ * 		- push the return address we put in rcx
+ * 		- call the actual function and return to the client
+ * 	- save the return value, we will need rax
+ * 	- load the server AUTH token into r15
+ * 	- get the thread id and use it to the get UL inv stack again
+ * 	- pop the UL-inv stack entry we pushed
+ * 	- switch back to the client's protection domain
+ * 	- check the server's AUTH token
+ * 	- put the return value back into rax
+ * 	- pop callee saved regs
+ *
  */
 
 #define cos_asm_stub(name)					\
@@ -347,6 +261,7 @@ __cosrt_ucap_##name:						\
 	.quad 0 ;						\
 	.endr ;							\
 .text /* start out in the text segment, and always return there */
+
 
 #define cos_asm_stub_indirect(name)				\
 .text;								\
