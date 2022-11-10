@@ -194,7 +194,6 @@ slm_thd_block(struct slm_thd *t)
 {
 	assert(t);
 	assert(slm_thd_normal(t));
-	if (t->state == SLM_THD_BLOCKED) return 0;
 
 	if (unlikely(t->state == SLM_THD_WOKEN)) {
 		assert(!(t->properties & SLM_THD_PROPERTY_SUSPENDED));
