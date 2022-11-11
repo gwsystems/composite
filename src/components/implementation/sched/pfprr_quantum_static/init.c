@@ -126,6 +126,7 @@ exit_init_thd(void)
 	slm_cs_enter(current, SLM_CS_NONE);
 	slm_thd_deinit(current);		/* I'm out! */
 	slm_cs_exit_reschedule(current, SLM_CS_NONE);
+	printc("aaaaaaaaaaaaa\n");
 	BUG();
 	while (1) ;
 }
@@ -252,7 +253,10 @@ slm_comp_init_loop(void)
 		 * thread, so the spin isn't really wasting many
 		 * resources.
 		 */
-		while (ps_load(&n->initialization_thds[cos_coreid()]) == NULL) ;
+		 //assert(0);
+		while (ps_load(&n->initialization_thds[cos_coreid()]) == NULL) {
+			cos_defswitch(t->thd, t->priority, slm_global()->timeout_next, cos_sched_sync());
+		}
  	}
 
 	if (cos_coreid() == 0) printc("Scheduler %ld, initialization completed.\n", cos_compid());
@@ -273,6 +277,7 @@ slm_comp_init_loop(void)
 		slm_thd_wakeup(t, 0);
 	}
 	slm_cs_exit_reschedule(slm_thd_special(), SLM_CS_NONE);
+	printc("0000000\n");
 
 	return;
 }
@@ -281,4 +286,5 @@ void
 slm_idle_comp_initialization(void)
 {
 	slm_comp_init_loop();
+	printc("done\n");
 }

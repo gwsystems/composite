@@ -143,8 +143,6 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 	struct cos_compinfo    *compci = cos_compinfo_get(comp);
 	struct sl_thd          *t      = NULL;
 	struct cos_aep_info    *aep    = NULL;
-	arcvcap_t               arcv;
-	asndcap_t               asnd;
 
 	if (comp == NULL || comp->id == 0) goto done;
 
@@ -152,7 +150,7 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 		aep = sl_thd_alloc_aep_backend();
 		if (!aep) goto done;
 
-		aep->thd = capmgr_thd_create_ext(comp->id, idx, &aep->tid, &arcv, &asnd, NULL);
+		aep->thd = capmgr_thd_create_ext(comp->id, idx, &aep->tid);
 		if (!aep->thd) goto done;
 		aep->tc  = sl_thd_tcap(sl__globals_cpu()->sched_thd);
 

@@ -97,7 +97,9 @@ slm_cs_enter_contention(struct slm_cs *cs, slm_cs_cached_t cached, struct slm_th
 	}
 
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	ret = cos_defswitch(owner->thd, curr->priority, owner == &g->sched_thd ? TCAP_TIME_NIL : g->timeout_next, tok);
+	//printc("contention switch: %d\n", owner->tid);
+	//ret = cos_defswitch(owner->thd, curr->priority, owner == &g->sched_thd ? TCAP_TIME_NIL : g->timeout_next, tok);
+	ret = cos_defswitch(owner->thd, curr->priority, TCAP_TIME_NIL, tok);
 	if (ret) return ret;
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
 
@@ -321,6 +323,7 @@ slm_thd_wakeup_cs(struct slm_thd *curr, struct slm_thd *t)
 		slm_cs_exit(curr, SLM_CS_NONE);
 	} else {
 		slm_cs_exit_reschedule(curr, SLM_CS_NONE);
+		printc("wakeup\n");
 	}
 
 	return;
@@ -396,6 +399,7 @@ slm_sched_loop_intern(int non_block)
 	/* Only the scheduler thread should call this function. */
 	assert(cos_thdid() == us->tid);
 
+	printc("loop\n");
 	while (1) {
 		int pending, ret;
 
@@ -418,6 +422,7 @@ slm_sched_loop_intern(int non_block)
 			 * to the potential blocking.
 			 */
 			pending = cos_sched_rcv(us->rcv, rfl, g->timeout_next, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
+			//printc("pending: %d\n", pending);
 			if (!tid) goto pending_events;
 			/*
 			 * FIXME: kernel should pass an untyped
@@ -489,11 +494,17 @@ pending_events:
 
 			slm_cs_exit(us, SLM_CS_NONE);
 		} while (pending > 0);
+			//printc("pending: %d\n", pending);
 
 		if (slm_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
+	//printc("ipi wakeup\n");
 		ret = slm_cs_exit_reschedule(us, SLM_CS_CHECK_TIMEOUT);
-		if (ret && ret != -EAGAIN) BUG();
+		if (ret && ret != -EAGAIN) {
+			//printc("ret: %d\n", ret);
+			BUG();
+		}
+		//printc("???\n");
 	}
 }
 
@@ -510,7 +521,7 @@ slm_sched_loop_nonblock(void)
 }
 
 void
-slm_init(thdcap_t thd, thdid_t tid)
+slm_init(thdcap_t thd, thdid_t tid, struct cos_dcb_info *initdcb, struct cos_dcb_info *dcb)
 {
 	struct slm_global *g = slm_global();
 	struct slm_thd *s    = &g->sched_thd;
@@ -528,6 +539,7 @@ slm_init(thdcap_t thd, thdid_t tid)
 		.thd = sched_aep->thd,
 		.tid = sched_aep->tid,
 		.rcv = sched_aep->rcv,
+		.dcb = initdcb,
 		.priority = TCAP_PRIO_MAX
 	};
 	ps_list_init(s, thd_list);
@@ -541,6 +553,7 @@ slm_init(thdcap_t thd, thdid_t tid)
 		.thd = thd,
 		.tid = tid,
 		.rcv = 0,
+		.dcb = (struct cos_dcb_info *)dcb,
 		.priority = TCAP_PRIO_MIN
 	};
 	ps_list_init(i, thd_list);
@@ -550,6 +563,7 @@ slm_init(thdcap_t thd, thdid_t tid)
 	ps_list_head_init(&g->graveyard_head);
 
 	g->cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	printc("=======cyc:%d\n", g->cyc_per_usec);
 	g->lock.owner_contention = 0;
 
 	assert(sizeof(struct cos_scb_info) * NUM_CPU <= COS_SCB_SIZE && COS_SCB_SIZE == PAGE_SIZE);

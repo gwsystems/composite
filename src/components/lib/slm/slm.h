@@ -150,7 +150,7 @@ void slm_idle_iteration(void);
  *     the `slm_idle` function
  * - @tid - the thread id of the idle thread
  */
-void slm_init(thdcap_t thd, thdid_t tid);
+void slm_init(thdcap_t thd, thdid_t tid, struct cos_dcb_info* initdcb, struct cos_dcb_info* dcb);
 /*
  * The initialization thread must execute this (post `slm_init`), and
  * this thread will become the scheduler notification thread that

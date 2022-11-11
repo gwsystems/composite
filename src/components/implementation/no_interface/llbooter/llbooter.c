@@ -121,7 +121,7 @@ execution_init(int is_init_core)
 	 */
 	ret = args_get_entry("execute", &comps);
 	assert(!ret);
-	if (is_init_core) printc("Execution schedule:\n");
+	if (is_init_core) printc("Execution schedule: %d\n", args_len(&comps));
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct crt_comp     *comp;
 		int      keylen;
@@ -308,6 +308,7 @@ comps_init(void)
 			/* booter should not have an elf object */
 			assert(!elf_hdr);
 			ret = crt_booter_create(comp, name, id, info);
+			cos_dcb_info_init_ext(&comp->dcb_data[cos_cpuid()], 0, 0, 0, 0);
 			assert(ret == 0);
 		} else {
 			assert(elf_hdr);
@@ -547,6 +548,7 @@ scb_mapping(compid_t id, vaddr_t scb_uaddr)
 	struct cos_compinfo *ci;
 	struct crt_comp     *target;
 
+	if (!id) id = cos_inv_token();
 	target = boot_comp_get(id);
 
 	ci = cos_compinfo_get(target->comp_res);
@@ -562,7 +564,7 @@ booter_init(void)
 
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
-	vaddr_t scb_uaddr = cos_page_bump_intern_valloc(boot_info, COS_SCB_SIZE);
+	vaddr_t scb_uaddr = (vaddr_t)cos_scb_info_get();
 	if (cos_scb_mapping(boot_info, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_PT, LLBOOT_CAPTBL_SCB, scb_uaddr)) BUG();
 	cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 }

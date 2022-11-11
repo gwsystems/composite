@@ -4,12 +4,6 @@
 
 static struct cos_dcbinfo_data _cos_dcbinfo[NUM_CPU];
 
-int
-cos_dcb_test_111(void) {
-	assert(0);
-	return 1;
-}
-	
 void
 cos_dcb_info_init_ext(struct cos_dcbinfo_data *cdi, struct cos_compinfo *ci, 
 		      dcbcap_t initdcbcap, vaddr_t initdcbaddr, dcboff_t start_off)
@@ -20,6 +14,7 @@ cos_dcb_info_init_ext(struct cos_dcbinfo_data *cdi, struct cos_compinfo *ci,
 	cdi->dcbaddr[0]   = initdcbaddr;
 	cdi->curr_cap_off = start_off;
 	cdi->curr_cap     = 0;
+	cdi->ci           = ci;
 }
 
 void
@@ -74,7 +69,6 @@ cos_dcb_info_alloc(struct cos_dcbinfo_data *cdi, dcboff_t *dcboff, vaddr_t *dcba
 	if (unlikely(cdi->dcbcaps[cdi->curr_cap] == 0)) {
 		*dcboff = 0;
 		*dcbaddr = 0;
-
 		return 0;
 	}
 	if (cdi->curr_cap_off >= COS_DCB_PERPG_MAX) {

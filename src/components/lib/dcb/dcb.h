@@ -17,7 +17,6 @@ struct cos_dcbinfo_data {
 	struct cos_compinfo *ci;
 } CACHE_ALIGNED;
 
-int cos_dcb_test_111(void);
 void cos_dcb_info_init(struct cos_dcbinfo_data *cdi, struct cos_compinfo *ci);
 void cos_dcb_info_init_ext(struct cos_dcbinfo_data *cdi, struct cos_compinfo *ci, dcbcap_t initdcbcap, vaddr_t initdcbaddr, dcboff_t start_off);
 dcbcap_t cos_dcb_info_alloc(struct cos_dcbinfo_data *cdi, dcboff_t *dcboff, vaddr_t *dcbaddr);

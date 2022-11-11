@@ -899,7 +899,7 @@ crt_thd_create_with(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resour
  * requested @closure_id).
  */
 int
-crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t closure_id)
+crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, dcbcap_t dcbcap, dcboff_t dcboff, thdclosure_index_t closure_id)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
@@ -921,14 +921,14 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t clos
 		assert(target_ci->comp_cap);
 
 		if (target_ci->comp_cap_shared != 0) {
-			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap_shared, 0);
+			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap_shared, dcbcap, dcboff);
 		} else {
-			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap, 0);
+			thdcap = target_aep->thd = cos_initthd_alloc(ci, target_ci->comp_cap, dcbcap, dcboff);
 		}
 		assert(target_aep->thd);
 	} else {
 		crt_refcnt_take(&c->refcnt);
-		thdcap = cos_thd_alloc_ext(ci, target_ci->comp_cap, closure_id, 0, 0);
+		thdcap = cos_thd_alloc_ext(ci, target_ci->comp_cap, closure_id, dcbcap, dcboff);
 		assert(thdcap);
 	}
 
@@ -956,7 +956,7 @@ crt_thd_create(struct crt_thd *t, struct crt_comp *self, crt_thd_fn_t fn, void *
 
 	assert(t && self);
 	if (idx < 1) return 0;
-	ret = crt_thd_create_in(t, self, idx);
+	ret = crt_thd_create_in(t, self, 0, 0, idx);
 	if (ret < 0) cos_thd_init_free(idx);
 
 	return ret;
@@ -988,7 +988,8 @@ crt_rcv_create_with(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resour
 			.tid  = rs->tid,
 			.rcv  = rs->rcv,
 			.fn   = NULL,
-			.data = NULL
+			.data = NULL,
+			.dcb  = rs->dcb,
 		},
 		.c         = c,
 		.refcnt    = CRT_REFCNT_INITVAL
@@ -1016,7 +1017,7 @@ crt_rcv_create_with(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resour
  * be used in `c`, you must copy the capabilities accordingly.
  */
 int
-crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t closure_id, crt_rcv_flags_t flags)
+crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t closure_id, crt_rcv_flags_t flags, vaddr_t *dcbinfo)
 {
 	struct cos_defcompinfo *defci      = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci         = cos_compinfo_get(defci);
@@ -1027,6 +1028,9 @@ crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, 
 	tcap_t    tcap;
 	thdcap_t  thdcap;
 	arcvcap_t rcvcap;
+	dcbcap_t  dcbcap = 0;
+	dcboff_t  dcboff = 0;
+	vaddr_t   dcbaddr;
 
 	assert(r && c);
 
@@ -1039,10 +1043,17 @@ crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, 
 	/* Note that this increases the component's reference count */
 	crt_refcnt_take(&c->refcnt);
 	assert(target_ci->comp_cap);
+
+	//dcbcap = crt_dcb_create_in(c, &dcbaddr);
+	dcbcap = cos_dcb_info_alloc(&c->dcb_data[cos_cpuid()], &dcboff, &dcbaddr);
+	//sched_aep->dcb = dcbaddr;
+	//printc("dcbcap: %d, dcboff; %d\n", dcbcap, dcboff);
+	//assert(dcbcap && dcboff && dcbaddr);
+
 	if (closure_id == 0) {
-		thdcap = cos_initthd_alloc(cos_compinfo_get(defci), target_ci->comp_cap, 0);
+		thdcap = cos_initthd_alloc(cos_compinfo_get(defci), target_ci->comp_cap, dcbcap, dcboff);
 	} else {
-		thdcap = cos_thd_alloc_ext(cos_compinfo_get(defci), target_ci->comp_cap, closure_id, 0, 0);
+		thdcap = cos_thd_alloc_ext(cos_compinfo_get(defci), target_ci->comp_cap, closure_id, dcbcap, dcboff);
 	}
 	assert(thdcap);
 
@@ -1057,10 +1068,13 @@ crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, 
 		.thd  = thdcap,
 		.tid  = 0,
 		.rcv  = rcvcap,
+		.dcb  = dcbaddr,
 	};
 	if (crt_rcv_create_with(r, c, &res)) BUG();
 
 	if (sched) crt_refcnt_take(&sched->refcnt);
+
+	*dcbinfo = dcbaddr;
 
 	return 0;
 }
@@ -1078,11 +1092,12 @@ crt_rcv_create(struct crt_rcv *r, struct crt_comp *self, crt_thd_fn_t fn, void *
 {
 	int      idx = cos_thd_init_alloc(fn, data);
 	thdcap_t ret;
+	vaddr_t  dcbaddr;
 
 	assert(r && self);
 
 	if (idx < 1) return 0;
-	ret = crt_rcv_create_in(r, self, NULL, idx, CRT_RCV_TCAP_INHERIT);
+	ret = crt_rcv_create_in(r, self, NULL, idx, CRT_RCV_TCAP_INHERIT, &dcbaddr);
 	if (!ret) cos_thd_init_free(idx);
 	/* As this rcv is in this component, we need this reference to make an asnd */
 	r->child_rcv = r->local_aep.rcv;
@@ -1103,6 +1118,7 @@ crt_rcv_create(struct crt_rcv *r, struct crt_comp *self, crt_thd_fn_t fn, void *
 int
 crt_rcv_alias_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resources *res, crt_rcv_alias_t flags)
 {
+	struct cos_compinfo    *target_ci  = cos_compinfo_get(c->comp_res);
 	assert(r && c && res);
 
 	if (flags & CRT_RCV_ALIAS_RCV) {
@@ -1274,6 +1290,8 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 	struct crt_comp_resources compres;
 	int ret;
 
+	static struct ps_lock _lock = {0};
+
 	assert(c && ctxt);
 
 	/* Should only be called if initialization is necessary */
@@ -1286,13 +1304,12 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		struct crt_comp_exec_context *cx = &c->exec_ctxt;
 		coreid_t core = cos_coreid();
 		struct crt_thd *t = ctxt->exec[core].thd;
-
 		assert(!(c->flags & (CRT_COMP_CAPMGR | CRT_COMP_SCHED)) && t);
 
 		c->flags = cx->flags = ctxt->flags;
 		cx->exec[core].thd   = t;
 
-		if (crt_thd_create_in(ctxt->exec[cos_coreid()].thd, c, 0)) BUG();
+		if (crt_thd_create_in(ctxt->exec[cos_coreid()].thd, c, 0, 0, 0)) BUG();
 
 		return 0;
 	}
@@ -1300,12 +1317,14 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 	if (ctxt->flags & CRT_COMP_SCHED) {
 		struct crt_rcv_resources rcvres;
 		struct crt_rcv *r;
+		vaddr_t init_dcb;
 
 		assert(c->exec_ctxt.exec[cos_coreid()].sched.sched_rcv == NULL && ctxt->exec[cos_coreid()].sched.sched_rcv);
 		r = ctxt->exec[cos_coreid()].sched.sched_rcv;
 		assert(r);
 
-		if (crt_rcv_create_in(r, c, NULL, 0, 0)) BUG();
+		if (crt_rcv_create_in(r, c, NULL, 0, 0, &init_dcb)) BUG();
+		c->init_dcb_addr = init_dcb;
 
 		rcvres = (struct crt_rcv_resources) {
 			.tc  = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE,
@@ -1313,9 +1332,10 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 			.rcv = BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
 		};
 		if (crt_rcv_alias_in(r, c, &rcvres, CRT_RCV_ALIAS_RCV | CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP)) BUG();
+		ps_lock_release(&_lock);
 
 		*target_aep = r->local_aep; /* update the component's structures */
-		assert(target_aep->thd && target_aep->tc && target_aep->rcv);
+		//assert(target_aep->dcb);
 
 		/*
 		 * FIXME:
@@ -1469,6 +1489,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		assert(thdcap);
 
 		if (comp->flags & CRT_COMP_SCHED) {
+			printc("TCAP_RES_INF: %lu\n", TCAP_RES_INF);
 			if (crt_comp_sched_delegate(comp, comp_get(cos_compid()), TCAP_PRIO_MAX, TCAP_RES_INF)) BUG();
 		} else {
 			if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync()))) {
@@ -1526,7 +1547,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		}
 	}
 
-	//printc("%ld: All main functions returned: shutting down...\n", cos_compid());
+	printc("%ld: All main functions returned: shutting down...\n", cos_compid());
 	cos_hw_shutdown(BOOT_CAPTBL_SELF_INITHW_BASE);
 	while (1) ;
 
@@ -1621,6 +1642,7 @@ crt_dcb_create_in(struct crt_comp *c, vaddr_t *dcb_addr)
 	dcbcap_t                dcb_cap;
 	vaddr_t                 dcbaddr;
 
+	assert(0);
 	dcbaddr = cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
 	assert(dcbaddr);
 	dcb_cap = cos_dcb_alloc(ci, target_ci->pgtbl_cap, dcbaddr);

@@ -44,17 +44,34 @@ COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_thunk, thdclosure_index_t id, thdid_
 	return ret;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext, spdid_t child, thdclosure_index_t idx, thdid_t *tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb)
+COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext, spdid_t child, thdclosure_index_t idx, thdid_t *tid)
 {
 	COS_CLIENT_INVCAP;
-	word_t dcbarcv, tidasnd;
+	word_t unused, tid_ret;
 	thdcap_t ret;
 
-	ret  = cos_sinv_2rets(uc->cap_no, child, idx, 0, 0, &tidasnd, &dcbarcv);
-	*dcb  = (struct cos_dcb_info *)((dcbarcv >> 10) << 10);
-	*arcv = (dcbarcv << 22) >> 22;
-	*asnd = (tidasnd >> 16);
-	*tid  = (tidasnd << 16) >> 16;
+	ret  = cos_sinv_2rets(uc->cap_no, child, idx, 0, 0, &tid_ret, &unused);
+	*tid  = tid_ret;
+
+	return ret;
+}
+
+COS_CLIENT_STUB(thdid_t, capmgr_retrieve_dcbinfo, thdid_t tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb)
+{
+	COS_CLIENT_INVCAP;
+	word_t retrs, retdcb;
+	thdid_t ret;
+
+	ret = cos_sinv_2rets(uc->cap_no, tid, 0, 0, 0, &retrs, &retdcb);
+	*dcb  = (struct cos_dcb_info *)retdcb;
+#if defined(__x86_64__)
+	*arcv = (retrs >> 32);
+	*asnd = (retrs << 32) >> 32;
+#else
+	*arcv = (retrs >> 16);
+	*asnd = (retrs << 16) >> 16;
+#endif
+	printc("+++++++++++client_arcv: %d, asnd: %d, %lx\n", *arcv, *asnd, retrs);
 
 	return ret;
 }

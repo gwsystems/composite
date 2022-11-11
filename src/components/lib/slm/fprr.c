@@ -35,7 +35,7 @@ slm_sched_fprr_schedule(void)
 		ps_list_rem_d(t);
 		ps_list_head_append_d(&prios[i], t);
 
-//		printc("Schedule -> %ld\n", slm_thd_from_sched(t)->tid);
+		//printc("Schedule -> %ld\n", slm_thd_from_sched(t)->tid);
 		return slm_thd_from_sched(t);
 	}
 //	printc("Schedule -> idle\n");
@@ -69,9 +69,13 @@ void
 slm_sched_fprr_yield(struct slm_thd *t, struct slm_thd *yield_to)
 {
 	struct slm_sched_thd *p = slm_thd_sched_policy(t);
+	struct slm_sched_thd *test;
 
+//printc("yield from: %d, to: %d\n", t->tid, yield_to->tid);
 	ps_list_rem_d(p);
-	ps_list_head_append_d(&threads[cos_cpuid()][t->priority - 1], p);
+	test = ps_list_head_first_d(&threads[cos_cpuid()][t->priority], struct slm_sched_thd);
+	//printc("yield: %d, t->priority: %d\n", slm_thd_from_sched(test)->tid, t->priority);
+	ps_list_head_append_d(&threads[cos_cpuid()][t->priority], p);
 }
 
 int
@@ -135,7 +139,7 @@ slm_sched_fprr_init(void)
 {
 	int i;
 
-	memset(threads[cos_cpuid()], 0, sizeof(struct ps_list_head) * SLM_FPRR_NPRIOS);
+	//memset(threads[cos_cpuid()], 0, sizeof(struct ps_list_head) * SLM_FPRR_NPRIOS);
 	for (i = 0 ; i < SLM_FPRR_NPRIOS ; i++) {
 		ps_list_head_init(&threads[cos_cpuid()][i]);
 	}

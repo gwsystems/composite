@@ -123,54 +123,27 @@ slm_thd_normal(struct slm_thd *t)
 struct slm_thd *slm_thd_special(void);
 
 static inline int
-slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int inherit_prio)
-{
-	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci  = &dci->ci;
-	struct slm_global      *g   = slm_global();
-	tcap_prio_t             prio;
-	tcap_time_t             timeout;
-	int                     ret = 0;
-
-	timeout = g->timeout_next;
-	prio = inherit_prio ? curr->priority : t->priority;
-
-	if (unlikely(t->properties & (SLM_THD_PROPERTY_SEND | SLM_THD_PROPERTY_OWN_TCAP | SLM_THD_PROPERTY_SPECIAL))) {
-		if (t == &g->sched_thd) {
-			timeout = TCAP_TIME_NIL;
-			prio    = curr->priority;
-		}
-		if (t->properties & SLM_THD_PROPERTY_SEND) {
-			return cos_sched_asnd(t->asnd, g->timeout_next, g->sched_thd.rcv, tok);
-		} else if (t->properties & SLM_THD_PROPERTY_OWN_TCAP) {
-			return cos_switch(t->thd, t->tc, prio, timeout, g->sched_thd.rcv, tok);
-		}
-	}
-	ret = cos_defswitch(t->thd, prio, timeout, tok);
-
-	if (unlikely(ret == -EPERM && !slm_thd_normal(t))) {
-		/*
-		 * Attempting to activate scheduler thread or idle
-		 * thread failed for no budget in it's tcap. Force
-		 * switch to the scheduler with current tcap.
-		 */
-		ret = cos_switch(g->sched_thd.thd, 0, curr->priority, TCAP_TIME_NIL, g->sched_thd.rcv, tok);
-	}
-
-	return ret;
-}
-
-
-static inline int
-slm_thd_dispatch(struct slm_thd *next, sched_tok_t tok, struct slm_thd *curr)
+cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_dcb_info *nd, tcap_prio_t prio, tcap_time_t timeout, sched_tok_t tok)
 {
 	volatile struct cos_scb_info *scb = slm_scb_info_core();
-	struct cos_dcb_info *cd = slm_thd_dcbinfo(curr), *nd = slm_thd_dcbinfo(next);
+	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
+	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
+	sched_tok_t rcv_tok;
+	u64_t htok;
 
 	assert(curr != next);
-	//if (unlikely(!cd || !nd)) return sl_thd_activate(next, tok, sl__globals_cpu()->timeout_next);
-	if (unlikely(!cd || !nd)) return slm_thd_activate(curr, next, tok, 0);
-
+	//printc("size: %d\n", sizeof(sched_tok_t));
+	printc("nd->sp: %lx, now:%ld, pre:%ld, nd->ip: %lx\n", nd->sp, timeout, scb->timer_pre, nd->ip);
+	//assert(timeout >= scb->timer_pre);
+	/* 
+	 * If previous timer smaller than current timeout, we need to take 
+	 * the kernel path to update the timer.
+	 */
+	if (scb->timer_pre < timeout) {
+		scb->timer_pre = timeout;
+		printc("defswitch: %d\n", next);
+		return cos_defswitch(next, prio, timeout, tok);
+	}
 	/*
 	 * jump labels in the asm routine:
 	 *
@@ -188,44 +161,230 @@ slm_thd_dispatch(struct slm_thd *next, sched_tok_t tok, struct slm_thd *curr)
 	 *    NOTE: kernel takes care of resetting dcb sp in this case!
 	 */
 
-	__asm__ __volatile__ (				\
-		"pushl %%ebp\n\t"			\
-		"movl %%esp, %%ebp\n\t"			\
-		"movl $2f, (%%eax)\n\t"			\
-		"movl %%esp, 4(%%eax)\n\t"		\
-		"cmp $0, 4(%%ebx)\n\t"			\
-		"je 1f\n\t"				\
-		"movl %%edx, (%%ecx)\n\t"		\
-		"movl 4(%%ebx), %%esp\n\t"		\
-		"jmp *(%%ebx)\n\t"			\
-		".align 4\n\t"				\
-		"1:\n\t"				\
-		"movl $3f, %%ecx\n\t"			\
-		"movl %%edx, %%eax\n\t"			\
-		"inc %%eax\n\t"				\
-		"shl $16, %%eax\n\t"			\
-		"movl $0, %%ebx\n\t"			\
-		"movl $0, %%esi\n\t"			\
-		"movl $0, %%edi\n\t"			\
-		"movl $0, %%edx\n\t"			\
-		"sysenter\n\t"				\
-		"jmp 3f\n\t"				\
-		".align 4\n\t"				\
-		"2:\n\t"				\
-		"movl $0, 4(%%ebx)\n\t"			\
-		".align 4\n\t"				\
-		"3:\n\t"				\
-		"popl %%ebp\n\t"			\
-		:
+	assert(timeout);
+
+	/* __asm__ __volatile__ (           \
+	 *	"pushl %%ebp\n\t"               \
+	 *	"movl %%esp, %%ebp\n\t"         \
+	 *	"movl $2f, (%%eax)\n\t"         \ save ip of the current thread, 
+	                                      when switch back to this thread
+										  it should continue from $2f.
+	 *	"movl %%esp, 4(%%eax)\n\t"      \ save sp of the current thread,
+	                                      if sp in the dcb is non-zero, 
+										  meaning the ip is valid.
+	 *	"cmp $0, 4(%%ebx)\n\t"          \ compare if dcb of the **next**
+	                                      thread has a non-zero sp.
+	 *	"je 1f\n\t"                     \ if sp of the dcb of the next
+	                                      thread equals 0, we will take
+										  kernel dispatch path.
+	 *	"movl %%edx, (%%ecx)\n\t"       \ update current active thread
+	                                      in the scb of the current core.
+	 *	"movl 4(%%ebx), %%esp\n\t"      \ load the sp of the thread we
+	                                      are dispatching to.
+	 *	"jmp *(%%ebx)\n\t"              \ switch thread!
+	 *	".align 4\n\t"                  \
+	 *	"1:\n\t"                        \ this is the kernel path of
+	                                      dispatching a thread. It should
+										  mimic what we do in normal syscall.
+	 *	"movl $3f, %%ecx\n\t"           \
+	 *	"movl %%edx, %%eax\n\t"         \
+	 *	"inc %%eax\n\t"                 \
+	 *	"shl $16, %%eax\n\t"            \
+	 *	"movl $0, %%ebx\n\t"            \
+	 *	"movl $0, %%esi\n\t"            \
+	 *	"movl %%edi, %%edx\n\t"         \
+	 *	"movl $0, %%edi\n\t"            \
+	 *	"sysenter\n\t"                  \
+	 *	"jmp 3f\n\t"                    \
+	 *	".align 4\n\t"                  \ The alignment is important, since
+	                                      kernel rely on the alignment to
+										  calculate which ip to return to
+										  if a thread got preempted during
+										  a user-level thread dispatch.
+	 *	"2:\n\t"                        \
+	 *	"movl $0, 4(%%ebx)\n\t"         \ Reset the value of the sp in the dcb
+	                                      of the **current** thread (because)
+										  we already switch to the "next"
+										  thread
+	 *	".align 4\n\t"                  \
+	 *	"3:\n\t"                        \
+	 *	"popl %%ebp\n\t"                \
+	 *	: "=S" (htok)
+	 *	: "a" (cd), "b" (nd),
+	 *	  "S" (tok), "D" (timeout),
+	 *	  "c" (&(scb->curr_thd)), "d" (next)
+	 *	: "memory", "cc");
+     */
+	 //printc("sp: %lx, %lx\n", nd->sp, nd->ip);
+	 //printc("\n--->tok: %d, prio: %lx, timeout: %ld, rcv: %d, thd: %d\n", tok, prio, timeout, sched_aep->rcv, next);
+#if defined(__x86_64__)
+
+	/*__asm__ __volatile__ (              \
+		"pushq %%rbp\n\t"               \
+		"mov %%rsp, %%rbp\n\t"         \
+		"movq $2f, (%%rax)\n\t"         \
+		"mov %%rsp, 8(%%rax)\n\t"      \
+		"cmp $0, 8(%%rbx)\n\t"          \
+		"je 1f\n\t"                     \
+		"mov %%rdx, (%%rcx)\n\t"       \
+		"mov 8(%%rbx), %%rsp\n\t"      \
+		"jmp *(%%rbx)\n\t"              \
+		".align 4\n\t"                  \
+		"1:\n\t"                        \
+		"movabs $3f, %%r8\n\t"           \
+		"mov %%rdx, %%rax\n\t"         \
+		"inc %%rax\n\t"                 \
+		"shl $16, %%rax\n\t"            \
+		"mov %%rsi, %%rbx\n\t"            \
+		"mov %[prio], %%rsi\n\t"            \
+		"mov %%rdi, %%rdx\n\t"         \
+		"mov %[rcv], %%rdi\n\t"            \
+		"sysenter\n\t"                  \
+		"jmp 3f\n\t"                    \
+		".align 4\n\t"                  \
+		"2:\n\t"                        \
+		"movq $0, 8(%%rbx)\n\t"         \
+		".align 4\n\t"                  \
+		"3:\n\t"                        \
+		"popq %%rbp\n\t"                \
+		: "=S" (htok)
 		: "a" (cd), "b" (nd),
-		  "S" ((u32_t)((u64_t)tok >> 32)), "D" ((u32_t)(((u64_t)tok << 32) >> 32)),
-		  "c" (&(scb->curr_thd)), "d" (next->thd)
+		  "S" (tok), "D" (timeout),
+		  "c" (&(scb->curr_thd)), "d" (next),
+		  [prio] "r" (prio), [rcv] "r" (sched_aep->rcv)
+		: "memory", "cc", "r8", "r9", "r10", "r11", "r12");*/
+
+	__asm__ __volatile__ (              \
+		"pushq %%rbp\n\t"               \
+		"mov %%rsp, %%rbp\n\t"         \
+		"movq $2f, (%%rax)\n\t"         \
+		"mov %%rsp, 8(%%rax)\n\t"      \
+		"cmp $0, 8(%%rbx)\n\t"          \
+		"je 1f\n\t"                     \
+		"mov %%rdx, (%%rcx)\n\t"       \
+		"mov 8(%%rbx), %%rsp\n\t"      \
+		"jmp *(%%rbx)\n\t"              \
+		".align 4\n\t"                  \
+		"1:\n\t"                        \
+		"movq $3f, %%r8\n\t"           \
+		"mov %%rdx, %%rax\n\t"         \
+		"inc %%rax\n\t"                 \
+		"shl $16, %%rax\n\t"            \
+		"mov %%rsi, %%rbx\n\t"            \
+		"mov %[prio], %%rsi\n\t"            \
+		"mov %%rdi, %%rdx\n\t"         \
+		"mov %[rcv], %%rdi\n\t"            \
+		"syscall\n\t"
+		"jmp 3f\n\t"                    \
+		".align 4\n\t"                  \
+		"2:\n\t"                        \
+		"movq $0, 8(%%rbx)\n\t"         \
+		".align 4\n\t"                  \
+		"3:\n\t"                        \
+		"popq %%rbp\n\t"                \
+		: 
+		: "a" (cd), "b" (nd),
+		  "S" (tok), "D" (timeout),
+		  "c" (&(scb->curr_thd)), "d" (next),
+		  [prio] "r" (prio), [rcv] "r" (sched_aep->rcv)
+		: "memory", "cc", "r8", "r9", "r11", "r12");
+		printc("done\n");
+#else
+	__asm__ __volatile__ (              \
+		"pushl %%ebp\n\t"               \
+		"movl %%esp, %%ebp\n\t"         \
+		"movl $2f, (%%eax)\n\t"         \
+		"movl %%esp, 4(%%eax)\n\t"      \
+		"cmp $0, 4(%%ebx)\n\t"          \
+		"je 1f\n\t"                     \
+		"movl %%edx, (%%ecx)\n\t"       \
+		"movl 4(%%ebx), %%esp\n\t"      \
+		"jmp *(%%ebx)\n\t"              \
+		".align 4\n\t"                  \
+		"1:\n\t"                        \
+		"movl $3f, %%ecx\n\t"           \
+		"movl %%edx, %%eax\n\t"         \
+		"inc %%eax\n\t"                 \
+		"shl $16, %%eax\n\t"            \
+		"movl $0, %%ebx\n\t"            \
+		"movl $0, %%esi\n\t"            \
+		"movl %%edi, %%edx\n\t"         \
+		"movl $0, %%edi\n\t"            \
+		"sysenter\n\t"                  \
+		"jmp 3f\n\t"                    \
+		".align 4\n\t"                  \
+		"2:\n\t"                        \
+		"movl $0, 4(%%ebx)\n\t"         \
+		".align 4\n\t"                  \
+		"3:\n\t"                        \
+		"popl %%ebp\n\t"                \
+		: "=S" (htok)
+		: "a" (cd), "b" (nd),
+		  "S" (tok), "D" (timeout),
+		  "c" (&(scb->curr_thd)), "d" (next)
 		: "memory", "cc");
-
+#endif
 	scb = slm_scb_info_core();
-	if (unlikely(ps_load(&scb->sched_tok) != tok)) return -EAGAIN;
-
+	//rcv_tok |= htok;
+	//rcv_tok = (rcv_tok << 32) | ltok;
+	//printc("h : %d, l: %d, tok: %d\n", htok, ltok, tok);
+	if (htok != tok) return -EAGAIN;
 	return 0;
+}
+
+static inline int
+slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int inherit_prio)
+{
+	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci  = &dci->ci;
+	struct slm_global      *g   = slm_global();
+	struct cos_dcb_info    *cd  = slm_thd_dcbinfo(curr), *nd = slm_thd_dcbinfo(t);
+	tcap_prio_t             prio;
+	tcap_time_t             timeout;
+	int                     ret = 0;
+	volatile struct cos_scb_info *scb = slm_scb_info_core();
+
+	timeout = g->timeout_next;
+	prio = inherit_prio ? curr->priority : t->priority;
+	//printc("prio: %lx, inherit_prio: %lx, curr: %ld, tprio: %lx\n", prio, inherit_prio, curr->priority, t->priority);
+
+	if (unlikely(t->properties & (SLM_THD_PROPERTY_SEND | SLM_THD_PROPERTY_OWN_TCAP | SLM_THD_PROPERTY_SPECIAL))) {
+		if (t == &g->sched_thd) {
+			timeout = TCAP_TIME_NIL;
+			prio    = curr->priority;
+		}
+		if (t->properties & SLM_THD_PROPERTY_SEND) {
+			ret = cos_sched_asnd(t->asnd, g->timeout_next, g->sched_thd.rcv, tok);
+			return ret;
+		} else if (t->properties & SLM_THD_PROPERTY_OWN_TCAP) {
+			ret = cos_switch(t->thd, t->tc, prio, timeout, g->sched_thd.rcv, tok);
+			return ret;
+		}
+	}
+		//printc("update timer: %d\n", g->timeout_next);
+	if (!cd || !nd) {
+		assert(scb->timer_pre == timeout);
+		scb->timer_pre = timeout;
+		ret = cos_defswitch(t->thd, prio, timeout, tok);
+	} //else if (cd && nd && nd->sp == 0){
+		//ret = cos_defswitch(t->thd, prio, timeout, tok);
+	//} 
+	else {
+		//printc("------ulswitch %d -> %d\n", curr->tid, t->tid);
+		//printc("------timeout: %d, %lld\n", timeout, tcap_time2cyc(timeout, slm_now()));
+		ret = cos_ulswitch(curr->thd, t->thd, cd, nd, prio, timeout, tok);
+	}
+
+	if (unlikely(ret == -EPERM && !slm_thd_normal(t))) {
+		/*
+		 * Attempting to activate scheduler thread or idle
+		 * thread failed for no budget in it's tcap. Force
+		 * switch to the scheduler with current tcap.
+		 */
+		ret = cos_switch(g->sched_thd.thd, 0, curr->priority, TCAP_TIME_NIL, g->sched_thd.rcv, tok);
+	}
+
+	return ret;
 }
 
 static inline void slm_cs_exit(struct slm_thd *switchto, slm_cs_flags_t flags);
@@ -256,16 +415,19 @@ static inline void slm_cs_exit(struct slm_thd *switchto, slm_cs_flags_t flags);
 static inline int
 slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 {
+	volatile struct cos_scb_info *scb = slm_scb_info_core();
 	struct cos_compinfo    *ci  = &cos_defcompinfo_curr_get()->ci;
 	struct slm_global      *g   = slm_global();
 	struct slm_thd         *t;
 	sched_tok_t             tok;
 	int                     ret;
+	s64_t    diff;
 
 	tok  = cos_sched_sync();
+	//printc("flag: %d, g->timer_next: %llu, diff: %lld, cyc: %d\n", flags, g->timer_next, g->timer_next-slm_now(), g->cyc_per_usec);
 	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
+
 		cycles_t now;
-		s64_t    diff;
 
 		now  = slm_now();
 		diff = (s64_t)(g->timer_next - now);
@@ -274,7 +436,9 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 			g->timer_set = 0;
 			/* The timer policy will likely reset the timer */
 			slm_timer_expire(now);
+			//printc("======================================: %lld, %lld, now: %lld\n", diff, g->timer_next, now);
 		}
+		//printc("<<<<<: %lld\n", diff);
 	}
 
 	/* Make a policy decision! */
@@ -284,8 +448,15 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 	assert(slm_state_is_runnable(t->state));
 	slm_cs_exit(NULL, flags);
 
-	//ret = slm_thd_activate(curr, t, tok, 0);
-	ret = slm_thd_dispatch(t, tok, curr);
+	//if (likely(g->timer_next == scb->timer_pre)) {
+	//	printc("+++++++diff: %lld, timer: %lld\n", diff, g->timer_next);
+	//	assert(diff>=0);
+	//	ret = slm_thd_dispatch(t, tok, curr);
+	//} else {
+	//	printc("2222, timer_next: %lld\n", g->timer_next);
+	//	scb->timer_pre = g->timer_next;
+		ret = slm_thd_activate(curr, t, tok, 0);
+	//}
 	/* Assuming only the single tcap with infinite budget...should not get EPERM */
 	assert(ret != -EPERM);
 

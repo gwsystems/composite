@@ -11,6 +11,7 @@ slm_idle(void *d)
 	slm_idle_comp_initialization();
 
 	while (1) {
+	printc(".");
 		slm_idle_iteration();
 	}
 

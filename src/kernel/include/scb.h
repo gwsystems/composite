@@ -70,7 +70,6 @@ scb_comp_update(struct captbl *ct, struct cap_scb *sc, struct cap_comp *compc)
 
 	sc->compc = compc;
 	compc->info.scb_data = (struct cos_scb_info *)(sc->kern_addr);
-	printk("##########update: %x\n", compc->info.scb_data);
 	
 	return 0;
 }
@@ -82,7 +81,6 @@ scb_mapping(struct captbl *ct, struct cap_scb *sc, struct cap_pgtbl *ptcin, stru
 	paddr_t pf = chal_va2pa((void *)(sc->kern_addr));
 	//struct cos_scb_info *scb_core = sc->kern_addr + get_cpuid();
 	//scb_core->sched_tok = (u32_t)uaddrin;
-	//printk("  kern_addr: %x ", sc->kern_addr);
 	if (pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF, 12)) return -EINVAL;
 
 	return 0;

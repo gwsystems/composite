@@ -35,6 +35,7 @@ struct cos_aep_info {
 	thdcap_t        thd;
 	thdid_t         tid;
 	arcvcap_t       rcv;
+	vaddr_t         dcb;
 	cos_aepthd_fn_t fn;
 	void *          data;
 };

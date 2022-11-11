@@ -77,6 +77,7 @@ __tcap_budget_xfer(struct tcap *d, struct tcap *s, tcap_res_t cycles)
 {
 	struct tcap_budget *bd, *bs;
 
+	//printk("ddddddddddddddddddddddddddddddddddddddddddd: %lu, %lu, cyclesL %lu\n\n\n", d->budget.cycles, s->budget.cycles, cycles);
 	assert(s && d);
 	assert(tcap_is_active(s));
 	if (unlikely(s->cpuid != get_cpuid() || d->cpuid != s->cpuid)) return -1;

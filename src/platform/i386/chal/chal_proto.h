@@ -32,7 +32,7 @@
 typedef struct pgtbl *pgtbl_t;
 
 struct pgtbl_info {
-	asid_t  asid; /* Unused */
+	//asid_t  asid; /* Unused */
 	pgtbl_t pgtbl;
 } __attribute__((packed));
 

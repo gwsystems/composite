@@ -39,8 +39,8 @@ thdcap_t  COS_STUB_DECL(capmgr_thd_create_thunk)(thdclosure_index_t idx, thdid_t
 thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, struct cos_dcb_info **dcb);
 thdcap_t  COS_STUB_DECL(capmgr_aep_create_thunk)(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, struct cos_dcb_info **dcb);
 
-thdcap_t  capmgr_thd_create_ext(spdid_t child, thdclosure_index_t idx, thdid_t *tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb);
-thdcap_t  COS_STUB_DECL(capmgr_thd_create_ext)(spdid_t child, thdclosure_index_t idx, thdid_t *tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb);
+thdcap_t  capmgr_thd_create_ext(spdid_t child, thdclosure_index_t idx, thdid_t *tid);
+thdcap_t  COS_STUB_DECL(capmgr_thd_create_ext)(spdid_t child, thdclosure_index_t idx, thdid_t *tid);
 
 thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, struct cos_dcb_info **dcb, arcvcap_t *extrcv);
 thdcap_t  COS_STUB_DECL(capmgr_aep_create_ext)(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, struct cos_dcb_info **dcb, arcvcap_t *extrcv);
@@ -59,5 +59,11 @@ int COS_STUB_DECL(capmgr_scb_mapping)(void);
 
 asndcap_t capmgr_asnd_key_create(cos_channelkey_t key);
 asndcap_t COS_STUB_DECL(capmgr_asnd_key_create)(cos_channelkey_t key);
+
+vaddr_t capmgr_sched_initdcb_get(void);
+vaddr_t COS_STUB_DECL(capmgr_sched_initdcb_get)(void);
+
+thdid_t capmgr_retrieve_dcbinfo(thdid_t tid, arcvcap_t *arcv, asndcap_t* asnd, struct cos_dcb_info **dcb);
+thdid_t COS_STUB_DECL(capmgr_retrieve_dcbinfo)(thdid_t tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb);
 
 #endif /* CAPMGR_H */

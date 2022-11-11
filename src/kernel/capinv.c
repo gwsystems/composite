@@ -83,7 +83,9 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	if (unlikely(!(*ci_ptr)->scb_data)) goto done;
 	scb_core = (((*ci_ptr)->scb_data) + get_cpuid());
 	ultc     = scb_core->curr_thd;
+
 	/* reset inconsistency from user-level thd! */
+	scb_core->curr_thd = 0;
 	if (!ultc && !interrupt) goto done;
 
 	if (likely(ultc)) {
@@ -442,6 +444,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	struct comp_info *   next_ci = &(next->invstk[next->invstk_top].comp_info);
 	int                  preempt = 0;
 
+//printk(">>>>next: %d\n", next->tid);
 	assert(next_ci && curr && next);
 	assert(curr->cpuid == get_cpuid() && next->cpuid == get_cpuid());
 	if (unlikely(curr == next)) return thd_switch_update(curr, regs, 1);
@@ -604,6 +607,8 @@ cap_update(struct pt_regs *regs, struct thread *thd_curr, struct thread *thd_nex
 		if (thd_next == thd_curr) return 1;
 		thd_curr->state |= THD_STATE_PREEMPTED;
 	}
+	//printk("!!!!thd: %d, thd_next: %d\n", thd_curr->tid, thd_curr->scheduler_thread->tid);
+	//printk("\tthd_curr: %d, thd_next->: %d, thd_next->dcbinfo->sp: %x\n", thd_curr->tid, thd_next->tid, thd_next->dcbinfo);
 
 	/* switch threads */
 	return cap_thd_switch(regs, thd_curr, thd_next, ci, cos_info);
@@ -641,6 +646,7 @@ static int
 cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, struct comp_info *ci,
            struct cos_cpu_local_info *cos_info)
 {
+	printk("*********ax: %lx, sp: %lx, bp: %lx, ip: %lx\n", regs->ax, regs->sp, regs->bp, regs->ip);
 	struct thread *next        = thd_cap->t;
 #if defined(__WORD_SIZE_64__)
 	capid_t        arcv        = __userregs_get3(regs);
@@ -659,13 +665,24 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	tcap_time_t  timeout = (tcap_time_t)__userregs_get4(regs);
 	struct tcap *tcap    = tcap_current(cos_info);
 	int          ret;
+	//printk("tttttttimer: %d\n", timeout);
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
+	//if (thd->dcbinfo)
+	//	printk("===>tok: %d, prio: %ld, timeout: %ld, rcv: %d, thd: %d\n\n", usr_counter, prio, timeout, arcv, __userregs_getcap(regs));
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
+		//printk("====>curr: %d, next: %d, timeout: %d\n", thd->tid, next->tid, timeout);
+#if defined(__x86_64__)
+		assert((unsigned long long)regs->r8 == thd->dcbinfo->ip + DCB_IP_KERN_OFF);
+		assert((unsigned long long)regs->bp == thd->dcbinfo->sp);
+#else
 		assert((unsigned long)regs->cx == thd->dcbinfo->ip + DCB_IP_KERN_OFF);
 		assert((unsigned long)regs->bp == thd->dcbinfo->sp);
+#endif
 	}
 
+	//if (arcv == 0) arcv = next->dcbinfo->pending;
+	//printk("oooo: %d\n", arcv);
 	if (arcv) {
 		struct cap_arcv *arcv_cap;
 		struct thread *  rcvt;
@@ -675,6 +692,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		rcvt = arcv_cap->thd;
 
 		ret  = cap_sched_tok_validate(rcvt, usr_counter, ci, cos_info);
+		//printk("ret: %d\n", ret);
 		if (ret) return ret;
 
 		if (thd_rcvcap_pending(rcvt) > 0) {
@@ -686,10 +704,12 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 			timeout = TCAP_TIME_NIL;
 		} else {
 			thd_scheduler_set(next, rcvt);
+			//printk("\t@@@@@@@next: %d, %d, %lu\n",next->tid, rcvt->tid, timeout);
 		}
 	} else {
 		/* TODO: set current thread as it's scheduler? */
-		thd_scheduler_set(next, thd);
+		if (!thd_scheduler(next)) thd_scheduler_set(next, thd);
+		//printk("\t&&&&&&&next: %d, %d\n",next->tid, thd_scheduler(next)->tid);
 	}
 
 	if (tc) {
@@ -702,9 +722,14 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		if (unlikely(!tcap_is_active(tcap))) return -EPERM;
 	}
 
+	struct cos_scb_info *scb_core = ci->scb_data + get_cpuid();
+	if (!timeout) {
+		//printk("\tuse timer_pre\n");
+		timeout = scb_core->timer_pre;
+	}//printk("\ttctct: %x, %d\n", tcap, tc);
 	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
 	if (tc && tcap_current(cos_info) == tcap) tcap_setprio(tcap, prio);
-
+printk("kernel done\n");
 	return ret;
 }
 
@@ -892,7 +917,6 @@ expended_process(struct pt_regs *regs, struct thread *thd_curr, struct comp_info
 	/* get the scheduler thread */
 	thd_next = thd_rcvcap_sched(tcap_rcvcap_thd(tc_curr));
 	assert(thd_next && thd_bound2rcvcap(thd_next) && thd_rcvcap_isreferenced(thd_next));
-
 	return cap_update(regs, thd_curr, thd_next, tc_curr, tc_next, TCAP_TIME_NIL, ci, cos_info, timer_intr_context);
 }
 
@@ -919,8 +943,11 @@ timer_process(struct pt_regs *regs)
 	thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &comp);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	assert(comp);
-
-	return expended_process(regs, thd_curr, comp, cos_info, 1);
+	//if (thd_curr->cpuid == 1)
+		printk("\t^^^^^^^^^^^timer\n");
+	int ret = expended_process(regs, thd_curr, comp, cos_info, 1);
+	//printk("---ret: %d\n", ret);
+	return ret;
 }
 
 static int
@@ -1021,7 +1048,6 @@ composite_syscall_handler(struct pt_regs *regs)
 	struct comp_info * ci;
 	struct thread *    thd;
 	capid_t            cap;
-
 	/*
 	 * We lookup this struct (which is on stack) only once, and
 	 * pass it into other functions to avoid redundant lookups.
@@ -1227,25 +1253,39 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_THDACTIVATE: {
-			u32_t              reg3         = __userregs_get3(regs);
-			u32_t              reg4         = __userregs_get4(regs);
+			word_t             reg3         = __userregs_get3(regs);
+			word_t             reg4         = __userregs_get4(regs);
 			capid_t            pgtbl_addr   = __userregs_get2(regs);
+#if defined(__x86_64__)
+			thdclosure_index_t init_data    = (reg4 << 32) >> 32;
+			capid_t            thd_cap      = (capin >> 32);
+			capid_t            pgtbl_cap    = (capin << 32) >> 32;
+			capid_t            compcap      = (reg3 >> 32);
+			capid_t            dcb_cap      = (reg3 << 32) >> 32;
+			unsigned short     dcboff       = reg4 >> 32;
+#else
 			thdclosure_index_t init_data    = (reg4 << 16) >> 16;
 			capid_t            thd_cap      = (capin >> 16);
 			capid_t            pgtbl_cap    = (capin << 16) >> 16;
 			capid_t            compcap      = (reg3 >> 16);
 			capid_t            dcb_cap      = (reg3 << 16) >> 16;
 			unsigned short     dcboff       = reg4 >> 16;
+#endif
+
 			unsigned long     *tpte = NULL, flags;
 			struct thread     *thd;
 			struct cap_header *ctfrom;
-
+			//printk("pgtbl_cap: %d, cap: %d, comp: %d, dc: %d, off: %d, init_data, %d\n",
+			//		pgtbl_cap, thd_cap, compcap, dcb_cap, dcboff, init_data);
+			//printk("reg3: %lx\n", reg4);
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd, &tpte);
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(thd && tpte);
 
 			/* ret is returned by the overall function */
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, dcb_cap, dcboff);
+			//if (thd->tid == 6) assert(0);
+			//if (thd->tid == 3) assert(0);
 			if (ret) kmem_unalloc(tpte);
 
 			break;
@@ -1310,11 +1350,13 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t      captbl_cap = __userregs_get2(regs) >> 16;
 			capid_t      pgtbl_cap  = __userregs_get2(regs) & 0xFFFF;
 			livenessid_t lid        = capin >> 16;
-			capid_t      comp_cap   = (capin << 16) >> 16;
+			capid_t      comp_cap   = capin & 0xffff;
 			capid_t      scb_cap    = __userregs_get3(regs);
 			vaddr_t      entry_addr = __userregs_get4(regs);
 
+//printk("============comp_cap %d, lid: %d, captbl: %d, pgtbl: %d\n", comp_cap, lid, captbl_cap, pgtbl_cap);
 			ret = comp_activate(ct, cap, comp_cap, captbl_cap, pgtbl_cap, scb_cap, lid, entry_addr);
+//			printk("kret: %d\n", ret);
 			break;
 		}
 		case CAPTBL_OP_COMPDEACTIVATE: {
@@ -1469,7 +1511,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			assert(ptc);
 
 			ret = scb_mapping(ct, scbc, ptc, compc, scb_uaddr);
-		
+			assert(!ret);
 			return ret;
 		}
 		case CAPTBL_OP_SCB_DEACTIVATE: {
@@ -1483,14 +1525,22 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_DCB_ACTIVATE: {
-			u32_t        r1      = __userregs_get1(regs);
-			u32_t        r2      = __userregs_get2(regs);
-			u32_t        r3      = __userregs_get3(regs);
-			u32_t        r4      = __userregs_get4(regs);
+			word_t r1      = __userregs_get1(regs);
+			word_t r2      = __userregs_get2(regs);
+			word_t r3      = __userregs_get3(regs);
+			word_t r4      = __userregs_get4(regs);
+#if defined(__x86_64__)
+			capid_t      dcbcap  = r1 >> 32;
+			capid_t      ptcap   = r2 >> 32;
+			livenessid_t lid     = (r1 << 32) >> 32;
+			capid_t      ptcapin = (r2 << 32) >> 32;
+#else
 			capid_t      dcbcap  = r1 >> 16;
 			capid_t      ptcap   = r2 >> 16;
-			livenessid_t lid     = (r1 << 16) >> 16;
-			capid_t      ptcapin = (r2 << 16) >> 16;
+			livenessid_t lid     = r1 & 0xFFFF;
+			capid_t      ptcapin = r2 & 0xffff;
+#endif
+			//printk("dcbcap: %x, lid: %x, ptcap: %x, ptcapin: %x, r1: %x, r2: %x\n", dcbcap, lid, ptcap, ptcapin, r1, r2);
 			vaddr_t      kaddr   = r3;
 			vaddr_t      uaddrin = r4;
 			struct cos_dcb_info *dcb;

@@ -62,7 +62,7 @@ struct thread {
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
 
 	thd_state_t    state;
-	u32_t          tls;
+	word_t          tls;
 	cpuid_t        cpuid;
 	unsigned int   refcnt;
 	tcap_res_t     exec; /* execution time */
@@ -643,14 +643,24 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		 * tcap, then curr_thd == next_thd and state will be RCVING.
 		 */
 	}
-
+	//printk("\tthdid: %d, issame: %d, preempt: %d\n", thd->tid, issame, preempt);
+//printk("\tsp: %x, bp: %x; ip: %x, cx: %x\n", regs->sp, regs->bp, regs->ip, regs->cx);
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
+//printk("\tsp: %x, bp: %x; ip: %x, cx: %x\n", regs->sp, regs->bp, regs->ip, regs->cx);
+		printk("\tspecial: %d, %lx\n", thd->tid, thd->dcbinfo->ip);
 		assert(preempt == 0);
+#if defined(__x86_64__)
+		regs->cx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
+		regs->sp = regs->bp = thd->dcbinfo->sp;
+#else
 		regs->dx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
 		regs->cx = regs->sp = thd->dcbinfo->sp;
+#endif
 		thd->dcbinfo->sp = 0;
 	}
+	//printk("\tdcbinfo: %x, issame: %d\n", thd->dcbinfo, issame);
 
+printk("ax: %lx, sp: %lx, bp: %lx, issame: %d, ip: %lx\n", regs->ax, regs->sp, regs->bp, issame, regs->ip);
 	if (issame && preempt == 0) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 	}

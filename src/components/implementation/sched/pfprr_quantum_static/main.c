@@ -124,7 +124,7 @@ sched_thd_exit(void)
 
 	slm_cs_enter(current, SLM_CS_NONE);
 	slm_thd_deinit(current);
-	for (i = 0; slm_cs_exit_reschedule(current, SLM_CS_NONE) && i < 16; i++) ;
+	for (i = 0; slm_cs_exit_reschedule(current, SLM_CS_NONE) && i < 16; i++) printc("$$\n");
 
 	/* If we got here, something went wrong */
 	BUG();
@@ -141,10 +141,14 @@ sched_thd_yield_to(thdid_t t)
 
 	if (!to) return -1;
 
+//printc("yield to: %d\n", t);
+	assert(current != to);
 	slm_cs_enter(current, SLM_CS_NONE);
         slm_sched_yield(current, to);
+	//ret = slm_cs_exit_reschedule(current, SLM_CS_CHECK_TIMEOUT);
 	ret = slm_cs_exit_reschedule(current, SLM_CS_NONE);
 
+	//printc("yield ret\n");
 	return ret;
 }
 
@@ -181,6 +185,7 @@ sched_arcv(thdid_t tid)
 
 	assert(thd->rcv);
 	pending = cos_rcv(thd->rcv, RCV_ALL_PENDING, &rcvd);
+	assert(pending == 0);
 
 	return rcvd;
 }
@@ -328,13 +333,17 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	thdcap_t thdcap;
 	thdid_t tid;
 
-	if (!init_core) cos_defcompinfo_sched_init();
+	//if (!init_core) cos_defcompinfo_sched_init();
+	cos_defcompinfo_sched_init();
 
 	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid, &dcb);
+	//printc("\tcreate done: %d\n", tid);
 	if (!t) BUG();
 	idlecap = thdcap;
 
-	slm_init(thdcap, tid);
+	vaddr_t init_dcb = capmgr_sched_initdcb_get();
+
+	slm_init(thdcap, tid, (struct cos_dcb_info *)init_dcb, dcb);
 }
 
 void
@@ -346,6 +355,6 @@ cos_init(void)
 	extern void calculate_initialization_schedule(void);
 	calculate_initialization_schedule();
 	cos_defcompinfo_init();
-  
+
 	if (capmgr_scb_mapping()) BUG();
 }

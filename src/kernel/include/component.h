@@ -42,22 +42,21 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	u32_t              v;
 	int                ret = 0;
 	struct cap_scb    *scbc = NULL;
-
 	ctc = (struct cap_captbl *)captbl_lkup(t, captbl_cap);
-	if (unlikely(!ctc || ctc->h.type != CAP_CAPTBL || ctc->lvl > 0)) return -EINVAL;
+	if (unlikely(!ctc || ctc->h.type != CAP_CAPTBL || ctc->lvl > 0)) assert(0);//return -EINVAL;
 	ptc = (struct cap_pgtbl *)captbl_lkup(t, pgtbl_cap);
-	if (unlikely(!ptc || ptc->h.type != CAP_PGTBL || ptc->lvl > 0)) return -EINVAL;
+	if (unlikely(!ptc || ptc->h.type != CAP_PGTBL || ptc->lvl > 0)) assert(0);//return -EINVAL;
 	if (likely(scbcap)) {
 		scbc = (struct cap_scb *)captbl_lkup(t, scbcap);
-		if (unlikely(!scbc || scbc->h.type != CAP_SCB)) return -EINVAL;
+		if (unlikely(!scbc || scbc->h.type != CAP_SCB)) assert(0);//return -EINVAL;
 	}
 
 	v = ptc->refcnt_flags;
-	if (v & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+	if (v & CAP_MEM_FROZEN_FLAG) assert(0);//return -EINVAL;
 	if (cos_cas_32((u32_t *)&ptc->refcnt_flags, v, v + 1) != CAS_SUCCESS) return -ECASFAIL;
 
 	v = ctc->refcnt_flags;
-	if (v & CAP_MEM_FROZEN_FLAG) cos_throw(undo_ptc, -EINVAL);
+	if (v & CAP_MEM_FROZEN_FLAG) assert(0);//cos_throw(undo_ptc, -EINVAL);
 	if (cos_cas_32((u32_t *)&ctc->refcnt_flags, v, v + 1) != CAS_SUCCESS) {
 		/* undo before return */
 		cos_throw(undo_ptc, -ECASFAIL);
@@ -68,12 +67,13 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 
 	if (likely(scbc)) {
 		ret = scb_comp_update(t, scbc, compc);
+		assert(!ret);
 		if (ret) cos_throw(undo_capact, ret);
 	}
 
 	compc->entry_addr           = entry_addr;
 	compc->info.pgtblinfo.pgtbl = ptc->pgtbl;
-	compc->info.pgtblinfo.asid  = chal_asid_alloc();
+	//compc->info.pgtblinfo.asid  = chal_asid_alloc();
 	compc->info.captbl          = ctc->captbl;
 	compc->pgd                  = ptc;
 	compc->ct_top               = ctc;
@@ -123,6 +123,7 @@ comp_deactivate(struct cap_captbl *ct, capid_t capin, livenessid_t lid)
 static void
 comp_init(void)
 {
+	printk("cap_comp: %d, szie: %d, size: %d\n", sizeof(struct cap_comp), __captbl_cap2bytes(CAP_COMP), sizeof(struct cap_header));
 	assert(sizeof(struct cap_comp) <= __captbl_cap2bytes(CAP_COMP));
 }
 

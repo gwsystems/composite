@@ -26,6 +26,7 @@ struct cm_comp {
 	struct crt_comp comp;
 	struct cm_rcv *sched_rcv;    /* rcv cap for this scheduler or NULL if not a scheduler */
 	struct cm_rcv *sched_parent; /* rcv cap for this scheduler's scheduler, or NULL */
+	vaddr_t dcb_init_ptr;
 };
 
 struct cm_thd {
@@ -34,7 +35,6 @@ struct cm_thd {
 	struct cm_comp *client; /* component thread begins execution in */
 	struct cm_comp *sched;	/* The scheduler that has the alias */
 	thdcap_t aliased_cap;	/* location thread is aliased into the scheduler. */
-	arcvcap_t arcv_cap;
 };
 
 struct cm_asnd {
@@ -44,6 +44,14 @@ struct cm_asnd {
 struct cm_dcb {
 	dcbcap_t dcb_cap;
 	vaddr_t  dcb_addr;
+	dcboff_t dcb_off;
+};
+
+struct cm_dcbinfo {
+	struct cm_dcb *dcb;
+	arcvcap_t      arcv;
+	asndcap_t      asnd;
+	thdid_t        tid;
 };
 
 /*
@@ -83,6 +91,7 @@ SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 
 #define MAX_DCB_NUM PAGE_SIZE/sizeof(struct cos_dcb_info)
 SS_STATIC_SLAB(dcb, struct cm_dcb, MAX_DCB_NUM);
+SS_STATIC_SLAB(dcbinfo, struct cm_dcbinfo, MAX_NUM_THREADS);
 
 static struct cm_comp *
 cm_self(void)
@@ -116,6 +125,7 @@ cm_comp_alloc_with(char *name, compid_t id, struct crt_comp_resources *resources
 		ss_comp_free(c);
 		return NULL;
 	}
+	c->dcb_init_ptr = resources->heap_ptr - (NUM_CPU * PAGE_SIZE);
 	ss_comp_activate(c);
 
 	return c;
@@ -125,9 +135,10 @@ struct cm_rcv *
 cm_rcv_alloc_in(struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t closure_id, crt_rcv_flags_t flags)
 {
 	struct cm_rcv *r = ss_rcv_alloc();
+	vaddr_t        dcbaddr;
 
 	if (!r) return NULL;
-	if (crt_rcv_create_in(&r->rcv, c, sched, closure_id, flags)) {
+	if (crt_rcv_create_in(&r->rcv, c, sched, closure_id, flags, &dcbaddr)) {
 		ss_rcv_free(r);
 		return NULL;
 	}
@@ -137,7 +148,7 @@ cm_rcv_alloc_in(struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t cl
 }
 
 struct cm_thd *
-cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, asndcap_t *asnd, thdclosure_index_t closure_id)
+cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, struct cm_dcb *dcb, thdclosure_index_t closure_id, arcvcap_t *arcv, asndcap_t *asnd)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci        = cos_compinfo_get(defci);
@@ -155,23 +166,23 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, asndcap_t *asnd, thdcl
 	arcvcap_t rcvcap;
 
 	if (!t || !r || !s) return NULL;
-	if (crt_thd_create_in(&t->thd, &c->comp, closure_id)) {
+	if (crt_thd_create_in(&t->thd, &c->comp, dcb->dcb_cap, dcb->dcb_off, closure_id)) {
 		ss_thd_free(t);
 		printc("capmgr: couldn't create new thread correctly.\n");
 		return NULL;
 	}
 	ss_thd_activate(t);
 
-	sched_aep = cos_sched_aep_get(defci);
+	sched_aep = cos_sched_aep_get(sched->comp.comp_res);
 	assert(sched_ci->comp_cap);
 
-	tcap = cos_tcap_alloc(ci);
-	assert(tcap);
-	rcvcap = cos_arcv_alloc(ci, t->thd.cap, tcap, sched_ci->comp_cap, sched_aep->rcv);
+	//tcap = cos_tcap_alloc(ci);
+	//assert(tcap);
+	rcvcap = cos_arcv_alloc(ci, t->thd.cap, sched_aep->tc, sched_ci->comp_cap, sched_aep->rcv);
 	assert(rcvcap);
 
 	struct crt_rcv_resources resrcv = (struct crt_rcv_resources) {
-		.tc = tcap,
+		.tc = sched_aep->tc,
 		.thd = t->thd.cap,
 		.tid = 0,
 		.rcv = rcvcap,
@@ -187,8 +198,9 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, asndcap_t *asnd, thdcl
 
 	t->sched       = sched;
 	t->aliased_cap = _rcv.thd;
-	t->arcv_cap    = _rcv.rcv;
 	t->client      = c;
+	*arcv          = _rcv.rcv;
+	//printc("[capmgr]tid: %d, rcv: %d, asnd: %d, dcb: %x\n", t->thd.tid, _rcv.rcv, _asnd.asnd, dcb->dcb_addr);
 	*asnd          = _asnd.asnd;
 	/* FIXME: should take a reference to the scheduler */
 
@@ -200,12 +212,16 @@ cm_dcb_alloc_in(struct cm_comp *sched)
 {
 	compid_t       id = (compid_t)cos_inv_token();
 	struct cm_dcb *d  = ss_dcb_alloc();
-	dcbcap_t       dcbcap;
+	dcbcap_t       dcbcap = 0;
 	vaddr_t        dcbaddr = 0;
+	dcboff_t       dcboff = 0;
 
-	dcbcap = crt_dcb_create_in(&sched->comp, &dcbaddr);
+	//dcbcap = crt_dcb_create_in(&sched->comp, &dcbaddr);
+	dcbcap = cos_dcb_info_alloc(&sched->comp.dcb_data[cos_cpuid()], &dcboff, &dcbaddr);
+	assert(dcbcap);
 	d->dcb_addr = dcbaddr;
 	d->dcb_cap  = dcbcap;
+	d->dcb_off  = dcboff;
 	ss_dcb_activate(d);
 
 	return d;
@@ -447,18 +463,51 @@ capmgr_scb_mapping(void)
 	compid_t schedid = (compid_t)cos_inv_token();
 	struct cos_compinfo *ci;
 	struct cm_comp *s;
+	struct cos_defcompinfo *def = cos_defcompinfo_curr_get();
 	vaddr_t scb_uaddr;
 
-	s = ss_comp_get(schedid);
-	assert(s);
+	if (schedid == 0) {
+		ci = cos_compinfo_get(def);
+		scb_uaddr = (vaddr_t)cos_scb_info_get();
+	} else {
+		s = ss_comp_get(schedid);
+		assert(s);
 
-	ci = cos_compinfo_get(s->comp.comp_res);
+		ci = cos_compinfo_get(s->comp.comp_res);
+		scb_uaddr = (vaddr_t)(s->dcb_init_ptr - COS_SCB_SIZE);
+		//printc("dcbstart: %x\n", s->dcb_init_ptr);
+	}
 	assert(ci);
 
-	scb_uaddr = cos_page_bump_intern_valloc(ci, COS_SCB_SIZE);
+	//scb_uaddr = cos_page_bump_intern_valloc(ci, COS_SCB_SIZE);
+	//printc("scb: %d,%x\n", schedid, scb_uaddr);
 	assert(scb_uaddr);
 
 	return scb_mapping(schedid, scb_uaddr);
+}
+
+static void
+capmgr_dcb_info_init(struct cm_comp *c)
+{
+	struct crt_comp        *comp      = &c->comp;
+	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci        = cos_compinfo_get(defci);
+	struct cos_compinfo    *target_ci = cos_compinfo_get(comp->comp_res);
+	dcbcap_t initdcb  = 0;
+	vaddr_t  initaddr = 0;
+	dcboff_t initoff  = 0;
+
+	//initaddr = cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
+	//printc("dcbaddr: %x, target_ci: %x\n", initaddr, target_ci);
+	initaddr = c->dcb_init_ptr + (cos_cpuid() * PAGE_SIZE);
+	//printc("dcbaddr: %x, target_ci: %x, %x\n", initaddr, target_ci, initaddr+PAGE_SIZE);
+	assert(initaddr);
+
+	initdcb  = cos_dcb_alloc(ci, target_ci->pgtbl_cap, initaddr);
+	assert(initdcb);
+	cos_dcb_info_init_ext(&comp->dcb_data[cos_cpuid()], target_ci, initdcb, initaddr, initoff);
+
+	return;
 }
 
 static void
@@ -492,13 +541,14 @@ capmgr_execution_init(int is_init_core)
 			struct cm_rcv *r = ss_rcv_alloc();
 
 			assert(r);
+			//if (is_init_core) capmgr_dcb_info_init(cmc);
+			capmgr_dcb_info_init(cmc);
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, &r->rcv))) BUG();
 			ss_rcv_activate(r);
 			cmc->sched_rcv = r;
 			if (is_init_core) printc("\tCreated scheduling execution for %ld\n", id);
 		} else if (!strcmp(exec_type, "init")) {
 			struct cm_thd *t = ss_thd_alloc();
-
 			assert(t);
 			if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, &t->thd))) BUG();
 			ss_thd_activate(t);
@@ -565,7 +615,7 @@ capmgr_comp_init(void)
 		if (sched_id == 0) {
 			sched_id = capmgr_comp_sched_hier_get(id);
 		}
-		comp_res.heap_ptr        = addr_get(id, ADDR_HEAP_FRONTIER);
+		comp_res.heap_ptr        = addr_get(id, ADDR_HEAP_FRONTIER) + COS_SCB_SIZE + (PAGE_SIZE * NUM_CPU);
 		comp_res.captbl_frontier = addr_get(id, ADDR_CAPTBL_FRONTIER);
 
 		snprintf(id_serialized, 20, "names/%ld", id);
@@ -591,11 +641,11 @@ crtcomp_get(compid_t id)
 	return &c->comp;
 }
 
-void
-execute(void)
-{
-	crt_compinit_execute(crtcomp_get);
-}
+//void
+//execute(void)
+//{
+//	crt_compinit_execute(crtcomp_get);
+//}
 
 void
 capmgr_set_tls(thdcap_t cap, void* tls_addr)
@@ -636,14 +686,41 @@ init_exit(int retval)
 	while (1) ;
 }
 
+vaddr_t
+capmgr_sched_initdcb_get()
+{
+	compid_t schedid = (compid_t)cos_inv_token();
+
+	struct cm_comp *s;
+	s = ss_comp_get(schedid);
+
+	return s->comp.init_dcb_addr;
+}
+
+thdid_t
+capmgr_retrieve_dcbinfo(thdid_t tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb)
+{
+	struct cm_dcbinfo *info;
+
+	info = ss_dcbinfo_get(tid);
+	//printc("---------tid: %d, info: %x, ret: %d, dcbaddr: %x\n", tid, info, info->tid, info->dcb->dcb_addr);
+	*arcv = info->arcv;
+	*asnd = info->asnd;
+	*dcb  = (struct cos_dcb_info *)info->dcb->dcb_addr;
+
+	return info->tid;
+}
+
 thdcap_t
-capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb)
+capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 {
 	compid_t schedid = (compid_t)cos_inv_token();
 	struct cm_thd *t;
 	struct cm_comp *s, *c;
 	struct cm_dcb *d;
+	struct cm_dcbinfo *info;
 	asndcap_t _asnd;
+	arcvcap_t _arcv;
 
 	if (schedid != capmgr_comp_sched_get(client)) {
 		/* don't have permission to create execution in that component. */
@@ -655,29 +732,38 @@ capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid, arcv
 	c = ss_comp_get(client);
 	s = ss_comp_get(schedid);
 
-	d = cm_dcb_alloc_in(s);
-
 	if (!c || !s) return 0;
-	t = cm_thd_alloc_in(c, s, &_asnd, idx);
+
+	d = cm_dcb_alloc_in(s);
+	assert(d);
+
+	t = cm_thd_alloc_in(c, s, d, idx, &_arcv, &_asnd);
 	if (!t) {
 		/* TODO: release resources */
 		return 0;
 	}
+
+	info = ss_dcbinfo_alloc_at_id(t->thd.tid);
+	info->arcv    = _arcv;
+	info->asnd    = _asnd;
+	info->dcb     = d;
+	info->tid     = t->thd.tid;
+	ss_dcbinfo_activate(info);
+
 	*tid  = t->thd.tid;
-	*arcv = t->arcv_cap;
-	*asnd = _asnd;
-	*dcb  = (struct cos_dcb_info *)d->dcb_addr;
+	//*arcv = t->arcv_cap;
+	//*asnd = _asnd;
+	//*arcv = _arcv;
+	//*dcb  = (struct cos_dcb_info *)d->dcb_addr;
+	//printc("*tid: %d, arcv: %d\n", t->thd.tid, _arcv);
 	return t->aliased_cap;
 }
 
 thdcap_t
 capmgr_initthd_create(spdid_t client, thdid_t *tid)
 {
-	struct cos_dcb_info *dcb;
-	arcvcap_t            arcv;
-	asndcap_t            asnd;
-
-	return capmgr_thd_create_ext(client, 0, tid, &arcv, &asnd, &dcb);
+	assert(0);
+	return capmgr_thd_create_ext(client, 0, tid);
 }
 
 thdcap_t  capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret) { BUG(); return 0; }
@@ -689,18 +775,26 @@ capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_inf
 	struct cm_thd  *t;
 	struct cm_comp *c;
 	struct cm_dcb  *d;
+	struct cm_dcbinfo *info;
 	asndcap_t       asnd;
+	arcvcap_t       arcv;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = ss_comp_get(client);
 	d = cm_dcb_alloc_in(c);
 	assert(d);
-	t = cm_thd_alloc_in(c, c, &asnd, idx);
+	t = cm_thd_alloc_in(c, c, d, idx, &arcv, &asnd);
 
 	if (!t) {
 		/* TODO: release resources */
+		assert(0);
 		return 0;
 	}
+
+	info = ss_dcbinfo_alloc_at_id(t->thd.tid);
+	info->arcv = arcv;
+	info->asnd = asnd;
+
 	*tid = t->thd.tid;
 	*dcb = (struct cos_dcb_info *)d->dcb_addr;
 
@@ -741,10 +835,14 @@ cos_init(void)
 	if (!cm_comp_self_alloc("capmgr")) BUG();
 
 	/* Initialize the other component's for which we're responsible */
-	scbcap_t scbc = cos_scb_alloc(ci);
-	assert(scbc);
-	vaddr_t scb_uaddr = cos_page_bump_intern_valloc(ci, COS_SCB_SIZE);
-	if (cos_scb_mapping(ci, ci->comp_cap, ci->pgtbl_cap, scbc, scb_uaddr)) BUG();
+	//scbcap_t scbc = cos_scb_alloc(ci);
+	//assert(scbc);
+	//vaddr_t scb_uaddr = cos_page_bump_intern_valloc(ci, COS_SCB_SIZE);
+	//printc("scb_uaddr: %x, ci: %x, defci: %x\n", scb_uaddr, ci, defci);
+	//printc("========> scb: %d\n", ci->pgtbl_cap);
+	//if (cos_scb_mapping(ci, ci->comp_cap, ci->pgtbl_cap, scbc, scb_uaddr)) BUG();
+	if (capmgr_scb_mapping()) BUG();
+
 	capmgr_comp_init();
 
 	return;
@@ -760,5 +858,5 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 void
 parallel_main(coreid_t cid)
 {
-	execute();
+	crt_compinit_execute(crtcomp_get);
 }

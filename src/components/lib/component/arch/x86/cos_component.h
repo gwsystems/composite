@@ -258,9 +258,9 @@ static inline void *
 cos_get_heap_ptr(void)
 {
 	/* page at heap_ptr is actually the SCB_PAGE for any component. */
-	//unsigned int off = COS_SCB_SIZE + (PAGE_SIZE * NUM_CPU);
-	//void *heap_ptr = (void *)(__cosrt_comp_info.cos_heap_ptr + off);
-	void *heap_ptr = (void *)(__cosrt_comp_info.cos_heap_ptr);
+	unsigned int off = COS_SCB_SIZE + (PAGE_SIZE * NUM_CPU);
+	void *heap_ptr = (void *)(__cosrt_comp_info.cos_heap_ptr + off);
+	//void *heap_ptr = (void *)(__cosrt_comp_info.cos_heap_ptr);
 
 	return heap_ptr;
 }

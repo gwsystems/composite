@@ -101,11 +101,12 @@ cos_aep_alloc_intern(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci, 
 	assert(curr_defci_init_status == INITIALIZED);
 	memset(aep, 0, sizeof(struct cos_aep_info));
 
-	if (is_init)      aep->thd = cos_initthd_alloc(ci, dst_ci->comp_cap, dcbcap);
+	if (is_init)      aep->thd = cos_initthd_alloc(ci, dst_ci->comp_cap, dcbcap, dcboff);
 	else if (idx > 0) aep->thd = cos_thd_alloc_ext(ci, dst_ci->comp_cap, idx, dcbcap, dcboff);
 	else              aep->thd = cos_thd_alloc(ci, dst_ci->comp_cap, cos_aepthd_fn, (void *)aep, dcbcap, dcboff);
 	assert(aep->thd);
 	aep->tid  = cos_introspect(ci, aep->thd, THD_GET_TID);
+	assert(0);
 	if (!sched && is_init) return 0;
 
 	if (tc) {
@@ -231,6 +232,7 @@ cos_aep_tcap_alloc(struct cos_aep_info *aep, tcap_t tc, cos_aepthd_fn_t fn, void
 int
 cos_defswitch(thdcap_t c, tcap_prio_t p, tcap_time_t r, sched_tok_t stok)
 {
+	//printc("called: %d, %d, %d, %d\n", c, p, r, stok);
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 

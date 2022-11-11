@@ -245,6 +245,7 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 	/* next == INF? no timer required. */
 	left = tcap_left(next);
 	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) {
+		printk("====>disable: %lu, %d, %lld\n", timeout, TCAP_RES_IS_INF(left), cos_info->next_timer);
 		cos_info->next_timer = 0;
 		chal_timer_disable();
 		return;
@@ -259,18 +260,21 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 
 	timeout_cyc = tcap_time2cyc(timeout, now);
 	/* ...or explicit timeout within the bounds of the budget */
-	if (timeout != TCAP_TIME_NIL && timeout_cyc < timer) {
-		if (tcap_time_lessthan(timeout, tcap_cyc2time(now)))
+	if (timeout != TCAP_TIME_NIL && timeout < timer) {
+		if (tcap_time_lessthan(timeout, tcap_cyc2time(now))) {
 			timer = now;
-		else
+		} else {
 			timer = timeout_cyc;
+		}
 	}
 
+	printk("====>timer: %lld, timeout_cyc: %lld, left: %lld\n", timer, timeout_cyc, left);
 	if (cycles_same(now, timer, TCAP_TIMER_DIFF)) timer = now + TCAP_TIMER_DIFF;
 	if (cycles_same(cos_info->next_timer, timer, TCAP_TIMER_DIFF) && cos_info->next_timer) return;
 
 	assert(timer); /* TODO: wraparound check when timer == 0 */
 	cos_info->next_timer = timer;
+	printk("====>reprogram timer: %llu, now : %llu, %lld\n", timer, now, now+TCAP_TIMER_DIFF);
 	chal_timer_set(timer);
 }
 

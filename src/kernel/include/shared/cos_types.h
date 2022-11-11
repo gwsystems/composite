@@ -240,9 +240,9 @@ __captbl_cap2sz(cap_t c)
 	case CAP_TCAP:
 		return CAP_SZ_16B;
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
+		return CAP_SZ_32B;
 	case CAP_SCB:
 	case CAP_DCB:
-		return CAP_SZ_32B;
 	case CAP_SINV:
 	case CAP_COMP:
 	case CAP_ASND:

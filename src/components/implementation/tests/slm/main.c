@@ -422,5 +422,5 @@ cos_init(void)
 	if (crt_booter_create(&self, "self", cos_compid(), 0)) assert(0);
 	if (crt_thd_create(&t, &self, slm_idle, NULL)) assert(0);
 
-	slm_init(t.cap, t.tid);
+	slm_init(t.cap, t.tid, 0, 0);
 }
