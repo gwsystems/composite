@@ -172,36 +172,36 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 	struct slm_thd         *t;
 	sched_tok_t             tok;
 	int                     ret;
-	int                     try_again = 0;
 
-	do {
-		/* If the slm_thd_activate returns -EAGAIN, this means this scheduling token is outdated, try again */
-		if (try_again) slm_cs_enter(curr, SLM_CS_NONE);;
+try_again:
+	tok  = cos_sched_sync();
+	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
+		cycles_t now = slm_now();
 
-		tok  = cos_sched_sync();
-		if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
-			cycles_t now = slm_now();
-
-			/* Do we need to recompute the timer? */
-			if (!cycles_greater_than(g->timer_next, now)) {
-				g->timer_set = 0;
-				/* The timer policy will likely reset the timer */
-				slm_timer_expire(now);
-			}
+		/* Do we need to recompute the timer? */
+		if (!cycles_greater_than(g->timer_next, now)) {
+			g->timer_set = 0;
+			/* The timer policy will likely reset the timer */
+			slm_timer_expire(now);
 		}
+	}
 
-		/* Make a policy decision! */
-		t = slm_sched_schedule();
-		if (unlikely(!t)) t = &g->idle_thd;
+	/* Make a policy decision! */
+	t = slm_sched_schedule();
+	if (unlikely(!t)) t = &g->idle_thd;
 
-		assert(slm_state_is_runnable(t->state));
-		slm_cs_exit(NULL, flags);
+	assert(slm_state_is_runnable(t->state));
+	slm_cs_exit(NULL, flags);
 
-		ret = slm_thd_activate(curr, t, tok, 0);
-		/* Assuming only the single tcap with infinite budget...should not get EPERM */
-		assert(ret != -EPERM);
-		try_again = 1;
-	} while (unlikely(ret == -EAGAIN));
+	ret = slm_thd_activate(curr, t, tok, 0);
+	/* Assuming only the single tcap with infinite budget...should not get EPERM */
+	assert(ret != -EPERM);
+	
+	if (unlikely(ret == -EAGAIN)) {
+		/* If the slm_thd_activate returns -EAGAIN, this means this scheduling token is outdated, try again */
+		slm_cs_enter(curr, SLM_CS_NONE);
+		goto try_again;
+	}
 
 	return ret;
 }
