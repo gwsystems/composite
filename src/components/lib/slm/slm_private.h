@@ -194,10 +194,11 @@ try_again:
 	slm_cs_exit(NULL, flags);
 
 	ret = slm_thd_activate(curr, t, tok, 0);
-	/* Assuming only the single tcap with infinite budget...should not get EPERM */
-	assert(ret != -EPERM);
 	
-	if (unlikely(ret == -EAGAIN)) {
+	if (unlikely(ret != 0)) {
+		/* Assuming only the single tcap with infinite budget...should not get EPERM */
+		assert(ret != -EPERM);
+
 		/* If the slm_thd_activate returns -EAGAIN, this means this scheduling token is outdated, try again */
 		slm_cs_enter(curr, SLM_CS_NONE);
 		goto try_again;
