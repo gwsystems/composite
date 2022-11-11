@@ -1,15 +1,33 @@
 #ifndef PCI_H
 #define PCI_H
 
-#define PCI_BUS_MAX        255
-#define PCI_DEVICE_MAX     256
-#define PCI_FUNC_MAX       7
-#define PCI_DEVICE_NUM     128
+#define PCI_BUS_MAX        256
+#define PCI_DEVICE_MAX     32
+#define PCI_FUNC_MAX       8
+#define PCI_DEVICE_NUM     (PCI_BUS_MAX * PCI_DEVICE_MAX * PCI_FUNC_MAX)
 #define PCI_CONFIG_ADDRESS 0xCF8
 #define PCI_CONFIG_DATA    0xCFC
-#define PCI_DATA_NUM       0x10
+#define PCI_BAR_START      0x04
+#define PCI_COMMON_DATA_SZ 0x10
 #define PCI_BAR_NUM        6
 #define PCI_BITMASK_32     0xFFFFFFFF
+
+enum {
+	PCI_TYPE_DEVICE = 0,
+	PCI_TYPE_PCI_TO_PCI_BRIDGE = 1,
+	PCI_TYPE_PCI_TO_CARDBUS_BRIDGE = 2,
+	PCI_TYPE_INVALID
+};
+
+enum {
+	PCI_BAR_MEM = 0,
+	PCI_BAR_IO = 1
+};
+
+enum {
+	PCI_MEM_BAR_32 = 0,
+	PCI_MEM_BAR_64 = 2
+};
 
 /* /1* pci CONFIG_ADDRESS register format *1/ */
 /* struct pci_addr_layout { */
@@ -28,6 +46,9 @@
 #define PCI_PROG_IF(v)     (((v) >> 8) & 0xFF)
 #define PCI_HEADER(v)      (((v) >> 16) & 0xFF)
 
+#define PCI_SUBSYSTEM_ID(v) ((v) >> 16)
+#define PCI_SUBSYSTEM_VENDOR_ID(v) ((v) & 0xFFFF) 
+
 struct pci_bar {
 	union {
 		u32_t raw;
@@ -44,7 +65,10 @@ struct pci_bar {
 		} __attribute__((packed)) mem;
 	};
 	u32_t mask;
-	paddr_t paddr;
+	int   accessibility;
+	u8_t  bar_type;
+	u64_t paddr;
+	u64_t len;
 } __attribute__((packed));
 
 struct pci_dev {
@@ -54,9 +78,19 @@ struct pci_dev {
 	u8_t  classcode;
 	u8_t  subclass;
 	u8_t  progIF;
-	u8_t  header;
+	union
+	{
+		/* data */
+		u8_t pci_type : 7; /* indicate pci type */
+		u8_t MF   : 1; /* indicate if this pci device has multiple functions */
+		u8_t header;
+	};
+
+	u16_t subsystem_vendor_id; 
+	u16_t subsystem_device_id; 
+
 	struct pci_bar bar[PCI_BAR_NUM];
-	u32_t data[PCI_DATA_NUM];
+	u32_t data[PCI_COMMON_DATA_SZ]; /* keep raw values of PCI config space data */
 	unsigned int index;
 	void *drvdata;
 } __attribute__((packed));

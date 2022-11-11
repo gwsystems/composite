@@ -1,6 +1,6 @@
 #include <pgtbl.h>
 #include <thd.h>
-
+#include <fpu.h>
 #include "kernel.h"
 #include "string.h"
 #include "isr.h"
@@ -63,10 +63,14 @@ invalid_opcode_fault_handler(struct pt_regs *regs)
 int
 device_not_avail_fault_handler(struct pt_regs *regs)
 {
-	print_pt_regs(regs);
-	die("FAULT: Device Not Available\n");
+	int ret = fpu_disabled_exception_handler();
 
-	return 1;
+	if (!ret) {
+		print_pt_regs(regs);
+		die("FAULT: Device not available\n");
+	}
+
+	return ret;
 }
 
 int
@@ -110,7 +114,6 @@ gen_protect_fault_handler(struct pt_regs *regs)
 {
 	print_pt_regs(regs);
 	die("FAULT: General Protection Fault\n");
-
 	return 1;
 }
 
@@ -119,17 +122,18 @@ page_fault_handler(struct pt_regs *regs)
 {
 	unsigned long                      fault_addr = 0, errcode = 0, ip = 0;
 	struct cos_cpu_local_info *ci    = cos_cpu_local_info();
-	thdid_t                    thdid = thd_current(ci)->tid;
+	struct thread * curr             = thd_current(ci);
+	thdid_t                    thdid = curr->tid;
 
 	print_pt_regs(regs);
 	fault_addr = chal_cpu_fault_vaddr(regs);
 	errcode    = chal_cpu_fault_errcode(regs);
 	ip        = chal_cpu_fault_ip(regs);
 
-	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%p, ip 0x%p\n", thdid,
+	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%p, ip 0x%p, tls 0x%p\n", thdid,
 	    errcode & PGTBL_PRESENT ? "present" : "not-present",
 	    errcode & PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & PGTBL_USER ? "user-mode" : "system",
-	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, ip);
+	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, ip, curr->tls);
 
 	return 1;
 }
@@ -162,7 +166,7 @@ machine_check_abort_handler(struct pt_regs *regs)
 }
 
 int
-smid_float_pt_except_fault_handler(struct pt_regs *regs)
+simd_float_pt_except_fault_handler(struct pt_regs *regs)
 {
 	print_pt_regs(regs);
 	die("FAULT: SMID Floating-point Exception\n");

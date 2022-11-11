@@ -29,15 +29,6 @@ loader:
 	mov %eax, multiboot_magic
 	mov %ebx, multiboot_tags
 
-	/* now enable SSE */
-	mov %cr0, %eax
-	and $0xFFFB, %ax
-	or $0x2, %ax
-	mov %eax, %cr0
-	mov %cr4, %eax
-	or $(3 << 9), %ax
-	mov %eax, %cr4
-	
 	/* repare to enter long(64-bit) mode */
 
 	/* close paging first */

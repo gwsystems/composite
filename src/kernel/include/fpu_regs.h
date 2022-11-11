@@ -35,8 +35,33 @@ struct cos_fpu {
 		u32_t padding1[12];
 		u32_t sw_reserved[12];
 	};
+	/* Above is lagecy 512 bytes area */
+
+	union {
+		struct {
+			/* XSAVE Header, followed by reserved area */
+			u64_t xstate_bv;
+			u64_t xcomp_bv;
+		};
+		u8_t header_area[64];
+	};
+
+	/* Offset here should be at 576 bytes */
+
+	/*
+	 * 800 is calculated by sizeof(struct thread) - 576,
+	 * with a little reserved area left in struct thread. This
+	 * is to make sure all members of struct thread is still
+	 * in a single page. This should be OK because the size
+	 * is big enough to save all SSE and AVX2 state components.
+	 * 
+	 * Note this will not work with AVX512! You have to make sure
+	 * closing to save AVX512 component in XCR0.
+	 */
+	u8_t xsave_ext_area[800]; 
+
 	int status;
 #endif
-} __attribute__((aligned(16)));
+} __attribute__((aligned(64)));
 
 #endif

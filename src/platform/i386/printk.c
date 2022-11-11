@@ -34,6 +34,7 @@ printk(const char *fmt, ...)
 void
 print_pt_regs(struct pt_regs *regs)
 {
+/* Remember that %ds, %es, %fs, %gs will be ignored when saving them, thus values of them here are possible be random. */
 #if defined(__x86_64__)
 	PRINTK("Register hexdump (0x%p):\n", regs);
 	PRINTK("General->   RAX: 0x%p, RBX: 0x%p, RCX: 0x%p, RDX: 0x%p\n",

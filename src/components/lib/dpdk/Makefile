@@ -41,9 +41,9 @@ DISABLED_DRIVERS=-Ddisable_drivers=common/mvep,common/mlx5,af_xdp,net/ipn3ke,net
 	compress/octeontx,compress/zlib,regex/octeontx2,vdpa/ifc,event/cnxk,event/dlb2,event/dsw,event/opdl,event/skeleton,$\
 	event/sw,baseband/acc100,baseband/fpga_5gnr_fec,baseband/fpga_lte_fec,baseband/null,baseband/turbo_sw,raw/cnxk_bphy,$\
 	raw/dpaa2_cmdif,raw/dpaa2_qdma,raw/ioat,raw/ntb,raw/octeontx2_dma,raw/octeontx2_ep,raw/skeleton,common/cpt,common/dpaax,$\
-	common/iavf,common/octeontx,common/octeontx2,common/cnxk,common/qat,common/sfc_efx,bus/auxiliary,bus/dpaa,bus/fslmc,$\
+	common/octeontx,common/octeontx2,common/cnxk,common/qat,common/sfc_efx,bus/auxiliary,bus/dpaa,bus/fslmc,$\
 	bus/ifpga,net/af_packet,net/ark,net/atlantic,net/avp,net/axgbe,net/bnx2x,net/bnxt,net/bond,net/cxgbe,net/ena,net/enic,$\
-	net/failsafe,net/fm10k,net/hinic,net/hns3,net/i40e,net/igc,net/ionic,net/ixgbe,net/kni,net/liquidio,net/memif,net/nfp,$\
+	net/failsafe,net/fm10k,net/hinic,net/hns3,net/igc,net/ionic,net/ixgbe,net/kni,net/liquidio,net/memif,net/nfp,$\
 	net/ngbe,net/null,net/pcap,net/qede,net/softnic,net/thunderx,net/txgbe,net/vdev_netvsc,baseband/la12xx,dma/idxd,dma/ioat,$\
 	dma/skeleton,net/octeontx_ep,
 
@@ -66,7 +66,7 @@ config:
 	-Dmachine=default -Dc_args="-nostdlib -nostdinc -mcmodel=large -DCOMPOSITE_EXISTS $(DPDK_ADAPTER_INC)" \
 	-Ddefault_library=static -Ddebug=true \
 	-Doptimization=0 -Dincludedir=$(shell pwd)/$(DPDK_INC_DIR) \
-	-Dprefix=$(shell pwd)/$(DPDK_INSTALL_DIR) $(DISABLED_DRIVERS) >> /dev/null
+	-Dprefix=$(shell pwd)/$(DPDK_INSTALL_DIR) $(DISABLED_DRIVERS)
 	
 build:
 	$(info Building DPDK)

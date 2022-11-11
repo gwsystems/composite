@@ -16,6 +16,7 @@
 #include <initargs.h>
 #include <addr.h>
 #include <dcb.h>
+#include <contigmem.h>
 
 struct cm_rcv {
 	struct crt_rcv rcv;
@@ -58,7 +59,7 @@ struct cm_dcbinfo {
  * Shared memory should be manager -> client, and between
  * point-to-point channel recipients
  */
-#define MM_MAPPINGS_MAX 3
+#define MM_MAPPINGS_MAX 5
 
 struct mm_mapping {
 	SS_STATE_T(struct cm_comp *) comp;
@@ -283,20 +284,6 @@ mm_page_allocn(struct cm_comp *c, unsigned long num_pages, unsigned long align)
 }
 
 vaddr_t
-memmgr_heap_page_allocn_aligned(unsigned long num_pages, unsigned long align)
-{
-	struct cm_comp *c;
-	struct mm_page *p;
-
-	c = ss_comp_get(cos_inv_token());
-	if (!c) return 0;
-	p = mm_page_allocn(c, num_pages, align);
-	if (!p) return 0;
-
-	return (vaddr_t)p->mappings[0].addr;
-}
-
-vaddr_t
 memmgr_virt_to_phys(vaddr_t vaddr)
 {
 	struct cm_comp *c;
@@ -305,6 +292,132 @@ memmgr_virt_to_phys(vaddr_t vaddr)
 	if (!c) return 0;
 
 	return call_cap_op(c->comp.comp_res->ci.pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
+}
+
+static void
+contigmem_check(vaddr_t vaddr, int npages)
+{
+	vaddr_t paddr_pre = 0, paddr_next = 0;
+
+	paddr_pre = memmgr_virt_to_phys(vaddr);
+
+	for (int i = 1; i < npages; i++) {
+		paddr_next = memmgr_virt_to_phys(vaddr + i * PAGE_SIZE);
+		assert(paddr_next - paddr_pre == PAGE_SIZE);
+
+		paddr_pre = paddr_next;
+	}
+}
+
+vaddr_t
+contigmem_alloc(unsigned long npages)
+{
+	struct cm_comp *c;
+	struct mm_page *p;
+
+	struct mm_mapping *m;
+
+	vaddr_t vaddr;
+	unsigned long i;
+
+	c = ss_comp_get(cos_inv_token());
+	if (!c) return 0;
+
+	void *page = crt_page_allocn(&cm_self()->comp, npages);
+	assert(page);
+
+	if (crt_page_aliasn_aligned_in(page, PAGE_SIZE, npages, &cm_self()->comp, &c->comp, &vaddr)) BUG();
+
+	for (i = 0; i < npages; i++) {
+		p = ss_page_alloc();
+		assert(p);
+
+		m = &p->mappings[0];
+		if (ss_state_alloc(&m->comp)) BUG();
+
+		p->page = page + i * PAGE_SIZE;
+		m->addr = vaddr + i * PAGE_SIZE;
+
+		ss_state_activate_with(&m->comp, (word_t)c);
+		ss_page_activate(p);
+	}
+
+	contigmem_check((vaddr_t)vaddr, npages);
+	return vaddr;
+}
+
+cbuf_t
+contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_t *pgaddr)
+{
+	struct cm_comp *c;
+	struct mm_page *p, *initial = NULL;
+	struct mm_span *s;
+
+	struct mm_mapping *m;
+
+	vaddr_t vaddr;
+
+	unsigned long i;
+	int ret;
+
+	c = ss_comp_get(cos_inv_token());
+	if (!c) return 0;
+
+	void *page = crt_page_allocn(&cm_self()->comp, npages);
+	assert(page);
+
+	if (crt_page_aliasn_aligned_in(page, align, npages, &cm_self()->comp, &c->comp, &vaddr)) BUG();
+
+	s = ss_span_alloc();
+	if (!s) return 0;
+	for (i = 0; i < npages; i++) {
+		p = ss_page_alloc();
+		assert(p);
+
+		if (unlikely(i == 0)) {
+			initial = p;
+		}
+
+		m = &p->mappings[0];
+		if (ss_state_alloc(&m->comp)) BUG();
+
+		p->page = page + i * PAGE_SIZE;
+		m->addr = vaddr + i * PAGE_SIZE;
+
+		ss_state_activate_with(&m->comp, (word_t)c);
+		ss_page_activate(p);
+	}
+
+	/**
+	 * FIXME: Need to reslove concurrent issue here,
+	 * this is not multi-thread safe
+	 */
+	s->page_off = ss_page_id(initial);
+	s->n_pages  = npages;
+	ss_span_activate(s);
+
+	ret = ss_span_id(s);
+
+	*pgaddr = initial->mappings[0].addr;
+
+	contigmem_check((vaddr_t)vaddr, npages);
+	return ret;
+}
+
+vaddr_t
+memmgr_heap_page_allocn_aligned(unsigned long num_pages, unsigned long align)
+{
+	struct cm_comp *c;
+	struct mm_page *p;
+
+	c = ss_comp_get(cos_inv_token());
+	if (!c) return 0;
+
+	//return call_cap_op(c->comp.comp_res->ci.pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
+	p = mm_page_allocn(c, num_pages, align);
+	if (!p) return 0;
+
+	return (vaddr_t)p->mappings[0].addr;
 }
 
 vaddr_t
@@ -816,10 +929,28 @@ cos_init(void)
 {
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
+	struct initargs curr, comps;
+	struct initargs_iter i;
+	int cont, found_shared = 0;
 	int ret;
 
 	printc("Starting the capability manager.\n");
 	assert(atol(args_get("captbl_end")) >= BOOT_CAPTBL_FREE);
+
+	/* Example code to walk through the components in shared address spaces */
+	printc("Components in shared address spaces: ");
+	ret = args_get_entry("addrspc_shared", &comps);
+	assert(!ret);
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		compid_t id = atoi(args_value(&curr));
+
+		found_shared = 1;
+		printc("%ld ", id);
+	}
+	if (!found_shared) {
+		printc("none");
+	}
+	printc("\n");
 
 	/* Get our house in order. Initialize ourself and our data-structures */
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);

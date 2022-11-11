@@ -8,23 +8,24 @@
 
 enum
 {
-	IRQ_DIV_BY_ZERO_ERR_FAULT = 0,
-	IRQ_DEBUG_TRAP,
-	IRQ_BREAKPOINT_TRAP,
-	IRQ_OVERFLOW_TRAP,
-	IRQ_BOUND_RANGE_EXCEED_FAULT,
-	IRQ_INVALID_OPCODE_FAULT,
-	IRQ_DEVICE_NOT_AVAIL_FAULT,
-	IRQ_DOUBLE_FAULT_ABORT = 8,
-	IRQ_INVALID_TSS_FAULT  = 10,
-	IRQ_SEG_NOT_PRESENT_FAULT,
-	IRQ_STACK_SEG_FAULT,
-	IRQ_GEN_PROTECT_FAULT,
-	IRQ_PAGE_FAULT,
-	IRQ_X87_FLOAT_PT_EXCEPT_FAULT,
-	IRQ_ALIGN_CHECK_FAULT,
-	IRQ_MACHINE_CHECK_ABORT,
-	IRQ_SMID_FLOAT_PT_EXCEPT_FAULT,
+	IRQ_DIV_BY_ZERO_ERR_FAULT 	= 0,
+	IRQ_DEBUG_TRAP 			= 1,
+	IRQ_NON_MASKABLE_INTERRUPT 	= 2,
+	IRQ_BREAKPOINT_TRAP 		= 3,
+	IRQ_OVERFLOW_TRAP 		= 4,
+	IRQ_BOUND_RANGE_EXCEED_FAULT 	= 5,
+	IRQ_INVALID_OPCODE_FAULT 	= 6,
+	IRQ_DEVICE_NOT_AVAIL_FAULT	= 7,
+	IRQ_DOUBLE_FAULT_ABORT 		= 8,
+	IRQ_INVALID_TSS_FAULT  		= 10,
+	IRQ_SEG_NOT_PRESENT_FAULT 	= 11,
+	IRQ_STACK_SEG_FAULT 		= 12,
+	IRQ_GEN_PROTECT_FAULT 		= 13,
+	IRQ_PAGE_FAULT 			= 14,
+	IRQ_X87_FLOAT_PT_EXCEPT_FAULT 	= 16,
+	IRQ_ALIGN_CHECK_FAULT 		= 17,
+	IRQ_MACHINE_CHECK_ABORT 	= 18,
+	IRQ_SIMD_FLOAT_PT_EXCEPT_FAULT 	= 19,
 	IRQ_VIRTUALIZATION_EXCEPT_FAULT = 20,
 	IRQ_SECURITY_EXCEPT_FAULT       = 30,
 };
@@ -45,7 +46,7 @@ extern void page_fault_irq(struct pt_regs *);
 extern void x87_float_pt_except_fault_irq(struct pt_regs *);
 extern void align_check_fault_irq(struct pt_regs *);
 extern void machine_check_abort_irq(struct pt_regs *);
-extern void smid_float_pt_except_fault_irq(struct pt_regs *);
+extern void simd_float_pt_except_fault_irq(struct pt_regs *);
 extern void virtualization_except_fault_irq(struct pt_regs *);
 extern void security_except_fault_irq(struct pt_regs *);
 

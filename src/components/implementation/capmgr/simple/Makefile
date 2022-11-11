@@ -3,7 +3,7 @@
 #
 # The set of interfaces that this component exports for use by other
 # components. This is a list of the interface names.
-INTERFACE_EXPORTS = capmgr capmgr_create init
+INTERFACE_EXPORTS = capmgr capmgr_create init contigmem
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
 INTERFACE_DEPENDENCIES = init addr

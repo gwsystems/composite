@@ -79,34 +79,40 @@ chal_tlbstall_recount(int a)
 void
 chal_init(void)
 {
-	u32_t a, b, c, d;
+	u32_t a = 0, b = 0, c = 0, d = 0;
 	u32_t vendor[4];
 	char *v = (char *)&vendor[0];
 	int   apicid, i;
 
 	printk("Processor information:\n");
-	chal_cpuid(0, &a, &b, &c, &d);
+	a = 0;
+	chal_cpuid(&a, &b, &c, &d);
 	vendor[0] = b;
 	vendor[1] = d;
 	vendor[2] = c;
 	vendor[3] = 0;
 	printk("\tVendor: %s\n", (char *)vendor);
 
-	chal_cpuid(0x80000000, &a, &b, &c, &d);
+	a = 0x80000000;
+	chal_cpuid(&a, &b, &c, &d);
 	/* processor brand string is supported? */
 	if (a > 0x80000004) {
 		u32_t name[13];
 
-		chal_cpuid(0x80000002, &name[0], &name[1], &name[2], &name[3]);
-		chal_cpuid(0x80000003, &name[4], &name[5], &name[6], &name[7]);
-		chal_cpuid(0x80000004, &name[8], &name[9], &name[10], &name[11]);
+		name[0] = 0x80000002;
+		chal_cpuid(&name[0], &name[1], &name[2], &name[3]);
+		name[4] = 0x80000003;
+		chal_cpuid(&name[4], &name[5], &name[6], &name[7]);
+		name[8] = 0x80000004;
+		chal_cpuid(&name[8], &name[9], &name[10], &name[11]);
 		name[12] = 0;
 
 		printk("\tBrand string %s\n", (char *)name);
 	}
 
 	printk("\tFeatures [");
-	chal_cpuid(1, &a, &b, &c, &d);
+	a = 1;
+	chal_cpuid(&a, &b, &c, &d);
 	if (d & (1 << 4)) printk("rdtsc ");
 	if (d & (1 << 0)) printk("fpu ");
 	if (d & (1 << 3)) printk("superpages ");
@@ -116,15 +122,19 @@ chal_init(void)
 	if (d & (1 << 9)) printk("apic ");
 	if (c & (1 << 21)) printk("x2apic ");
 	if (c & (1 << 24)) printk("tsc-deadline ");
-	chal_cpuid(0x80000001, &a, &b, &c, &d);
+	a = 0x80000001;
+	chal_cpuid(&a, &b, &c, &d);
 	if (d & (1 << 27)) printk("rdtscp ");
-	chal_cpuid(0x80000007, &a, &b, &c, &d);
+	a = 0x80000007;
+	chal_cpuid(&a, &b, &c, &d);
 	if (d & (1 << 8)) printk("invariant_tsc ");
 	printk("]\n");
 
-	chal_cpuid(0x16, &a, &b, &c, &d);
+	a = 0x16;
+	chal_cpuid(&a, &b, &c, &d);
 	/* FIXME: on x86_64, need to do cpuid twice to get frequency, don't know why */
-	chal_cpuid(0x16, &a, &b, &c, &d);
+	a = 0x16;
+	chal_cpuid(&a, &b, &c, &d);
 	a = (a << 16) >> 16;
 	if (a) {
 		printk("\tCPUID base frequency: %d (* 1Mhz)\n", a);

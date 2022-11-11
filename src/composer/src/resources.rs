@@ -1,6 +1,6 @@
 use initargs::ArgsKV;
 use passes::{
-    component, BuildState, ComponentId, PropertiesPass, ResPass, ServiceType,
+    component, BuildState, ComponentId, OrderedSpecPass, PropertiesPass, ResPass, ServiceType,
     SystemState, Transition,
 };
 use std::collections::{BTreeMap, HashMap};
@@ -220,6 +220,20 @@ fn capmgr_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
         );
         names_args.push(ArgsKV::new_key(c.to_string(), name));
     }
+
+    // Lets provide information to the capability manager about which
+    // components are in shared, and which are in exclusive address
+    // spaces.
+    let mut shared_vas = Vec::new();
+    let vas: &dyn OrderedSpecPass = s.get_named();
+    for (_, addrspc) in vas.addrspc_components_shared() {
+        for c in &addrspc.components {
+            // unwrap as every name should be represented (see OrderedSpecpass).
+            let id = vas.rmap().get(&c).unwrap();
+            shared_vas.push(ArgsKV::new_key("_".to_string(), format!("{}", id)));
+        }
+    }
+
     cfg.args.push(ArgsKV::new_arr(
         "scheduler_hierarchy".to_string(),
         sched_args,
@@ -234,6 +248,7 @@ fn capmgr_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
         .push(ArgsKV::new_arr("captbl".to_string(), ct_args));
     cfg.args
         .push(ArgsKV::new_arr("names".to_string(), names_args));
+    cfg.args.push(ArgsKV::new_arr("addrspc_shared".to_string(), shared_vas));
 }
 
 fn constructor_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
