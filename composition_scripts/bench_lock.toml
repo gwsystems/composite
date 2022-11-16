@@ -1,5 +1,5 @@
 [system]
-description = "Crt lock benchmarking test."
+description = "Sync lock benchmarking test."
 
 [[components]]
 name = "booter"
