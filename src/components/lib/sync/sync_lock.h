@@ -80,13 +80,13 @@ sync_lock_take(struct sync_lock *l)
 
 		sync_blkpt_checkpoint(&l->blkpt, &chkpt);
 
+		owner_blked = ps_load(&l->owner_blked);
 		/* Can we take the lock? */
 		if (ps_cas(&l->owner_blked, 0, (unsigned long)cos_thdid())) {
 			return;	/* success! */
 		}
 
 		/* slowpath: we're blocking! Set the blocked bit, or try again */
-		owner_blked = ps_load(&l->owner_blked);
 		if (!ps_cas(&l->owner_blked, owner_blked, owner_blked | SYNC_LOCK_BLKED_MASK)) continue;
 
 		/* We can't take the lock, have set the block bit, and await release */
