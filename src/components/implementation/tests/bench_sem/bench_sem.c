@@ -7,7 +7,7 @@
 #include <llprint.h>
 #include <sched.h>
 
-#include <crt_sem.h>
+#include <sync_sem.h>
 #include <perfdata.h>
 #include <cos_time.h>
 
@@ -19,10 +19,10 @@
 #endif
 
 /* One low-priority thread and one high-priority thread contends on the semaphore */
-#define ITERATION 10000
-#define PRINT_ALL
+#define ITERATION 100
+//#define PRINT_ALL
 
-struct crt_sem sem;
+struct sync_sem sem;
 thdid_t sem_hi = 0, sem_lo = 0;
 volatile int flag = 0;
 
@@ -50,8 +50,8 @@ sem_hi_thd(void *d)
 		flag = 1;
 		start = time_now();
 
-		crt_sem_take(&sem);
-		crt_sem_give(&sem);
+		sync_sem_take(&sem);
+		sync_sem_give(&sem);
 
 		end = time_now();
 		debug("h3");
@@ -70,12 +70,12 @@ sem_lo_thd(void *d)
 
 		debug("l2");
 		flag = 0;
-		crt_sem_take(&sem);
+		sync_sem_take(&sem);
 
 		debug("l3");
 		while (flag != 1) {}
 
-		crt_sem_give(&sem);
+		sync_sem_give(&sem);
 
 		if (first == 0) first = 1;
 		else perfdata_add(&perf, end - start);
@@ -104,15 +104,15 @@ test_sem(void)
 		SCHED_PARAM_CONS(SCHEDP_PRIO, 6)
 	};
 
-	crt_sem_init(&sem, 1);
+	sync_sem_init(&sem, 1);
 
 	/* Uncontended semaphore taking/releasing */
 	perfdata_init(&perf, "Uncontended semaphore - take+give", result, ITERATION);
 	for (i = 0; i < ITERATION + 1; i++) {
 		start = time_now();
 
-		crt_sem_take(&sem);
-		crt_sem_give(&sem);
+		sync_sem_take(&sem);
+		sync_sem_give(&sem);
 
 		end = time_now();
 		if (first == 0) first = 1;
@@ -141,7 +141,7 @@ test_sem(void)
 void
 cos_init(void)
 {
-	printc("Benchmark for the crt_sem (w/sched interface).\n");
+	printc("Benchmark for the sync_sem (w/sched interface).\n");
 }
 
 int
@@ -150,6 +150,8 @@ main(void)
 	test_sem();
 
 	printc("Running benchmark, exiting main thread...\n");
+	sched_thd_block(0);
+	BUG();
 
 	return 0;
 }

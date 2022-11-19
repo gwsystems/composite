@@ -15,34 +15,27 @@
 #include <cos_component.h>
 #include <sync_blkpt.h>
 
-#define MAX_SEMS		10000000
-#define CONCURRENT_TAKES	1000
-
 struct sync_sem {
-	unsigned long rescnt_blked;
+	unsigned long     rescnt;
 	struct sync_blkpt blkpt;
 };
 
 #define SYNC_SEM_OWNER_BLKED_BITS  (sizeof(unsigned long) * 8)
-#define SYNC_SEM_BLKED_MASK        (1UL << (SYNC_SEM_OWNER_BLKED_BITS - 2))
-#define SYNC_SEM_BLKED(e)          ((e) &  SYNC_SEM_BLKED_MASK)
-#define SYNC_SEM_RESCNT(e)         ((e) & ~SYNC_SEM_BLKED_MASK)
+#define SYNC_SEM_ZERO              (~0UL >> (SYNC_SEM_OWNER_BLKED_BITS / 2))
 
 /**
  * Initialize a semaphore. Does *not* allocate memory for it, and assumes
  * that you pass that memory in as an argument.
  *
  * - @s - the semaphore
- * - @resnum - the number of the resources
+ * - @resnum - the number of the resources. `0` is equivalent to a mutex.
  * - @return - `0` on successful initialization,
  *             `!0` if the backing blockpoint cannot be allocated
  */
 static inline int
 sync_sem_init(struct sync_sem *s, unsigned long resnum)
 {
-	if (resnum >= MAX_SEMS) return -1;
-
-	s->rescnt_blked = resnum + CONCURRENT_TAKES;
+	s->rescnt = SYNC_SEM_ZERO + resnum;
 
 	return sync_blkpt_init(&s->blkpt);
 }
@@ -61,11 +54,8 @@ sync_sem_init(struct sync_sem *s, unsigned long resnum)
 static inline int
 sync_sem_teardown(struct sync_sem *s)
 {
-	unsigned long cached;
-
-	cached = ps_load(&s->rescnt_blked);
-	assert(SYNC_SEM_BLKED(s->rescnt_blked) == 0);
-	if (!ps_cas(&s->rescnt_blked, cached, ~0)) return 1;
+	/* Shouldn't tear down the semaphore while there are blocked threads. */
+	assert(s->rescnt >= SYNC_SEM_ZERO);
 
 	return sync_blkpt_teardown(&s->blkpt);
 }
@@ -83,22 +73,30 @@ sync_sem_take(struct sync_sem *s)
 	struct sync_blkpt_checkpoint chkpt;
 
 	while (1) {
-		unsigned long rescnt_blked;
+		unsigned long rescnt;
 
 		sync_blkpt_checkpoint(&s->blkpt, &chkpt);
 
-		/* Can we take the semaphore? If the number of semaphores are not zero, we try to take it */
-		if (SYNC_SEM_RESCNT(ps_faa(&s->rescnt_blked, -1)) > CONCURRENT_TAKES) {
-			return;	/* success! */
-		}
+		rescnt = ps_load(&s->rescnt);
+		/*
+		 * Attempt to take a count and return; any changes
+		 * deserve a "retry". Note this will update even when
+		 * multiple threads are able to take the semaphore
+		 * without blocking. Oh well.
+		 */
+		if (unlikely(!ps_cas(&s->rescnt, rescnt, rescnt - 1))) continue; /* retry */
 
-		/* slowpath: we're blocking! Set the blocked bit, or try again */
-		ps_faa(&s->rescnt_blked, 1);
-		rescnt_blked = ps_load(&s->rescnt_blked);
-		if (!ps_cas(&s->rescnt_blked, rescnt_blked, rescnt_blked | SYNC_SEM_BLKED_MASK)) continue;
+		/* If we don't need to block, return */
+		if (likely(rescnt > SYNC_SEM_ZERO)) return;
 
-		/* We can't take the semaphore, have set the block bit, and await release */
 		sync_blkpt_wait(&s->blkpt, 0, &chkpt);
+		/*
+		 * When we wakeup, attempt to take the semaphore
+		 * again, so this assumes that when waking, the count
+		 * is reset to 1 even if it is arbitrarily negative
+		 * (assuming we wake all blocked threads in the
+		 * blockpoint).
+		 */
 	}
 }
 
@@ -108,16 +106,30 @@ sync_sem_take(struct sync_sem *s)
  *
  * - @s - the `sync_sem`
  * - @return - `0` on successful semaphore acquisition,
- *             '1' if there are no semaphores anymore.
+ *             '1' if there are no semaphore resources available.
  */
 static inline int
 sync_sem_try_take(struct sync_sem *s)
 {
-	if (SYNC_SEM_RESCNT(ps_faa(&s->rescnt_blked, -1)) > CONCURRENT_TAKES) {
-		return 0;	/* success! */
+	unsigned long rescnt;
+
+	while (1) {
+		rescnt = ps_load(&s->rescnt);
+
+		/* If taking the semaphore would block, return as such */
+		if (rescnt <= SYNC_SEM_ZERO) return 1;
+
+		/*
+		 * Attempt to take a count and return; any changes
+		 * deserve a "retry". Note this CAS *can* fail even
+		 * when multiple threads are able to take the
+		 * semaphore without blocking. Oh well.
+		 */
+		if (unlikely(!ps_cas(&s->rescnt, rescnt, rescnt - 1))) continue; /* retry */
+
+		/* Successfully taken! */
+		return 0;
 	}
-	ps_faa(&s->rescnt_blked, 1);
-	return 1;
 }
 
 /**
@@ -131,18 +143,24 @@ static inline void
 sync_sem_give(struct sync_sem *s)
 {
 	while (1) {
-		unsigned long o_b = ps_load(&s->rescnt_blked);
-		int blked = unlikely(SYNC_SEM_BLKED(o_b) == SYNC_SEM_BLKED_MASK);
-		int rescnt = SYNC_SEM_RESCNT(o_b);
+		unsigned long rescnt = ps_load(&s->rescnt);
 
-		/* If we'd have enough number of semaphores, saturate it */
-		if (rescnt < (CONCURRENT_TAKES + MAX_SEMS)) rescnt++;
-
-		/* Give semaphore back and clear the blocked bit, with CAS */
-		if (unlikely(!ps_cas(&s->rescnt_blked, o_b, rescnt))) continue;
-
-		/* if there are blocked threads, wake 'em up! */
-		if (unlikely(blked)) sync_blkpt_wake(&s->blkpt, 0);
+		if (likely(rescnt >= SYNC_SEM_ZERO)) {
+			/* No blocked threads. Just increment the count. */
+			if (!ps_cas(&s->rescnt, rescnt, rescnt + 1)) continue; /* retry */
+		} else {
+			/*
+			 * We have blocked threads. Wake them giving
+			 * one resource for one of them. The rest will
+			 * again take the count below zero, and
+			 * reblock. Not great, but this is the
+			 * solution until we have the ability to wake
+			 * only one thread.
+			 */
+			if (!ps_cas(&s->rescnt, rescnt, SYNC_SEM_ZERO + 1)) continue; /* retry */
+			/* if there are blocked threads, wake 'em up! */
+			sync_blkpt_wake(&s->blkpt, 0);
+		}
 
 		return;
 	}
