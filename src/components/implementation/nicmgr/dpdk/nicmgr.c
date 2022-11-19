@@ -8,6 +8,7 @@
 #include <cos_dpdk.h>
 #include <ck_ring.h>
 #include <rte_atomic.h>
+#include <sync_sem.h>
 #include "nicmgr.h"
 
 typedef unsigned long cos_paddr_t; /* physical address */
@@ -79,13 +80,12 @@ nic_get_a_packet(u16_t *pkt_len)
 	assert(thd < NIC_MAX_SESSION);
 
 	session = &client_sessions[thd];
-	
-	while (pkt_ring_buf_empty(&session->pkt_ring_buf)) {
-		session->thd_state = CLIENT_BLOCK;
-		sched_thd_block(0);
-	}
 
-	session->thd_state = CLIENT_RUNNING;
+	session->blocked_loops_begin++;
+	sync_sem_take(&session->sem);
+	session->blocked_loops_end++;
+
+	assert(!pkt_ring_buf_empty(&session->pkt_ring_buf));
 
 	while (!pkt_ring_buf_dequeue(&session->pkt_ring_buf, &buf))
 	assert(buf.pkt);
@@ -130,7 +130,7 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	buf.paddr   = data_paddr;
 	buf.pkt_len = pkt_len;
 
-	if (!pkt_ring_buf_enqueue(&g_tx_ring, &buf)) {
+	if (!pkt_ring_buf_enqueue(&client_sessions[thd].pkt_tx_ring, &buf)) {
 		/* tx queue is full, drop the packet */
 		rte_atomic64_add(&tx_enqueued_miss, 1);
 		shm_bm_free_net_pkt_buf(obj);
@@ -162,8 +162,6 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 	client_sessions[thd].ip_addr = ip_addr;
 	client_sessions[thd].port    = port;
 	client_sessions[thd].thd     = thd;
-	client_sessions[thd].thd_state = CLIENT_RUNNING;
-	client_sessions[thd].batch_nb = 0;
 
 	shm   = netshmem_get_shm();
 	assert(shm);
@@ -176,7 +174,15 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 	client_sessions[thd].shemem_info.paddr = paddr;
 	cos_hash_add(client_sessions[thd].port, &client_sessions[thd]);
 
+	sync_sem_init(&client_sessions[thd].sem, 0);
+
 	pkt_ring_buf_init(&client_sessions[thd].pkt_ring_buf, RX_PKT_RBUF_NUM, RX_PKT_RING_SZ);
+	pkt_ring_buf_init(&client_sessions[thd].pkt_tx_ring, TX_PKT_RBUF_NUM, TX_PKT_RING_SZ);
+
+	client_sessions[thd].blocked_loops_begin = 0;
+	client_sessions[thd].blocked_loops_end = 0;
+	client_sessions[thd].tx_init_done = 1;
+
 	return 0;
 }
 

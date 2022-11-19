@@ -10,12 +10,16 @@
 #include <rte_hash.h>
 #include <rte_jhash.h>
 #include <rte_hash_crc.h>
+#include <sync_blkpt.h>
 #include "nicmgr.h"
 
 #define NB_RX_DESC_DEFAULT 1024
 #define NB_TX_DESC_DEFAULT 1024
 
 #define MAX_PKT_BURST NB_RX_DESC_DEFAULT
+
+unsigned long enqueued_rx = 0, dequeued_tx = 0;
+int debug_flag = 0;
 
 /* rx and tx stats */
 u64_t rx_enqueued_miss = 0;
@@ -41,7 +45,6 @@ static struct rte_hash_parameters rte_hash_params = {
 static void
 cos_hash_init()
 {
-	
 	int pos, ret;
 
 	rte_hash_params.name = "tenant_id_tbl";
@@ -49,6 +52,7 @@ cos_hash_init()
 	tenant_hash_tbl = rte_hash_create(&rte_hash_params);
 
 	assert(tenant_hash_tbl);
+
 	printc("tenant hash table init done\n");
 }
 
@@ -60,11 +64,29 @@ cos_hash_add(uint16_t tenant_id, struct client_session *session)
 	assert(ret >= 0);
 }
 
+static void
+debug_print_stats(void)
+{
+	cos_get_port_stats(0);
+
+	printc("rx mempool in use:%u\n", cos_mempool_in_use_count(g_rx_mp));
+	printc("rx enqueued miss:%llu\n", rx_enqueued_miss);
+	printc("tx enqueued miss:%lu\n", tx_enqueued_miss.cnt);
+	printc("enqueue:%lu, txqneueue:%lu\n", enqueued_rx, dequeued_tx);
+}
+
 struct client_session *
 cos_hash_lookup(uint16_t tenant_id)
 {
 	int ret;
 	struct client_session *session;
+
+	/* If DPDK receives this port, it goes to process debug information */
+	if (unlikely(tenant_id == htons(NIC_DEBUG_PORT))) {
+		debug_flag = 1;
+		return NULL;
+	}
+
 	ret = rte_hash_lookup_data(tenant_hash_tbl, &tenant_id, (void *)&session);
 	assert(ret >= 0);
 
@@ -88,23 +110,31 @@ process_tx_packets(void)
 	char *mbuf;
 	void *ext_shinfo;
 	char *tx_packets[MAX_PKT_BURST];
-	int i = 0;
+	struct pkt_ring_buf *per_thd_tx_ring;
+	int i = 0, j = 0;
 
-	while (!pkt_ring_buf_empty(&g_tx_ring)) {
-		i = 0;
-		pkt_ring_buf_dequeue(&g_tx_ring, &buf);
+	for (j = 0; j < NIC_MAX_SESSION; j++) {
+		if (client_sessions[j].tx_init_done == 0) continue;
 
-		mbuf = cos_allocate_mbuf(g_tx_mp);
-		assert(mbuf);
-		ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
+		per_thd_tx_ring = &client_sessions[j].pkt_tx_ring;
+		while (!pkt_ring_buf_empty(per_thd_tx_ring)) {
+			i = 0;
 
-		cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
-		cos_set_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len, ENABLE_OFFLOAD);
-		tx_packets[i++] = mbuf;
+			pkt_ring_buf_dequeue(per_thd_tx_ring, &buf);
 
-		cos_dev_port_tx_burst(0, 0, &tx_packets, i);
+			dequeued_tx++;
+			mbuf = cos_allocate_mbuf(g_tx_mp);
+			assert(mbuf);
+			ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
+
+			cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
+			cos_set_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len, ENABLE_OFFLOAD);
+			tx_packets[i++] = mbuf;
+
+			cos_dev_port_tx_burst(0, 0, tx_packets, i);
+		}
+
 	}
-
 }
 
 static void
@@ -146,11 +176,13 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 				rx_enqueued_miss++;
 				continue;
 			}
+			enqueued_rx++;
 
-			session->batch_nb++;
-			if (session->thd_state == CLIENT_BLOCK && session->batch_nb > 0) {
-				sched_thd_wakeup(session->thd);
-				session->batch_nb = 0;
+			sync_sem_give(&session->sem);
+
+			if (unlikely(debug_flag)) {
+				debug_print_stats();
+				debug_flag = 0;
 			}
 		} else if (htons(eth->ether_type) == 0x0806) {
 			assert(0);
@@ -174,14 +206,12 @@ cos_free_rx_buf()
 
 static void
 cos_nic_start(){
-	#define MAX_RECV_LOOP 100000000
-
 	int i, j, recv_round;
 	uint16_t nb_pkts = 0;
 
 	char *rx_packets[MAX_PKT_BURST];
 
-	for (recv_round = 0; ; recv_round++) {
+	while (1) {
 #if USE_CK_RING_FREE_MBUF
 		cos_free_rx_buf();
 #endif
@@ -193,11 +223,6 @@ cos_nic_start(){
 			}
 		}
 	}
-
-	cos_get_port_stats(0);
-	printc("rx mempool in use:%u\n", cos_mempool_in_use_count(g_rx_mp));
-	printc("rx enqueued miss:%llu\n", rx_enqueued_miss);
-	printc("tx enqueued miss:%lu\n", tx_enqueued_miss.cnt);
 }
 
 static void
@@ -274,7 +299,6 @@ cos_init(void)
 	cos_nic_init();
 	cos_hash_init();
 
-	pkt_ring_buf_init(&g_tx_ring, TX_PKT_RBUF_NUM, TX_PKT_RING_SZ);
 	pkt_ring_buf_init(&g_free_ring, FREE_PKT_RBUF_NUM, FREE_PKT_RING_SZ);
 
 	printc("dpdk init end\n");
@@ -285,7 +309,7 @@ parallel_main(coreid_t cid)
 {
 	/* DPDK rx and tx will only run on core 0 */
 	if(cid != 0) return 0;
-	printc("NIC started\n");
+	printc("NIC started:%ld\n", cos_thdid());
 
 	cos_nic_start();
 	return 0;

@@ -5,6 +5,7 @@
 #include <cos_component.h>
 #include <shm_bm.h>
 #include <ck_ring.h>
+#include <sync_sem.h>
 
 #define NIC_MAX_SESSION 32
 #define NIC_MAX_SHEMEM_REGION 3
@@ -12,8 +13,8 @@
 #define NIC_SHMEM_RX 0
 #define NIC_SHMEM_TX 1
 
-#define CLIENT_RUNNING 1
-#define CLIENT_BLOCK 0
+/* Client can use this port to send debug commands */
+#define NIC_DEBUG_PORT 36000
 
 struct shemem_info {
 	cbuf_t   shmid;
@@ -43,8 +44,16 @@ struct client_session {
 	u16_t port;
 	int thd_state;
 
-	int batch_nb;
 	struct pkt_ring_buf pkt_ring_buf;
+	struct pkt_ring_buf pkt_tx_ring;
+
+	int tx_init_done;
+	struct sync_sem sem;
+
+	/* number of blocked loops of the tenant, this is counted each time when the thread is blocked */
+	int blocked_loops_begin;
+	/* number of bloocked loops exit of the tenant, this is counted each time when the thread exits its blocked state */
+	int blocked_loops_end;
 };
 
 extern struct pkt_ring_buf g_tx_ring;

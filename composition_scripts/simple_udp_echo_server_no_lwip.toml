@@ -25,7 +25,7 @@ constructor = "booter"
 [[components]]
 name = "sched"
 img  = "sched.pfprr_quantum_static"
-deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "print", interface = "print"}]
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
 implements = [{interface = "sched"}, {interface = "syncipc"}, {interface = "init"}]
 constructor = "booter"
 
