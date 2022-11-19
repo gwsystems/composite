@@ -5,7 +5,12 @@
 #include <netshmem.h>
 #include <sched.h>
 #include <arpa/inet.h>
-#include <cos_headers.h>
+#include <net_stack_types.h>
+#include <rte_atomic.h>
+#include <rte_hash.h>
+#include <rte_jhash.h>
+#include <rte_hash_crc.h>
+#include <sync_blkpt.h>
 #include "nicmgr.h"
 
 #define NB_RX_DESC_DEFAULT 1024
@@ -13,34 +18,89 @@
 
 #define MAX_PKT_BURST NB_RX_DESC_DEFAULT
 
+unsigned long enqueued_rx = 0, dequeued_tx = 0;
+int debug_flag = 0;
+
+/* rx and tx stats */
+u64_t rx_enqueued_miss = 0;
+extern rte_atomic64_t tx_enqueued_miss;
+
 char *g_rx_mp = NULL;
 char *g_tx_mp = NULL;
 
 static u16_t nic_ports = 0;
+static u16_t nic_queues = 1;
 
-static inline struct client_session *
-find_session(uint32_t dst_ip, uint16_t dst_port)
+struct rte_hash *tenant_hash_tbl;
+
+static struct rte_hash_parameters rte_hash_params = {
+	.entries = NIC_MAX_SESSION,
+	.key_len = sizeof(uint16_t),
+	.hash_func = rte_jhash,
+	.hash_func_init_val = 0,
+	.socket_id = 0,
+	.extra_flag = RTE_HASH_EXTRA_FLAGS_MULTI_WRITER_ADD,
+};
+
+static void
+cos_hash_init()
 {
-	/* TODO: change this search to hash-table in next version */
-	int i;
-	for (i = 0; i < NIC_MAX_SESSION; i++) {
-		if (client_sessions[i].ip_addr == dst_ip /*&& client_sessions[i].port == dst_port*/) {
-			return &client_sessions[i];
-		}
+	int pos, ret;
+
+	rte_hash_params.name = "tenant_id_tbl";
+
+	tenant_hash_tbl = rte_hash_create(&rte_hash_params);
+
+	assert(tenant_hash_tbl);
+
+	printc("tenant hash table init done\n");
+}
+
+void 
+cos_hash_add(uint16_t tenant_id, struct client_session *session)
+{
+	int ret;
+	ret = rte_hash_add_key_data(tenant_hash_tbl, &tenant_id, session);
+	assert(ret >= 0);
+}
+
+static void
+debug_print_stats(void)
+{
+	cos_get_port_stats(0);
+
+	printc("rx mempool in use:%u\n", cos_mempool_in_use_count(g_rx_mp));
+	printc("rx enqueued miss:%llu\n", rx_enqueued_miss);
+	printc("tx enqueued miss:%lu\n", tx_enqueued_miss.cnt);
+	printc("enqueue:%lu, txqneueue:%lu\n", enqueued_rx, dequeued_tx);
+}
+
+struct client_session *
+cos_hash_lookup(uint16_t tenant_id)
+{
+	int ret;
+	struct client_session *session;
+
+	/* If DPDK receives this port, it goes to process debug information */
+	if (unlikely(tenant_id == htons(NIC_DEBUG_PORT))) {
+		debug_flag = 1;
+		return NULL;
 	}
 
-	return NULL;
+	ret = rte_hash_lookup_data(tenant_hash_tbl, &tenant_id, (void *)&session);
+	assert(ret >= 0);
+
+	return session;
 }
 
 static void
 ext_buf_free_callback_fn(void *addr, void *opaque)
 {
+	/* Shared mem uses borrow api, thus do not need to free it here */
 	if (addr == NULL) {
 		printc("External buffer address is invalid\n");
 		assert(0);
 	}
-
-	shm_bm_free_net_pkt_buf(addr);
 }
 
 static void
@@ -49,16 +109,31 @@ process_tx_packets(void)
 	struct pkt_buf buf;
 	char *mbuf;
 	void *ext_shinfo;
+	char *tx_packets[MAX_PKT_BURST];
+	struct pkt_ring_buf *per_thd_tx_ring;
+	int i = 0, j = 0;
 
-	while (!pkt_ring_buf_empty(&g_tx_ring)) {
-		pkt_ring_buf_dequeue(&g_tx_ring, &buf);
+	for (j = 0; j < NIC_MAX_SESSION; j++) {
+		if (client_sessions[j].tx_init_done == 0) continue;
 
-		mbuf = cos_allocate_mbuf(g_tx_mp);
-		assert(mbuf);
-		ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
+		per_thd_tx_ring = &client_sessions[j].pkt_tx_ring;
+		while (!pkt_ring_buf_empty(per_thd_tx_ring)) {
+			i = 0;
 
-		cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
-		cos_send_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len);
+			pkt_ring_buf_dequeue(per_thd_tx_ring, &buf);
+
+			dequeued_tx++;
+			mbuf = cos_allocate_mbuf(g_tx_mp);
+			assert(mbuf);
+			ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
+
+			cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
+			cos_set_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len, ENABLE_OFFLOAD);
+			tx_packets[i++] = mbuf;
+
+			cos_dev_port_tx_burst(0, 0, tx_packets, i);
+		}
+
 	}
 }
 
@@ -82,28 +157,35 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 
 		if (htons(eth->ether_type) == 0x0800) {
 			iph	= (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
+			if (unlikely(iph->proto != UDP_PROTO)) {
+				cos_free_packet(buf.pkt);
+				rx_enqueued_miss++;
+				continue;
+			}
 			port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
 
-			session = find_session(iph->dst_addr, port->dst_port);
-			if (session == NULL) continue;
-
-			buf.pkt = rx_pkts[i];
-			if (!pkt_ring_buf_enqueue(&session->pkt_ring_buf, &buf)){
-				cos_free_packet(buf.pkt);
+			session = cos_hash_lookup(port->dst_port);
+			if (unlikely(session == NULL)) {
+				cos_free_packet(rx_pkts[i]);
 				continue;
 			}
 
-			sched_thd_wakeup(session->thd);
-		} else if (htons(eth->ether_type) == 0x0806) {
-			arp_hdr = (struct arp_hdr *)((char *)eth + sizeof(struct eth_hdr));
-
-			session = find_session(arp_hdr->arp_data.arp_tip, 0);
-			if (session == NULL) continue;
-
 			buf.pkt = rx_pkts[i];
-			pkt_ring_buf_enqueue(&session->pkt_ring_buf, &buf);
+			if (unlikely(!pkt_ring_buf_enqueue(&session->pkt_ring_buf, &buf))){
+				cos_free_packet(buf.pkt);
+				rx_enqueued_miss++;
+				continue;
+			}
+			enqueued_rx++;
 
-			sched_thd_wakeup(session->thd);
+			sync_sem_give(&session->sem);
+
+			if (unlikely(debug_flag)) {
+				debug_print_stats();
+				debug_flag = 0;
+			}
+		} else if (htons(eth->ether_type) == 0x0806) {
+			assert(0);
 		}
 	}
 }
@@ -124,24 +206,23 @@ cos_free_rx_buf()
 
 static void
 cos_nic_start(){
-	int i;
+	int i, j, recv_round;
 	uint16_t nb_pkts = 0;
 
 	char *rx_packets[MAX_PKT_BURST];
 
 	while (1) {
-		/* infinite loop to process packets */
+#if USE_CK_RING_FREE_MBUF
 		cos_free_rx_buf();
+#endif
 		process_tx_packets();
 		for (i = 0; i < nic_ports; i++) {
-			/* process rx */
-			nb_pkts = cos_dev_port_rx_burst(i, 0, rx_packets, MAX_PKT_BURST);
-
-			if (nb_pkts != 0) process_rx_packets(i, rx_packets, nb_pkts);
+			for (j = 0; j < nic_queues; j++) {
+				nb_pkts = cos_dev_port_rx_burst(i, j, rx_packets, MAX_PKT_BURST);
+				if (nb_pkts != 0) process_rx_packets(i, rx_packets, nb_pkts);
+			}
 		}
 	}
-
-	cos_get_port_stats(0);
 }
 
 static void
@@ -189,11 +270,11 @@ cos_nic_init(void)
 	assert(nic_ports > 0);
 
 	/* 3. create mbuf pool where packets will be stored, user can create multiple pools */
-	char *mp = cos_create_pkt_mbuf_pool(rx_mpool_name, max_rx_mbufs);
+	char *mp = cos_create_pkt_mbuf_pool_by_ops(rx_mpool_name, max_rx_mbufs, COS_MEMPOOL_MT_RTS_OPS);
 	assert(mp != NULL);
 	g_rx_mp = mp;
 
-	g_tx_mp = cos_create_pkt_mbuf_pool(tx_mpool_name, max_tx_mbufs);
+	g_tx_mp = cos_create_pkt_mbuf_pool_by_ops(tx_mpool_name, max_tx_mbufs, COS_MEMPOOL_MT_RTS_OPS);
 	assert(g_tx_mp);
 
 	/* 4. config each port */
@@ -216,16 +297,19 @@ cos_init(void)
 {
 	printc("nicmgr init...\n");
 	cos_nic_init();
-	pkt_ring_buf_init(&g_tx_ring, TX_PKT_RBUF_NUM, TX_PKT_RING_SZ);
+	cos_hash_init();
+
 	pkt_ring_buf_init(&g_free_ring, FREE_PKT_RBUF_NUM, FREE_PKT_RING_SZ);
 
 	printc("dpdk init end\n");
 }
 
 int
-main(void)
+parallel_main(coreid_t cid)
 {
-	printc("NIC started\n");
+	/* DPDK rx and tx will only run on core 0 */
+	if(cid != 0) return 0;
+	printc("NIC started:%ld\n", cos_thdid());
 
 	cos_nic_start();
 	return 0;

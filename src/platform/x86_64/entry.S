@@ -58,15 +58,15 @@ sysenter_entry:
 	swapgs
 	movq %gs:KERNEL_STACK_OFFSET, %rsp
 	SAVE_REGS_ALL
-	mov %rsp, %rdi /* pt_reg */
+	movq %rsp, %rdi /* pt_reg */
 	call composite_syscall_handler
 
 	swapgs
 	testq %rax, %rax
 	jne restore_from_thd
 
-	RESTORE_REGS_ALL	
-	RET_TO_USER		
+	RESTORE_REGS_ALL
+	RET_TO_USER
 /* we are changing thread contexts, reload all registers */
 
 /* on restoring path, only the %ds will be taken care of. */
@@ -75,8 +75,8 @@ restore_from_thd:
 	/* %ds is constant, and %es, %fs, %gs are not used because they cannot be modified by user space and kernel also does not modify them, thus we just add 0x20 to %rsp */
 	addq $0x20, %rsp
 	/* user space will only use one constant %ds selector, thus we don't push/pop it, instead we just set the value in order to save some cycles. */
-	mov $(SEL_UDSEG), %rax
-	mov %rax, %ds
+	movq $(SEL_UDSEG), %rax
+	movq %rax, %ds
 	RESTORE_REGS_GENERAL
 
 	addq $8, %rsp
@@ -89,8 +89,8 @@ restore_from_thd:
 	SAVE_REGS_GENERAL; 	\
 	subq $0x20, %rsp;	\
 	movq $(SEL_KDSEG), %rax;\
-	mov %rax, %ds;		\
-	mov %rsp, %rdi; 	\
+	movq %rax, %ds;		\
+	movq %rsp, %rdi; 	\
 	call fn;		\
 	testq %rax, %rax;	\
 	jne restore_from_thd;	\
@@ -150,7 +150,7 @@ IRQ(virtualization_except_fault)
 IRQ_CODE(security_except_fault)
 
 IRQ(periodic)
-IRQ(keyboard)
+IRQ_ID(33)
 IRQ_ID(34)
 IRQ_ID(35)
 IRQ(serial)

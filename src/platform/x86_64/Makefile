@@ -32,37 +32,38 @@ WARNINGS += -Wno-address-of-packed-member
 
 CFLAGS += $(WARNINGS)
 
-OBJS += kernel.o
-OBJS += gdt.o
-OBJS += idt.o
-OBJS += vm.o
-OBJS += printk.o
-OBJS += string.o
-OBJS += vtxprintf.o
-OBJS += tss.o
-OBJS += user.o
-OBJS += serial.o
-OBJS += hpet.o
-OBJS += chal.o
-OBJS += boot_comp.o
-OBJS += miniacpi.o
-#OBJS += console.o
-OBJS += vga.o
-OBJS += exception.o
-OBJS += lapic.o
-OBJS += chal_pgtbl.o
-OBJS += fpu.o
+KERNEL_CFILES += kernel.c
+KERNEL_CFILES += gdt.c
+KERNEL_CFILES += idt.c
+KERNEL_CFILES += vm.c
+KERNEL_CFILES += printk.c
+KERNEL_CFILES += string.c
+KERNEL_CFILES += vtxprintf.c
+KERNEL_CFILES += tss.c
+KERNEL_CFILES += user.c
+KERNEL_CFILES += serial.c
+KERNEL_CFILES += hpet.c
+KERNEL_CFILES += chal.c
+KERNEL_CFILES += boot_comp.c
+KERNEL_CFILES += miniacpi.c
+KERNEL_CFILES += exception.c
+KERNEL_CFILES += lapic.c
+KERNEL_CFILES += chal_pgtbl.c
+KERNEL_CFILES += fpu.c
 
-COS_OBJ += pgtbl.o
-COS_OBJ += retype_tbl.o
-COS_OBJ += liveness_tbl.o
-COS_OBJ += tcap.o
-COS_OBJ += capinv.o
-COS_OBJ += captbl.o
+OBJS := $(KERNEL_CFILES:%.c=%.o)
+DEPS := $(KERNEL_CFILES:%.c=%.d)
 
-DEPS :=$(patsubst %.o, %.d, $(OBJS))
+# COS KERNEL_CFILES
+COS_CFILES += ../../kernel/pgtbl.c
+COS_CFILES += ../../kernel/retype_tbl.c
+COS_CFILES += ../../kernel/liveness_tbl.c
+COS_CFILES += ../../kernel/tcap.c
+COS_CFILES += ../../kernel/capinv.c
+COS_CFILES += ../../kernel/captbl.c
 
-OBJS += $(COS_OBJ)
+OBJS += $(COS_CFILES:../../kernel/%.c=%.o)
+DEPS += $(COS_CFILES:../../kernel/%.c=%.d)
 
 .PHONY: $(CONSTRUCTOR_COMP)
 
@@ -80,46 +81,30 @@ loader.o: loader.S entry.S
 	$(info |     [AS]   Assembling $@)
 	@$(CC) -c -I$(INCPATH) entry.S
 	@$(CC) -c -I$(INCPATH) loader.S
-	
-%.d: %.c
-	@set +e; rm -f $@; \
-	$(CC) -M $(CFLAGS) $< > $@.$$$$ 2>/dev/null; \
+
+define COMPILE_OBJ_RULE
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
+endef
+
+define COMPILE_DEP_RULE
+	@set +e; rm -f $@ $@.*; \
+	$(CC) -M $(CFLAGS) $< > $@.$$$$ 2>/dev/null ; \
 	if [ -s $@.$$$$ ]; then \
 		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	fi; \
 	rm -f $@.$$$$
+endef
 
-pgtbl.o: ../../kernel/pgtbl.c
-	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
-
-tcap.o: ../../kernel/tcap.c
-	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
-
-retype_tbl.o: ../../kernel/retype_tbl.c
-	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
-
-liveness_tbl.o: ../../kernel/liveness_tbl.c
-	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
-
-capinv.o: ../../kernel/capinv.c
-	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
-
-captbl.o: ../../kernel/captbl.c
-	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
+%.o:../../kernel/%.c ; $(COMPILE_OBJ_RULE)
+%.o: %.c ; $(COMPILE_OBJ_RULE)
 
 
-%.o: %.c
-	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
+%.d:../../kernel/%.c ; $(COMPILE_DEP_RULE)
+%.d:%.c ; $(COMPILE_DEP_RULE)
 
 clean:
-	@rm -f *.d *.o $(KERNEL)  kernel.iso
+	@rm -f $(OBJS) $(DEPS) *.o $(KERNEL) kernel.iso
 	@rm -rf iso
 	@rm -f constructor
 

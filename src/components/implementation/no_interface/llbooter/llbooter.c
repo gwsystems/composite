@@ -19,7 +19,7 @@
 #include <addr.h>
 
 #ifndef BOOTER_MAX_SINV
-#define BOOTER_MAX_SINV 256
+#define BOOTER_MAX_SINV 512
 #endif
 #ifndef BOOTER_MAX_SCHED
 #define BOOTER_MAX_SCHED 1
@@ -55,7 +55,7 @@ static        long     boot_id_offset = -1;
 
 SS_STATIC_SLAB(sinv,   struct crt_sinv,         BOOTER_MAX_SINV);
 SS_STATIC_SLAB(thd,    struct crt_thd,          BOOTER_MAX_INITTHD);
-SS_STATIC_SLAB(rcv,    struct crt_rcv,          BOOTER_MAX_SCHED);
+SS_STATIC_SLAB(rcv,    struct crt_rcv,          BOOTER_MAX_SCHED * NUM_CPU);
 SS_STATIC_SLAB(chkpt,  struct crt_chkpt,        BOOTER_MAX_CHKPT);
 SS_STATIC_SLAB_GLOBAL_ID(ns_asid, struct crt_ns_asid, BOOTER_MAX_NS_ASID, 0);
 SS_STATIC_SLAB_GLOBAL_ID(ns_vas, struct crt_ns_vas, BOOTER_MAX_NS_VAS, 0);
@@ -91,6 +91,61 @@ static void
 boot_comp_set_idoffset(int off)
 {
 	boot_id_offset = off;
+}
+
+/*
+ * Create the threads in each of the components, including rcv/tcaps
+ * for schedulers. This is called on each core as part of
+ * initialization.
+ */
+static void
+execution_init(int is_init_core)
+{
+	struct initargs curr, comps;
+	struct initargs_iter i;
+	int cont, ret;
+
+	/*
+	 * Actually create the threads for eventual execution in the
+	 * components.
+	 */
+	ret = args_get_entry("execute", &comps);
+	assert(!ret);
+	if (is_init_core) printc("Execution schedule:\n");
+	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		struct crt_comp     *comp;
+		int      keylen;
+		compid_t id        = atoi(args_key(&curr, &keylen));
+		char    *exec_type = args_value(&curr);
+		struct crt_comp_exec_context ctxt = { 0 };
+
+		assert(exec_type);
+		assert(id != cos_compid());
+		comp = boot_comp_get(id);
+		assert(comp);
+
+		if (!strcmp(exec_type, "sched")) {
+			struct crt_rcv *r = ss_rcv_alloc();
+
+			assert(r);
+
+			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, r))) BUG();
+			ss_rcv_activate(r);
+			if (is_init_core) printc("\tCreated scheduling execution for %ld\n", id);
+		} else if (!strcmp(exec_type, "init")) {
+			struct crt_thd *t = ss_thd_alloc();
+
+			assert(t);
+			if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, t))) BUG();
+			ss_thd_activate(t);
+			if (is_init_core) printc("\tCreated thread for %ld\n", id);
+		} else {
+			printc("Error: Found unknown execution schedule type %s.\n", exec_type);
+			BUG();
+		}
+
+		if (is_init_core) comp->init_state = CRT_COMP_INIT_COS_INIT;
+	}
 }
 
 static void
@@ -227,8 +282,10 @@ comps_init(void)
 		assert(comp);
 		elf_hdr = (void *)args_get(imgpath);
 
-		/* We assume, for now, that the composer is
-		 * *not* part of a shared VAS. */
+		/*
+		 * We assume, for now, that the composer is
+		 * *not* part of a shared VAS.
+		 */
 		if (id == cos_compid()) {
 			int ret;
 
@@ -241,47 +298,6 @@ comps_init(void)
 			if (crt_comp_create(comp, name, id, elf_hdr, info)) BUG();
 			assert(comp->refcnt != 0);
 		}
-	}
-
-	/*
-	 * Actually create the threads for eventual execution in the
-	 * components.
-	 */
-	ret = args_get_entry("execute", &comps);
-	assert(!ret);
-	printc("Execution schedule:\n");
-	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		struct crt_comp     *comp;
-		int      keylen;
-		compid_t id        = atoi(args_key(&curr, &keylen));
-		char    *exec_type = args_value(&curr);
-		struct crt_comp_exec_context ctxt = { 0 };
-
-		assert(exec_type);
-		assert(id != cos_compid());
-		comp = boot_comp_get(id);
-		assert(comp);
-
-		if (!strcmp(exec_type, "sched")) {
-			struct crt_rcv *r = ss_rcv_alloc();
-
-			assert(r);
-			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, r))) BUG();
-			ss_rcv_activate(r);
-			printc("\tCreated scheduling execution for %ld\n", id);
-		} else if (!strcmp(exec_type, "init")) {
-			struct crt_thd *t = ss_thd_alloc();
-
-			assert(t);
-			if (crt_comp_exec(comp, crt_comp_exec_thd_init(&ctxt, t))) BUG();
-			ss_thd_activate(t);
-			printc("\tCreated thread for %ld\n", id);
-		} else {
-			printc("Error: Found unknown execution schedule type %s.\n", exec_type);
-			BUG();
-		}
-
-		comp->init_state = CRT_COMP_INIT_COS_INIT;
 	}
 
 	/* perform any necessary captbl delegations */
@@ -402,12 +418,16 @@ comps_init(void)
 		struct crt_comp *c;
 		int keylen;
 		struct crt_comp_exec_context ctxt = { 0 };
+		/* TODO: generalize. Give the capmgr 64MB for now. */
+		size_t mem = BOOTER_CAPMGR_MB * 1024 * 1024;
+
+		printc("Capability manager memory delegation (%d capmgrs): %ld bytes.\n",
+		       args_len(&comps), (unsigned long)mem);
 
 		c = boot_comp_get(atoi(args_key(&curr, &keylen)));
 		assert(c);
 
-		/* TODO: generalize. Give the capmgr 64MB for now. */
-		if (crt_comp_exec(c, crt_comp_exec_capmgr_init(&ctxt, BOOTER_CAPMGR_MB * 1024 * 1024))) BUG();
+		if (crt_comp_exec(c, crt_comp_exec_capmgr_init(&ctxt, mem))) BUG();
 	}
 
 	printc("Kernel resources created, booting components!\n");
@@ -519,12 +539,6 @@ booter_init(void)
 }
 
 void
-execute(void)
-{
-	crt_compinit_execute(boot_comp_get);
-}
-
-void
 init_done_chkpt(struct crt_comp *c)
 {
 	struct crt_comp  *new_comp = boot_comp_get(crt_ncomp() + 1);
@@ -606,14 +620,27 @@ init_exit(int retval)
 }
 
 void
+cos_parallel_init(coreid_t cid, int is_init_core, int ncores)
+{
+	if (!is_init_core) cos_defcompinfo_sched_init();
+
+	execution_init(is_init_core);
+}
+
+void
 cos_init(void)
 {
 	booter_init();
+	cos_defcompinfo_sched_init();
 	comps_init();
+	/*
+	 * All component resources except for those required for
+	 * execution should be setup now.
+	 */
 }
 
 void
 parallel_main(coreid_t cid)
 {
-	execute();
+	crt_compinit_execute(boot_comp_get);
 }

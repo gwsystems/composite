@@ -12,7 +12,7 @@ INCLUDE_PATHS = . adapter dpdk/build/install/include
 
 INTERFACE_DEPENDENCIES =
 
-LIBRARY_DEPENDENCIES = component pci posix_cap posix_sched
+LIBRARY_DEPENDENCIES = component pci posix_cap posix_sched netdefs
 
 # this is to stop non supported build target
 # this will override $(OBJS) so that compiler will not compile target files under unsupported cases
@@ -80,7 +80,7 @@ else
 endif
 
 $(SHLIB_FILE): build $(OBJS)
-CFLAGS+=-mfma
+CFLAGS+=-mfma -DCOMPOSITE_EXISTS
 
 armv7a_init:
 
@@ -96,5 +96,7 @@ init: platform_init
 distclean:
 	cd $(DPDK_BUILD_DIR) ninja clean
 	cd $(DPDK_DIR); rm -rf build
+	rm -f *.d *.o *.a
 clean:
 	$(info cleaning DPDK)
+	rm -f *.d *.o *.a

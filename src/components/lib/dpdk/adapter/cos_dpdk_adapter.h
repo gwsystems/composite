@@ -34,4 +34,5 @@ cos_vaddr_t cos_map_phys_to_virt(cos_paddr_t paddr, size_t size);
 cos_paddr_t cos_map_virt_to_phys(cos_vaddr_t addr);
 
 unsigned long cos_get_tsc_freq(void);
+unsigned cos_curr_lcore(void);
 #endif /* COS_DPDK_ADAPTER_H */

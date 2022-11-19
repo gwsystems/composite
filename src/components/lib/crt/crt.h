@@ -3,6 +3,7 @@
 
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
+#include <cos_component.h>
 #include <cos_types.h>
 #include <init.h>
 #include <barrier.h>
@@ -25,9 +26,9 @@ struct crt_asnd_resources {
 typedef enum {
 	CRT_COMP_NONE        = 0,
 	CRT_COMP_SCHED       = 1, 	/* is this a scheduler? */
-	CRT_COMP_CAPMGR      = 1 << 1,	/* does this component require delegating management capabilities to it? */
-	CRT_COMP_INITIALIZE  = 1 << 2,	/* The current component should initialize this component... */
-	CRT_COMP_BOOTER      = 1 << 3	/* Is this the current component (i.e. the booter)? */
+	CRT_COMP_CAPMGR      = 2,	/* does this component require delegating management capabilities to it? */
+	CRT_COMP_INITIALIZE  = 4,	/* The current component should initialize this component... */
+	CRT_COMP_BOOTER      = 8	/* Is this the current component (i.e. the booter)? */
 } crt_comp_flags_t;
 
 struct crt_comp_exec_context {
@@ -38,7 +39,7 @@ struct crt_comp_exec_context {
 			struct crt_rcv *sched_rcv;
 			struct crt_asnd sched_asnd;
 		} sched;
-	} exec;			/* TODO: array, 1 per core */
+	} exec[NUM_CPU];
 	size_t memsz;
 };
 
@@ -90,7 +91,7 @@ struct crt_comp {
 	u32_t mpk_key;
 	capid_t second_lvl_pgtbl_cap;
 	struct crt_ns_vas *ns_vas;
-	
+
 };
 
 struct crt_comp_resources {
@@ -157,8 +158,6 @@ typedef enum {
 	CRT_RCV_ALIAS_RCV  = 4,
 	CRT_RCV_ALIAS_ALL  = CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP | CRT_RCV_ALIAS_RCV,
 } crt_rcv_alias_t;
-
-
 
 struct crt_sinv_resources {
 	sinvcap_t sinv_cap;
@@ -240,9 +239,9 @@ int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
  * #define CRT_VAS_NUM_NAMES 512
  * #define CRT_MPK_NUM_NAMES 16
  * #define CRT_ASID_NUM_NAMES 1024
- * 
+ *
  * for 64 bit:
- * name sz = 2^39 
+ * name sz = 2^39
  * 2^48 / 2^39 = 2^9 = 512 names
  * 2^9 / 2 to ensure the array fits into a page = 256 names
  * also: more ASIDs available in 64 bit
@@ -314,11 +313,30 @@ int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct
 int crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct crt_ns_vas *vas);
 
 /*
- * VAS name mapping/allocation. 
+ * VAS name mapping/allocation.
  * This function became no longer necessary due to the above, but an implementation of it is here:
  * https://github.com/ldierksheide/composite/blob/shared_pgtbl/src/components/lib/crt/crt.c#L322-L364
- * 
+ *
  * int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c);
  */
+
+/**
+ * `crt_delay` is a simple function to delay for a number of cycles.
+ */
+static inline void
+crt_delay(cycles_t spin)
+{
+	cycles_t start, now;
+
+	rdtscll(start);
+	now = start;
+
+	/* Unintuitive logic here to consider wrap-around */
+	while (now - start < spin) {
+		rdtscll(now);
+	}
+
+	return;
+}
 
 #endif /* CRT_H */

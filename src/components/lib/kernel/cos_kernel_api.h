@@ -120,7 +120,7 @@ int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
 compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry);
-void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier);
+void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, int try_expand);
 
 typedef void (*cos_thd_fn_t)(void *);
 thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);

@@ -2,6 +2,7 @@
 #include <llprint.h>
 #include <chan.h>
 #include <ps.h>
+#include <cos_time.h>
 
 struct chan_snd s;
 struct chan_rcv r;
@@ -9,7 +10,7 @@ struct chan_rcv r;
 #define COMM_AMNT (2^10 * 16)
 
 /*
- * Sync up chan_hi and chan_lo for benchmarks! 
+ * Sync up chan_hi and chan_lo for benchmarks!
  * Because this is chan_lo, recv first, and when it wakes up from rcv, send which immediately should yield to chan_hi
  */
 void
@@ -87,7 +88,7 @@ main(void)
 
 	printc("Component chan lo: executing main.\n");
 
-	/* 
+	/*
 	 * This sleep in both hi and lo comps lets the benchmark run
 	 * more predictably on HW and on Qemu.
 	 *

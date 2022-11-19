@@ -1,0 +1,9 @@
+[system]
+description = "Unit tests for the slm scheduling library."
+
+[[components]]
+name = "slm"
+img  = "tests.slm"
+implements = [{interface = "init"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"

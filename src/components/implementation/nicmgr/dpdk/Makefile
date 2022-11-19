@@ -9,7 +9,7 @@ INTERFACE_EXPORTS = nic
 INTERFACE_DEPENDENCIES = netshmem
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = component dpdk shm_bm ck
+LIBRARY_DEPENDENCIES = component dpdk shm_bm ck sync
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this

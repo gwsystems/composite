@@ -132,11 +132,11 @@ call_cap_op(u32_t cap_no, u32_t op_code, int arg1, int arg2, int arg3, int arg4)
 	return call_cap_asm(cap_no, op_code, arg1, arg2, arg3, arg4);
 }
 
-static void
+static int
 cos_print(char *s, int len)
 {
-	// FIXME: casting from a pointer to an int can be lossy
-	call_cap(PRINT_CAP_TEMP, (int) s, len, 0, 0);
+	u32_t *s_ints = (u32_t *)s;
+	return call_cap(PRINT_CAP_TEMP, s_ints[0], s_ints[1], s_ints[2], len);
 }
 
 static inline int

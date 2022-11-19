@@ -9,7 +9,7 @@ INTERFACE_EXPORTS = capmgr capmgr_create init contigmem
 INTERFACE_DEPENDENCIES = init addr
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = component sl_kernel initargs crt util
+LIBRARY_DEPENDENCIES = component initargs crt util
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this

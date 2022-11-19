@@ -30,11 +30,32 @@ call_cap_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word
 	long fault = 0;
 	int  ret;
 
+	/*
+	 * We use this frame ctx to save bp(frame pointer) and sp(stack pointer)
+	 * before it goes into the kernel through syscall.
+	 * 
+	 * We cannot use a push %rbp/%rsp because the compiler doesn't know
+	 * the inline assembly code changes the stack pointer. Thus, in some
+	 * cases the compiler might do some optimizations which could conflict
+	 * with the push %rbp/%rsp. That means, the push might corrupt some
+	 * stack local variables. Thus, instead of using push instruction, we
+	 * use mov instruction to first save them to a stack local position(frame_ctx)
+	 * and then pass the address of the frame_ctx to the kernel rather than the sp.
+	 * When the syscall returns, the kernel will restore the sp to the address of
+	 * frame_ctx, thus we can simply use two pops to restore the original bp and sp.
+	 */
+	struct frame_ctx {
+		word_t bp;
+		word_t sp;
+	} frame_ctx;
+
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	__asm__ __volatile__("pushq %%rbp\n\t"		\
-	                     "mov %%rsp, %%rbp\n\t"	\
+	__asm__ __volatile__(
+	                     "movq %%rbp, (%%rcx)\n\t"	\
+	                     "movq %%rsp, 8(%%rcx)\n\t"	\
+	                     "movq %%rcx, %%rbp\n\t"	\
 	                     "movabs $1f, %%r8\n\t"	\
 	                     "syscall\n\t"		\
 	                     ".align 8\n\t"		\
@@ -46,9 +67,10 @@ call_cap_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word
 	                     "2:\n\t"			\
 	                     "movl $1, %%ecx\n\t"	\
 	                     "3:\n\t"			\
-	                     "popq %%rbp"		\
+	                     "popq %%rbp\n\t"		\
+	                     "popq %%rsp\n\t"		\
 	                     : "=a"(ret), "=c"(fault)
-	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
+	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4), "c"(&frame_ctx)
 	                     : "memory", "cc", "r8", "r9", "r11","r12");
 
 	return ret;
@@ -59,12 +81,32 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 {
 	long fault = 0;
 	int  ret;
+	/*
+	 * We use this frame ctx to save bp(frame pointer) and sp(stack pointer)
+	 * before it goes into the kernel through syscall.
+	 * 
+	 * We cannot use a push %rbp/%rsp because the compiler doesn't know
+	 * the inline assembly code changes the stack pointer. Thus, in some
+	 * cases the compiler might do some optimizations which could conflict
+	 * with the push %rbp/%rsp. That means, the push might corrupt some
+	 * stack local variables. Thus, instead of using push instruction, we
+	 * use mov instruction to first save them to a stack local position(frame_ctx)
+	 * and then pass the address of the frame_ctx to the kernel rather than the sp.
+	 * When the syscall returns, the kernel will restore the sp to the address of
+	 * frame_ctx, thus we can simply use two pops to restore the original bp and sp.
+	 */
+	struct frame_ctx {
+		word_t bp;
+		word_t sp;
+	} frame_ctx;
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	__asm__ __volatile__("pushq %%rbp\n\t"		\
-	                     "mov %%rsp, %%rbp\n\t"	\
+	__asm__ __volatile__(
+	                     "movq %%rbp, (%%rcx)\n\t"	\
+	                     "movq %%rsp, 8(%%rcx)\n\t"	\
+	                     "movq %%rcx, %%rbp\n\t"	\
 	                     "movabs $1f, %%r8\n\t"	\
 	                     "syscall\n\t"		\
 	                     ".align 8\n\t"		\
@@ -77,8 +119,9 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	                     "mov $1, %%rcx\n\t"	\
 	                     "3:\n\t"			\
 	                     "popq %%rbp\n\t"		\
+	                     "popq %%rsp\n\t"		\
 	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2), "=b" (*r3)
-	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
+	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4), "c"(&frame_ctx)
 	                     : "memory", "cc", "r8", "r9", "r11", "r12");
 
 	return ret;
@@ -89,12 +132,33 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 {
 	long   fault = 0;
 	word_t ret;
+	/*
+	 * We use this frame ctx to save bp(frame pointer) and sp(stack pointer)
+	 * before it goes into the kernel through syscall.
+	 * 
+	 * We cannot use a push %rbp/%rsp because the compiler doesn't know
+	 * the inline assembly code changes the stack pointer. Thus, in some
+	 * cases the compiler might do some optimizations which could conflict
+	 * with the push %rbp/%rsp. That means, the push might corrupt some
+	 * stack local variables. Thus, instead of using push instruction, we
+	 * use mov instruction to first save them to a stack local position(frame_ctx)
+	 * and then pass the address of the frame_ctx to the kernel rather than the sp.
+	 * When the syscall returns, the kernel will restore the sp to the address of
+	 * frame_ctx, thus we can simply use two pops to restore the original bp and sp.
+	 */
+	struct frame_ctx {
+		word_t bp;
+		word_t sp;
+	} frame_ctx;
+
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	__asm__ __volatile__("pushq %%rbp\n\t"		\
-	                     "mov %%rsp, %%rbp\n\t"	\
+	__asm__ __volatile__(
+	                     "movq %%rbp, (%%rcx)\n\t"	\
+	                     "movq %%rsp, 8(%%rcx)\n\t"	\
+	                     "movq %%rcx, %%rbp\n\t"	\
 	                     "movabs $1f, %%r8\n\t"	\
 	                     "syscall\n\t"		\
 	                     ".align 8\n\t"		\
@@ -107,8 +171,9 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	                     "mov $1, %%rcx\n\t"	\
 	                     "3:\n\t"			\
 	                     "popq %%rbp\n\t"		\
+	                     "popq %%rsp\n\t"		\
 	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2)
-	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
+	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4), "c"(&frame_ctx)
 	                     : "memory", "cc", "r8","r9","r10", "r11", "r12");
 
 	return ret;
@@ -132,11 +197,11 @@ call_cap_op(u32_t cap_no, u32_t op_code, word_t arg1, word_t arg2, word_t arg3, 
 	return call_cap_asm(cap_no, op_code, arg1, arg2, arg3, arg4);
 }
 
-static void
+static int
 cos_print(char *s, int len)
 {
-	// FIXME: casting from a pointer to an int can be lossy
-	call_cap(PRINT_CAP_TEMP, (word_t) s, len, 0, 0);
+	u32_t *s_ints = (u32_t *)s;
+	return call_cap(PRINT_CAP_TEMP, s_ints[0], s_ints[1], s_ints[2], len);
 }
 
 static inline int
