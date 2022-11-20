@@ -11,7 +11,7 @@ constructor = "booter"
 [[components]]
 name = "booter"
 img  = "no_interface.llbooter"
-implements = [{interface = "init"}, {interface = "addr"}, {interface = "scb_mapping"}]
+implements = [{interface = "init"}, {interface = "addr"}]
 deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
 constructor = "kernel"
 

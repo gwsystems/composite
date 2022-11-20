@@ -10,7 +10,6 @@
 
 #include <consts.h>
 #include <cos_types.h>
-#include <cos_sched.h>
 #include <util.h>
 #include <string.h>
 #include <bitmap.h>

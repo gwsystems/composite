@@ -65,8 +65,8 @@ sysenter_entry:
 	testq %rax, %rax
 	jne restore_from_thd
 
-	RESTORE_REGS_ALL	
-	RET_TO_USER		
+	RESTORE_REGS_ALL
+	RET_TO_USER
 /* we are changing thread contexts, reload all registers */
 
 /* on restoring path, only the %ds will be taken care of. */
@@ -150,7 +150,7 @@ IRQ(virtualization_except_fault)
 IRQ_CODE(security_except_fault)
 
 IRQ(periodic)
-IRQ(keyboard)
+IRQ_ID(33)
 IRQ_ID(34)
 IRQ_ID(35)
 IRQ(serial)

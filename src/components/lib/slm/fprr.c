@@ -10,7 +10,10 @@
 
 #define SLM_FPRR_PERIOD_US_MIN  10000
 
-struct ps_list_head threads[NUM_CPU][SLM_FPRR_NPRIOS] CACHE_ALIGNED;
+struct runqueue {
+	struct ps_list_head prio[SLM_FPRR_NPRIOS];
+} CACHE_ALIGNED;
+struct runqueue threads[NUM_CPU];
 
 /* No RR based on execution, yet */
 void
@@ -22,7 +25,7 @@ slm_sched_fprr_schedule(void)
 {
 	int i;
 	struct slm_sched_thd *t;
-	struct ps_list_head *prios = threads[cos_cpuid()];
+	struct ps_list_head *prios = threads[cos_cpuid()].prio;
 
 	for (i = 0 ; i < SLM_FPRR_NPRIOS ; i++) {
 		if (ps_list_head_empty(&prios[i])) continue;
@@ -60,7 +63,7 @@ slm_sched_fprr_wakeup(struct slm_thd *t)
 
 	assert(ps_list_singleton_d(p));
 
-	ps_list_head_append_d(&threads[cos_cpuid()][t->priority - 1], p);
+	ps_list_head_append_d(&threads[cos_cpuid()].prio[t->priority - 1], p);
 
 	return 0;
 }
@@ -73,8 +76,6 @@ slm_sched_fprr_yield(struct slm_thd *t, struct slm_thd *yield_to)
 
 //printc("yield from: %d, to: %d\n", t->tid, yield_to->tid);
 	ps_list_rem_d(p);
-	test = ps_list_head_first_d(&threads[cos_cpuid()][t->priority], struct slm_sched_thd);
-	//printc("yield: %d, t->priority: %d\n", slm_thd_from_sched(test)->tid, t->priority);
 	ps_list_head_append_d(&threads[cos_cpuid()][t->priority], p);
 }
 
@@ -100,7 +101,7 @@ update_queue(struct slm_thd *t, tcap_prio_t prio)
 
 	t->priority = prio;
 	ps_list_rem_d(p); /* if we're already on a list, and we're updating priority */
-	ps_list_head_append_d(&threads[cos_cpuid()][prio], p);
+	ps_list_head_append_d(&threads[cos_cpuid()].prio[prio], p);
 
 	return;
 }
@@ -139,8 +140,7 @@ slm_sched_fprr_init(void)
 {
 	int i;
 
-	//memset(threads[cos_cpuid()], 0, sizeof(struct ps_list_head) * SLM_FPRR_NPRIOS);
 	for (i = 0 ; i < SLM_FPRR_NPRIOS ; i++) {
-		ps_list_head_init(&threads[cos_cpuid()][i]);
+		ps_list_head_init(&threads[cos_cpuid()].prio[i]);
 	}
 }

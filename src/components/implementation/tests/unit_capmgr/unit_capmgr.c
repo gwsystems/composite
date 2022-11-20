@@ -32,7 +32,7 @@ test_thds(void)
 	int failure = 0;
 
 	for (; i < TEST_N_THDS; i++) {
-		test_ts[cos_cpuid()][i] = capmgr_thd_create(__test_thd_fn, (void *)i, &tid, NULL);
+		test_ts[cos_cpuid()][i] = capmgr_thd_create(__test_thd_fn, (void *)i, &tid);
 		assert(test_ts[cos_cpuid()][i]);
 
 		if (cos_thd_switch(test_ts[cos_cpuid()][i])) {

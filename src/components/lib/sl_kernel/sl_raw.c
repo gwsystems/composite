@@ -88,11 +88,10 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 
-	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data, 0, 0);
+	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data);
 	if (!aep->thd) goto done;
 	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	if (!aep->tid) goto done;
-
 	t = sl_thd_alloc_init(aep, 0, 0);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
@@ -140,7 +139,7 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 		aep = sl_thd_alloc_aep_backend();
 		if (!aep) goto done;
 
-		aep->thd = cos_thd_alloc_ext(ci, compci->comp_cap, idx, 0, 0);
+		aep->thd = cos_thd_alloc_ext(ci, compci->comp_cap, idx);
 		if (!aep->thd) goto done;
 		aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 		if (!aep->tid) goto done;
@@ -149,7 +148,7 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 		sl_mod_thd_create(sl_mod_thd_policy_get(t));
 	} else {
 		assert(idx == 0);
-		ret = cos_initaep_alloc(comp, NULL, 0, 0);
+		ret = cos_initaep_alloc(comp, NULL, 0);
 		if (ret) goto done;
 
 		t = sl_thd_comp_init_no_cs(comp, 0, 0);
@@ -171,9 +170,9 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 	if (!aep) goto done;
 
 	/* NOTE: Cannot use stack-allocated cos_aep_info struct here */
-	if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data, 0, 0);
+	if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data);
 	else                                 ret = cos_aep_tcap_alloc(aep, sl_thd_aepinfo(sl__globals_cpu()->sched_thd)->tc,
-			                                              fn, data, 0, 0);
+			                                              fn, data);
 	if (ret) goto done;
 
 	t = sl_thd_alloc_init(aep, 0, prps);
@@ -194,9 +193,9 @@ sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, t
 	if (prps & SL_THD_PROPERTY_SEND) {
 		assert(sched);
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) {
-			ret = cos_initaep_alloc(comp, sl_thd_aepinfo(sched), prps & SL_THD_PROPERTY_SEND, 0);
+			ret = cos_initaep_alloc(comp, sl_thd_aepinfo(sched), prps & SL_THD_PROPERTY_SEND);
 		} else {
-			ret = cos_initaep_tcap_alloc(comp, sl_thd_tcap(sched), sl_thd_aepinfo(sched), 0);
+			ret = cos_initaep_tcap_alloc(comp, sl_thd_tcap(sched), sl_thd_aepinfo(sched));
 		}
 		if (ret) goto done;
 
@@ -208,9 +207,9 @@ sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, t
 		if (!aep) goto done;
 
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) {
-			ret = cos_aep_alloc_ext(aep, comp, sl_thd_aepinfo(sched), idx, 0, 0);
+			ret = cos_aep_alloc_ext(aep, comp, sl_thd_aepinfo(sched), idx);
 		} else {
-			ret = cos_aep_tcap_alloc_ext(aep, comp, sl_thd_aepinfo(sched), sl_thd_tcap(sched), idx, 0, 0);
+			ret = cos_aep_tcap_alloc_ext(aep, comp, sl_thd_aepinfo(sched), sl_thd_tcap(sched), idx);
 		}
 		if (ret) goto done;
 

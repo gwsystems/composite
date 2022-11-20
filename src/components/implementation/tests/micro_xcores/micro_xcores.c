@@ -23,10 +23,13 @@ cos_init(void)
         int cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
         printc("\t%d cycles per microsecond\n", cycs);
 
-        cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
-        cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 0, 
-                              (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
-        PRINTC("Micro Booter Xcore started.\n");
+        if (first_init) {
+                first_init = 0;
+                cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
+                cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 0,
+                                      (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
+                init_done = 1;
+        }
 
         return;
 }

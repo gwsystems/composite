@@ -1,5 +1,5 @@
 [system]
-description = "Crt lock benchmarking test."
+description = "Sync lock benchmarking test."
 
 [[components]]
 name = "booter"
@@ -17,7 +17,7 @@ constructor = "booter"
 
 [[components]]
 name = "sched"
-img  = "sched.root_fprr"
+img  = "sched.pfprr_quantum_static"
 deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
 implements = [{interface = "sched"}, {interface = "init"}]
 constructor = "booter"
@@ -26,6 +26,6 @@ constructor = "booter"
 name = "tests"
 img  = "tests.bench_lock"
 implements = [{interface = "init"}]
-deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}]
 baseaddr = "0x1600000"
 constructor = "booter"

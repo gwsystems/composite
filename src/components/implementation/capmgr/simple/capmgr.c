@@ -754,12 +754,6 @@ crtcomp_get(compid_t id)
 	return &c->comp;
 }
 
-//void
-//execute(void)
-//{
-//	crt_compinit_execute(crtcomp_get);
-//}
-
 void
 capmgr_set_tls(thdcap_t cap, void* tls_addr)
 {
@@ -869,6 +863,7 @@ capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 	//*arcv = _arcv;
 	//*dcb  = (struct cos_dcb_info *)d->dcb_addr;
 	//printc("*tid: %d, arcv: %d\n", t->thd.tid, _arcv);
+
 	return t->aliased_cap;
 }
 
@@ -882,10 +877,10 @@ capmgr_initthd_create(spdid_t client, thdid_t *tid)
 thdcap_t  capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret) { BUG(); return 0; }
 
 thdcap_t
-capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info **dcb)
+capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid)
 {
 	compid_t client = (compid_t)cos_inv_token();
-	struct cm_thd  *t;
+	struct cm_thd *t;
 	struct cm_comp *c;
 	struct cm_dcb  *d;
 	struct cm_dcbinfo *info;
@@ -909,7 +904,6 @@ capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_inf
 	info->asnd = asnd;
 
 	*tid = t->thd.tid;
-	*dcb = (struct cos_dcb_info *)d->dcb_addr;
 
 	return t->aliased_cap;
 }

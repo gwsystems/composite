@@ -2,13 +2,13 @@
 # for many of these to be empty.
 #
 # The library names associated with .a files output that are linked
-# (via, for example, -lscb_mapping) into dependents. This list should be
-# "scb_mapping" for output files such as libscb_mapping.a.
-LIBRARY_OUTPUT = scb_mapping
+# (via, for example, -lsyncipc) into dependents. This list should be
+# "syncipc" for output files such as libsyncipc.a.
+LIBRARY_OUTPUT =
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,
-# scb_mapping) which will generate scb_mapping.lib.o. Do NOT include the list of .o
+# syncipc) which will generate syncipc.lib.o. Do NOT include the list of .o
 # files here. Please note that using this list is *very rare* and
 # should only be used when the .a support above is not appropriate.
 OBJECT_OUTPUT =

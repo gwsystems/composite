@@ -2,13 +2,13 @@
 # for many of these to be empty.
 #
 # The library names associated with .a files output that are linked
-# (via, for example, -ldcb) into dependents. This list should be
-# "dcb" for output files such as libdcb.a.
-LIBRARY_OUTPUT = dcb
+# (via, for example, -lsync) into dependents. This list should be
+# "sync" for output files such as libsync.a.
+LIBRARY_OUTPUT = sync
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,
-# dcb) which will generate dcb.lib.o. Do NOT include the list of .o
+# sync) which will generate sync.lib.o. Do NOT include the list of .o
 # files here. Please note that using this list is *very rare* and
 # should only be used when the .a support above is not appropriate.
 OBJECT_OUTPUT =
@@ -18,10 +18,10 @@ OBJECT_OUTPUT =
 INCLUDE_PATHS = .
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES =
+INTERFACE_DEPENDENCIES = sched
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = component
+LIBRARY_DEPENDENCIES = component ps
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this

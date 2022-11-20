@@ -473,7 +473,7 @@ crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_com
 	if (crt_comp_init(c, name, id, NULL, r->info)) BUG();
 
 	cos_compinfo_init(cos_compinfo_get(c->comp_res),
-			  r->ptc, r->ctc, r->compc, 0, r->heap_ptr, r->captbl_frontier,
+			  r->ptc, r->ctc, r->compc, r->heap_ptr, r->captbl_frontier,
 			  cos_compinfo_get(cos_defcompinfo_curr_get()));
 	return 0;
 }
@@ -522,7 +522,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 		assert(inv.server->id != chkpt->c->id);
 	}
 
-	ret = cos_compinfo_alloc(ci, 0, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
 	assert(!ret);
 
 	mem = cos_page_bump_allocn(root_ci, chkpt->tot_sz_mem);
@@ -589,9 +589,7 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	printc("\t\t elf obj: ro [0x%lx, 0x%lx), data [0x%lx, 0x%lx), bss [0x%lx, 0x%lx).\n",
 	       c->ro_addr, c->ro_addr + ro_sz, c->rw_addr, c->rw_addr + data_sz, c->rw_addr + data_sz, c->rw_addr + data_sz + bss_sz);
 
-	/* FIXME: This is a hack making every component has SCB by default. */
-	scbcap_t scbc = cos_scb_alloc(root_ci);
-	ret = cos_compinfo_alloc(ci, scbc, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci);
 	assert(!ret);
 
 	tot_sz = round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz);
@@ -1297,9 +1295,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 
 	/* Should only be called if initialization is necessary */
 	assert(target_ci->comp_cap);
-	if (ctxt->flags & CRT_COMP_CAPMGR && !(c->flags & CRT_COMP_SCHED)) ctxt->flags |= CRT_COMP_SCHED;
 	assert(!(ctxt->flags & CRT_COMP_INITIALIZE) || !(ctxt->flags & CRT_COMP_SCHED)); /* choose one */
-	assert((c->flags & ctxt->flags) == 0 || c->flags == ctxt->flags); /* already set, or set to the same value */
 
 	if (ctxt->flags & CRT_COMP_INITIALIZE) {
 		struct crt_comp_exec_context *cx = &c->exec_ctxt;
@@ -1320,7 +1316,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		struct crt_rcv *r;
 		vaddr_t init_dcb;
 
-		assert(c->exec_ctxt.exec[cos_coreid()].sched.sched_rcv == NULL && ctxt->exec[cos_coreid()].sched.sched_rcv);
+		assert(c->exec_ctxt.exec[cos_coreid()].sched.sched_rcv == NULL);
 		r = ctxt->exec[cos_coreid()].sched.sched_rcv;
 		assert(r);
 
@@ -1339,23 +1335,24 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		//assert(target_aep->dcb);
 
 		/*
-		 * FIXME:
-		 * This is an ugly hack to allow components to do cos_introspect()
-		 * - to get thdid
-		 * - to get budget on tcap
-		 * - other introspect uses
-		 *
-		 * I don't know a way to get away from this for now!
-		 * If it were just thdid, capmgr could have returned the thdids!
+		 * Only map in the captbl once, on core 0.
 		 */
-		compres = (struct crt_comp_resources) {
-			.ctc = BOOT_CAPTBL_SELF_CT
-		};
-		/*
-		 * If we aren't the initialization core (i.e. the
-		 * component hasn't yet been set as a scheduler.
-		 */
-		if (!(c->flags & CRT_COMP_SCHED)) {
+		if (cos_coreid() == 0) { //!(c->flags & CRT_COMP_SCHED)) {
+			/*
+			 * FIXME: This is an ugly hack to allow
+			 * components to do cos_introspect()
+			 *
+			 * - to get thdid
+			 * - to get budget on tcap
+			 * - other introspect uses
+			 *
+			 * I don't know a way to get away from this
+			 * for now! If it were just thdid, capmgr
+			 * could have returned the thdids!
+			 */
+			compres = (struct crt_comp_resources) {
+				.ctc = BOOT_CAPTBL_SELF_CT
+			};
 			if (crt_comp_alias_in(c, c, &compres, CRT_COMP_ALIAS_CAPTBL)) BUG();
 		}
 
@@ -1378,8 +1375,6 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 	/* fall-through here */
 	if (ctxt->flags & CRT_COMP_CAPMGR) {
 		pgtblcap_t utpt;
-
-		assert((c->flags & CRT_COMP_SCHED) && !(c->flags & (CRT_COMP_INITIALIZE | CRT_COMP_CAPMGR)));
 
 		/* assume CT is already mapped in from sched_create */
 		compres = (struct crt_comp_resources) {
@@ -1538,16 +1533,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 			struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 
 			assert(sched_aep->rcv != 0 && child_aep->tc != 0);
-			//if (initcore) {
-			//	struct cos_compinfo *ci = cos_compinfo_get(defci);
-			//	printc("thdcap: %d\n", thdcap);
-			//	printc("thdid: %d\n", cos_introspect(ci, thdcap, THD_GET_TID));
-			//}
-			ret = cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, sched_aep->rcv, cos_sched_sync());
-			if (ret) {
-			assert(0);
-			BUG();
-			}
+			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, sched_aep->rcv, cos_sched_sync())) BUG();
 		} else {
 			if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync())) BUG();
 		}

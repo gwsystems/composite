@@ -94,7 +94,6 @@
 
 /* Composite user memory uses physical memory above this. */
 #define COS_MEM_START COS_MEM_KERN_PA
-#define COS_SCB_SIZE  (PAGE_SIZE)
 
 /* NUM_CPU_SOCKETS defined in cpu_ghz.h. The information is used for
  * intelligent IPI distribution. */
@@ -133,7 +132,6 @@
 /**
  * Configuration to enable/disable functionality in Kernel.
  */
-#define ENABLE_VGA
 #define ENABLE_SERIAL
 
 #if defined(__x86_64__)

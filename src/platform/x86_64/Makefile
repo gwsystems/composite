@@ -46,8 +46,6 @@ OBJS += hpet.o
 OBJS += chal.o
 OBJS += boot_comp.o
 OBJS += miniacpi.o
-#OBJS += console.o
-OBJS += vga.o
 OBJS += exception.o
 OBJS += lapic.o
 OBJS += chal_pgtbl.o
@@ -80,7 +78,7 @@ loader.o: loader.S entry.S
 	$(info |     [AS]   Assembling $@)
 	@$(CC) -c -I$(INCPATH) entry.S
 	@$(CC) -c -I$(INCPATH) loader.S
-	
+
 %.d: %.c
 	@set +e; rm -f $@; \
 	$(CC) -M $(CFLAGS) $< > $@.$$$$ 2>/dev/null; \

@@ -27,9 +27,9 @@ struct crt_asnd_resources {
 typedef enum {
 	CRT_COMP_NONE        = 0,
 	CRT_COMP_SCHED       = 1, 	/* is this a scheduler? */
-	CRT_COMP_CAPMGR      = 1 << 1,	/* does this component require delegating management capabilities to it? */
-	CRT_COMP_INITIALIZE  = 1 << 2,	/* The current component should initialize this component... */
-	CRT_COMP_BOOTER      = 1 << 3	/* Is this the current component (i.e. the booter)? */
+	CRT_COMP_CAPMGR      = 2,	/* does this component require delegating management capabilities to it? */
+	CRT_COMP_INITIALIZE  = 4,	/* The current component should initialize this component... */
+	CRT_COMP_BOOTER      = 8	/* Is this the current component (i.e. the booter)? */
 } crt_comp_flags_t;
 
 struct crt_comp_exec_context {
@@ -222,7 +222,6 @@ void crt_compinit_exit(struct crt_comp *c, int retval);
 int crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c);
 int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
 
-dcbcap_t crt_dcb_create_in(struct crt_comp *c, vaddr_t *dcb_addr);
 
 /*
  * - The VAS structure will be an array of pointers to `struct

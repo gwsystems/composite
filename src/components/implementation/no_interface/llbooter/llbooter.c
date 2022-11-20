@@ -17,7 +17,6 @@
 
 #include <init.h>
 #include <addr.h>
-#include <scb_mapping.h>
 
 #ifndef BOOTER_MAX_SINV
 #define BOOTER_MAX_SINV 256
@@ -94,9 +93,6 @@ boot_comp_set_idoffset(int off)
 	boot_id_offset = off;
 }
 
-struct simple_barrier comps_created = SIMPLE_BARRIER_INITVAL;
-struct simple_barrier thds_created  = SIMPLE_BARRIER_INITVAL;
-
 /*
  * Create the threads in each of the components, including rcv/tcaps
  * for schedulers. This is called on each core as part of
@@ -108,12 +104,6 @@ execution_init(int is_init_core)
 	struct initargs curr, comps;
 	struct initargs_iter i;
 	int cont, ret;
-
-	/*
-	 * We need to await the creation of all of the components
-	 * before we create the threads.
-	 */
-	simple_barrier(&comps_created);
 
 	/*
 	 * Actually create the threads for eventual execution in the
@@ -156,12 +146,6 @@ execution_init(int is_init_core)
 
 		if (is_init_core) comp->init_state = CRT_COMP_INIT_COS_INIT;
 	}
-
-	/*
-	 * We have to wait till all of the threads are created before
-	 * we move on to other captbl manipulations.
-	 */
-	simple_barrier(&thds_created);
 }
 
 static void
@@ -317,8 +301,6 @@ comps_init(void)
 		}
 	}
 
-	execution_init(1);
-
 	/* perform any necessary captbl delegations */
 	ret = args_get_entry("captbl_delegations", &comps);
 	assert(!ret);
@@ -437,12 +419,16 @@ comps_init(void)
 		struct crt_comp *c;
 		int keylen;
 		struct crt_comp_exec_context ctxt = { 0 };
+		/* TODO: generalize. Give the capmgr 64MB for now. */
+		size_t mem = BOOTER_CAPMGR_MB * 1024 * 1024;
+
+		printc("Capability manager memory delegation (%d capmgrs): %ld bytes.\n",
+		       args_len(&comps), (unsigned long)mem);
 
 		c = boot_comp_get(atoi(args_key(&curr, &keylen)));
 		assert(c);
 
-		/* TODO: generalize. Give the capmgr 64MB for now. */
-		if (crt_comp_exec(c, crt_comp_exec_capmgr_init(&ctxt, BOOTER_CAPMGR_MB * 1024 * 1024))) BUG();
+		if (crt_comp_exec(c, crt_comp_exec_capmgr_init(&ctxt, mem))) BUG();
 	}
 
 	printc("Kernel resources created, booting components!\n");
@@ -556,7 +542,6 @@ scb_mapping(compid_t id, vaddr_t scb_uaddr)
 	return 0;
 }
 
-
 static void
 booter_init(void)
 {
@@ -569,10 +554,7 @@ booter_init(void)
 	cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 }
 
-void
-execute(void)
-{
-	crt_compinit_execute(boot_comp_get);
+	cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 }
 
 void
@@ -657,24 +639,27 @@ init_exit(int retval)
 }
 
 void
-cos_parallel_init(coreid_t cid, int init_core, int ncores)
+cos_parallel_init(coreid_t cid, int is_init_core, int ncores)
 {
-	cos_defcompinfo_sched_init();
-	if (init_core) {
-		comps_init();
-	} else {
-		execution_init(0);
-	}
+	if (!is_init_core) cos_defcompinfo_sched_init();
+
+	execution_init(is_init_core);
 }
 
 void
 cos_init(void)
 {
 	booter_init();
+	cos_defcompinfo_sched_init();
+	comps_init();
+	/*
+	 * All component resources except for those required for
+	 * execution should be setup now.
+	 */
 }
 
 void
 parallel_main(coreid_t cid)
 {
-	execute();
+	crt_compinit_execute(boot_comp_get);
 }
