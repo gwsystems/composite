@@ -76,7 +76,7 @@ slm_sched_fprr_yield(struct slm_thd *t, struct slm_thd *yield_to)
 
 //printc("yield from: %d, to: %d\n", t->tid, yield_to->tid);
 	ps_list_rem_d(p);
-	ps_list_head_append_d(&threads[cos_cpuid()][t->priority], p);
+	ps_list_head_append_d(&threads[cos_cpuid()].prio[t->priority], p);
 }
 
 int

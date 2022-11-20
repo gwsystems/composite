@@ -97,7 +97,7 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 
-	aep->thd = capmgr_thd_create(fn, data, &tid);
+	aep->thd = capmgr_thd_create(fn, data, &tid, NULL);
 	if (!aep->thd) goto done;
 	aep->tid = tid;
 

@@ -31,13 +31,14 @@ COS_CLIENT_STUB(thdcap_t, capmgr_initthd_create, spdid_t child, thdid_t *tid)
 	return ret;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_thunk, thdclosure_index_t id, thdid_t *tid)
+COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_thunk, thdclosure_index_t id, thdid_t *tid, struct cos_dcb_info **dcb)
 {
 	COS_CLIENT_INVCAP;
-	word_t unused, tid_ret;
+	word_t dcb_ret, tid_ret;
 	thdcap_t ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, id, 0, 0, 0, &tid_ret, &unused);
+	ret = cos_sinv_2rets(uc->cap_no, id, 0, 0, 0, &tid_ret, &dcb_ret);
+	*dcb = (struct cos_dcb_info *)dcb_ret;
 	*tid = tid_ret;
 
 	return ret;

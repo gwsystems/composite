@@ -59,7 +59,7 @@ cos_defcompinfo_init_ext(tcap_t sched_tc, thdcap_t sched_thd, arcvcap_t sched_rc
 
 	if (curr_defci_init_status == INITIALIZED) return;
 
-	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, comp_cap, heap_ptr, cap_frontier, ci);
+	cos_compinfo_init(ci, pgtbl_cap, captbl_cap, comp_cap, 0, heap_ptr, cap_frontier, ci);
 	curr_defci_init_status = INITIALIZED;
 	cos_defcompinfo_sched_init_ext(sched_tc, sched_thd, sched_rcv);
 }
@@ -126,7 +126,7 @@ cos_aep_alloc_intern(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci, 
 
 int
 cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, vaddr_t heap_ptr, capid_t cap_frontier,
-                            int is_sched)
+                            int is_sched, dcbcap_t *initdcbcap)
 {
 	int                     ret;
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
@@ -134,11 +134,22 @@ cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, 
 	struct cos_compinfo    *ci        = cos_compinfo_get(defci);
 	struct cos_compinfo    *child_ci  = cos_compinfo_get(child_defci);
 	struct cos_aep_info    *child_aep = cos_sched_aep_get(child_defci);
+	vaddr_t dcbaddr = 0;
+	dcbcap_t dcbcap = 0;
+	scbcap_t scbcap = 0;
+
+	scbcap = cos_scb_alloc(ci);
+	assert(scbcap);
 
 	assert(curr_defci_init_status == INITIALIZED);
-	ret = cos_compinfo_alloc(child_ci, heap_ptr, cap_frontier, entry, ci);
+	ret = cos_compinfo_alloc(child_ci, scbcap, heap_ptr, cap_frontier, entry, ci);
 	if (ret) return ret;
-	ret = cos_aep_alloc_intern(child_aep, child_defci, 0, is_sched ? sched_aep : NULL, NULL, NULL, 0);
+	dcbaddr = (vaddr_t)cos_page_bump_intern_valloc(child_ci, PAGE_SIZE);
+	assert(dcbaddr);
+	dcbcap = cos_dcb_alloc(ci, child_ci->pgtbl_cap, dcbaddr);
+	assert(dcbcap);
+	ret = cos_aep_alloc_intern(child_aep, child_defci, 0, is_sched ? sched_aep : NULL, NULL, NULL, 0, dcbcap, 0);
+	*initdcbcap = dcbcap;
 
 	return ret;
 }

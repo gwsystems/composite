@@ -88,10 +88,11 @@ sl_thd_alloc_no_cs(cos_thd_fn_t fn, void *data)
 	aep = sl_thd_alloc_aep_backend();
 	if (!aep) goto done;
 
-	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data);
+	aep->thd = cos_thd_alloc(ci, ci->comp_cap, fn, data, 0, 0);
 	if (!aep->thd) goto done;
 	aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 	if (!aep->tid) goto done;
+
 	t = sl_thd_alloc_init(aep, 0, 0);
 	sl_mod_thd_create(sl_mod_thd_policy_get(t));
 
@@ -139,7 +140,7 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 		aep = sl_thd_alloc_aep_backend();
 		if (!aep) goto done;
 
-		aep->thd = cos_thd_alloc_ext(ci, compci->comp_cap, idx);
+		aep->thd = cos_thd_alloc_ext(ci, compci->comp_cap, idx, 0, 0);
 		if (!aep->thd) goto done;
 		aep->tid = cos_introspect(ci, aep->thd, THD_GET_TID);
 		if (!aep->tid) goto done;

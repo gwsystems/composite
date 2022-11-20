@@ -16,6 +16,8 @@
 #include "include/chal/defs.h"
 #include "include/hw.h"
 #include "include/chal/chal_proto.h"
+#include "include/scb.h"
+//#include "include/dcb.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -329,6 +331,8 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 		type = ctfrom->type;
 		sz   = __captbl_cap2bytes(type);
 
+		/* don't allow cap copy on SCB/DCB */
+		if (type == CAP_SCB || type == CAP_DCB) return -EINVAL;
 		ctto = __cap_capactivate_pre(t, cap_to, capin_to, type, &ret);
 		if (!ctto) return -EINVAL;
 
@@ -634,11 +638,20 @@ cap_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struc
 static int
 cap_sched_tok_validate(struct thread *rcvt, sched_tok_t usr_tok, struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
+	assert(ci->scb_data);
+	struct cos_scb_info *scb_core = ci->scb_data + get_cpuid();
+
 	assert(rcvt && usr_tok < ~0U);
 
-	/* race-condition check for user-level thread switches */
-	if (thd_rcvcap_get_counter(rcvt) > usr_tok) return -EAGAIN;
-	thd_rcvcap_set_counter(rcvt, usr_tok);
+	/*
+	 * Kernel increments the sched_tok on preemption only.
+	 * The rest is all co-operative, so if sched_tok in scb page
+	 * increments after someone fetching a tok, then check for that!
+	 *
+	 * FIXME: make sure we're checking the scb of the scheduling component and not in any other component.
+	 *        I don't know if the comp_info here is of the scheduling component!
+	 */
+	if (unlikely(scb_core->sched_tok != usr_tok)) return -EAGAIN;
 
 	return 0;
 }
@@ -751,13 +764,11 @@ cap_ipi_process(struct pt_regs *regs)
 	struct tcap 		   *tcap_curr, *tcap_next;
 	struct comp_info 	   *ci;
 	int                         i, scan_base;
-	unsigned long               ip, sp;
 
-	thd_curr       = thd_next = thd_current(cos_info);
+	thd_next       = thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &ci);
+	assert(ci && ci->captbl);
 	receiver_rings = &IPI_cap_dest[get_cpuid()];
 	tcap_curr      = tcap_next = tcap_current(cos_info);
-	ci             = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
-	assert(ci && ci->captbl);
 
 	scan_base = receiver_rings->start;
 	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
@@ -870,7 +881,6 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	struct thread *            rcv_thd, *next, *thd;
 	struct tcap *              rcv_tcap, *tcap, *tcap_next;
 	struct comp_info *         ci;
-	unsigned long              ip, sp;
 
 	if (!CAP_TYPECHK(asnd, CAP_ASND)) return 1;
 	assert(asnd->arcv_capid);
@@ -886,12 +896,10 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
-	thd  = thd_current(cos_info);
-	tcap = tcap_current(cos_info);
-	assert(thd);
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
-	assert(ci && ci->captbl);
+	thd = cap_ulthd_lazyupdate(regs, cos_info, 1, &ci);
+	assert(thd && ci && ci->captbl);
 	assert(!(thd->state & THD_STATE_PREEMPTED));
+	tcap = tcap_current(cos_info);
 	rcv_thd  = arcv->thd;
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
@@ -933,16 +941,13 @@ int
 timer_process(struct pt_regs *regs)
 {
 	struct cos_cpu_local_info *cos_info;
-	struct thread *            thd_curr;
-	struct comp_info *         comp;
-	unsigned long              ip, sp;
-	cycles_t                   now;
+	struct thread             *thd_curr;
+	struct comp_info          *comp = NULL;
 
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
-	thd_curr = thd_current(cos_info);
+	thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &comp);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
-	comp = thd_invstk_current(thd_curr, &ip, &sp, cos_info);
 	assert(comp);
 	//if (get_cpuid() == 0)
 	//	printk("\t^^^^^^^^^^^timer\n");
@@ -1074,7 +1079,6 @@ composite_syscall_handler(struct pt_regs *regs)
 
 	assert(thd);
 	cap = __userregs_getcap(regs);
-	thd = thd_current(cos_info);
 
 	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
@@ -1089,9 +1093,6 @@ composite_syscall_handler(struct pt_regs *regs)
 		printfn(regs);
 		return 0;
 	}
-
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
-	assert(ci && ci->captbl);
 
 	/*
 	 * We don't check the liveness of the current component
@@ -1306,6 +1307,18 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			break;
 		}
+		case CAPTBL_OP_THDMIGRATE: {
+			u32_t reg2 = __userregs_get2(regs);
+			u32_t reg3 = __userregs_get3(regs);
+
+			if (reg3) {
+				ret = thd_migrate_cap(ct, capin);
+			} else {
+				ret = thd_migrate(ct, capin, reg2);
+			}
+
+			break;
+		}
 		case CAPTBL_OP_TCAP_ACTIVATE: {
 			capid_t        tcap_cap   = __userregs_get1(regs) >> 16;
 			capid_t        pgtbl_cap  = (__userregs_get1(regs) << 16) >> 16;
@@ -1324,7 +1337,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_THDDEACTIVATE: {
 			livenessid_t lid = __userregs_get2(regs);
 
-			ret = thd_deactivate(ct, op_cap, capin, lid, 0, 0, 0);
+			ret = thd_deactivate(ct, op_cap, capin, lid, 0, 0, 0, 0);
 			break;
 		}
 		case CAPTBL_OP_THDTLSSET: {
@@ -1341,7 +1354,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t      pgtbl_cap     = __userregs_get3(regs);
 			capid_t      cosframe_addr = __userregs_get4(regs);
 
-			ret = thd_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr, 1);
+			ret = thd_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr, 0, 1);
 			break;
 		}
 		case CAPTBL_OP_CAPKMEM_FREEZE: {

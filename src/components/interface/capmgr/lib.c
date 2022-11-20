@@ -2,13 +2,13 @@
 #include <cos_thd_init.h>
 
 thdcap_t
-capmgr_thd_create(cos_thd_fn_t fn, void *data, thdid_t *tid)
+capmgr_thd_create(cos_thd_fn_t fn, void *data, thdid_t *tid, struct cos_dcb_info **dcb)
 {
 	thdclosure_index_t idx = cos_thd_init_alloc(fn, data);
 
 	if (idx < 1) return 0;
 
-	return capmgr_thd_create_thunk(idx, tid);
+	return capmgr_thd_create_thunk(idx, tid, dcb);
 }
 
 thdcap_t

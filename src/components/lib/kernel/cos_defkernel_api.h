@@ -99,7 +99,7 @@ void cos_defcompinfo_sched_init(void);
  * the current component's scheduler will remain the scheduler for the child component.
  */
 int cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, vaddr_t heap_ptr,
-                                capid_t cap_frontier, int is_sched);
+                                capid_t cap_frontier, int is_sched, dcbcap_t *initdcbcap);
 
 /*
  * cos_aep_alloc: creates a new async activation end-point which includes thread, tcap and rcv capabilities.
