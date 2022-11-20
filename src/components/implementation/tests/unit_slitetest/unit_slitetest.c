@@ -50,13 +50,13 @@ unit_rcv(thdid_t tid)
 static void
 rcv_spiner()
 {
-	while (!spin_thd[1]) ;
+	//while (!spin_thd[1]) ;
 	while (1) {
-		printc("*************spiner1**************: %d\n\n", spin_thd[0]);
+		//printc("*************spiner1**************: %d\n\n", spin_thd[0]);
 		sched_thd_yield_to(spin_thd[1]);
-	printc("yield ret1----\n");
-	int aaa = 0;
-	printc("yield ret1----: %lx\n", &aaa);
+	//printc("yield ret1----\n");
+	//int aaa = 0;
+	//printc("yield ret1----: %lx\n", &aaa);
 	//printc("yield ret1----\n");
 		//rdtscll(global_time[0]);
 	}
@@ -153,17 +153,19 @@ test_ipi_switch(void)
 		//thd[cos_cpuid()] = sched_thd_create(test_rcv_fn, NULL);
 		//sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
-		spin_thd[0] = sched_thd_create(rcv_spiner, NULL);
-		sched_thd_param_set(spin_thd[0], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+		//spin_thd[0] = sched_thd_create(rcv_spiner, NULL);
+		//sched_thd_param_set(spin_thd[0], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
-		spin_thd[1] = sched_thd_create(rcv_spiner2, NULL);
-		sched_thd_param_set(spin_thd[1], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+		//spin_thd[1] = sched_thd_create(rcv_spiner2, NULL);
+		//sched_thd_param_set(spin_thd[1], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+		SPIN();
 		printc("rcvthd: %ld, spinthd0: %ld, spinthd1: %ld\n", thd[cos_cpuid()], spin_thd[0], spin_thd[1]);
 
-		sched_thd_yield_to(spin_thd[0]);
+		//sched_thd_yield_to(spin_thd[0]);
 	} else {
-		thd[cos_cpuid()] = sched_thd_create(test_snd_fn, NULL);
-		sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+		SPIN();
+		//thd[cos_cpuid()] = sched_thd_create(test_snd_fn, NULL);
+		//sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 	}
 	SPIN();
 }

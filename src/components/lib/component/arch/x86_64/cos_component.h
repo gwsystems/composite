@@ -31,11 +31,18 @@ call_cap_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word
 	long fault = 0;
 	int  ret;
 
+	struct frame_ctx {
+		word_t bp;
+		word_t sp;
+	} frame_ctx;
+
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	__asm__ __volatile__("pushq %%rbp\n\t"		\
-	                     "mov %%rsp, %%rbp\n\t"	\
+	__asm__ __volatile__(
+						 "movq %%rbp, (%%rcx)\n\t"		\
+	                     "movq %%rsp, 8(%%rcx)\n\t"	\
+						 "mov %%rcx, %%rbp\n\t"   \
 	                     "movabs $1f, %%r8\n\t"	\
 	                     "syscall\n\t"		\
 	                     ".align 8\n\t"		\
@@ -47,9 +54,10 @@ call_cap_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word
 	                     "2:\n\t"			\
 	                     "movl $1, %%ecx\n\t"	\
 	                     "3:\n\t"			\
-	                     "popq %%rbp"		\
+	                     "popq %%rbp\n\t"		\
+						 "popq %%rsp\n\t"       \
 	                     : "=a"(ret), "=c"(fault)
-	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
+	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4), "c"(&frame_ctx)
 	                     : "memory", "cc", "r8", "r9", "r11","r12");
 
 	return ret;
@@ -61,11 +69,18 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	long fault = 0;
 	int  ret;
 
+	struct frame_ctx {
+		word_t bp;
+		word_t sp;
+	} frame_ctx;
+
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	__asm__ __volatile__("pushq %%rbp\n\t"		\
-	                     "mov %%rsp, %%rbp\n\t"	\
+	__asm__ __volatile__(
+	                     "movq %%rbp, (%%rcx)\n\t"		\
+	                     "movq %%rsp, 8(%%rcx)\n\t"	\
+						 "mov %%rcx, %%rbp\n\t"    \
 	                     "movabs $1f, %%r8\n\t"	\
 	                     "syscall\n\t"		\
 	                     ".align 8\n\t"		\
@@ -78,8 +93,9 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	                     "mov $1, %%rcx\n\t"	\
 	                     "3:\n\t"			\
 	                     "popq %%rbp\n\t"		\
+						 "popq %%rsp\n\t"
 	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2), "=b" (*r3)
-	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
+	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4), "c"(&frame_ctx)
 	                     : "memory", "cc", "r8", "r9", "r11", "r12");
 
 	return ret;
@@ -91,11 +107,18 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	long   fault = 0;
 	word_t ret;
 
+	struct frame_ctx {
+		word_t bp;
+		word_t sp;
+	} frame_ctx;
+
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	__asm__ __volatile__("pushq %%rbp\n\t"		\
-	                     "mov %%rsp, %%rbp\n\t"	\
+	__asm__ __volatile__(
+						 "movq %%rbp, (%%rcx)\n\t"		\
+						 "movq %%rsp, 8(%%rcx)\n\t"     \
+						 "mov %%rcx, %%rbp\n\t"
 	                     "movabs $1f, %%r8\n\t"	\
 	                     "syscall\n\t"		\
 	                     ".align 8\n\t"		\
@@ -108,8 +131,9 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	                     "mov $1, %%rcx\n\t"	\
 	                     "3:\n\t"			\
 	                     "popq %%rbp\n\t"		\
+						 "popq %%rsp\n\t"       \
 	                     : "=a"(ret), "=c"(fault), "=S"(*r1), "=D"(*r2)
-	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4)
+	                     : "a"(cap_no), "b"(arg1), "S"(arg2), "D"(arg3), "d"(arg4), "c"(&frame_ctx)
 	                     : "memory", "cc", "r8","r9","r10", "r11", "r12");
 
 	return ret;

@@ -1055,6 +1055,7 @@ crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, 
 	} else {
 		thdcap = cos_thd_alloc_ext(cos_compinfo_get(defci), target_ci->comp_cap, closure_id, dcbcap, dcboff);
 	}
+	//printc("===========thdcap: %d\n", thdcap);
 	assert(thdcap);
 
 	/* Allocate the necessary kernel resources */
@@ -1489,7 +1490,6 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		assert(thdcap);
 
 		if (comp->flags & CRT_COMP_SCHED) {
-			printc("TCAP_RES_INF: %lu\n", TCAP_RES_INF);
 			if (crt_comp_sched_delegate(comp, comp_get(cos_compid()), TCAP_PRIO_MAX, TCAP_RES_INF)) BUG();
 		} else {
 			if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync()))) {
@@ -1529,7 +1529,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		if (ps_load(&comp->init_state) == CRT_COMP_INIT_PASSIVE ||
 		    (comp->main_type == INIT_MAIN_SINGLE && !initcore)) continue;
 
-		if (initcore) printc("Switching to main in component %lu.\n", comp->id);
+		if (initcore) printc("Switching to main in component %lu.%d\n", comp->id, comp->flags & CRT_COMP_SCHED);
 
 		if (comp->flags & CRT_COMP_SCHED) {
 			struct cos_defcompinfo *compci     = comp->comp_res;
@@ -1538,8 +1538,14 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 			struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 
 			assert(sched_aep->rcv != 0 && child_aep->tc != 0);
+			//if (initcore) {
+			//	struct cos_compinfo *ci = cos_compinfo_get(defci);
+			//	printc("thdcap: %d\n", thdcap);
+			//	printc("thdid: %d\n", cos_introspect(ci, thdcap, THD_GET_TID));
+			//}
 			ret = cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, sched_aep->rcv, cos_sched_sync());
 			if (ret) {
+			assert(0);
 			BUG();
 			}
 		} else {

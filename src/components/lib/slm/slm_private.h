@@ -127,21 +127,25 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 {
 	volatile struct cos_scb_info *scb = slm_scb_info_core();
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
+	struct cos_compinfo *ci = cos_compinfo_get(defci);
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 	sched_tok_t rcv_tok;
-	u64_t htok;
+	unsigned long htok;
+	//unsigned long curr_stk;
 
 	assert(curr != next);
 	//printc("size: %d\n", sizeof(sched_tok_t));
-	printc("nd->sp: %lx, now:%ld, pre:%ld, nd->ip: %lx\n", nd->sp, timeout, scb->timer_pre, nd->ip);
+	//printc("nd->sp: %lx, now:%ld, pre:%ld, nd->ip: %lx, curr: %d, next: %d\n", nd->sp, timeout, scb->timer_pre, nd->ip, curr, next);
 	//assert(timeout >= scb->timer_pre);
 	/* 
 	 * If previous timer smaller than current timeout, we need to take 
 	 * the kernel path to update the timer.
 	 */
 	if (scb->timer_pre < timeout) {
+		//if (cos_cpuid() == 0)
+		//	printc("defswitch: %d, scb->timer_pre: %lx, timeout: %lx\n", next, scb->timer_pre, timeout);
 		scb->timer_pre = timeout;
-		printc("defswitch: %d\n", next);
+		//scb->curr_thd = 0;
 		return cos_defswitch(next, prio, timeout, tok);
 	}
 	/*
@@ -254,10 +258,12 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		  [prio] "r" (prio), [rcv] "r" (sched_aep->rcv)
 		: "memory", "cc", "r8", "r9", "r10", "r11", "r12");*/
 
-	__asm__ __volatile__ (              \
+
+	__asm__ __volatile__ (
 		"pushq %%rbp\n\t"               \
 		"mov %%rsp, %%rbp\n\t"         \
-		"movq $2f, (%%rax)\n\t"         \
+		"movabs $2f, %%r8\n\t"            \
+		"mov %%r8, (%%rax)\n\t"         \
 		"mov %%rsp, 8(%%rax)\n\t"      \
 		"cmp $0, 8(%%rbx)\n\t"          \
 		"je 1f\n\t"                     \
@@ -271,9 +277,9 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		"inc %%rax\n\t"                 \
 		"shl $16, %%rax\n\t"            \
 		"mov %%rsi, %%rbx\n\t"            \
-		"mov %[prio], %%rsi\n\t"            \
+		"mov $0, %%rsi\n\t"            \
 		"mov %%rdi, %%rdx\n\t"         \
-		"mov %[rcv], %%rdi\n\t"            \
+		"mov $0, %%rdi\n\t"            \
 		"syscall\n\t"
 		"jmp 3f\n\t"                    \
 		".align 4\n\t"                  \
@@ -285,11 +291,10 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		: 
 		: "a" (cd), "b" (nd),
 		  "S" (tok), "D" (timeout),
-		  "c" (&(scb->curr_thd)), "d" (next),
-		  [prio] "r" (prio), [rcv] "r" (sched_aep->rcv)
-		: "memory", "cc", "r8", "r9", "r11", "r12");
-		printc("done\n");
+		  "c" (&(scb->curr_thd)), "d" (next)
+		: "memory", "cc", "r8", "r9", "r11", "r12", "r13", "r14", "r15");
 #else
+	assert(0);
 	__asm__ __volatile__ (              \
 		"pushl %%ebp\n\t"               \
 		"movl %%esp, %%ebp\n\t"         \
@@ -370,9 +375,11 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 		//ret = cos_defswitch(t->thd, prio, timeout, tok);
 	//} 
 	else {
-		//printc("------ulswitch %d -> %d\n", curr->tid, t->tid);
+		//if (cos_cpuid() == 0)
+			//printc("------ulswitch %d -> %d\n", curr->tid, t->tid);
 		//printc("------timeout: %d, %lld\n", timeout, tcap_time2cyc(timeout, slm_now()));
 		ret = cos_ulswitch(curr->thd, t->thd, cd, nd, prio, timeout, tok);
+		//printc("rrrret: %d\n", ret);
 	}
 
 	if (unlikely(ret == -EPERM && !slm_thd_normal(t))) {
@@ -436,7 +443,9 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 			g->timer_set = 0;
 			/* The timer policy will likely reset the timer */
 			slm_timer_expire(now);
-			//printc("======================================: %lld, %lld, now: %lld\n", diff, g->timer_next, now);
+			if (cos_cpuid() == 0)
+				printc("======================================\n", diff, g->timer_next, now);
+				//printc("======================================: %lld, %lld, now: %lld\n", diff, g->timer_next, now);
 		}
 		//printc("<<<<<: %lld\n", diff);
 	}

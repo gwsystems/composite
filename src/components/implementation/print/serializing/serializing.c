@@ -37,7 +37,8 @@ flush_buf(struct print_buffer *b)
 {
 	assert(b->offset + 1 < PRINT_STRLEN);
 	b->string[b->offset] = '\0';
-	printc("[%d %ld %ld] %s", cos_coreid(), b->thdid, b->compid, b->string);
+	if (cos_cpuid() == 0)
+		printc("[%d %ld %ld] %s", cos_coreid(), b->thdid, b->compid, b->string);
 	b->offset = 0;
 }
 

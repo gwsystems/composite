@@ -71,7 +71,7 @@ COS_CLIENT_STUB(thdid_t, capmgr_retrieve_dcbinfo, thdid_t tid, arcvcap_t *arcv, 
 	*arcv = (retrs >> 16);
 	*asnd = (retrs << 16) >> 16;
 #endif
-	printc("+++++++++++client_arcv: %d, asnd: %d, %lx\n", *arcv, *asnd, retrs);
+	//printc("+++++++++++client_arcv: %d, asnd: %d, %lx\n", *arcv, *asnd, retrs);
 
 	return ret;
 }

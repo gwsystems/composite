@@ -147,8 +147,8 @@ sched_thd_yield_to(thdid_t t)
         slm_sched_yield(current, to);
 	//ret = slm_cs_exit_reschedule(current, SLM_CS_CHECK_TIMEOUT);
 	ret = slm_cs_exit_reschedule(current, SLM_CS_NONE);
-
-	//printc("yield ret\n");
+	//int test = 0;
+	//printc("yield ret:%lx\n", &test);
 	return ret;
 }
 

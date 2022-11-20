@@ -49,7 +49,6 @@ COS_SERVER_3RET_STUB(int, capmgr_retrieve_dcbinfo)
 	assert(arcv < ((1 << 16) - 1));
 	*r1 = arcv << 16 | asnd;
 #endif
-	printc("----arcv: %d, asnd: %d, %lx\n", arcv, asnd, *r1);
 	*r2 = (word_t)retdcb;
 
 	return ret;

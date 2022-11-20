@@ -308,6 +308,7 @@ thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_loca
 {
 	/* commit the cached data */
 	prev->invstk_top     = cos_info->invstk_top;
+	//printk("!!!!!update, pre_top: %d\n", cos_info->invstk_top);
 	cos_info->invstk_top = next->invstk_top;
 	cos_info->curr_thd   = next;
 }
@@ -582,6 +583,9 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 	prev = &thd->invstk[curr_invstk_top(cos_info)];
 	top  = &thd->invstk[curr_invstk_top(cos_info) + 1];
 	curr_invstk_inc(cos_info);
+	//thd->invstk_top++;
+	//assert(thd->invstk_top == cos_info->invstk_top);
+	//printk("\tcurr invstk_top: %d\n", curr_invstk_top(cos_info));
 	prev->ip = ip;
 	prev->sp = sp;
 	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
@@ -595,6 +599,8 @@ thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, struct 
 {
 	if (unlikely(curr_invstk_top(cos_info) == 0)) return NULL;
 	curr_invstk_dec(cos_info);
+	//thd->invstk_top--;
+	//assert(thd->invstk_top == cos_info->invstk_top);
 	return thd_invstk_current(thd, ip, sp, cos_info);
 }
 
@@ -646,8 +652,8 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 	//printk("\tthdid: %d, issame: %d, preempt: %d\n", thd->tid, issame, preempt);
 //printk("\tsp: %x, bp: %x; ip: %x, cx: %x\n", regs->sp, regs->bp, regs->ip, regs->cx);
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
-//printk("\tsp: %x, bp: %x; ip: %x, cx: %x\n", regs->sp, regs->bp, regs->ip, regs->cx);
-		printk("\tspecial: %d, %lx\n", thd->tid, thd->dcbinfo->ip);
+		//printk("\tsp: %x, bp: %x; ip: %x, cx: %x\n", regs->sp, regs->bp, regs->ip, regs->cx);
+		//printk("\tspecial: %d, %lx\n", thd->tid, thd->dcbinfo->ip);
 		assert(preempt == 0);
 #if defined(__x86_64__)
 		regs->cx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
@@ -659,11 +665,11 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		thd->dcbinfo->sp = 0;
 	}
 	//printk("\tdcbinfo: %x, issame: %d\n", thd->dcbinfo, issame);
-
-printk("ax: %lx, sp: %lx, bp: %lx, issame: %d, ip: %lx\n", regs->ax, regs->sp, regs->bp, issame, regs->ip);
 	if (issame && preempt == 0) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 	}
+	//if (get_cpuid() == 1)
+	//	printk("ax: %lx, sp: %lx, bp: %lx, issame: %d, ip: %lx\n", regs->ax, regs->sp, regs->bp, issame, regs->ip);
 
 	return preempt;
 }

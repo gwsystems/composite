@@ -323,7 +323,7 @@ slm_thd_wakeup_cs(struct slm_thd *curr, struct slm_thd *t)
 		slm_cs_exit(curr, SLM_CS_NONE);
 	} else {
 		slm_cs_exit_reschedule(curr, SLM_CS_NONE);
-		printc("wakeup\n");
+		//printc("wakeup\n");
 	}
 
 	return;
@@ -399,7 +399,6 @@ slm_sched_loop_intern(int non_block)
 	/* Only the scheduler thread should call this function. */
 	assert(cos_thdid() == us->tid);
 
-	printc("loop\n");
 	while (1) {
 		int pending, ret;
 
@@ -421,9 +420,31 @@ slm_sched_loop_intern(int non_block)
 			 * Important that this is *not* in the CS due
 			 * to the potential blocking.
 			 */
+			if (cos_cpuid() == 0) {
+				assert(us->tid == 5);
+				assert(us->rcv == 48);
+				//volatile struct cos_scb_info *scb = slm_scb_info_core();
+				printc("curr: %d, us: %d, rcv: %d\n", cos_thdid(), us->tid, us->rcv);
+			}
+			if (cos_cpuid() == 1) {
+				assert(us->tid == 6);
+				assert(us->rcv == 52);
+			}
+			//if (cos_cpuid() == 0) while (1) {}
 			pending = cos_sched_rcv(us->rcv, rfl, g->timeout_next, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
-			//printc("pending: %d\n", pending);
+			if (cos_cpuid() == 0) {
+				assert(us->tid == 5);
+				assert(us->rcv == 48);
+				//volatile struct cos_scb_info *scb = slm_scb_info_core();
+				//printc("curr: %d, us: %d, scb: %d\n", cos_thdid(), us->tid, scb->curr_thd);
+			}
+			if (cos_cpuid() == 1) {
+				assert(us->tid == 6);
+				assert(us->rcv == 52);
+			}
+
 			if (!tid) goto pending_events;
+			assert(pending >= 0);
 			/*
 			 * FIXME: kernel should pass an untyped
 			 * pointer back here that we can use instead
@@ -432,6 +453,8 @@ slm_sched_loop_intern(int non_block)
 			 * mapping ;-(
 			 */
 			t = slm_thd_lookup(tid);
+			if (!t)
+				printc("t: %d, cpuid: %d, rcvd: %d, us->tid: %d, pending: %d\n", tid, cos_cpuid(), rcvd, us->tid, pending);
 			assert(t);
 			/* don't report the idle thread or a freed thread */
 			if (unlikely(t == &g->idle_thd || slm_state_is_dead(t->state))) goto pending_events;
@@ -461,7 +484,9 @@ slm_sched_loop_intern(int non_block)
 
 pending_events:
 			/* No events? make a scheduling decision */
-			if (ps_list_head_empty(&g->event_head)) break;
+			if (ps_list_head_empty(&g->event_head)) {
+				break;
+			}
 
 			/*
 			 * Receiving scheduler notifications is not in critical section mainly for
@@ -563,7 +588,7 @@ slm_init(thdcap_t thd, thdid_t tid, struct cos_dcb_info *initdcb, struct cos_dcb
 	ps_list_head_init(&g->graveyard_head);
 
 	g->cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-	printc("=======cyc:%d\n", g->cyc_per_usec);
+	//printc("=======cyc:%d\n", g->cyc_per_usec);
 	g->lock.owner_contention = 0;
 
 	assert(sizeof(struct cos_scb_info) * NUM_CPU <= COS_SCB_SIZE && COS_SCB_SIZE == PAGE_SIZE);
