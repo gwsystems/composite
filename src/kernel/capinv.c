@@ -1299,9 +1299,9 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			/* ret is returned by the overall function */
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, dcb_cap, dcboff);
-			if (get_cpuid() == 1)
+			/*if (get_cpuid() == 0) {
 				printk("thdalloc: %d\n", thd->tid);
-			//if (thd->tid == 6) assert(0);
+			}*///if (thd->tid == 6) assert(0);
 			//if (thd->tid == 3) assert(0);
 			if (ret) kmem_unalloc(tpte);
 

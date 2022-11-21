@@ -198,7 +198,7 @@ sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, t
 		if (!aep) goto done;
 
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
-		capmgr_aep_create_ext(comp->id, aep, idx, owntc, key, ipiwin, ipimax, extrcv);
+		capmgr_aep_create_ext(comp->id, aep, idx, owntc, key, ipiwin, ipimax, NULL, extrcv);
 		if (!aep->thd) goto done;
 
 		t = sl_thd_alloc_init(aep, 0, prps);
@@ -220,7 +220,7 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 	if (!aep) goto done;
 
 	if (prps & SL_THD_PROPERTY_OWN_TCAP) owntc = 1;
-	capmgr_aep_create(aep, fn, data, owntc, key, ipiwin, ipimax);
+	capmgr_aep_create(aep, fn, data, owntc, key, ipiwin, ipimax, NULL);
 	if (aep->thd == 0) goto done;
 
 	t = sl_thd_alloc_init(aep, 0, prps);

@@ -91,7 +91,7 @@ cos_defcompinfo_sched_init(void)
 }
 
 static int
-cos_aep_alloc_intern(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci, tcap_t tc, struct cos_aep_info *sched, cos_aepthd_fn_t fn, void *data, thdclosure_index_t idx)
+cos_aep_alloc_intern(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci, tcap_t tc, struct cos_aep_info *sched, cos_aepthd_fn_t fn, void *data, thdclosure_index_t idx, dcbcap_t dcbcap, dcboff_t dcboff)
 {
 	struct cos_defcompinfo *defci   = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci      = cos_compinfo_get(defci);
@@ -163,29 +163,29 @@ cos_defcompinfo_childid_init(struct cos_defcompinfo *child_defci, spdid_t c)
 }
 
 int
-cos_initaep_alloc(struct cos_defcompinfo *dst_dci, struct cos_aep_info *sched, int is_sched)
+cos_initaep_alloc(struct cos_defcompinfo *dst_dci, struct cos_aep_info *sched, int is_sched, dcbcap_t dcap)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 	struct cos_aep_info    *child_aep = cos_sched_aep_get(dst_dci);
 	struct cos_aep_info    *sched_use = is_sched ? (sched ? sched : sched_aep) : NULL;
 
-	return cos_aep_alloc_intern(child_aep, dst_dci, 0, sched_use, NULL, NULL, 0);
+	return cos_aep_alloc_intern(child_aep, dst_dci, 0, sched_use, NULL, NULL, 0, dcap, 0);
 }
 
 int
-cos_initaep_tcap_alloc(struct cos_defcompinfo *dst_dci, tcap_t tc, struct cos_aep_info *sched)
+cos_initaep_tcap_alloc(struct cos_defcompinfo *dst_dci, tcap_t tc, struct cos_aep_info *sched, dcbcap_t dcap)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 	struct cos_aep_info    *child_aep = cos_sched_aep_get(dst_dci);
 	struct cos_aep_info    *sched_use = sched ? sched : sched_aep;
 
-	return cos_aep_alloc_intern(child_aep, dst_dci, tc, sched_use, NULL, NULL, 0);
+	return cos_aep_alloc_intern(child_aep, dst_dci, tc, sched_use, NULL, NULL, 0, dcap, 0);
 }
 
 int
-cos_aep_alloc_ext(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci, struct cos_aep_info *sched, thdclosure_index_t idx)
+cos_aep_alloc_ext(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci, struct cos_aep_info *sched, thdclosure_index_t idx, dcbcap_t dcap, dcboff_t doff)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
@@ -194,11 +194,11 @@ cos_aep_alloc_ext(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci, str
 	if (!sched) sched_aep = cos_sched_aep_get(dst_dci);
 	else        sched_aep = sched;
 
-	return cos_aep_alloc_intern(aep, dst_dci, 0, sched_aep, NULL, NULL, idx);
+	return cos_aep_alloc_intern(aep, dst_dci, 0, sched_aep, NULL, NULL, idx, dcap, doff);
 }
 
 int
-cos_aep_tcap_alloc_ext(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci, struct cos_aep_info *sched, tcap_t tc, thdclosure_index_t idx)
+cos_aep_tcap_alloc_ext(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci, struct cos_aep_info *sched, tcap_t tc, thdclosure_index_t idx, dcbcap_t dcap, dcboff_t doff)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
@@ -208,25 +208,25 @@ cos_aep_tcap_alloc_ext(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci
 	if (!sched) sched_aep = cos_sched_aep_get(dst_dci);
 	else        sched_aep = sched;
 
-	return cos_aep_alloc_intern(aep, dst_dci, tc, sched_aep, NULL, NULL, idx);
+	return cos_aep_alloc_intern(aep, dst_dci, tc, sched_aep, NULL, NULL, idx, dcap, doff);
 }
 
 int
-cos_aep_alloc(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data)
+cos_aep_alloc(struct cos_aep_info *aep, cos_aepthd_fn_t fn, void *data, dcbcap_t dcap, dcboff_t doff)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 
-	return cos_aep_alloc_intern(aep, defci, 0, sched_aep, fn, data, 0);
+	return cos_aep_alloc_intern(aep, defci, 0, sched_aep, fn, data, 0, dcap, doff);
 }
 
 int
-cos_aep_tcap_alloc(struct cos_aep_info *aep, tcap_t tc, cos_aepthd_fn_t fn, void *data)
+cos_aep_tcap_alloc(struct cos_aep_info *aep, tcap_t tc, cos_aepthd_fn_t fn, void *data, dcbcap_t dcap, dcboff_t doff)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 
-	return cos_aep_alloc_intern(aep, defci, tc, sched_aep, fn, data, 0);
+	return cos_aep_alloc_intern(aep, defci, tc, sched_aep, fn, data, 0, dcap, doff);
 }
 
 int

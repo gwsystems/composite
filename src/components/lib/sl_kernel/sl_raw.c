@@ -149,7 +149,7 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 		sl_mod_thd_create(sl_mod_thd_policy_get(t));
 	} else {
 		assert(idx == 0);
-		ret = cos_initaep_alloc(comp, NULL, 0);
+		ret = cos_initaep_alloc(comp, NULL, 0, 0);
 		if (ret) goto done;
 
 		t = sl_thd_comp_init_no_cs(comp, 0, 0);
@@ -171,9 +171,9 @@ sl_thd_aep_alloc_no_cs(cos_aepthd_fn_t fn, void *data, sl_thd_property_t prps, c
 	if (!aep) goto done;
 
 	/* NOTE: Cannot use stack-allocated cos_aep_info struct here */
-	if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data);
+	if (prps & SL_THD_PROPERTY_OWN_TCAP) ret = cos_aep_alloc(aep, fn, data, 0, 0);
 	else                                 ret = cos_aep_tcap_alloc(aep, sl_thd_aepinfo(sl__globals_cpu()->sched_thd)->tc,
-			                                              fn, data);
+			                                              fn, data, 0, 0);
 	if (ret) goto done;
 
 	t = sl_thd_alloc_init(aep, 0, prps);
@@ -194,9 +194,9 @@ sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, t
 	if (prps & SL_THD_PROPERTY_SEND) {
 		assert(sched);
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) {
-			ret = cos_initaep_alloc(comp, sl_thd_aepinfo(sched), prps & SL_THD_PROPERTY_SEND);
+			ret = cos_initaep_alloc(comp, sl_thd_aepinfo(sched), prps & SL_THD_PROPERTY_SEND, 0);
 		} else {
-			ret = cos_initaep_tcap_alloc(comp, sl_thd_tcap(sched), sl_thd_aepinfo(sched));
+			ret = cos_initaep_tcap_alloc(comp, sl_thd_tcap(sched), sl_thd_aepinfo(sched), 0);
 		}
 		if (ret) goto done;
 
@@ -208,9 +208,9 @@ sl_thd_aep_alloc_ext_no_cs(struct cos_defcompinfo *comp, struct sl_thd *sched, t
 		if (!aep) goto done;
 
 		if (prps & SL_THD_PROPERTY_OWN_TCAP) {
-			ret = cos_aep_alloc_ext(aep, comp, sl_thd_aepinfo(sched), idx);
+			ret = cos_aep_alloc_ext(aep, comp, sl_thd_aepinfo(sched), idx, 0, 0);
 		} else {
-			ret = cos_aep_tcap_alloc_ext(aep, comp, sl_thd_aepinfo(sched), sl_thd_tcap(sched), idx);
+			ret = cos_aep_tcap_alloc_ext(aep, comp, sl_thd_aepinfo(sched), sl_thd_tcap(sched), idx, 0, 0);
 		}
 		if (ret) goto done;
 

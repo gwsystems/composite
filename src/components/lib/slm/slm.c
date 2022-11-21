@@ -420,28 +420,28 @@ slm_sched_loop_intern(int non_block)
 			 * Important that this is *not* in the CS due
 			 * to the potential blocking.
 			 */
-			if (cos_cpuid() == 0) {
-				assert(us->tid == 5);
-				assert(us->rcv == 48);
+			//if (cos_cpuid() == 0) {
+			//	printc("curr: %d, us: %d, rcv: %d\n", cos_thdid(), us->tid, us->rcv);
+			//	assert(us->tid == 5);
+			//	assert(us->rcv == 48);
 				//volatile struct cos_scb_info *scb = slm_scb_info_core();
-				printc("curr: %d, us: %d, rcv: %d\n", cos_thdid(), us->tid, us->rcv);
-			}
-			if (cos_cpuid() == 1) {
-				assert(us->tid == 6);
-				assert(us->rcv == 52);
-			}
+			//}
+			//if (cos_cpuid() == 1) {
+			//	assert(us->tid == 6);
+			//	assert(us->rcv == 52);
+			//}
 			//if (cos_cpuid() == 0) while (1) {}
 			pending = cos_sched_rcv(us->rcv, rfl, g->timeout_next, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
-			if (cos_cpuid() == 0) {
-				assert(us->tid == 5);
-				assert(us->rcv == 48);
+			//if (cos_cpuid() == 0) {
+			//	assert(us->tid == 5);
+			//	assert(us->rcv == 48);
 				//volatile struct cos_scb_info *scb = slm_scb_info_core();
 				//printc("curr: %d, us: %d, scb: %d\n", cos_thdid(), us->tid, scb->curr_thd);
-			}
-			if (cos_cpuid() == 1) {
-				assert(us->tid == 6);
-				assert(us->rcv == 52);
-			}
+			//}
+			//if (cos_cpuid() == 1) {
+			//	assert(us->tid == 6);
+			//	assert(us->rcv == 52);
+			//}
 
 			if (!tid) goto pending_events;
 			assert(pending >= 0);
@@ -553,10 +553,15 @@ slm_init(thdcap_t thd, thdid_t tid, struct cos_dcb_info *initdcb, struct cos_dcb
 	struct slm_thd *i    = &g->idle_thd;
 	struct cos_defcompinfo *defci;
 	struct cos_aep_info    *sched_aep;
+	struct cos_aep_info    *test_aep;
+	struct cos_aep_info    *test2_aep;
 
 	defci = cos_defcompinfo_curr_get();
 	sched_aep = cos_sched_aep_get(defci);
+	//test_aep = &(defci->sched_aep[1]);
+	//test2_aep = &(defci->sched_aep[0]);
 
+	//printc("schedaep: %d, %d, %d, cos_cpuid(): %d\n", sched_aep->tid, test_aep->tid, test2_aep->tid, cos_cpuid());
 	*s = (struct slm_thd) {
 		.properties = SLM_THD_PROPERTY_SPECIAL,
 		.state = SLM_THD_RUNNABLE,

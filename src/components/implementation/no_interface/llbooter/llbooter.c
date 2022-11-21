@@ -555,9 +555,6 @@ booter_init(void)
 	cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 }
 
-	cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-}
-
 void
 init_done_chkpt(struct crt_comp *c)
 {
