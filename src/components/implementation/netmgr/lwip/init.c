@@ -76,6 +76,9 @@ cos_interface_output(struct netif *ni, struct pbuf *p)
 static err_t
 cos_interface_init(struct netif *ni)
 {
+	uint64_t mac_addr = nic_get_port_mac_address(0);
+	char *mac_addr_arr = (char *)&mac_addr;
+
 	ni->name[0] = 'u';
 	ni->name[1] = 's';
 	ni->mtu     = 1500;
@@ -86,15 +89,28 @@ cos_interface_init(struct netif *ni)
 	ni->flags |= NETIF_FLAG_ETHARP;
 	ni->flags |= NETIF_FLAG_ETHERNET;
 
-	ni->hwaddr[0] = 0x66;
-	ni->hwaddr[1] = 0x66;
-	ni->hwaddr[2] = 0x66;
-	ni->hwaddr[3] = 0x66;
-	ni->hwaddr[4] = 0x66;
-	ni->hwaddr[5] = 0x66;
+	ni->hwaddr[0] = mac_addr_arr[5];
+	ni->hwaddr[1] = mac_addr_arr[4];
+	ni->hwaddr[2] = mac_addr_arr[3];
+	ni->hwaddr[3] = mac_addr_arr[2];
+	ni->hwaddr[4] = mac_addr_arr[1];
+	ni->hwaddr[5] = mac_addr_arr[0];
 	ni->hwaddr_len = ETH_HWADDR_LEN;
 
 	return ERR_OK;
+}
+
+/* 
+ * This flag is needed when adding static ARP entry.
+ *
+ * As the LWIP netif_set_link_up() will by default send out
+ * a gratuitous ARP when linking up. We don't want this behavior 
+ * currently. Thus, we manually change the flag.
+ */
+static void
+cos_netif_set_link_up(struct netif *netif)
+{
+	netif_set_flags(netif, NETIF_FLAG_LINK_UP);
 }
 
 void
@@ -103,28 +119,35 @@ cos_init(void)
 	void  *mem;
 	cbuf_t id;
 	size_t shmsz;
+	struct eth_addr ethaddr;
+
 
 	printc("netmgr init...\n");
 
 	IP4_ADDR(&ip, 10,10,1,2);
 	IP4_ADDR(&mask, 255,255,255,0);
 	IP4_ADDR(&gw, 10,10,1,10);
-	IP4_ADDR(&client, 10,10,1,2);
 
 	lwip_init();
 	netif_add(&net_interface, &ip, &mask, &gw, NULL, cos_interface_init, ethernet_input);
 	netif_set_default(&net_interface);
 	netif_set_up(&net_interface);
-	printc("netmgr init done\n");
+	cos_netif_set_link_up(&net_interface);
 
-	/* TODO: static arp might be needed when testing */
-	// ip4_addr_t ipaddr;
-	// struct eth_addr ethaddr;
-	// ethaddr.addr[0] = 0x11;
-	// ethaddr.addr[1] = 0x11;
-	// ethaddr.addr[2] = 0x11;
-	// ethaddr.addr[3] = 0x11;
-	// ethaddr.addr[4] = 0x11;
-	// ethaddr.addr[5] = 0x11;
-	// etharp_add_static_entry(&client, &ethaddr);
+	/* Add static arp entry for client IP */
+	IP4_ADDR(&client, 10,10,1,1);
+	ethaddr.addr[0] = 0x52;
+	ethaddr.addr[1] = 0x9c;
+	ethaddr.addr[2] = 0xd1;
+	ethaddr.addr[3] = 0x13;
+	ethaddr.addr[4] = 0xa2;
+	ethaddr.addr[5] = 0x0e;
+	etharp_add_static_entry(&client, &ethaddr);
+
+	printc("netmgr init done\n");
+}
+
+int main()
+{
+	return 0;
 }

@@ -22,7 +22,7 @@ initialize()
 	esac
 
 	echo "[cos setting arch] make -C src config-${arch}"
-	make -C src config-${arch} 
+	make -C src config-${arch}
 
 	echo "[cos executing] make -C src config init"
 	make -C src init

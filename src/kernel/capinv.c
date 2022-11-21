@@ -41,44 +41,24 @@ extern char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 static inline int
 printfn(struct pt_regs *regs)
 {
+	u32_t c[4];
+	int   len, maxlen = sizeof(u32_t) * 3;
 	char *str;
-	int   len;
-	char  kern_buf[MAX_LEN];
 
-	str = (char *)(word_t)__userregs_get1(regs);
-	len = __userregs_get2(regs);
+	c[0] = (u32_t)__userregs_get1(regs);
+	c[1] = (u32_t)__userregs_get2(regs);
+	c[2] = (u32_t)__userregs_get3(regs);
+	c[3] = 0; 		/* for the \0 */
+	len = __userregs_get4(regs);
 
+	if (len > maxlen) len = maxlen;
 	if (len < 1) goto done;
-	if (len >= MAX_LEN) len = MAX_LEN - 1;
-	memcpy(kern_buf, str, len);
 
-	/*
-	 * Hack of all hacks.  Manually request TLB flushes from
-	 * user-level.  Should be replaced with invocations to async
-	 * invocations instead.
-	 */
-	if (len >= 7) {
-		if (kern_buf[0] == 'F' && kern_buf[1] == 'L' && kern_buf[2] == 'U' && kern_buf[3] == 'S'
-		    && kern_buf[4] == 'H' && kern_buf[5] == '!') {
-			int target_cpu = kern_buf[6];
-
-			if (target_cpu == get_cpuid()) {
-				tlb_mandatory_flush(NULL);
-			} else {
-				/* FIXME: avoid using this band-aid. */
-				chal_remote_tlb_flush(target_cpu);
-			}
-
-			__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-
-			return 0;
-		}
-	}
-
-	kern_buf[len] = '\0';
-	printk("%s", kern_buf);
+	str = (char *)&c[0];
+	str[len] = '\0';
+	printk("%s", str);
 done:
-	__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
+	__userregs_set(regs, len, __userregs_getsp(regs), __userregs_getip(regs));
 
 	return 0;
 }
@@ -125,7 +105,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, capi
 
 	pa = old_v & PGTBL_FRAME_MASK;
 	 if (!chal_pgtbl_flag_exist(old_v, PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
-	 assert(!chal_pgtbl_flag_exist(old_v, PGTBL_QUIESCENCE)); 
+	 assert(!chal_pgtbl_flag_exist(old_v, PGTBL_QUIESCENCE));
 
 	/* Scan the page to make sure there's nothing left. */
 	if (ch->type == CAP_CAPTBL) {
@@ -1006,6 +986,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	case CAP_ARCV:
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
+
 		return ret;
 	default:
 		break;

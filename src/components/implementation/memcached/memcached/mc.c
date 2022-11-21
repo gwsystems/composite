@@ -40,7 +40,7 @@ cos_init(void)
 		"--listen=10.10.2.2",
 		"--port=0",// close tcp initialization
 		"--udp-port=11211",
-		"--threads=64",
+		"--threads=32",
 		"--protocol=auto",
 		"--memory-limit=64",
 		"--extended=no_lru_crawler,no_lru_maintainer,no_hashexpand,no_slab_reassign",
@@ -51,4 +51,9 @@ cos_init(void)
 	/* 1. do initialization of memcached */
 	ret = cos_mc_init(argc, argv);
 	printc("memcached init done, ret: %d\n", ret);
+}
+
+int main()
+{
+	return 0;
 }

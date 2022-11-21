@@ -2,6 +2,7 @@
 #include <llprint.h>
 #include <chan.h>
 #include <ps.h>
+#include <cos_time.h>
 
 struct chan_snd s;
 struct chan_rcv r;
@@ -10,7 +11,7 @@ struct chan_rcv r;
 
 /*
  * the Receiver and sender tests could run at different times,
- * causing the numbers to blow up! 
+ * causing the numbers to blow up!
  *
  * Another issue is, when the high priority thread here is printing,
  * the test on the low prio side is not done yet!
@@ -98,7 +99,7 @@ main(void)
 
 	printc("Component chan hi: executing main.\n");
 
-	/* 
+	/*
 	 * This sleep in both hi and lo comps lets the benchmark run
 	 * more predictably on HW and on Qemu.
 	 *

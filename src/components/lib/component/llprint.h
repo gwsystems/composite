@@ -14,30 +14,25 @@ cos_llprint(char *s, int len)
 	cos_serial_putb(s, len);
 }
 
-static void
-cos_print(char *s, int len);
+int cos_print_str(char *s, int len);
 
 static int
 prints(char *s)
 {
-	size_t len = strlen(s);
-
-	cos_print(s, len); /* use syscall to print, so it prints to vga as well */
-
-	return len;
+	return cos_print_str(s, strlen(s));
 }
 
 static int  __attribute__((format(printf, 1, 2)))
 printc(char *fmt, ...)
 {
-	char    s[128];
+	char    s[180];
 	va_list arg_ptr;
-	size_t  ret, len = 128;
+	size_t  ret;
 
 	va_start(arg_ptr, fmt);
-	ret = vsnprintf(s, len, fmt, arg_ptr);
+	ret = vsnprintf(s, 180, fmt, arg_ptr);
 	va_end(arg_ptr);
-	cos_llprint(s, ret);
+	ret = cos_print_str(s, ret);
 
 	return ret;
 }
@@ -51,7 +46,7 @@ typedef enum {
 
 extern int         cos_print_level;
 extern int         cos_print_lvl_str;
-extern const char *cos_print_str[];
+extern const char *cos_print_lvl[];
 
 /* Prints with current (cpuid, thdid, spdid) */
 #define PRINTC(format, ...) printc("(%ld,%lu,%lu) " format, cos_cpuid(), cos_thdid(), cos_compid(), ## __VA_ARGS__)
@@ -60,7 +55,7 @@ extern const char *cos_print_str[];
 	{                                                                                     \
 		if (level <= cos_print_level) {                                               \
 			PRINTC("%s" format,                                                   \
-			       cos_print_lvl_str ? cos_print_str[level] : "", ##__VA_ARGS__); \
+			       cos_print_lvl_str ? cos_print_lvl[level] : "", ##__VA_ARGS__); \
 		}                                                                             \
 	}
 

@@ -9,7 +9,7 @@ INTERFACE_EXPORTS =
 INTERFACE_DEPENDENCIES = chanmgr chanmgr_evt evt
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = component chan ps ubench
+LIBRARY_DEPENDENCIES = component chan ps ubench time
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this

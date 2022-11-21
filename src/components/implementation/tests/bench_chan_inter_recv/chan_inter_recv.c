@@ -3,6 +3,7 @@
 #include <chan.h>
 #include <ps.h>
 #include <perfdata.h>
+#include <cos_time.h>
 
 #undef CHAN_TRACE_DEBUG
 #ifdef CHAN_TRACE_DEBUG
@@ -44,7 +45,7 @@ main(void)
 #endif
 
 	printc("Component chan receiver: executing main.\n");
-	
+
 	/* See if event manager is in use. If yes, log the receiver channel into it */
 #ifdef USE_EVTMGR
 	assert(evt_init(&e, 2) == 0);
@@ -54,7 +55,7 @@ main(void)
 	printc("Receiver side event created.\n");
 #endif
 
-	/* 
+	/*
 	 * This sleep in both hi and lo comps lets the benchmark run
 	 * more predictably on HW and on Qemu.
 	 *

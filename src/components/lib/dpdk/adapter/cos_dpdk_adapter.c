@@ -188,6 +188,11 @@ cos_get_tsc_freq(void)
 	return sched_get_cpu_freq() * 1000000;
 }
 
+unsigned
+cos_curr_lcore(void) {
+	return 0;
+}
+
 COS_DPDK_DECLARE_NIC_MODULE(net_e1000_em);
 COS_DPDK_DECLARE_NIC_MODULE(net_i40e);
 COS_DPDK_DECLARE_NIC_MODULE(mempool_ring);

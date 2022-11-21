@@ -326,7 +326,7 @@ pub trait AddressAssignmentPass {
 // Compute the resource table, and resource allocations for each
 // component.
 pub trait ResPass {
-    fn args(&self, &ComponentId) -> &Vec<ArgsKV>;
+    fn args(&self, id: &ComponentId) -> &Vec<ArgsKV>;
 }
 
 // The initparam, objects, and synchronous invocation passes are all

@@ -20,11 +20,11 @@
 #define NUM_CPU 1
 #define NUM_CPU_BMP_BYTES ((NUM_CPU + 7) / 8)
 #define NUM_CPU_BMP_WORDS ((NUM_CPU_BMP_BYTES + 3) / 4)
-/* 
- * FIXME: The macro to set a portion of memory of the booter to super pages - 
+/*
+ * FIXME: The macro to set a portion of memory of the booter to super pages -
  * should be dynamically passed from kernel to userlevel!
  */
-#define NUM_SUPERPAGES           139 
+#define NUM_SUPERPAGES           139
 #define MAX_USABLE_MEMORY        1700
 /* FIXME: This is a hack - was 0xD800000, now expanded to 1200MB */
 #define EXTRA_MEMORY             ((MAX_USABLE_MEMORY - 512) << 20)
@@ -50,7 +50,7 @@
 #define COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK 0x0000ff8000000000
 #define COS_MEM_KERN_START_VA (0xffff800000000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
 #define COS_MEM_USER_MAX_VA 0x00007fffffffffff
-#else 
+#else
 #define COS_MEM_USER_MAX_VA (0xc0000000 - 1)
 #define COS_MEM_KERN_START_VA (0xc0000000) // COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
 #endif
@@ -132,7 +132,6 @@
 /**
  * Configuration to enable/disable functionality in Kernel.
  */
-#define ENABLE_VGA
 #define ENABLE_SERIAL
 
 #if defined(__x86_64__)
