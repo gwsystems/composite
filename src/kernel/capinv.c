@@ -660,7 +660,6 @@ static int
 cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, struct comp_info *ci,
            struct cos_cpu_local_info *cos_info)
 {
-	//printk("*********ax: %lx, sp: %lx, bp: %lx, ip: %lx\n", regs->ax, regs->sp, regs->bp, regs->ip);
 	struct thread *next        = thd_cap->t;
 #if defined(__WORD_SIZE_64__)
 	capid_t        arcv        = __userregs_get3(regs);
@@ -679,6 +678,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	tcap_time_t  timeout = (tcap_time_t)__userregs_get4(regs);
 	struct tcap *tcap    = tcap_current(cos_info);
 	int          ret;
+	printk("*********curr: %d, next: %d\n", thd->tid, next->tid);
 	//printk("tttttttimer: %d\n", timeout);
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
@@ -1299,6 +1299,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			/* ret is returned by the overall function */
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, dcb_cap, dcboff);
+			printk(".......thd->tid: %d\n", thd->tid);
 			/*if (get_cpuid() == 0) {
 				printk("thdalloc: %d\n", thd->tid);
 			}*///if (thd->tid == 6) assert(0);

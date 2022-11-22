@@ -22,7 +22,7 @@ printk(const char *fmt, ...)
 	va_list      args;
 	unsigned int l, i;
 
-if (get_cpuid() == 1) {
+if (get_cpuid() == 0) {
 	va_start(args, fmt);
 	l = vsprintf(buffer, fmt, args);
 	va_end(args);

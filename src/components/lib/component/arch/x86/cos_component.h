@@ -280,6 +280,7 @@ cos_scb_info_get_core(void)
 static inline struct cos_dcb_info *
 cos_init_dcb_get(void)
 {
+	assert(0);
 	/* created at boot-time for the first component in the system! */
 	if (cos_spd_id() == 0) return (struct cos_dcb_info *)(__cosrt_comp_info.cos_heap_ptr + COS_SCB_SIZE + (PAGE_SIZE * cos_cpuid()));
 

@@ -148,8 +148,8 @@ test_ipi_switch(void)
 {
 	asndcap_t snd = 0;
 
-	if (cos_cpuid() == TEST_RCV_CORE) {
 		printc("test ipi switch\n");
+	if (cos_cpuid() == TEST_RCV_CORE) {
 		//thd[cos_cpuid()] = sched_thd_create(test_rcv_fn, NULL);
 		//sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
