@@ -410,7 +410,7 @@ crt_alias_alloc_helper(capid_t cap, cap_t type, struct crt_comp *c, capid_t *ret
 
 	if (*retcap) {
 		/* If we need to expand out the captbls, do so */
-		cos_comp_capfrontier_update(target_ci, round_up_to_pow2(*retcap + 1, 4));
+		cos_comp_capfrontier_update(target_ci, round_up_to_pow2(*retcap + 1, 4), 1);
 		ret = cos_cap_cpy_at(target_ci, *retcap, ci, cap);
 		assert(ret == 0);
 	} else {
@@ -629,7 +629,7 @@ crt_comp_captbl_frontier_update(struct crt_comp *c, capid_t capid)
 {
 	assert(c);
 
-	cos_comp_capfrontier_update(cos_compinfo_get(c->comp_res), capid);
+	cos_comp_capfrontier_update(cos_compinfo_get(c->comp_res), capid, 0);
 }
 
 int
@@ -1322,6 +1322,14 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		r = ctxt->exec[cos_coreid()].sched.sched_rcv;
 		assert(r);
 
+		/* FIXME: 
+		 * multi-core could contend the same capability cacheline if they are using
+		 * continuous cap ids of the same cacheline. For example, the 
+		 * BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE and BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE
+		 * are continuous cap ids for different cores. This could cause the initialization
+		 * fail. Thus, add a lock to prevent this temporarilily
+		 */
+		ps_lock_take(&_lock);
 		if (crt_rcv_create_in(r, c, NULL, 0, 0, &init_dcb)) BUG();
 		c->init_dcb_addr = init_dcb;
 

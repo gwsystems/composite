@@ -394,7 +394,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 }
 
 static inline void slm_cs_exit(struct slm_thd *switchto, slm_cs_flags_t flags);
-
+static inline int slm_cs_enter(struct slm_thd *current, slm_cs_flags_t flags);
 /*
  * Do a few things: 1. call schedule to find the next thread to run,
  * 2. release the critical section (note this will cause visual
@@ -429,6 +429,7 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 	int                     ret;
 	s64_t    diff;
 
+try_again:
 	tok  = cos_sched_sync();
 	//printc("flag: %d, g->timer_next: %llu, diff: %lld, cyc: %d\n", flags, g->timer_next, g->timer_next-slm_now(), g->cyc_per_usec);
 	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
@@ -464,6 +465,15 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 	//}
 	/* Assuming only the single tcap with infinite budget...should not get EPERM */
 	assert(ret != -EPERM);
+	
+	//if (unlikely(ret != 0)) {
+		/* Assuming only the single tcap with infinite budget...should not get EPERM */
+	//	assert(ret != -EPERM);
+
+		/* If the slm_thd_activate returns -EAGAIN, this means this scheduling token is outdated, try again */
+	//	slm_cs_enter(curr, SLM_CS_NONE);
+	//	goto try_again;
+	//}
 
 	return ret;
 }

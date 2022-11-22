@@ -96,9 +96,34 @@ slm_cs_enter_contention(struct slm_cs *cs, slm_cs_cached_t cached, struct slm_th
 		if (__slm_cs_cas(cs, cached, owner, 1)) return 1;
 	}
 
+	/* 
+	 * FIXME: if there is a owner holding the lock, the owner should also be in the scheduler component.
+	 * If we use g->timeout_next as the argument of cos_defswitch's timeout parameter when the owner is 
+	 * not a scheduler thread, deadlock could happen. The reason is: because the non-scheduler thread is 
+	 * in the critical section while the scheduler thread is trying to enter this critical section, each
+	 * time when the scheduler tries to switch to the owner thread, it uses g->timeout_next to switch to
+	 * the owner. However, since the scheduler cannot update g->timeout_next because it does not gain the
+	 * lock at this point of time, the timeout value g->timeout_next is a old value. Then, when the kernel
+	 * tries to switch to the owner, it will set the timer interrupt with current actual time plus a small
+	 * latency compensate. The problem here is because the timer interrupt is set to be a very near future,
+	 * it could happen that before the kernel really switches into the owner, the timer interrrupt has been
+	 * fired. Thus, when it comes into the first instruction of owner code, it will immediately be interrupted
+	 * and then switch back to the scheduler thread here. Becuase the scheduler thread again doesn't gain the
+	 * lock, it will use the same old g->timeout_next value to have the same switch request, which causes a deadlock. 
+	 * 
+	 * As a result, we use TCAP_TIME_NIL here, which tells the kernel to disable the timer interrupt for the
+	 * owner thread. Because we know the owner thread at this point of time is in the scheduler componet, thus
+	 * it is trusted to disable the timer interrupt. After the owner thread properly exits the critical section,
+	 * it will have chance to do scheduling decisions which will enable timer interrupt again for other non-trusted
+	 * components' thread.
+	 * 
+	 * However, this could cause problems when we have other types of interrupt like nic interrupt because that type
+	 * of interrupt could directly switch to the user level component (like a nic component). If this happens while
+	 * the timer interrupt is disabled, it will casue problem. Thue, we currently assume there is no other type of
+	 * interrupt except the timer interrupt.
+	 */
+
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	//printc("contention switch: %d\n", owner->tid);
-	//ret = cos_defswitch(owner->thd, curr->priority, owner == &g->sched_thd ? TCAP_TIME_NIL : g->timeout_next, tok);
 	ret = cos_defswitch(owner->thd, curr->priority, TCAP_TIME_NIL, tok);
 	if (ret) return ret;
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
@@ -289,6 +314,8 @@ int
 slm_thd_wakeup(struct slm_thd *t, int redundant)
 {
 	assert(t);
+
+	if (t->state == SLM_THD_WOKEN) return 1;
 
 	if (unlikely(t->state == SLM_THD_RUNNABLE || (redundant && t->state == SLM_THD_WOKEN))) {
 		/*

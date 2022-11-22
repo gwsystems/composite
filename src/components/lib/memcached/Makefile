@@ -9,7 +9,7 @@ INCLUDE_PATHS = ./ memcached/ cos_adapter/
 
 INTERFACE_DEPENDENCIES = netshmem
 
-LIBRARY_DEPENDENCIES = component posix_cap posix_sched
+LIBRARY_DEPENDENCIES = component sync posix_cap posix_sched
 
 # this is to stop non supported build target
 # this will override $(OBJS) so that compiler will not compile target files under unsupported cases

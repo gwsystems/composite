@@ -220,13 +220,7 @@ khalt(void)
 	static int method = 0;
 
 	if (method == 0) printk("Shutting down...\n");
-
-	/* Since we cannot shutdown the system currently, use halt here to save cpu time */
-	while (1)
-	{
-		asm volatile("hlt");
-	}
-
+	
 	/*
 	 * Use the case statement as we shutdown in the fault handler,
 	 * thus faults on shutdown require that we bypass faulty

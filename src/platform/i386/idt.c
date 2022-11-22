@@ -103,6 +103,9 @@ remap_irq_table(void)
 void
 idt_init(const cpuid_t cpu_id)
 {
+	/* Non-init cores don't need to set the global idt_entries again */
+	if (cpu_id != INIT_CORE) goto flush_idt;
+
 	idt_ptr.limit = (sizeof(struct idt_entry) * NUM_IDT_ENTRIES) - 1;
 	idt_ptr.base  = (unsigned long)&(idt_entries);
 	memset(&(idt_entries), 0, sizeof(struct idt_entry) * NUM_IDT_ENTRIES);
@@ -173,6 +176,7 @@ idt_init(const cpuid_t cpu_id)
 	idt_set_gate(HW_LAPIC_IPI_ASND, (unsigned long)lapic_ipi_asnd_irq, 0x08, 0x8E);
 	idt_set_gate(HW_LAPIC_TIMER, (unsigned long)lapic_timer_irq, 0x08, 0x8E);
 
+flush_idt:
 	/* asm volatile("lidt (%0)" : : "p"(&idtr)); */
 	idt_flush((struct idt_ptr *)&idt_ptr);
 }

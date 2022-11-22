@@ -11,6 +11,7 @@
 #include <rte_mbuf.h>
 
 #include <arpa/inet.h>
+#include <net_stack_types.h>
 
 #include "cos_dpdk.h"
 extern struct rte_pci_bus rte_pci_bus;
@@ -290,14 +291,13 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 
 	ret = rte_eth_dev_info_get(real_port_id, &dev_info);
 	txq_conf = dev_info.default_txconf;
+	/* We assume the NIC provides both IP & UDP offload capability */
+	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IPV4_CKSUM);
+	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM);
 
-	/* This commented code might be used in the future to adjust tx configurations */
-	// txq_conf.tx_rs_thresh = 2;
-	// txq_conf.tx_thresh.pthresh = 1;
-	// txq_conf.tx_thresh.hthresh = 1;
-	// txq_conf.tx_thresh.wthresh = 1;
-	// txq_conf.tx_free_thresh = 1;
-	// txq_conf.offloads = 0;
+	/* set the txq to enable IP and UDP offload */
+	txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
+	txq_conf.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
 
 	ret = rte_eth_tx_queue_setup(real_port_id, tx_queue_id, nb_tx_desc,
 				rte_eth_dev_socket_id(real_port_id),
@@ -564,15 +564,35 @@ cos_attach_external_mbuf(char *mbuf, void *buf_vaddr,
 	return 0;
 }
 
-int
-cos_send_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len)
+void
+cos_set_external_packet(char*mbuf, uint16_t data_offset, uint16_t pkt_len, int offload)
 {
 	struct rte_mbuf *_mbuf = (struct rte_mbuf *)mbuf;
+	struct rte_ipv4_hdr *ipv4_hdr;
+	struct rte_udp_hdr *udp_hdr;
+
 	_mbuf->data_len = pkt_len;
 	_mbuf->pkt_len = pkt_len;
 	_mbuf->data_off = data_offset;
 
-	return cos_dev_port_tx_burst(0, 0, &mbuf, 1);
+	if (offload) {
+		ipv4_hdr = _mbuf->buf_addr + _mbuf->data_off + 14;
+		udp_hdr =  _mbuf->buf_addr + _mbuf->data_off + 14 + 20;
+
+		/* Eth header should always be the stardand length */
+		_mbuf->l2_len = ETH_STD_LEN;
+
+		/* IP header length is (ihl * 4) */
+		_mbuf->l3_len = ipv4_hdr->ihl * 4;
+
+		/* if the original csum field is set, don't do the offload */
+		if (unlikely(ipv4_hdr->hdr_checksum != 0 || udp_hdr->dgram_cksum != 0)) return;
+
+		_mbuf->ol_flags = RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM| RTE_MBUF_F_TX_UDP_CKSUM;
+
+		/* NIC needs a pseudo-header L4 checksum before offload */
+		udp_hdr->dgram_cksum = rte_ipv4_phdr_cksum(ipv4_hdr, RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM| RTE_MBUF_F_TX_UDP_CKSUM);
+	}
 }
 
 int
@@ -581,7 +601,7 @@ cos_mempool_full(const char *mp)
 	return rte_mempool_full((struct rte_mempool *)mp);
 }
 
-int
+unsigned int
 cos_mempool_in_use_count(const char *mp)
 {
 	return rte_mempool_in_use_count((struct rte_mempool *)mp);
@@ -591,4 +611,90 @@ int
 cos_eth_tx_done_cleanup(uint16_t port_id, uint16_t queue_id, uint32_t free_cnt)
 {
 	return rte_eth_tx_done_cleanup(port_id, queue_id, free_cnt);
+}
+
+/*
+ * cos_create_pkt_mbuf: wrapper function of rte_pktmbuf_pool_create_by_ops 
+ *
+ * @name: pkt pool name
+ * @nb_mbufs: number of mbufs within this pool, thus the maximum packets
+ *            that can be stored in this single mem pool.
+ * @ops_name: the name of the operations mode of mempool ring
+ * 
+ * @return: NULL on allocate failure, others on success
+ * 
+ * note: this function assumes that the size of each mbuf is COS_MBUF_DEFAULT_BUF_SIZE.
+ *       this setting should be enough for most use cases and thus is intended to simplify
+ *       users' programming overhead.
+ */
+char*
+cos_create_pkt_mbuf_pool_by_ops(const char *name, size_t nb_mbufs, char* ops_name)
+{
+	return (char *)rte_pktmbuf_pool_create_by_ops(name, nb_mbufs, 0, 0,
+		COS_MBUF_DEFAULT_BUF_SIZE, rte_socket_id(), ops_name);
+}
+
+uint64_t
+cos_get_port_mac_address(uint16_t port_id)
+{
+	uint64_t mac_addr_ret = 0;
+	struct rte_ether_addr mac_addr;
+
+	rte_eth_macaddr_get(ports_ids[port_id], &mac_addr);
+	rte_ether_addr_copy(&mac_addr, (struct rte_ether_addr *)&mac_addr_ret);
+
+	return mac_addr_ret;
+}
+
+void cos_rte_flow(void)
+{
+	#define MAX_PATTERN_NUM		3
+	#define MAX_ACTION_NUM		2
+
+	struct rte_flow_attr attr;
+	struct rte_flow_item pattern[MAX_PATTERN_NUM];
+	struct rte_flow_action action[MAX_ACTION_NUM];
+	struct rte_flow *flow = NULL;
+	struct rte_flow_action_queue queue = { .index = 0 };
+	struct rte_flow_item_ipv4 ip_spec;
+	struct rte_flow_item_ipv4 ip_mask;
+	struct rte_flow_error *error;
+	int res;
+
+ 	memset(pattern, 0, sizeof(pattern));
+	memset(action, 0, sizeof(action));
+	/* set the rule attribute. in this case only ingress packets will be checked. */
+	memset(&attr, 0, sizeof(struct rte_flow_attr));
+	attr.ingress = 1;
+	action[0].type = RTE_FLOW_ACTION_TYPE_QUEUE;
+	action[0].conf = &queue;
+	action[1].type = RTE_FLOW_ACTION_TYPE_END;
+
+	pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
+
+	memset(&ip_spec, 0, sizeof(struct rte_flow_item_ipv4));
+	memset(&ip_mask, 0, sizeof(struct rte_flow_item_ipv4));
+
+	ip_spec.hdr.dst_addr = htonl(0xA0A0101);
+	ip_mask.hdr.dst_addr = 0xFFFFFFFF; //exact match
+
+	ip_spec.hdr.src_addr = htonl(0);
+	ip_mask.hdr.src_addr = 0; //any src
+
+	pattern[1].type = RTE_FLOW_ITEM_TYPE_IPV4;
+	pattern[1].spec = &ip_spec;
+	pattern[1].mask = &ip_mask;
+ 
+	/* the final level must be always type end */
+	pattern[2].type = RTE_FLOW_ITEM_TYPE_END;
+
+	res = rte_flow_validate(0, &attr, pattern, action, error);
+	if (!res)
+		flow = rte_flow_create(0, &attr, pattern, action, error);
+	/* >8 End of validation the rule and create it. */
+
+	assert(flow);
+	cos_printf("flow :%p\n", flow);
+	// return flow;
+
 }

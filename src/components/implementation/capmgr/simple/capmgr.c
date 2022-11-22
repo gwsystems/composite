@@ -413,7 +413,6 @@ memmgr_heap_page_allocn_aligned(unsigned long num_pages, unsigned long align)
 	c = ss_comp_get(cos_inv_token());
 	if (!c) return 0;
 
-	//return call_cap_op(c->comp.comp_res->ci.pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
 	p = mm_page_allocn(c, num_pages, align);
 	if (!p) return 0;
 
@@ -957,7 +956,7 @@ cos_init(void)
 	 * after we've sealed in all initargs and sinvs. Regardless,
 	 * that is the *correct* approach.
 	 */
-	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER));
+	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER), 0);
 	if (!cm_comp_self_alloc("capmgr")) BUG();
 
 	/* Initialize the other component's for which we're responsible */

@@ -293,12 +293,14 @@ CWEAKSYMB void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	static int first = 1;
+	static	struct ps_lock _lock = {0};
 
 	/*
 	 * There should be no concurrency at initialization (the init
 	 * interface ensures this), so atomic operations aren't
 	 * required here to update first.
 	 */
+	ps_lock_take(&_lock);
 	if (first) {
 		first = 0;
 
@@ -327,7 +329,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 		constructors_execute();
 	}
-
+	ps_lock_release(&_lock);
 	/*
 	 * if it's the first component.. wait for timer calibration.
 	 * NOTE: for "fork"ing components and not updating "spdid"s, this call will just fail and should be fine.

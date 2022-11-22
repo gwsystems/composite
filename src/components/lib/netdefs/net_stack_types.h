@@ -1,5 +1,5 @@
-#ifndef COS_HEADERS_H
-#define COS_HEADERS_H
+#ifndef NET_STACK_TYPES_H
+#define NET_STACK_TYPES_H
 
 #include <cos_types.h>
 
@@ -10,14 +10,14 @@
 ((unsigned char *)&addr)[3]
 #define NIPQUAD_FMT "%u.%u.%u.%u"
 
-struct eth_hdr {
-	u8_t dst_addr[6];
-	u8_t src_addr[6];
-	u16_t ether_type;
-} __attribute__((packed));
-
 struct ether_addr {
 	u8_t addr_bytes[6]; /**< Addr bytes in tx order */
+} __attribute__((packed));
+
+struct eth_hdr {
+	struct ether_addr dst_addr;
+	struct ether_addr src_addr;
+	u16_t ether_type;
 } __attribute__((packed));
 
 struct arp_ipv4 {
@@ -63,6 +63,26 @@ struct tcp_udp_port
 {
 	u16_t src_port;
 	u16_t dst_port;
-};
+} __attribute__((packed));
+
+struct udp_hdr
+{
+	struct tcp_udp_port port;
+	u16_t len;
+	u16_t checksum;
+} __attribute__((packed));
+
+#define ICMP_PROTO 1
+#define UDP_PROTO 17
+#define TCP_PROTO 6
+
+#define ETH_STD_LEN sizeof(struct eth_hdr)
+#define IP_STD_LEN sizeof(struct ip_hdr)
+#define UDP_STD_LEN sizeof(struct udp_hdr)
+
+#define IPv4 4
+
+/* enable IP and UDP offload by default */
+#define ENABLE_OFFLOAD 1
 
 #endif

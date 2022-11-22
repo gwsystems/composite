@@ -32,6 +32,8 @@ vaddr_t __round_up_to_pgt1_page(vaddr_t vaddr) { return round_up_to_pgt1_page(va
 vaddr_t __round_to_pgt2_page(vaddr_t vaddr) { return round_to_pgt2_page(vaddr); }
 vaddr_t __round_up_to_pgt2_page(vaddr_t vaddr) { return round_up_to_pgt2_page(vaddr); }
 
+static int __capid_captbl_check_expand(struct cos_compinfo *ci);
+
 unsigned long
 cos_pgtbl_get_range(int pgtbl_lvl)
 {
@@ -162,9 +164,17 @@ cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier)
 }
 
 void
-cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier)
+cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, int try_expand)
 {
 	if (cap_frontier <= ci->cap_frontier) return;
+
+	if (try_expand) {
+		while (cap_frontier > ci->caprange_frontier) {
+			ci->cap_frontier = ci->caprange_frontier;
+			__capid_captbl_check_expand(ci);
+		}
+	}
+
 	cos_capfrontier_init(ci, cap_frontier);
 }
 void
@@ -315,10 +325,11 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	 * capability).  Oh well.
 	 */
 
-	if (self_resources)
+	if (self_resources) {
 		frontier = ps_load(&ci->caprange_frontier) - CAPMAX_ENTRY_SZ;
-	else
+	} else {
 		frontier = ps_load(&ci->caprange_frontier);
+	}
 	assert(ci->cap_frontier <= frontier);
 
 	/* Common case: */
