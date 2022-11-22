@@ -258,7 +258,6 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		  [prio] "r" (prio), [rcv] "r" (sched_aep->rcv)
 		: "memory", "cc", "r8", "r9", "r10", "r11", "r12");*/
 
-
 	__asm__ __volatile__ (
 		"pushq %%rbp\n\t"               \
 		"mov %%rsp, %%rbp\n\t"         \
@@ -376,7 +375,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 	//} 
 	else {
 		//if (cos_cpuid() == 0)
-			//printc("------ulswitch %d -> %d\n", curr->tid, t->tid);
+			printc("------ulswitch %d -> %d\n", curr->tid, t->tid);
 		//printc("------timeout: %d, %lld\n", timeout, tcap_time2cyc(timeout, slm_now()));
 		ret = cos_ulswitch(curr->thd, t->thd, cd, nd, prio, timeout, tok);
 		//printc("rrrret: %d\n", ret);

@@ -20,6 +20,7 @@ cos_dcb_info_init_ext(struct cos_dcbinfo_data *cdi, struct cos_compinfo *ci,
 void
 cos_dcb_info_init(struct cos_dcbinfo_data *cdi, struct cos_compinfo *ci)
 {
+	assert(0);
 	if (cos_spd_id() == 0) {
 		cos_dcb_info_init_ext(cdi, ci, LLBOOT_CAPTBL_CPU_INITDCB, 
 				      (vaddr_t)cos_init_dcb_get(), 1);
@@ -42,6 +43,7 @@ cos_dcb_info_init_curr_ext(dcbcap_t initdcbcap, vaddr_t initdcbaddr, dcboff_t st
 	if (initdcbcap == 0 && initdcbaddr == 0) {
 
 		if (cos_spd_id() == 0) {
+			assert(0);
 			cos_dcb_info_init_ext(&_cos_dcbinfo[cos_cpuid()], ci, 
 					      LLBOOT_CAPTBL_CPU_INITDCB, (vaddr_t)cos_init_dcb_get(), 1);
 

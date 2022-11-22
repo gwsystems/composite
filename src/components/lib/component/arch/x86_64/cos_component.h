@@ -281,7 +281,7 @@ cos_compid_set(compid_t cid)
 static inline void *
 cos_get_heap_ptr(void)
 {
-	unsigned int off = COS_SCB_SIZE + (PAGE_SIZE * NUM_CPU); 
+	unsigned int off = COS_SCB_SIZE; 
 	return (void *)(__cosrt_comp_info.cos_heap_ptr + off);
 }
 
@@ -301,7 +301,7 @@ static inline struct cos_dcb_info *
 cos_init_dcb_get(void)
 {
     /* created at boot-time for the first component in the system! */
-    if (cos_spd_id() == 0) return (struct cos_dcb_info *)(__cosrt_comp_info.cos_heap_ptr + COS_SCB_SIZE + (PAGE_SIZE * cos_cpuid()));
+    if (cos_spd_id() == 0) return (struct cos_dcb_info *)(__cosrt_comp_info.cos_heap_ptr + COS_SCB_SIZE);
 
     return NULL;
 }

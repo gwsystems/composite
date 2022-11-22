@@ -90,6 +90,7 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	//tmp = thd->tid;
 	//tmp2 = scb_core->curr_thd;
 	scb_core->curr_thd = 0;
+	printk("ultc: %d\n", ultc);
 	if (!ultc && !interrupt) goto done;
 
 	if (likely(ultc)) {
@@ -97,8 +98,7 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 		if (unlikely(!CAP_TYPECHK_CORE(ch_ult, CAP_THD))) ch_ult = NULL;
 		else                                              ulthd = ch_ult->t;
 	}
-	if (ulthd)
-		printk("ulthd: %d, curr: %d\n", ulthd->tid, thd->tid);
+	//printk("\tulthd: %d, curr: %d\n", ulthd->tid, thd->tid);
 
 	if (unlikely(interrupt)) {
 		struct thread *fixthd = thd;
@@ -119,16 +119,17 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	if (unlikely(!ultc || !ulthd || ulthd->dcbinfo == NULL)) goto done;
 	if (ulthd == thd) goto done;
 	/* check if kcurr and ucurr threads are both in the same page-table(component) */
+	printk("updatefrom: %d, to: %d\n",thd->tid, ulthd->tid);
 	thd_current_update(ulthd, thd, cos_info);
-	/*if (thd_current_pgtbl(ulthd) != thd_current_pgtbl(thd)) {
-		printk("---ulthd: %d, curr: %d, %d\n", ulthd->tid, thd->tid, thd_current(cos_info)->tid);
-		printk("invstk_top->ul: %d, kern: %d\n", ulthd->invstk_top, thd->invstk_top);
-		printk("pgtbl->ul: %lx, ker: %lx\n", thd_current_pgtbl(ulthd), thd_current_pgtbl(thd));
-		printk("ul[0]%lx\n", ulthd->invstk[0].comp_info.pgtblinfo.pgtbl);
-		printk("ker[1]%lx\n", thd->invstk[1].comp_info.pgtblinfo.pgtbl);
+	if (thd_current_pgtbl(ulthd) != thd_current_pgtbl(thd)) {
+		//printk("---ulthd: %d, curr: %d, %d\n", ulthd->tid, thd->tid, thd_current(cos_info)->tid);
+		//printk("invstk_top->ul: %d, kern: %d\n", ulthd->invstk_top, thd->invstk_top);
+		//printk("pgtbl->ul: %lx, ker: %lx\n", thd_current_pgtbl(ulthd), thd_current_pgtbl(thd));
+		//printk("ul[0]%lx\n", ulthd->invstk[0].comp_info.pgtblinfo.pgtbl);
+		//printk("ker[1]%lx\n", thd->invstk[1].comp_info.pgtblinfo.pgtbl);
 		assert(0);
 		goto done;
-	}*/
+	}
 	thd = ulthd;
 
 done:
@@ -1083,8 +1084,8 @@ composite_syscall_handler(struct pt_regs *regs)
 	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
 		/* No need to lookup captbl */
+		printk(">>>>sret: %d\n", thd->tid);
 		sret_ret(thd, regs, cos_info);
-		//printk(">>>>sret\n");
 		return 0;
 	}
 
@@ -1106,6 +1107,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	}
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
+		printk("sinvcall: %d\n", thd->tid);
 		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info);
 		return 0;
 	}
