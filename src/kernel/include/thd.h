@@ -653,7 +653,7 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 //printk("\tsp: %x, bp: %x; ip: %x, cx: %x\n", regs->sp, regs->bp, regs->ip, regs->cx);
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
 		//printk("\tsp: %x, bp: %x; ip: %x, cx: %x\n", regs->sp, regs->bp, regs->ip, regs->cx);
-		//printk("\tspecial: %d, %lx\n", thd->tid, thd->dcbinfo->ip);
+		printk("\tspecial: %d, %lx, get_cpuid: %d\n", thd->tid, thd->dcbinfo->ip, get_cpuid());
 		assert(preempt == 0);
 #if defined(__x86_64__)
 		regs->cx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;

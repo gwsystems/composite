@@ -101,11 +101,6 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 		word_t sp;
 	} frame_ctx;
 
-	struct frame_ctx {
-		word_t bp;
-		word_t sp;
-	} frame_ctx;
-
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
@@ -152,12 +147,6 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	 * When the syscall returns, the kernel will restore the sp to the address of
 	 * frame_ctx, thus we can simply use two pops to restore the original bp and sp.
 	 */
-	struct frame_ctx {
-		word_t bp;
-		word_t sp;
-	} frame_ctx;
-
-
 	struct frame_ctx {
 		word_t bp;
 		word_t sp;

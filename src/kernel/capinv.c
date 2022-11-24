@@ -90,9 +90,7 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	//tmp = thd->tid;
 	//tmp2 = scb_core->curr_thd;
 	scb_core->curr_thd = 0;
-	printk("ultc: %d\n", ultc);
 	if (!ultc && !interrupt) goto done;
-
 	if (likely(ultc)) {
 		ch_ult = (struct cap_thd *)captbl_lkup((*ci_ptr)->captbl, ultc);
 		if (unlikely(!CAP_TYPECHK_CORE(ch_ult, CAP_THD))) ch_ult = NULL;
@@ -119,7 +117,7 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	if (unlikely(!ultc || !ulthd || ulthd->dcbinfo == NULL)) goto done;
 	if (ulthd == thd) goto done;
 	/* check if kcurr and ucurr threads are both in the same page-table(component) */
-	printk("updatefrom: %d, to: %d\n",thd->tid, ulthd->tid);
+	//printk("updatefrom: %d, to: %d\n",thd->tid, ulthd->tid);
 	thd_current_update(ulthd, thd, cos_info);
 	if (thd_current_pgtbl(ulthd) != thd_current_pgtbl(thd)) {
 		//printk("---ulthd: %d, curr: %d, %d\n", ulthd->tid, thd->tid, thd_current(cos_info)->tid);
@@ -679,7 +677,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	tcap_time_t  timeout = (tcap_time_t)__userregs_get4(regs);
 	struct tcap *tcap    = tcap_current(cos_info);
 	int          ret;
-	printk("*********curr: %d, next: %d\n", thd->tid, next->tid);
+	//printk("*********curr: %d, next: %d\n", thd->tid, next->tid);
 	//printk("tttttttimer: %d\n", timeout);
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
@@ -711,11 +709,15 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 			timeout = TCAP_TIME_NIL;
 		} else {
 			thd_scheduler_set(next, rcvt);
-			//printk("\t@@@@@@@next: %d, %d, %lu\n",next->tid, rcvt->tid, timeout);
+			//printk("\t@@@@@@@next: %d, %d, %d\n",next->tid, rcvt->tid, get_cpuid());
+			//printk("\tschduler: %d, thd: %d\n", next->scheduler_thread->tid, next->tid);
 		}
 	} else {
 		/* TODO: set current thread as it's scheduler? */
 		if (!thd_scheduler(next)) thd_scheduler_set(next, thd);
+		assert(next->scheduler_thread);
+		//printk("\t???????next: %d, %d\n",next->tid, get_cpuid());
+		//printk("\tschduler: %d, thd: %d\n", next->scheduler_thread->tid, next->tid);
 	}
 
 	if (tc) {
@@ -951,7 +953,7 @@ timer_process(struct pt_regs *regs)
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	assert(comp);
 	//if (get_cpuid() == 0)
-	//	printk("\t^^^^^^^^^^^timer\n");
+		printk("\t^^^^^^^^^^^timer\n");
 	int ret = expended_process(regs, thd_curr, comp, cos_info, 1);
 	//printk("---ret: %d\n", ret);
 	return ret;
@@ -971,12 +973,12 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 
 	struct cos_scb_info *scb_core = ci->scb_data + get_cpuid();
 	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) {
-		int i = 0;
-		while (i < 10) {
-			i++;
-			printk("arcvthd: %d, currthd: %d, arcvcpuid: %d, cpuid: %d, cap: %d, tmp: %d, %d, !%d\n", 
-			arcv->thd->tid, thd->tid, arcv->cpuid, get_cpuid(), __userregs_getcap(regs), tmp, tmp2, thd_current(cos_info)->tid);
-		}
+		//int i = 0;
+		//while (i < 10) {
+		//	i++;
+		//printk("arcvthd: %d, currthd: %d, arcvcpuid: %d, cpuid: %d, cap: %d, tmp: %d, %d, !%d\n", 
+		//		arcv->thd->tid, thd->tid, arcv->cpuid, get_cpuid(), __userregs_getcap(regs), tmp, tmp2, thd_current(cos_info)->tid);
+		//}
 		assert(0);//return -EINVAL;
 	}
 
@@ -1084,7 +1086,14 @@ composite_syscall_handler(struct pt_regs *regs)
 	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
 		/* No need to lookup captbl */
-		printk(">>>>sret: %d\n", thd->tid);
+		//printk(">>>>sret: %d\n", thd->tid);
+		//int invstk_top;
+		//struct comp_info *ci_ptr = thd_invstk_current_compinfo(thd, cos_info, &invstk_top);
+		//if (ci_ptr->scb_data) {
+		//struct cos_scb_info *scb_core = ((ci_ptr->scb_data) + get_cpuid());
+		//	printk(">>>>curr: %lx, %lx, size%d\n", scb_core, ci_ptr->scb_data, sizeof(struct cos_scb_info));
+		//	printk(">>>>0:%d\n", ci_ptr->scb_data->curr_thd);
+		//}
 		sret_ret(thd, regs, cos_info);
 		return 0;
 	}
@@ -1107,7 +1116,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	}
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
-		printk("sinvcall: %d\n", thd->tid);
+		//printk("sinvcall: %d\n", thd->tid);
 		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info);
 		return 0;
 	}
@@ -1301,7 +1310,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			/* ret is returned by the overall function */
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, dcb_cap, dcboff);
-			printk(".......thd->tid: %d\n", thd->tid);
+			//printk(".......thd->tid: %d, %d\n", thd->tid, get_cpuid());
 			/*if (get_cpuid() == 0) {
 				printk("thdalloc: %d\n", thd->tid);
 			}*///if (thd->tid == 6) assert(0);

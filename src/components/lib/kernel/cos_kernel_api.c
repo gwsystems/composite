@@ -1205,9 +1205,7 @@ cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout,
 	unsigned long cyc       = 0;
 	int           ret;
 
-	if (cos_cpuid() == 1) printc("---[%d]---\n", rcv);
 	ret = call_cap_retvals_asm(rcv, 0, flags, timeout, 0, 0, &thd_state, &cyc, thd_timeout);
-	//if (cos_cpuid() == 1) printc("___[%d]___\n", rcv);
 
 	*blocked = (int)(thd_state >> (sizeof(thd_state) * 8 - 1));
 	*thdid   = (thdid_t)(thd_state & ((1 << (sizeof(unsigned short int) * 8)) - 1));

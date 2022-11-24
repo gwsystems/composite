@@ -800,7 +800,7 @@ capmgr_sched_initdcb_get()
 	struct cm_comp *s;
 	s = ss_comp_get(schedid);
 
-	return s->comp.init_dcb_addr;
+	return s->comp.init_dcb_addr[cos_cpuid()];
 }
 
 thdid_t

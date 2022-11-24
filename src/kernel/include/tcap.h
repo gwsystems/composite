@@ -262,6 +262,7 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 	/* ...or explicit timeout within the bounds of the budget */
 	/* FIXME: Incorrect for 32bit. `cycles_t` is 64 bits while `tcap_time_t` is 32 bit under i386. */
 	if (timeout != TCAP_TIME_NIL && timeout_cyc < timer) {
+	//	printk("====>timeout: %lld, now: %lld\n", timeout, tcap_cyc2time(now));
 		if (tcap_time_lessthan(timeout, tcap_cyc2time(now))) {
 			timer = now;
 		} else {
@@ -275,7 +276,7 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 
 	assert(timer); /* TODO: wraparound check when timer == 0 */
 	cos_info->next_timer = timer;
-	//printk("====>reprogram timer: %llu, now : %llu, %lld\n", timer, now, now+TCAP_TIMER_DIFF);
+	//printk("====>reprogram timer: %llu, now : %llu, | %lld\n", timer, now, now+TCAP_TIMER_DIFF);
 	chal_timer_set(timer);
 }
 

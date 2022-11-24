@@ -85,6 +85,21 @@ slm_global(void)
 	return &__slm_global[cos_coreid()];
 }
 
+static inline struct slm_global *
+slm_global_core(int i)
+{
+	extern struct slm_global __slm_global[NUM_CPU];
+
+	return &__slm_global[i];
+}
+
+static inline struct cos_scb_info *
+slm_scb_info_test(int i)
+{
+	return (slm_global_core(i)->scb);
+}
+
+
 static inline struct cos_scb_info *
 slm_scb_info_core(void)
 {
@@ -126,6 +141,14 @@ static inline int
 cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_dcb_info *nd, tcap_prio_t prio, tcap_time_t timeout, sched_tok_t tok)
 {
 	volatile struct cos_scb_info *scb = slm_scb_info_core();
+	//volatile struct cos_scb_info *test = slm_scb_info_test(0);
+	//volatile struct cos_scb_info *test2 = slm_scb_info_test(1);
+//	printc("scb: %lx, 0: %lx, 1: %lx\n", scb, test, test2);
+
+	//volatile struct slm_global *g0 = slm_global_core(0);
+	//volatile struct slm_global *g1 = slm_global_core(1);
+
+	//printc("g0: %d, %lx, g1: %d, %lx\n", g0->sched_thd.tid, g0->sched_thd.dcb, g1->sched_thd.tid, g1->sched_thd.dcb);
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_compinfo *ci = cos_compinfo_get(defci);
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
@@ -143,7 +166,7 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 	 */
 	if (scb->timer_pre < timeout) {
 		//if (cos_cpuid() == 0)
-		//	printc("defswitch: %d, scb->timer_pre: %lx, timeout: %lx\n", next, scb->timer_pre, timeout);
+		//printc("defswitch: %d, scb->timer_pre: %lx, timeout: %lx\n", next, scb->timer_pre, timeout);
 		scb->timer_pre = timeout;
 		//scb->curr_thd = 0;
 		return cos_defswitch(next, prio, timeout, tok);
@@ -258,6 +281,8 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		  [prio] "r" (prio), [rcv] "r" (sched_aep->rcv)
 		: "memory", "cc", "r8", "r9", "r10", "r11", "r12");*/
 
+//printc("next thdcap: %d\n", next);
+		//printc("=====from ul: %d, %d\n", cos_thdid(), cos_cpuid());
 	__asm__ __volatile__ (
 		"pushq %%rbp\n\t"               \
 		"mov %%rsp, %%rbp\n\t"         \
@@ -292,6 +317,7 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		  "S" (tok), "D" (timeout),
 		  "c" (&(scb->curr_thd)), "d" (next)
 		: "memory", "cc", "r8", "r9", "r11", "r12", "r13", "r14", "r15");
+		//printc("arrive in thd: %d, %d\n", cos_thdid(), cos_cpuid());
 #else
 	assert(0);
 	__asm__ __volatile__ (              \
@@ -348,6 +374,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 	int                     ret = 0;
 	volatile struct cos_scb_info *scb = slm_scb_info_core();
 
+
 	timeout = g->timeout_next;
 	prio = inherit_prio ? curr->priority : t->priority;
 	//printc("prio: %lx, inherit_prio: %lx, curr: %ld, tprio: %lx\n", prio, inherit_prio, curr->priority, t->priority);
@@ -375,7 +402,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 	//} 
 	else {
 		//if (cos_cpuid() == 0)
-			printc("------ulswitch %d -> %d\n", curr->tid, t->tid);
+		//printc("\n------ulswitch %d, %lx -> %d, %lx, cos_cpuid(): %d\n", curr->tid, cd, t->tid, nd, cos_cpuid());
 		//printc("------timeout: %d, %lld\n", timeout, tcap_time2cyc(timeout, slm_now()));
 		ret = cos_ulswitch(curr->thd, t->thd, cd, nd, prio, timeout, tok);
 		//printc("rrrret: %d\n", ret);
@@ -440,9 +467,7 @@ try_again:
 			g->timer_set = 0;
 			/* The timer policy will likely reset the timer */
 			slm_timer_expire(now);
-			if (cos_cpuid() == 0)
-				printc("======================================\n", diff, g->timer_next, now);
-				//printc("======================================: %lld, %lld, now: %lld\n", diff, g->timer_next, now);
+			//printc("======================================: %lld, %lld, now: %lld\n", diff, g->timer_next, now);
 		}
 		//printc("<<<<<: %lld\n", diff);
 	}

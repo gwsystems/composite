@@ -93,7 +93,7 @@ struct crt_comp {
 	capid_t second_lvl_pgtbl_cap;
 	struct crt_ns_vas *ns_vas;
 	struct cos_dcbinfo_data dcb_data[NUM_CPU];
-	vaddr_t init_dcb_addr;
+	vaddr_t init_dcb_addr[NUM_CPU];
 };
 
 struct crt_comp_resources {

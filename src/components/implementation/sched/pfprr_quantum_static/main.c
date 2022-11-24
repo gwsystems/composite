@@ -587,6 +587,7 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 
 	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid, &dcb);
 	printc("\t>>>>>>>>>>>idle create done: %d\n", tid);
+
 	if (!t) BUG();
 	idlecap = thdcap;
 

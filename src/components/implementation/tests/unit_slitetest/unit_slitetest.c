@@ -20,7 +20,7 @@
 #define TEST_RCV_CORE 0
 #define TEST_SND_CORE 1
 
-#define TEST_ITERS 10
+#define TEST_ITERS 20
 
 static volatile int test_done = 0;
 static volatile thdid_t thd[NUM_CPU] = { 0 };
@@ -50,15 +50,15 @@ unit_rcv(thdid_t tid)
 static void
 rcv_spiner()
 {
-	//while (!spin_thd[1]) ;
+	while (!spin_thd[1]) ;
 	while (1) {
-		//printc("*************spiner1**************: %d\n\n", spin_thd[0]);
+		printc("*************spiner1**************: %d\n\n", spin_thd[0]);
 		sched_thd_yield_to(spin_thd[1]);
+		rdtscll(global_time[0]);
 	//printc("yield ret1----\n");
 	//int aaa = 0;
 	//printc("yield ret1----: %lx\n", &aaa);
 	//printc("yield ret1----\n");
-		//rdtscll(global_time[0]);
 	}
 	assert(0);
 	SPIN();
@@ -72,7 +72,7 @@ rcv_spiner2()
 	while (1) {
 		printc("*************spiner2**************: %d\n\n", spin_thd[1]);
 		sched_thd_yield_to(spin_thd[0]);
-		//rdtscll(global_time[0]);
+		rdtscll(global_time[0]);
 	}
 	return;
 }
@@ -101,12 +101,12 @@ test_snd_fn()
 	perfdata_init(&pd, "TEST IPI Switch", results, ARRAY_SIZE);
 	
 	for (iters = 0; iters < TEST_ITERS; iters ++) {
-		while (global_time[0] < global_time[1]);
-		//printc("snd->\n");
+		while (global_time[0] < global_time[1]) {};
+		printc("snd->\n");
 		unit_snd(s);
-		//printc("sent, now rcv\n");
+		printc("sent, now rcv\n");
 		unit_rcv(r);
-		//printc("rcvd\n");
+		printc("rcvd\n");
 	}
 
 	perfdata_calc(&pd);
@@ -128,7 +128,7 @@ static void
 test_rcv_fn()
 {
 	thdid_t s = thd[TEST_SND_CORE];
-	//assert(s);
+	assert(s);
 	thdid_t r = thd[TEST_RCV_CORE];
 	assert(r);
 
@@ -150,22 +150,21 @@ test_ipi_switch(void)
 
 	if (cos_cpuid() == TEST_RCV_CORE) {
 		printc("test ipi switch\n");
-		//thd[cos_cpuid()] = sched_thd_create(test_rcv_fn, NULL);
-		//sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+		thd[cos_cpuid()] = sched_thd_create(test_rcv_fn, NULL);
+		sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
-		//spin_thd[0] = sched_thd_create(rcv_spiner, NULL);
-		//sched_thd_param_set(spin_thd[0], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+		spin_thd[0] = sched_thd_create(rcv_spiner, NULL);
+		sched_thd_param_set(spin_thd[0], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
-		//spin_thd[1] = sched_thd_create(rcv_spiner2, NULL);
-		//sched_thd_param_set(spin_thd[1], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+		spin_thd[1] = sched_thd_create(rcv_spiner2, NULL);
+		sched_thd_param_set(spin_thd[1], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 		SPIN();
 		printc("rcvthd: %ld, spinthd0: %ld, spinthd1: %ld\n", thd[cos_cpuid()], spin_thd[0], spin_thd[1]);
 
-		//sched_thd_yield_to(spin_thd[0]);
+		sched_thd_yield_to(spin_thd[0]);
 	} else {
-		SPIN();
-		//thd[cos_cpuid()] = sched_thd_create(test_snd_fn, NULL);
-		//sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+		thd[cos_cpuid()] = sched_thd_create(test_snd_fn, NULL);
+		sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 	}
 	SPIN();
 }
@@ -195,10 +194,4 @@ parallel_main(coreid_t cid, int init_core, int ncores)
 
 	assert(0);
 	return;
-}
-
-void
-cos_paralle_init(coreid_t cid, int init_core, int ncores)
-{
-	printc("=========cos_cpuid(): %d\n", cos_cpuid());
 }

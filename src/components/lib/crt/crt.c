@@ -763,7 +763,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
 
 	assert(sinv->sinv_cap);
-	printc("sinv %s cap %ld\n", name, sinv->sinv_cap);
+	//printc("sinv %s cap %ld\n", name, sinv->sinv_cap);
 
 	/* poor-mans virtual address translation from client VAS -> our ptrs */
 	assert(sinv->c_ucap_addr - sinv->client->ro_addr > 0);
@@ -1331,7 +1331,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		 */
 		ps_lock_take(&_lock);
 		if (crt_rcv_create_in(r, c, NULL, 0, 0, &init_dcb)) BUG();
-		c->init_dcb_addr = init_dcb;
+		c->init_dcb_addr[cos_cpuid()] = init_dcb;
 
 		rcvres = (struct crt_rcv_resources) {
 			.tc  = BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE,

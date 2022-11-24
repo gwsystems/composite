@@ -447,8 +447,7 @@ slm_sched_loop_intern(int non_block)
 			 * Important that this is *not* in the CS due
 			 * to the potential blocking.
 			 */
-			//if (cos_cpuid() == 0) {
-			//	printc("curr: %d, us: %d, rcv: %d\n", cos_thdid(), us->tid, us->rcv);
+			//printc("curr: %d, us: %d, rcv: %d, cpuid: %d\n", cos_thdid(), us->tid, us->rcv, cos_cpuid());
 			//	assert(us->tid == 5);
 			//	assert(us->rcv == 48);
 				//volatile struct cos_scb_info *scb = slm_scb_info_core();
@@ -480,8 +479,6 @@ slm_sched_loop_intern(int non_block)
 			 * mapping ;-(
 			 */
 			t = slm_thd_lookup(tid);
-			if (!t)
-				printc("t: %d, cpuid: %d, rcvd: %d, us->tid: %d, pending: %d\n", tid, cos_cpuid(), rcvd, us->tid, pending);
 			assert(t);
 			/* don't report the idle thread or a freed thread */
 			if (unlikely(t == &g->idle_thd || slm_state_is_dead(t->state))) goto pending_events;
@@ -624,7 +621,7 @@ slm_init(thdcap_t thd, thdid_t tid, struct cos_dcb_info *initdcb, struct cos_dcb
 	g->lock.owner_contention = 0;
 
 	assert(sizeof(struct cos_scb_info) * NUM_CPU <= COS_SCB_SIZE && COS_SCB_SIZE == PAGE_SIZE);
-	g->scb = (struct cos_scb_info *)cos_scb_info_get();
+	g->scb = (struct cos_scb_info *)cos_scb_info_get_core();
 
 	slm_sched_init();
 	slm_timer_init();
