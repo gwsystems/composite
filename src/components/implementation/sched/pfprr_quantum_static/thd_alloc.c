@@ -116,7 +116,6 @@ thd_alloc_in(compid_t id, thdclosure_index_t idx, sched_param_t *parameters, int
 	slm_cs_enter(current, SLM_CS_NONE);
 	if (slm_thd_init(thd, thdcap, tid, arcv, asnd, dcb)) ERR_THROW(NULL, free);
 	assert(thd->dcb);
-	//printc("thd_init: [%d, %d, %d, %x]\n", thd->tid, thd->rcv, thd->asnd,  thd->dcb);
 
 	for (i = 0; parameters[i] != 0; i++) {
 		sched_param_type_t type;

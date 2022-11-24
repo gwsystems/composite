@@ -71,7 +71,6 @@ COS_CLIENT_STUB(thdid_t, capmgr_retrieve_dcbinfo, thdid_t tid, arcvcap_t *arcv, 
 	*arcv = (retrs >> 16);
 	*asnd = (retrs << 16) >> 16;
 #endif
-	//printc("+++++++++++client_arcv: %d, asnd: %d, %lx\n", *arcv, *asnd, retrs);
 
 	return ret;
 }
@@ -85,7 +84,7 @@ COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_thunk, struct cos_aep_info *aep, thd
 	thdcap_t thd     = 0;
 	thdid_t tid      = 0;
 	u32_t owntc_idx  = (owntc << 16) | idx;
-	u32_t key_ipimax = (key << 16) | ((ipimax << 16) >> 16);
+	u32_t key_ipimax = (key << 16) | (ipimax & 0xFFFF);
 	u32_t ipiwin32b  = (u32_t)ipiwin;
 
 	if (idx < 1) return 0;
@@ -93,11 +92,11 @@ COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_thunk, struct cos_aep_info *aep, thd
 	thdtidret = cos_sinv_2rets(uc->cap_no, owntc_idx, key_ipimax, ipiwin32b, 0, &dcb_ret, &tcrcvret);
 	if (!thdtidret) return 0;
 	thd = thdtidret >> 16;
-	tid = (thdtidret << 16) >> 16;
+	tid = (thdtidret & 0xFFFF);
 	if (!thd || !tid) return 0;
 
 	aep->thd  = thd;
-	aep->rcv  = (tcrcvret << 16) >> 16;
+	aep->rcv  = (tcrcvret & 0xFFFF);
 	aep->tc   = (tcrcvret >> 16);
 	aep->tid  = tid;
 
@@ -113,8 +112,8 @@ COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_ext, spdid_t child, struct cos_aep_i
 	word_t drcvtidret  = 0;
 	word_t tcrcvret    = 0;
 	thdcap_t thd       = 0;
-	u32_t spdid_thdidx = (child << 16) | ((idx << 16) >> 16);
-	u32_t key_ipimax   = (key << 16) | ((ipimax << 16) >> 16);
+	u32_t spdid_thdidx = (child << 16) | (idx & 0xFFFF);
+	u32_t key_ipimax   = (key << 16) | (ipimax & 0xFFFF);
 	u32_t ipiwin32b    = (u32_t)ipiwin;
 
 	thd = cos_sinv_2rets(uc->cap_no, spdid_thdidx, owntc, key_ipimax, ipiwin32b, &drcvtidret, &tcrcvret);
@@ -123,9 +122,9 @@ COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_ext, spdid_t child, struct cos_aep_i
 	aep->fn   = NULL;
 	aep->data = NULL;
 	aep->thd  = thd;
-	aep->tid  = (drcvtidret << 16) >> 16;
+	aep->tid  = (drcvtidret & 0xFFFF);
 	aep->rcv  = tcrcvret >> 16;
-	aep->tc   = (tcrcvret << 16) >> 16;
+	aep->tc   = (tcrcvret & 0xFFFF);
 	*extrcv   = drcvtidret >> 16;
 
 	return thd;
@@ -146,9 +145,9 @@ COS_CLIENT_STUB(thdcap_t, capmgr_initaep_create, spdid_t child, struct cos_aep_i
 	aep->fn   = NULL;
 	aep->data = NULL;
 	aep->thd  = thd;
-	aep->tid  = (sndtidret << 16) >> 16;
+	aep->tid  = (sndtidret & 0xFFFF);
 	aep->rcv  = rcvtcret >> 16;
-	aep->tc   = (rcvtcret << 16) >> 16;
+	aep->tc   = (rcvtcret & 0xFFFF);
 	*snd      = sndtidret >> 16;
 
 	/* initcaps are copied to INITXXX offsets in the dst component */

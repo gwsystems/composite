@@ -141,34 +141,19 @@ static inline int
 cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_dcb_info *nd, tcap_prio_t prio, tcap_time_t timeout, sched_tok_t tok)
 {
 	volatile struct cos_scb_info *scb = slm_scb_info_core();
-	//volatile struct cos_scb_info *test = slm_scb_info_test(0);
-	//volatile struct cos_scb_info *test2 = slm_scb_info_test(1);
-//	printc("scb: %lx, 0: %lx, 1: %lx\n", scb, test, test2);
-
-	//volatile struct slm_global *g0 = slm_global_core(0);
-	//volatile struct slm_global *g1 = slm_global_core(1);
-
-	//printc("g0: %d, %lx, g1: %d, %lx\n", g0->sched_thd.tid, g0->sched_thd.dcb, g1->sched_thd.tid, g1->sched_thd.dcb);
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_compinfo *ci = cos_compinfo_get(defci);
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 	sched_tok_t rcv_tok;
-	unsigned long htok;
-	//unsigned long curr_stk;
+	unsigned long pre_tok;
 
 	assert(curr != next);
-	//printc("size: %d\n", sizeof(sched_tok_t));
-	//printc("nd->sp: %lx, now:%ld, pre:%ld, nd->ip: %lx, curr: %d, next: %d\n", nd->sp, timeout, scb->timer_pre, nd->ip, curr, next);
-	//assert(timeout >= scb->timer_pre);
 	/* 
 	 * If previous timer smaller than current timeout, we need to take 
 	 * the kernel path to update the timer.
 	 */
 	if (scb->timer_pre < timeout) {
-		//if (cos_cpuid() == 0)
-		//printc("defswitch: %d, scb->timer_pre: %lx, timeout: %lx\n", next, scb->timer_pre, timeout);
 		scb->timer_pre = timeout;
-		//scb->curr_thd = 0;
 		return cos_defswitch(next, prio, timeout, tok);
 	}
 	/*
@@ -242,69 +227,29 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 	 *	  "c" (&(scb->curr_thd)), "d" (next)
 	 *	: "memory", "cc");
      */
-	 //printc("sp: %lx, %lx\n", nd->sp, nd->ip);
-	 //printc("\n--->tok: %d, prio: %lx, timeout: %ld, rcv: %d, thd: %d\n", tok, prio, timeout, sched_aep->rcv, next);
 #if defined(__x86_64__)
-
-	/*__asm__ __volatile__ (              \
-		"pushq %%rbp\n\t"               \
-		"mov %%rsp, %%rbp\n\t"         \
-		"movq $2f, (%%rax)\n\t"         \
-		"mov %%rsp, 8(%%rax)\n\t"      \
-		"cmp $0, 8(%%rbx)\n\t"          \
-		"je 1f\n\t"                     \
-		"mov %%rdx, (%%rcx)\n\t"       \
-		"mov 8(%%rbx), %%rsp\n\t"      \
-		"jmp *(%%rbx)\n\t"              \
-		".align 4\n\t"                  \
-		"1:\n\t"                        \
-		"movabs $3f, %%r8\n\t"           \
-		"mov %%rdx, %%rax\n\t"         \
-		"inc %%rax\n\t"                 \
-		"shl $16, %%rax\n\t"            \
-		"mov %%rsi, %%rbx\n\t"            \
-		"mov %[prio], %%rsi\n\t"            \
-		"mov %%rdi, %%rdx\n\t"         \
-		"mov %[rcv], %%rdi\n\t"            \
-		"sysenter\n\t"                  \
-		"jmp 3f\n\t"                    \
-		".align 4\n\t"                  \
-		"2:\n\t"                        \
-		"movq $0, 8(%%rbx)\n\t"         \
-		".align 4\n\t"                  \
-		"3:\n\t"                        \
-		"popq %%rbp\n\t"                \
-		: "=S" (htok)
-		: "a" (cd), "b" (nd),
-		  "S" (tok), "D" (timeout),
-		  "c" (&(scb->curr_thd)), "d" (next),
-		  [prio] "r" (prio), [rcv] "r" (sched_aep->rcv)
-		: "memory", "cc", "r8", "r9", "r10", "r11", "r12");*/
-
-//printc("next thdcap: %d\n", next);
-		//printc("=====from ul: %d, %d\n", cos_thdid(), cos_cpuid());
 	__asm__ __volatile__ (
 		"pushq %%rbp\n\t"               \
-		"mov %%rsp, %%rbp\n\t"         \
-		"movabs $2f, %%r8\n\t"            \
+		"mov %%rsp, %%rbp\n\t"          \
+		"movabs $2f, %%r8\n\t"          \
 		"mov %%r8, (%%rax)\n\t"         \
-		"mov %%rsp, 8(%%rax)\n\t"      \
+		"mov %%rsp, 8(%%rax)\n\t"       \
 		"cmp $0, 8(%%rbx)\n\t"          \
 		"je 1f\n\t"                     \
-		"mov %%rdx, (%%rcx)\n\t"       \
-		"mov 8(%%rbx), %%rsp\n\t"      \
+		"mov %%rdx, (%%rcx)\n\t"        \
+		"mov 8(%%rbx), %%rsp\n\t"       \
 		"jmp *(%%rbx)\n\t"              \
 		".align 4\n\t"                  \
 		"1:\n\t"                        \
-		"movq $3f, %%r8\n\t"           \
-		"mov %%rdx, %%rax\n\t"         \
+		"movq $3f, %%r8\n\t"            \
+		"mov %%rdx, %%rax\n\t"          \
 		"inc %%rax\n\t"                 \
 		"shl $16, %%rax\n\t"            \
-		"mov %%rsi, %%rbx\n\t"            \
-		"mov $0, %%rsi\n\t"            \
-		"mov %%rdi, %%rdx\n\t"         \
-		"mov $0, %%rdi\n\t"            \
-		"syscall\n\t"
+		"mov %%rsi, %%rbx\n\t"          \
+		"mov $0, %%rsi\n\t"             \
+		"mov %%rdi, %%rdx\n\t"          \
+		"mov $0, %%rdi\n\t"             \
+		"syscall\n\t"                   \
 		"jmp 3f\n\t"                    \
 		".align 4\n\t"                  \
 		"2:\n\t"                        \
@@ -317,9 +262,7 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		  "S" (tok), "D" (timeout),
 		  "c" (&(scb->curr_thd)), "d" (next)
 		: "memory", "cc", "r8", "r9", "r11", "r12", "r13", "r14", "r15");
-		//printc("arrive in thd: %d, %d\n", cos_thdid(), cos_cpuid());
 #else
-	assert(0);
 	__asm__ __volatile__ (              \
 		"pushl %%ebp\n\t"               \
 		"movl %%esp, %%ebp\n\t"         \
@@ -355,10 +298,7 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		: "memory", "cc");
 #endif
 	scb = slm_scb_info_core();
-	//rcv_tok |= htok;
-	//rcv_tok = (rcv_tok << 32) | ltok;
-	//printc("h : %d, l: %d, tok: %d\n", htok, ltok, tok);
-	if (htok != tok) return -EAGAIN;
+	//if (pre_tok != tok) return -EAGAIN;
 	return 0;
 }
 
@@ -377,7 +317,6 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 
 	timeout = g->timeout_next;
 	prio = inherit_prio ? curr->priority : t->priority;
-	//printc("prio: %lx, inherit_prio: %lx, curr: %ld, tprio: %lx\n", prio, inherit_prio, curr->priority, t->priority);
 
 	if (unlikely(t->properties & (SLM_THD_PROPERTY_SEND | SLM_THD_PROPERTY_OWN_TCAP | SLM_THD_PROPERTY_SPECIAL))) {
 		if (t == &g->sched_thd) {
@@ -392,20 +331,12 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 			return ret;
 		}
 	}
-		//printc("update timer: %d\n", g->timeout_next);
 	if (!cd || !nd) {
 		assert(scb->timer_pre == timeout);
 		scb->timer_pre = timeout;
 		ret = cos_defswitch(t->thd, prio, timeout, tok);
-	} //else if (cd && nd && nd->sp == 0){
-		//ret = cos_defswitch(t->thd, prio, timeout, tok);
-	//} 
-	else {
-		//if (cos_cpuid() == 0)
-		//printc("\n------ulswitch %d, %lx -> %d, %lx, cos_cpuid(): %d\n", curr->tid, cd, t->tid, nd, cos_cpuid());
-		//printc("------timeout: %d, %lld\n", timeout, tcap_time2cyc(timeout, slm_now()));
+	} else {
 		ret = cos_ulswitch(curr->thd, t->thd, cd, nd, prio, timeout, tok);
-		//printc("rrrret: %d\n", ret);
 	}
 
 	if (unlikely(ret == -EPERM && !slm_thd_normal(t))) {
@@ -458,7 +389,6 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 
 try_again:
 	tok  = cos_sched_sync();
-	//printc("flag: %d, g->timer_next: %llu, diff: %lld, cyc: %d\n", flags, g->timer_next, g->timer_next-slm_now(), g->cyc_per_usec);
 	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
 		cycles_t now = slm_now();
 
@@ -467,9 +397,7 @@ try_again:
 			g->timer_set = 0;
 			/* The timer policy will likely reset the timer */
 			slm_timer_expire(now);
-			//printc("======================================: %lld, %lld, now: %lld\n", diff, g->timer_next, now);
 		}
-		//printc("<<<<<: %lld\n", diff);
 	}
 
 	/* Make a policy decision! */
@@ -479,15 +407,7 @@ try_again:
 	assert(slm_state_is_runnable(t->state));
 	slm_cs_exit(NULL, flags);
 
-	//if (likely(g->timer_next == scb->timer_pre)) {
-	//	printc("+++++++diff: %lld, timer: %lld\n", diff, g->timer_next);
-	//	assert(diff>=0);
-	//	ret = slm_thd_dispatch(t, tok, curr);
-	//} else {
-	//	printc("2222, timer_next: %lld\n", g->timer_next);
-	//	scb->timer_pre = g->timer_next;
-		ret = slm_thd_activate(curr, t, tok, 0);
-	//}
+	ret = slm_thd_activate(curr, t, tok, 0);
 	/* Assuming only the single tcap with infinite budget...should not get EPERM */
 	assert(ret != -EPERM);
 	

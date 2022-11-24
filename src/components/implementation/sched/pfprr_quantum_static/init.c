@@ -281,7 +281,6 @@ slm_comp_init_loop(void)
 		slm_thd_wakeup(t, 0);
 	}
 	slm_cs_exit_reschedule(slm_thd_special(), SLM_CS_NONE);
-	printc("0000000\n");
 
 	return;
 }
@@ -290,5 +289,4 @@ void
 slm_idle_comp_initialization(void)
 {
 	slm_comp_init_loop();
-	printc("done\n");
 }

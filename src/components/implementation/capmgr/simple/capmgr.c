@@ -177,8 +177,6 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, struct cm_dcb *dcb, th
 	sched_aep = cos_sched_aep_get(sched->comp.comp_res);
 	assert(sched_ci->comp_cap);
 
-	//tcap = cos_tcap_alloc(ci);
-	//assert(tcap);
 	rcvcap = cos_arcv_alloc(ci, t->thd.cap, sched_aep->tc, sched_ci->comp_cap, sched_aep->rcv);
 	assert(rcvcap);
 
@@ -201,7 +199,6 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, struct cm_dcb *dcb, th
 	t->aliased_cap = _rcv.thd;
 	t->client      = c;
 	*arcv          = _rcv.rcv;
-	//printc("[capmgr]tid: %d, rcv: %d, asnd: %d, dcb: %x\n", t->thd.tid, _rcv.rcv, _asnd.asnd, dcb->dcb_addr);
 	*asnd          = _asnd.asnd;
 	/* FIXME: should take a reference to the scheduler */
 
@@ -217,7 +214,6 @@ cm_dcb_alloc_in(struct cm_comp *sched)
 	vaddr_t        dcbaddr = 0;
 	dcboff_t       dcboff = 0;
 
-	//dcbcap = crt_dcb_create_in(&sched->comp, &dcbaddr);
 	dcbcap = cos_dcb_info_alloc(&sched->comp.dcb_data[cos_cpuid()], &dcboff, &dcbaddr);
 	assert(dcbcap);
 	d->dcb_addr = dcbaddr;
@@ -587,13 +583,8 @@ capmgr_scb_mapping(void)
 
 		ci = cos_compinfo_get(s->comp.comp_res);
 		scb_uaddr = (vaddr_t)(s->dcb_init_ptr - COS_SCB_SIZE);
-		//printc("dcbstart: %x\n", s->dcb_init_ptr);
 	}
 	assert(ci);
-
-	//scb_uaddr = cos_page_bump_intern_valloc(ci, COS_SCB_SIZE);
-	//printc("scb: %d,%x\n", schedid, scb_uaddr);
-	assert(scb_uaddr);
 
 	return scb_mapping(schedid, scb_uaddr);
 }
@@ -609,10 +600,7 @@ capmgr_dcb_info_init(struct cm_comp *c)
 	vaddr_t  initaddr = 0;
 	dcboff_t initoff  = 0;
 
-	//initaddr = cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
-	//printc("dcbaddr: %x, target_ci: %x\n", initaddr, target_ci);
 	initaddr = c->dcb_init_ptr + (cos_cpuid() * PAGE_SIZE);
-	//printc("dcbaddr: %x, target_ci: %x, %x\n", initaddr, target_ci, initaddr+PAGE_SIZE);
 	assert(initaddr);
 
 	initdcb  = cos_dcb_alloc(ci, target_ci->pgtbl_cap, initaddr);
@@ -651,9 +639,8 @@ capmgr_execution_init(int is_init_core)
 
 		if (!strcmp(exec_type, "sched")) {
 			struct cm_rcv *r = ss_rcv_alloc();
-
 			assert(r);
-			//if (is_init_core) capmgr_dcb_info_init(cmc);
+
 			capmgr_dcb_info_init(cmc);
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, &r->rcv))) BUG();
 			ss_rcv_activate(r);
@@ -809,7 +796,6 @@ capmgr_retrieve_dcbinfo(thdid_t tid, arcvcap_t *arcv, asndcap_t *asnd, struct co
 	struct cm_dcbinfo *info;
 
 	info = ss_dcbinfo_get(tid);
-	//printc("---------tid: %d, info: %x, ret: %d, dcbaddr: %x\n", tid, info, info->tid, info->dcb->dcb_addr);
 	*arcv = info->arcv;
 	*asnd = info->asnd;
 	*dcb  = (struct cos_dcb_info *)info->dcb->dcb_addr;
@@ -857,11 +843,6 @@ capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 	ss_dcbinfo_activate(info);
 
 	*tid  = t->thd.tid;
-	//*arcv = t->arcv_cap;
-	//*asnd = _asnd;
-	//*arcv = _arcv;
-	//*dcb  = (struct cos_dcb_info *)d->dcb_addr;
-	//printc("*tid: %d, arcv: %d\n", t->thd.tid, _arcv);
 
 	return t->aliased_cap;
 }
@@ -960,12 +941,6 @@ cos_init(void)
 	if (!cm_comp_self_alloc("capmgr")) BUG();
 
 	/* Initialize the other component's for which we're responsible */
-	//scbcap_t scbc = cos_scb_alloc(ci);
-	//assert(scbc);
-	//vaddr_t scb_uaddr = cos_page_bump_intern_valloc(ci, COS_SCB_SIZE);
-	//printc("scb_uaddr: %x, ci: %x, defci: %x\n", scb_uaddr, ci, defci);
-	//printc("========> scb: %d\n", ci->pgtbl_cap);
-	//if (cos_scb_mapping(ci, ci->comp_cap, ci->pgtbl_cap, scbc, scb_uaddr)) BUG();
 	if (capmgr_scb_mapping()) BUG();
 
 	capmgr_comp_init();

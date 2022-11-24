@@ -1282,21 +1282,12 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			word_t             reg3         = __userregs_get3(regs);
 			word_t             reg4         = __userregs_get4(regs);
 			capid_t            pgtbl_addr   = __userregs_get2(regs);
-#if defined(__x86_64__)
-			thdclosure_index_t init_data    = (reg4 << 32) >> 32;
-			capid_t            thd_cap      = (capin >> 32);
-			capid_t            pgtbl_cap    = (capin << 32) >> 32;
-			capid_t            compcap      = (reg3 >> 32);
-			capid_t            dcb_cap      = (reg3 << 32) >> 32;
-			unsigned short     dcboff       = reg4 >> 32;
-#else
-			thdclosure_index_t init_data    = (reg4 << 16) >> 16;
 			capid_t            thd_cap      = (capin >> 16);
-			capid_t            pgtbl_cap    = (capin << 16) >> 16;
+			capid_t            pgtbl_cap    = capin & 0xFFFF;
 			capid_t            compcap      = (reg3 >> 16);
-			capid_t            dcb_cap      = (reg3 << 16) >> 16;
+			capid_t            dcb_cap      = reg3 & 0xFFFF;
 			unsigned short     dcboff       = reg4 >> 16;
-#endif
+			thdclosure_index_t init_data    = reg4 & 0xFFFF;
 
 			unsigned long     *tpte = NULL, flags;
 			struct thread     *thd;
@@ -1379,7 +1370,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t      captbl_cap = __userregs_get2(regs) >> 16;
 			capid_t      pgtbl_cap  = __userregs_get2(regs) & 0xFFFF;
 			livenessid_t lid        = capin >> 16;
-			capid_t      comp_cap   = capin & 0xffff;
+			capid_t      comp_cap   = capin & 0xFFFF;
 			capid_t      scb_cap    = __userregs_get3(regs);
 			vaddr_t      entry_addr = __userregs_get4(regs);
 
@@ -1556,17 +1547,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			word_t r2      = __userregs_get2(regs);
 			word_t r3      = __userregs_get3(regs);
 			word_t r4      = __userregs_get4(regs);
-#if defined(__x86_64__)
-			capid_t      dcbcap  = r1 >> 32;
-			capid_t      ptcap   = r2 >> 32;
-			livenessid_t lid     = (r1 << 32) >> 32;
-			capid_t      ptcapin = (r2 << 32) >> 32;
-#else
 			capid_t      dcbcap  = r1 >> 16;
 			capid_t      ptcap   = r2 >> 16;
 			livenessid_t lid     = r1 & 0xFFFF;
-			capid_t      ptcapin = r2 & 0xffff;
-#endif
+			capid_t      ptcapin = r2 & 0xFFFF;
 			//printk("dcbcap: %x, lid: %x, ptcap: %x, ptcapin: %x, r1: %x, r2: %x\n", dcbcap, lid, ptcap, ptcapin, r1, r2);
 			vaddr_t      kaddr   = r3;
 			vaddr_t      uaddrin = r4;

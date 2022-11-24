@@ -75,7 +75,6 @@ slm_timer_quantum_expire(cycles_t now)
 	slm_timeout_set(next_timeout);
 	g->current_timeout = next_timeout;
 
-	//printc("next_timeout: %lld, now: %lld, g->period: %lld\n", next_timeout, now, g->period);
 	quantum_wakeup_expired(now);
 }
 

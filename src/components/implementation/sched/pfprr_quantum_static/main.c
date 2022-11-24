@@ -126,7 +126,7 @@ sched_thd_exit(void)
 
 	slm_cs_enter(current, SLM_CS_NONE);
 	slm_thd_deinit(current);
-	for (i = 0; slm_cs_exit_reschedule(current, SLM_CS_NONE) && i < 16; i++) printc("$$\n");
+	for (i = 0; slm_cs_exit_reschedule(current, SLM_CS_NONE) && i < 16; i++) ;
 
 	/* If we got here, something went wrong */
 	BUG();
@@ -143,14 +143,11 @@ sched_thd_yield_to(thdid_t t)
 
 	if (!to) return -1;
 
-//printc("yield to: %d\n", t);
 	assert(current != to);
 	slm_cs_enter(current, SLM_CS_NONE);
         slm_sched_yield(current, to);
-	//ret = slm_cs_exit_reschedule(current, SLM_CS_CHECK_TIMEOUT);
 	ret = slm_cs_exit_reschedule(current, SLM_CS_NONE);
-	//int test = 0;
-	//printc("yield ret:%lx\n", &test);
+
 	return ret;
 }
 
@@ -586,7 +583,6 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	cos_defcompinfo_sched_init();
 
 	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid, &dcb);
-	printc("\t>>>>>>>>>>>idle create done: %d\n", tid);
 
 	if (!t) BUG();
 	idlecap = thdcap;

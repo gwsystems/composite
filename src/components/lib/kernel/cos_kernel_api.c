@@ -410,7 +410,6 @@ static capid_t
 __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 {
 	unsigned long sz = captbl_idsize(cap);
-	//printc("sz: %d\n", sz);
 	capid_t *     frontier;
 
 	printd("__capid_bump_alloc\n");
@@ -767,20 +766,14 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	assert(ci && comp > 0);
 
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
-	assert(!(init_data & ~((1 << 16) - 1)));
-	assert(!(off & ~((1 << 9) - 1)));
-	assert(kmem && (round_to_page(kmem) == kmem));
 
-//printc("pgtblcap: %d, cap: %d, comp: %d, dc: %d, off: %d, init_data: %d\n",
-//		__compinfo_metacap(ci)->mi.pgtbl_cap, cap, comp, dc, off, init_data);
-//		printc("[%lx]\n", off<<32|init_data);
-#if defined(__x86_64__)
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, __compinfo_metacap(ci)->mi.pgtbl_cap | (cap << 32),
-			kmem, comp << 32 | dc, (u64_t)off << 32 | init_data))
-#else
+	assert(kmem && (round_to_page(kmem) == kmem));
+	assert(!(init_data & ~((1 << 16) - 1)));
+	assert(!(cap & ~ ((1 << 16) - 1)));
+	assert(!(comp & ~ ((1 << 16) - 1)));
+	assert(!(dc & ~ ((1 << 16) - 1)));
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, __compinfo_metacap(ci)->mi.pgtbl_cap | (cap << 16),
-			kmem, comp << 16 | dc, off << 16 | init_data))
-#endif
+			kmem, comp << 16 | dc, (unsigned long)off << 16 | init_data))
 		BUG();
 
 	return cap;
@@ -836,24 +829,17 @@ cos_dcb_alloc(struct cos_compinfo *ci, pgtblcap_t ptcap, vaddr_t uaddr)
 	capid_t cap;
 	u32_t   lid = livenessid_bump_alloc();
 
-//printc("uaddr: %x\n", uaddr);
 	printd("cos_dcb_alloc\n");
 
 	assert(ci);
 
+	assert(!(cap & ~ ((1 << 16) -1)));
+	assert(!(lid & ~ ((1 << 16) -1)));
+	assert(!((__compinfo_metacap(ci)->mi.pgtbl_cap) & ~ ((1 << 16) -1)));
 	if (__alloc_mem_cap(ci, CAP_DCB, &kmem, &cap)) return 0;
 	assert(kmem && (round_to_page(kmem) == kmem));
-	//printc("cap: %x, lid: %x, pgtbl_cap: %x, ptcap: %x, %x, %x\n", 
-	//		cap, lid, (__compinfo_metacap(ci)->mi.pgtbl_cap), ptcap, cap << 16 | lid, (__compinfo_metacap(ci)->mi.pgtbl_cap) << 16 | ptcap);
-#if defined(__i386__)
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_DCB_ACTIVATE, cap << 16 | lid, (__compinfo_metacap(ci)->mi.pgtbl_cap) << 16 | ptcap, kmem, uaddr)) BUG();
-#elif defined(__x86_64__)
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_DCB_ACTIVATE, cap << 32 | lid, (__compinfo_metacap(ci)->mi.pgtbl_cap) << 32 | ptcap, kmem, uaddr)) BUG();
-#else
-	assert(0);
-#endif
 
-//printc("uaddr: %x\n", uaddr);
 	return cap;
 }
 
@@ -904,7 +890,6 @@ cos_scb_alloc(struct cos_compinfo *ci)
 
 	if (__alloc_mem_cap(ci, CAP_SCB, &kmem, &cap)) return 0;
 	assert(kmem && (round_to_page(kmem) == kmem));
-	//printc("cap: %d, pgtbl: %x, kmem: %x, lid: %d\n", cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, lid);
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_SCB_ACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, lid))
 		BUG();
 
@@ -926,12 +911,7 @@ cos_comp_alloc_with(struct cos_compinfo *ci, compcap_t comp, u32_t lid, captblca
 	assert(lid  < (1 << 16));
 	assert(ctc  < (1 << 16));
 	assert(ptc  < (1 << 16));
-	//printc("comp: %d, lid: %d, ctc: %d, ptc: %d, : %d\n", comp, lid, ctc, ptc, (1<<16));
-#if defined(__x86_64__)
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, (lid << 16) | comp, (ctc << 16) | ptc, scbc, entry)) return 1;
-#else
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, (lid << 16) | comp, (ctc << 16) | ptc, scbc, entry)) return 1;
-#endif
 
 	return 0;
 }

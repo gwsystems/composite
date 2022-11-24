@@ -763,7 +763,6 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 		sinv->sinv_cap = cos_sinv_alloc(cli, srv->comp_cap, sinv->s_fn_addr, client->id);
 
 	assert(sinv->sinv_cap);
-	//printc("sinv %s cap %ld\n", name, sinv->sinv_cap);
 
 	/* poor-mans virtual address translation from client VAS -> our ptrs */
 	assert(sinv->c_ucap_addr - sinv->client->ro_addr > 0);
@@ -1044,18 +1043,13 @@ crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, 
 	crt_refcnt_take(&c->refcnt);
 	assert(target_ci->comp_cap);
 
-	//dcbcap = crt_dcb_create_in(c, &dcbaddr);
 	dcbcap = cos_dcb_info_alloc(&c->dcb_data[cos_cpuid()], &dcboff, &dcbaddr);
-	//sched_aep->dcb = dcbaddr;
-	//printc("dcbcap: %d, dcboff; %d\n", dcbcap, dcboff);
-	//assert(dcbcap && dcboff && dcbaddr);
 
 	if (closure_id == 0) {
 		thdcap = cos_initthd_alloc(cos_compinfo_get(defci), target_ci->comp_cap, dcbcap, dcboff);
 	} else {
 		thdcap = cos_thd_alloc_ext(cos_compinfo_get(defci), target_ci->comp_cap, closure_id, dcbcap, dcboff);
 	}
-	//printc("===========thdcap: %d\n", thdcap);
 	assert(thdcap);
 
 	/* Allocate the necessary kernel resources */
@@ -1130,7 +1124,6 @@ crt_rcv_alias_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resources
 		 * within the owning components captbl
 		 */
 		r->child_rcv = res->rcv;
-		//printc("rcv: %d, *c: %x\n", res->rcv, c);
 	}
 	if (flags & CRT_RCV_ALIAS_THD) {
 		assert(r->aep->thd);
