@@ -11,27 +11,27 @@ constructor = "kernel"
 [[components]]
 name = "capmgr"
 img  = "capmgr.simple"
-deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}, {srv = "print", interface = "print"}]
 implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
 constructor = "booter"
 
 [[components]]
 name = "sched"
-img  = "sched.root_fprr"
-deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
+img  = "sched.pfprr_quantum_static"
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "print", interface = "print"}]
 implements = [{interface = "sched"}, {interface = "init"}]
 constructor = "booter"
 
 [[components]]
 name = "schedtest"
 img  = "tests.unit_schedcomp"
-deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}]
+deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "print", interface = "print"}]
 constructor = "booter"
 
 [[components]]
 name = "ping"
 img  = "tests.unit_pingpong"
-deps = [{srv = "pong", interface = "pong"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}]
+deps = [{srv = "pong", interface = "pong"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "print", interface = "print"}]
 baseaddr = "0x1600000"
 constructor = "booter"
 
@@ -40,4 +40,11 @@ name = "pong"
 img  = "pong.pingpong"
 deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}]
 implements = [{interface = "pong"}]
+constructor = "booter"
+
+[[components]]
+name = "print"
+img  = "print.serializing"
+implements = [{interface = "print"}]
+deps = [{srv = "booter", interface = "init"}]
 constructor = "booter"

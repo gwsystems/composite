@@ -51,9 +51,9 @@ multiboot_mem_parse(struct multiboot_tag *tag)
 		mod_end  = glb_memlayout.mod_end;
 		mem_addr = chal_pa2va((paddr_t)mmap->addr);
 		mem_len  = (mmap->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ : mmap->len); /* maximum allowed */
-		printk("\t- %d (%s): [%08llx, %08llx) sz = %ldMB + %ldKB\n", i, 
+		printk("\t- %d (%s): [%08llx, %08llx) sz = %ldMB + %ldKB\n", i,
 			mmap->type == 1 ? "Available" : "Reserved ",
-			mmap->addr, mmap->addr + mmap->len, 
+			mmap->addr, mmap->addr + mmap->len,
 			MEM_MB_ONLY((unsigned long long)mmap->len), MEM_KB_ONLY((unsigned long long)mmap->len));
 
 		if (mmap->addr > COS_PHYMEM_END_PA || mmap->addr + mem_len > COS_PHYMEM_END_PA) {
@@ -64,20 +64,20 @@ multiboot_mem_parse(struct multiboot_tag *tag)
 		if (mmap->type == 1 && mod_end >= mem_addr && mod_end < (mem_addr + mem_len)) {
 			sz = (mem_addr + mem_len) - mod_end;
 			glb_memlayout.kmem_end = mem_addr + mem_len;
-			printk("\t  memory usable at boot time: %lx (%ld MB + %ld KB)\n", sz, 
+			printk("\t  memory usable at boot time: %lx (%ld MB + %ld KB)\n", sz,
 				MEM_MB_ONLY(sz), MEM_KB_ONLY(sz));
 		}
 		i++;
 	}
 }
 
-static void 
+static void
 multiboot_tag_parse(unsigned long mboot_addr)
 {
 	struct multiboot_tag *tag;
 	multiboot_memory_map_t *mmap;
 
-	for (tag = (struct multiboot_tag *) (mboot_addr + 8); 
+	for (tag = (struct multiboot_tag *) (mboot_addr + 8);
 		tag->type != MULTIBOOT_TAG_TYPE_END;
 		tag = (struct multiboot_tag *) ((multiboot_uint8_t *) tag + ((tag->size + 7) & ~7))) {
 		if (tag->type == MULTIBOOT_TAG_TYPE_MMAP) multiboot_mem_parse(tag);
@@ -150,12 +150,6 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 
 #ifdef ENABLE_SERIAL
 	serial_init();
-#endif
-#ifdef ENABLE_CONSOLE
-	console_init();
-#endif
-#ifdef ENABLE_VGA
-	vga_init();
 #endif
 	boot_state_transition(INIT_BOOTED, INIT_CPU);
 

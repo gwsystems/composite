@@ -41,6 +41,7 @@ pub struct TomlComponent {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct SysInfo {
     description: String, // comment
 }
@@ -53,6 +54,7 @@ pub struct TomlAddrSpace {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct TomlSpecification {
     system: SysInfo,
     components: Vec<TomlComponent>,

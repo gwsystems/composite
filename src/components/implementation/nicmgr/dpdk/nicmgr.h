@@ -5,12 +5,16 @@
 #include <cos_component.h>
 #include <shm_bm.h>
 #include <ck_ring.h>
+#include <sync_sem.h>
 
 #define NIC_MAX_SESSION 32
 #define NIC_MAX_SHEMEM_REGION 3
 
 #define NIC_SHMEM_RX 0
 #define NIC_SHMEM_TX 1
+
+/* Client can use this port to send debug commands */
+#define NIC_DEBUG_PORT 36000
 
 struct shemem_info {
 	cbuf_t   shmid;
@@ -38,8 +42,18 @@ struct client_session {
 
 	u32_t ip_addr; 
 	u16_t port;
+	int thd_state;
 
 	struct pkt_ring_buf pkt_ring_buf;
+	struct pkt_ring_buf pkt_tx_ring;
+
+	int tx_init_done;
+	struct sync_sem sem;
+
+	/* number of blocked loops of the tenant, this is counted each time when the thread is blocked */
+	int blocked_loops_begin;
+	/* number of bloocked loops exit of the tenant, this is counted each time when the thread exits its blocked state */
+	int blocked_loops_end;
 };
 
 extern struct pkt_ring_buf g_tx_ring;
@@ -68,4 +82,8 @@ int pkt_ring_buf_enqueue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf)
 int pkt_ring_buf_dequeue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf);
 int pkt_ring_buf_empty(struct pkt_ring_buf *pkt_ring_buf);
 
+void cos_hash_add(uint16_t tenant_id, struct client_session *session);
+struct client_session *cos_hash_lookup(uint16_t tenant_id);
+
+#define USE_CK_RING_FREE_MBUF 1
 #endif /* NICMGR_H */

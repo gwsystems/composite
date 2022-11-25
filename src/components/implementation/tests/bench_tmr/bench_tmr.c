@@ -10,6 +10,7 @@
 #include <evt.h>
 #include <tmr.h>
 #include <perfdata.h>
+#include <cos_time.h>
 
 #undef TMR_TRACE_DEBUG
 #ifdef TMR_TRACE_DEBUG
@@ -49,21 +50,21 @@ tmr_hi_thd(void *d)
 	evt_res_data_t evtdata;
 	evt_res_type_t  evtsrc;
 	int first = 0;
-	
+
 	printc("Call into timer manager to make a timer.\n");
 	assert(tmr_init(&t, TMR_PERIODIC_TIME, TMR_PERIODIC) == 0);
 
 	printc("Call into event manager to make a event.\n");
 	assert(evt_init(&e, 2) == 0);
-	
+
 	/*
 	 * Add the timer event to the event set, the associate the timer with that event ID so
-	 * the timer manager knows which event to trigger when the timer expires. 
+	 * the timer manager knows which event to trigger when the timer expires.
 	 */
 	evt_id = evt_add(&e, 1, (evt_res_data_t)&t);
 	assert(evt_id !=0);
 	assert(tmr_evt_associate(&t, evt_id) == 0);
-	
+
 	/* Start the timer */
 	assert(tmr_start(&t) == 0);
 
@@ -75,11 +76,11 @@ tmr_hi_thd(void *d)
 
 		/* Drop not used; we're dealing with unsigned ints */
 		/* if ((end - start) > DROP_THRESHOLD) continue; */
-		
+
 		if (first == 0) first = 1;
 		else perfdata_add(&perf, end - start);
 		debug("%lld.\n", end - start);
-		
+
 		i++;
 	}
 
@@ -106,21 +107,21 @@ void
 test_tmr(void)
 {
 	int i;
-	
+
 	sched_param_t sps[] = {
 		SCHED_PARAM_CONS(SCHEDP_PRIO, 4),
 		SCHED_PARAM_CONS(SCHEDP_PRIO, 6)
 	};
-	
-	
+
+
 	perfdata_init(&perf, "Timer latency - total", result, ITERATION);
 
 	printc("Create threads:\n");
-	
+
 	tmr_lo = sched_thd_create(tmr_lo_thd, NULL);
 	printc("\tcreating lo thread %ld at prio %d\n", tmr_lo, sps[1]);
 	sched_thd_param_set(tmr_lo, sps[1]);
-	
+
 	tmr_hi = sched_thd_create(tmr_hi_thd, NULL);
 	printc("\tcreating hi thread %ld at prio %d\n", tmr_hi, sps[0]);
 	sched_thd_param_set(tmr_hi, sps[0]);

@@ -253,6 +253,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 		assert(glb_boot_ct);
 		chal_cpu_pgtbl_activate(pgtbl);
 		kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
+		chal_protdom_write(0);
 		return;
 	}
 

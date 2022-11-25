@@ -5,8 +5,8 @@
 #include <shm_bm.h>
 
 /* These proto definitions come from memcached enum network_transport, do not change it*/
-#define TCP_PROTO 1
-#define UDP_PROTO 2
+#define MC_TCP_PROTO 1
+#define MC_UDP_PROTO 2
 
 
 void mc_map_shmem(cbuf_t shm_id);

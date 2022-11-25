@@ -127,7 +127,7 @@ pgtblcap_t cos_ulk_pgtbl_create(struct cos_compinfo *ci, pgtblcap_t *secondlvl);
 ulkcap_t   cos_ulk_page_alloc(struct cos_compinfo *ci, pgtblcap_t ulkpt, vaddr_t uaddr);
 int        cos_ulk_map_in(pgtblcap_t ptc);
 
-void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier);
+void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, int try_expand);
 
 typedef void (*cos_thd_fn_t)(void *);
 thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);

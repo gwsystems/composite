@@ -7,6 +7,8 @@
 #include <nic.h>
 #include <cos_dpdk.h>
 #include <ck_ring.h>
+#include <rte_atomic.h>
+#include <sync_sem.h>
 #include "nicmgr.h"
 
 typedef unsigned long cos_paddr_t; /* physical address */
@@ -23,6 +25,8 @@ CK_RING_PROTOTYPE(pkt_ring_buf, pkt_buf);
 
 struct pkt_ring_buf g_tx_ring;
 struct pkt_ring_buf g_free_ring;
+
+rte_atomic64_t tx_enqueued_miss = {0};
 
 void
 pkt_ring_buf_init(struct pkt_ring_buf *pkt_ring_buf, size_t ringbuf_num, size_t ringbuf_sz)
@@ -76,10 +80,12 @@ nic_get_a_packet(u16_t *pkt_len)
 	assert(thd < NIC_MAX_SESSION);
 
 	session = &client_sessions[thd];
-	
-	while (pkt_ring_buf_empty(&session->pkt_ring_buf)) {
-		sched_thd_block(0);
-	}
+
+	session->blocked_loops_begin++;
+	sync_sem_take(&session->sem);
+	session->blocked_loops_end++;
+
+	assert(!pkt_ring_buf_empty(&session->pkt_ring_buf));
 
 	while (!pkt_ring_buf_dequeue(&session->pkt_ring_buf, &buf))
 	assert(buf.pkt);
@@ -91,8 +97,11 @@ nic_get_a_packet(u16_t *pkt_len)
 	assert(len < PKT_BUF_SIZE);
 
 	memcpy(obj->data, pkt, len);
-
+#if USE_CK_RING_FREE_MBUF
 	while (!pkt_ring_buf_enqueue(&g_free_ring, &buf));
+#else
+	cos_free_packet(buf.pkt);
+#endif
 
 	*pkt_len = len;
 
@@ -110,7 +119,7 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	thd   = cos_thdid();
 	objid = pktid;
 
-	obj = (struct netshmem_pkt_buf *)shm_bm_take_net_pkt_buf(client_sessions[thd].shemem_info.shm, objid);
+	obj = (struct netshmem_pkt_buf *)shm_bm_borrow_net_pkt_buf(client_sessions[thd].shemem_info.shm, objid);
 
 	buf.obj = (char *)obj;
 	buf.pkt = pkt_offset + obj->data;
@@ -121,7 +130,11 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	buf.paddr   = data_paddr;
 	buf.pkt_len = pkt_len;
 
-	pkt_ring_buf_enqueue(&g_tx_ring, &buf);
+	if (!pkt_ring_buf_enqueue(&client_sessions[thd].pkt_tx_ring, &buf)) {
+		/* tx queue is full, drop the packet */
+		rte_atomic64_add(&tx_enqueued_miss, 1);
+		shm_bm_free_net_pkt_buf(obj);
+	}
 
 	return 0;
 }
@@ -151,6 +164,7 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 	client_sessions[thd].thd     = thd;
 
 	shm   = netshmem_get_shm();
+	assert(shm);
 	shmid = netshmem_get_shm_id();
 	paddr = cos_map_virt_to_phys((cos_vaddr_t)shm);
 	assert(paddr);
@@ -158,7 +172,22 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 	client_sessions[thd].shemem_info.shmid = shmid;
 	client_sessions[thd].shemem_info.shm   = shm;
 	client_sessions[thd].shemem_info.paddr = paddr;
+	cos_hash_add(client_sessions[thd].port, &client_sessions[thd]);
+
+	sync_sem_init(&client_sessions[thd].sem, 0);
 
 	pkt_ring_buf_init(&client_sessions[thd].pkt_ring_buf, RX_PKT_RBUF_NUM, RX_PKT_RING_SZ);
+	pkt_ring_buf_init(&client_sessions[thd].pkt_tx_ring, TX_PKT_RBUF_NUM, TX_PKT_RING_SZ);
+
+	client_sessions[thd].blocked_loops_begin = 0;
+	client_sessions[thd].blocked_loops_end = 0;
+	client_sessions[thd].tx_init_done = 1;
+
 	return 0;
+}
+
+u64_t
+nic_get_port_mac_address(u16_t port)
+{
+	return cos_get_port_mac_address(port);
 }

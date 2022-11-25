@@ -67,7 +67,6 @@ sl_blkpt_free(sched_blkpt_id_t id)
 int
 sl_blkpt_trigger(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, int single)
 {
-	thdid_t tid;
 	struct sl_thd *t;
 	struct blkpt_mem *m;
 	int ret = 0;
@@ -81,10 +80,7 @@ sl_blkpt_trigger(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, int single)
 	if (!blkpt_epoch_is_higher(m->epoch, epoch)) ERR_THROW(0, unlock);
 
 	m->epoch = epoch;
-	while ((tid = stacklist_dequeue(&m->blocked)) != 0) {
-		t = sl_thd_lkup(tid);
-		assert(t);
-
+	while ((t = stacklist_dequeue(&m->blocked)) != 0) {
 		sl_thd_wakeup_no_cs(t); /* ignore retval: process next thread */
 	}
 	/* most likely we switch to a woken thread here */
@@ -114,9 +110,8 @@ sl_blkpt_block(sched_blkpt_id_t blkpt, sched_blkpt_epoch_t epoch, thdid_t depend
 	if (blkpt_epoch_is_higher(m->epoch, epoch)) ERR_THROW(0, unlock);
 
 	/* Block! */
-	stacklist_add(&m->blocked, &sl);
-
 	t = sl_thd_curr();
+	stacklist_add(&m->blocked, &sl, t);
 	if (sl_thd_block_no_cs(t, SL_THD_BLOCKED, 0)) ERR_THROW(-1, unlock);
 
 	sl_cs_exit_schedule();

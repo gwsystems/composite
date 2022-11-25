@@ -39,6 +39,12 @@ sl_cs_enter_contention(union sl_cs_intern *csi, union sl_cs_intern *cached, thdc
 		csi->s.contention = 1;
 		if (!ps_cas(&g->lock.u.v, cached->v, csi->v)) return 1;
 	}
+	/* 
+	 * FIXME: currently it is a hack to give owner thread additional timer tick in case the owner
+	 * also takes the lock and runs out of its time slice. If that happens, scheduler can never take
+	 * the lock. Thus, scheduler needs to give the owner chance(timer tick) to release the lock.
+	 */
+	g->timeout_next += 20000;
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
 	if ((ret = cos_defswitch(csi->s.owner, t->prio, csi->s.owner == sl_thd_thdcap(g->sched_thd) ?
 				 TCAP_TIME_NIL : g->timeout_next, tok))) return ret;

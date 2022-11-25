@@ -111,7 +111,7 @@ __swap(cycles_t* xs, int i, int j)
 }
 
 /*
- * merge two sorted subs xs[i, m) and xs[j...n) to working area xs[w...] 
+ * merge two sorted subs xs[i, m) and xs[j...n) to working area xs[w...]
  */
 static void
 __workarea_merge(cycles_t* xs, int i, int m, int j, int n, int w)
@@ -122,8 +122,8 @@ __workarea_merge(cycles_t* xs, int i, int m, int j, int n, int w)
 }
 
 
-/* 
- * sort xs[l, u), and put result to working area w. 
+/*
+ * sort xs[l, u), and put result to working area w.
  * constraint, len(w) == u - l
  */
 static void
@@ -229,7 +229,7 @@ perfdata_99ptile(struct perfdata *pd)
 static void
 perfdata_print(struct perfdata *pd)
 {
-	printc("PD:%s -sz:%d,SD:%llu,Mean:%llu,99%%:%llu, Max: %llu\n", 
+	printc("PD: %s - sz:%d,SD:%llu,Mean:%llu,99%%:%llu, Max: %llu\n",
 		pd->name, pd->sz, pd->sd, pd->avg, pd->ptiles[PTILE_99], pd->max);
 }
 
@@ -239,12 +239,12 @@ perfdata_all(struct perfdata *pd)
 	int i;
 
 	perfdata_print(pd);
-	
+
 	printc(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n");
-	
+
 	printc("#Latency\n");
 	for (i = 0 ; i < pd->sz ; i++) printc("V: %llu\n", pd->values[i]);
-	
+
 	printc("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n\n");
 }
 

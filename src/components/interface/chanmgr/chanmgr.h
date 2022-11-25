@@ -4,7 +4,7 @@
 #include <cos_component.h>
 #include <memmgr.h>
 #include <chan_types.h>
-#include <crt_blkpt.h>
+#include <sync_blkpt.h>
 
 /***
  * The interface to communicate with the channel manager. The

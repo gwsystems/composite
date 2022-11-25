@@ -15,11 +15,13 @@
 
 #include <cos_kernel_api.h>
 #include <cos_defkernel_api.h>
-#include <sl.h>
-#include <sl_blkpt.h>
 #include <res_spec.h>
-
+#include <cos_types.h>
 #include <cos_stubs.h>
+
+typedef u32_t sched_blkpt_id_t;
+#define SCHED_BLKPT_NULL 0
+typedef word_t sched_blkpt_epoch_t;
 
 int      sched_thd_yield_to(thdid_t t);
 int      COS_STUB_DECL(sched_thd_yield_to)(thdid_t t);

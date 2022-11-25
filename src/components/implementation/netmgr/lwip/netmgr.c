@@ -260,6 +260,7 @@ netmgr_udp_bind(u32_t ip_addr, u16_t port)
 	err_t ret;
 
 	thdid_t thd = cos_thdid();
+	assert(thd < LWIP_MAX_CONNS);
 
 	nic_bind_port(ip_addr, htons(port));
 
