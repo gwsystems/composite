@@ -50,7 +50,7 @@ __cosrt_alts_##name: 						\
 	and 	$~0xf, %rsp;					\
 	xor 	%rbp, %rbp;					\
 	pushq	%rcx;						\
-	/* stack alignment */
+	/* stack alignment */					\
 	pushq	%rcx;						\
 	movq    %r8, %rcx;					\
 	movq    %r9, %rdx;					\
@@ -99,7 +99,7 @@ __cosrt_alts_##name: 						\
 	and 	$~0xf, %rsp;					\
 	xor 	%rbp, %rbp;					\
 	pushq	%rcx;						\
-	/* stack alignment */
+	/* stack alignment */					\
 	pushq	%rcx;						\
 	movq    %r8, %rcx;					\
 	movq    %r9, %rdx;					\
