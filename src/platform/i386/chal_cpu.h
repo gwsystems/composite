@@ -31,7 +31,7 @@ typedef enum {
 	CR4_FSGSBASE   = 1 << 16, /* user level fs/gs access permission bit */
 	CR4_OSXSAVE    = 1 << 18, /* XSAVE and Processor Extended States Enable */
 	CR4_SMEP       = 1 << 20, /* Supervisor Mode Execution Protection Enable */
-	CR4_SMAP       = 1 << 21,  /* Supervisor Mode Access Protection Enable */
+	CR4_SMAP       = 1 << 21, /* Supervisor Mode Access Protection Enable */
 	CR4_PKE        = 1 << 22  /* MPK Support */
 } cr4_flags_t;
 

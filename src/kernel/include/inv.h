@@ -308,6 +308,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	__userregs_sinvupdate(regs);
 	__userregs_setinv(regs, thd->tid | (get_cpuid() << 16), sinvc->token,
 			  sinvc->entry_addr);
+	
 	return;
 }
 

@@ -50,7 +50,7 @@
 #include <barrier.h>
 #include <ps.h>
 #include <initargs.h>
-#include <jitutils.h>
+#include <mpk_jit.h>
 
 #include <crt.h>
 
@@ -779,7 +779,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 	unsigned int ucap_off;
 	struct usr_inv_cap *ucap;
 	compcap_t comp_s;
-	void *ucap_data = NULL;
+	callgate_fn_t alt_fn = NULL;
 
 	assert(sinv && name && server && client);
 
@@ -807,7 +807,8 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 	sinv->sinv_cap = cos_sinv_alloc(cli, comp_s, sinv->s_fn_addr, client->id);
 	assert(sinv->sinv_cap);
 
-	if (crt_ns_vas_shared(client, server) && s_altfn_addr && c_fast_callgate_addr) {
+	if (crt_ns_vas_shared(client, server)) {
+		assert(s_altfn_addr && c_fast_callgate_addr);
 		/* values set for debugging; we need to implement a CSPRNG */
 		u64_t client_auth_tok = 0xfefefefefefefefe; /* = CSPRNG() */
 		u64_t server_auth_tok = 0xabababababababab; /* = CSPRNG() */
@@ -815,10 +816,10 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 		vaddr_t callgate_off  = c_fast_callgate_addr - sinv->client->ro_addr;
 		vaddr_t callgate_addr = (vaddr_t)sinv->client->mem + callgate_off;
 
-		jitutils_jitcallgate(callgate_addr, s_altfn_addr, sinv->client->protdom, sinv->server->protdom, client_auth_tok, server_auth_tok, client->id, sinv->sinv_cap);
+		mpk_jit_jitcallgate(callgate_addr, s_altfn_addr, sinv->client->protdom, sinv->server->protdom, client_auth_tok, server_auth_tok, client->id, sinv->sinv_cap);
 	
-		/* tell the client to use the user-level callgate when making the sinv */
-		ucap_data = COS_UCAP_UL_INV;
+		/* client should use the user-level callgate when making the sinv */
+		alt_fn = (callgate_fn_t)c_fast_callgate_addr;
 	}
 
 	/* poor-mans virtual address translation from client VAS -> our ptrs */
@@ -828,7 +829,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 	*ucap = (struct usr_inv_cap) {
 		.invocation_fn = sinv->c_fn_addr,
 		.cap_no        = sinv->sinv_cap,
-		.data          = ucap_data,
+		.alt_fn        = alt_fn,
 	};
 
 	return 0;

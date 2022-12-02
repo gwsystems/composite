@@ -751,7 +751,7 @@ cos_init(void)
 	 *        initialized the same as ours. Need a better solution.
 	 */
 	extern unsigned long __thdid_alloc;
-	__thdid_alloc = 16;
+	__thdid_alloc = NUM_CPU * 4;
 
 	printc("Starting the capability manager.\n");
 	assert(atol(args_get("captbl_end")) >= BOOT_CAPTBL_FREE);

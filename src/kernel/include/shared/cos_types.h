@@ -408,13 +408,13 @@ struct restartable_atomic_sequence {
 };
 
 
-#define COS_UCAP_UL_INV (void *)0x1
+typedef int (*callgate_fn_t)(word_t p0, word_t p1, word_t p2, word_t p3, word_t *r1, word_t *r2);
 
 /* see explanation in spd.h */
 struct usr_inv_cap {
 	vaddr_t       invocation_fn;
 	unsigned long cap_no;
-	void         *data;
+	callgate_fn_t alt_fn;
 };
 
 #define COMP_INFO_POLY_NUM 10
@@ -450,7 +450,6 @@ struct cos_stack_freelists {
  * COMP_INFO_TMEM_STK_RELINQ != 0.  Change the defines, or change the assembly" */
 /* #endif */
 
-/* padded to power-of-2 alignment to make IPC fast-path computations faster*/
 struct ulk_invstk_entry {
 	capid_t sinv_cap;
 	vaddr_t sp;

@@ -79,6 +79,12 @@ pgtbl_update(struct pgtbl_info *ptinfo)
 	chal_pgtbl_update(ptinfo);
 }
 
+static inline pgtbl_t
+pgtbl_current(void)
+{
+	return chal_pgtbl_read();
+}
+
 extern unsigned long __cr3_contents;
 
 static void

@@ -564,18 +564,27 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 		ci = ulinvstk_current(ulk_invstk, &curr->comp_info, curr->ulk_stkoff);
 		curr->protdom = ci->protdom;
 		if (unlikely(!ci)) return NULL;
-	}
-	else {
+	} else {
 		ci = &curr->comp_info;
 	}
 
 	*ip = curr->ip;
 	*sp = curr->sp;
+
 	return ci;
 }
 
+/* 
+ * performs the same op as `thd_invstk_current` except:
+ *  - does not assume thd is the current running thd
+ *  - always returns the pgtbl on top of the kernel
+ *    invstk as it will be the pgtbl that should be
+ *    associated with the component running in that thd
+ *    regardless of whether it is from the kernel or user
+ *    invocation stack.
+ */
 static inline struct comp_info *
-thd_invstk_next_comp(struct thread *thd, struct pgtbl_info **next_pt, struct cos_cpu_local_info *cos_info)
+thd_invstk_curr_comp(struct thread *thd, struct pgtbl_info **next_pt, struct cos_cpu_local_info *cos_info)
 {
 	struct invstk_entry *curr;
 	struct ulk_invstk   *ulk_invstk;
@@ -599,8 +608,7 @@ thd_invstk_next_comp(struct thread *thd, struct pgtbl_info **next_pt, struct cos
 	if (ulk_invstk->top > curr->ulk_stkoff) {
 		ci = ulinvstk_current(ulk_invstk, &curr->comp_info, curr->ulk_stkoff);
 		if (unlikely(!ci)) return NULL;
-	}
-	else {
+	} else {
 		ci = &curr->comp_info;
 	}
 

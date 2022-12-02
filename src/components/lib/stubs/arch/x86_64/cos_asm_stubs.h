@@ -43,7 +43,7 @@ __cosrt_s_##name:						\
 .type  __cosrt_alts_##name, @function ;				\
 .align 16 ;							\
 __cosrt_alts_##name: 						\
-	movq    %r13, %rax;					\
+	movq	%r13, %rax;					\
 	/* switch to server execution stack */			\
 	COS_ASM_GET_STACK_INVTOKEN				\
 	/* ABI mandate a 16-byte alignment stack pointer*/	\
@@ -92,7 +92,7 @@ __cosrt_s_##name:						\
 .type  __cosrt_alts_##name, @function ;				\
 .align 16 ;							\
 __cosrt_alts_##name: 						\
-	movq    %r13, %rax;					\
+	movq	%r13, %rax;					\
 	/* switch to server execution stack */			\
 	COS_ASM_GET_STACK_INVTOKEN				\
 	/* ABI mandate a 16-byte alignment stack pointer*/	\
@@ -193,11 +193,10 @@ __cosrt_alts_##name: 						\
 .globl __cosrt_extern_##name;					\
 .type  name, @function;						\
 .type  __cosrt_extern_##name, @function;			\
-.align 8 ;							\
+.align 16 ;							\
 name:								\
 __cosrt_extern_##name:						\
 	movabs $__cosrt_ucap_##name, %rax ;			\
-	movabs $__cosrt_fast_callgate_##name, %r11 ;		\
 	callq *INVFN(%rax) ;					\
 	retq ;							\
 .global  __cosrt_fast_callgate_##name;				\
@@ -206,16 +205,19 @@ __cosrt_extern_##name:						\
 __cosrt_fast_callgate_##name:					\
 	/* callee saved */					\
 	pushq	%rbp;						\
-	pushq	%r13; /* tid      */				\
+	pushq	%r13; /* tid | cpuid << 16 */			\
 	pushq	%r14; /* struct ulk_invstk ptr  */		\
 	pushq	%r15; /* auth tok */				\
 	movq    %rcx, %r8;					\
 	movq    %rdx, %r9;					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
-	/* thread ID */						\
+	/* thread ID and cpu ID */				\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffff000, %rdx;			\
-	movzwq  0xff0(%rdx), %r13;				\
+	movzwq  COS_SIMPLE_STACK_THDID_OFF(%rdx), %r13;		\
+	movzwq  COS_SIMPLE_STACK_CPUID_OFF(%rdx), %rax;		\
+	shl	$16, %rax;					\
+	or	%rax, %r13;					\
 	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
 	COS_ULINV_PUSH_INVSTK					\
@@ -236,7 +238,7 @@ srv_call_ret_##name:						\
 	/* thread ID */						\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffff000, %rdx;			\
-	movzwq  0xff0(%rdx), %r13;				\
+	movzwq  COS_SIMPLE_STACK_THDID_OFF(%rdx), %r13;		\
 	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
 	COS_ULINV_POP_INVSTK					\
@@ -269,11 +271,10 @@ __cosrt_ucap_##name:						\
 .globl __cosrt_extern_##name;					\
 .type  name, @function;						\
 .type  __cosrt_extern_##name, @function;			\
-.align 8 ;							\
+.align 16 ;							\
 name:								\
 __cosrt_extern_##name:						\
 	movabs $__cosrt_ucap_##name, %rax ;			\
-	movabs $__cosrt_fast_callgate_##name, %r11 ;		\
 	callq *INVFN(%rax) ;					\
 	retq ;							\
 .global  __cosrt_fast_callgate_##name;				\
@@ -284,7 +285,7 @@ __cosrt_fast_callgate_##name:					\
 	pushq	%rbp;						\
 	pushq	%rbx;						\
 	pushq	%r12;						\
-	pushq	%r13; /* tid      */				\
+	pushq	%r13; /* tid | cpuid << 16 */			\
 	pushq	%r14; /* struct ulk_invstk ptr  */		\
 	pushq	%r15; /* auth tok */				\
 	/* save the two return ptrs in perserved regs */	\
@@ -293,10 +294,13 @@ __cosrt_fast_callgate_##name:					\
 	movq    %rcx, %r8;					\
 	movq    %rdx, %r9;					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
-	/* thread ID */						\
+	/* thread ID and cpu ID */				\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffff000, %rdx;			\
-	movzwq  0xff0(%rdx), %r13;				\
+	movzwq  COS_SIMPLE_STACK_THDID_OFF(%rdx), %r13;		\
+	movzwq  COS_SIMPLE_STACK_CPUID_OFF(%rdx), %rax;		\
+	shl	$16, %rax;					\
+	or	%rax, %r13;					\
 	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
 	COS_ULINV_PUSH_INVSTK					\
@@ -317,7 +321,7 @@ srv_call_ret_##name:						\
 	/* thread ID */						\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffff000, %rdx;			\
-	movzwq  0xff0(%rdx), %r13;				\
+	movzwq  COS_SIMPLE_STACK_THDID_OFF(%rdx), %r13;		\
 	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
 	COS_ULINV_POP_INVSTK					\

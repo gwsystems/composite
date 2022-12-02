@@ -355,7 +355,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	int                  preempt = 0;
 	prot_domain_t        next_protdom;
 
-	next_ci = thd_invstk_next_comp(next, &next_pt, cos_info);
+	next_ci = thd_invstk_curr_comp(next, &next_pt, cos_info);
 
 	assert(next_ci && curr && next && next_pt);
 	assert(curr->cpuid == get_cpuid() && next->cpuid == get_cpuid());
@@ -380,7 +380,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	next_protdom = thd_invstk_protdom_curr(next);
 
 	thd_current_update(next, curr, cos_info);
-	if (likely(ci->pgtblinfo.pgtbl != next_pt->pgtbl)) {
+	if (likely(pgtbl_current() != next_pt->pgtbl)) {
 		pgtbl_update(next_pt);
 	}
 	
@@ -967,7 +967,6 @@ composite_syscall_handler(struct pt_regs *regs)
 
 	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
-
 	/*
 	 * We don't check the liveness of the current component
 	 * because it's guaranteed by component quiescence period,
@@ -1009,7 +1008,6 @@ composite_syscall_handler(struct pt_regs *regs)
 
 	/* slowpath restbl (captbl and pgtbl) operations */
 	ret = composite_syscall_slowpath(regs, &thd_switch);
-
 	if (ret < 0) cos_throw(done, ret);
 	
 	if (thd_switch) return ret;

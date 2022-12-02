@@ -2,13 +2,13 @@
 # for many of these to be empty.
 #
 # The library names associated with .a files output that are linked
-# (via, for example, -ljitutils) into dependents. This list should be
-# "jitutils" for output files such as libjitutils.a.
-LIBRARY_OUTPUT = jitutils
+# (via, for example, -lmpk_jit) into dependents. This list should be
+# "mpk_jit" for output files such as libmpk_jit.a.
+LIBRARY_OUTPUT = mpk_jit
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,
-# jitutils) which will generate jitutils.lib.o. Do NOT include the list of .o
+# mpk_jit) which will generate mpk_jit.lib.o. Do NOT include the list of .o
 # files here. Please note that using this list is *very rare* and
 # should only be used when the .a support above is not appropriate.
 OBJECT_OUTPUT =
