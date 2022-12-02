@@ -47,7 +47,7 @@
 
 /* 
  * Get a pointer to this thread's user-level
- * invocation stack. 
+ * invocation stack. see typedef ulk_invstk
  * - input: r13 = cpuid << 16 | tid
  * - output: r14 = pointer to stack
  */
@@ -76,7 +76,7 @@
 	movq    $0x0123456789abcdef, %rax; 			\
 	movq    %rax, (%rdx); 					\
 	movq    %rsp, 8(%rdx); 					\
-	/* increment tos */					\
+	/* increment top-of-stack */				\
 	movq    (%r14), %rax;					\
 	addq    $1, %rax;					\
 	movq    %rax, (%r14);		

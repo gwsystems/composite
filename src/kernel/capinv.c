@@ -939,7 +939,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	struct thread *    thd;
 	capid_t            cap;
 	struct comp_info  *ci;
-	unsigned long ip, sp;
+	unsigned long      ip, sp;
 
 	/*
 	 * We lookup this struct (which is on stack) only once, and

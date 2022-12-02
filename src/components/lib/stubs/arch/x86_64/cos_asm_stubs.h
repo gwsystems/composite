@@ -187,6 +187,8 @@ __cosrt_alts_##name: 						\
  *
  */
 
+#define UL_KERNEL_MPK_KEY 0x01
+
 #define cos_asm_stub(name)					\
 .text;								\
 .weak name;							\
@@ -219,7 +221,7 @@ __cosrt_fast_callgate_##name:					\
 	shl	$16, %rax;					\
 	or	%rax, %r13;					\
 	COS_ULINV_GET_INVSTK					\
-	COS_ULINV_SWITCH_DOMAIN(0x01)				\
+	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)		\
 	COS_ULINV_PUSH_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* invocation token */					\
@@ -302,7 +304,7 @@ __cosrt_fast_callgate_##name:					\
 	shl	$16, %rax;					\
 	or	%rax, %r13;					\
 	COS_ULINV_GET_INVSTK					\
-	COS_ULINV_SWITCH_DOMAIN(0x01)				\
+	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)		\
 	COS_ULINV_PUSH_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* invocation token */					\

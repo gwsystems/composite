@@ -10,7 +10,7 @@ ulinvstk_current(struct ulk_invstk *stk, struct comp_info *origin, unsigned long
 	struct ulk_invstk_entry   *ent = &stk->stk[0];
 	struct comp_info          *ci = origin;
 	struct cap_sinv           *sinvcap;
-    unsigned long              i;
+	unsigned long              i;
 
 	/* upper-bounded by ulinvstk sz */
 	for (i = offset; i < ULK_INVSTK_NUM_ENT && i < stk->top; i++) {

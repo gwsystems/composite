@@ -549,7 +549,7 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 	curr = &curr_thd->invstk[curr_invstk_top(cos_info)];
 	ulk_invstk = curr_thd->ulk_invstk;
 
-	/* this thread makes no UL-invs */
+	/* this thread makes no userlevel-invs */
 	if (unlikely(!ulk_invstk)) {
 		*ip = curr->ip;
 		*sp = curr->sp;
@@ -596,7 +596,7 @@ thd_invstk_curr_comp(struct thread *thd, struct pgtbl_info **next_pt, struct cos
 	/* current pagetable is always on the kernel invstk */
 	*next_pt = &curr->comp_info.pgtblinfo;
 
-	/* this thread makes no UL-invs */
+	/* this thread makes no userlevel-invs */
 	if (unlikely(!ulk_invstk)) {
 		return &curr->comp_info;
 	}

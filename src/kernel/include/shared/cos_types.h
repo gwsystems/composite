@@ -159,9 +159,6 @@ typedef enum {
 
 	CAPTBL_OP_ULK_MEMACTIVATE,
 
-	/* TODO: Remove before integration */
-	CAPTBL_OP_TEST_UL_INV,
-
 } syscall_op_t;
 
 typedef enum {
@@ -461,7 +458,7 @@ struct ulk_invstk_entry {
 struct ulk_invstk {
 	u64_t top, pad;
 	struct ulk_invstk_entry stk[ULK_INVSTK_NUM_ENT];
-} CACHE_ALIGNED __attribute__((packed));
+};
 
 #define ULK_STACKS_PER_PAGE (PAGE_SIZE / sizeof(struct ulk_invstk))
 

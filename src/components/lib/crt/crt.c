@@ -289,7 +289,7 @@ ns_vas_parent(struct crt_ns_vas *vas)
 {
 	assert(vas);
 
-	while(vas->parent != 0) vas = vas->parent;
+	while(vas->parent != NULL) vas = vas->parent;
 	return vas;
 }
 
@@ -320,11 +320,13 @@ crt_ulk_init(void)
 int
 crt_ulk_map_in(struct crt_comp *comp)
 {
+	struct cos_compinfo *ci;
+
 	assert(comp);
-
-	struct cos_compinfo *ci = cos_compinfo_get(comp->comp_res);
+	
+	ci = cos_compinfo_get(comp->comp_res);
+	
 	return cos_ulk_map_in(ci->pgtbl_cap);
-
 }
 
 /* Since the NS implementation is architecture-aware, it can provide this abstraction */
