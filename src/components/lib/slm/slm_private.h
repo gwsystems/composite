@@ -145,7 +145,7 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 	struct cos_compinfo *ci = cos_compinfo_get(defci);
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 	sched_tok_t rcv_tok;
-	unsigned long pre_tok;
+	unsigned long pre_tok = 0;
 
 	assert(curr != next);
 	/* 
@@ -257,11 +257,11 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		".align 4\n\t"                  \
 		"3:\n\t"                        \
 		"popq %%rbp\n\t"                \
-		: 
+		: "=S" (pre_tok)
 		: "a" (cd), "b" (nd),
 		  "S" (tok), "D" (timeout),
 		  "c" (&(scb->curr_thd)), "d" (next)
-		: "memory", "cc", "r8", "r9", "r11", "r12", "r13", "r14", "r15");
+		: "memory", "cc", "r8", "r9", "r11", "r12");
 #else
 	__asm__ __volatile__ (              \
 		"pushl %%ebp\n\t"               \
@@ -298,7 +298,14 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		: "memory", "cc");
 #endif
 	scb = slm_scb_info_core();
-	//if (pre_tok != tok) return -EAGAIN;
+	//printc("pre_tok: %ld \n", pre_tok);
+
+	//if (cos_cpuid() == 1)
+	//	printc("sched_tok: %d \n", scb->sched_tok);
+	//if (pre_tok != scb->sched_tok) {
+		//assert(0);
+		//return -EAGAIN;
+	//}
 	return 0;
 }
 

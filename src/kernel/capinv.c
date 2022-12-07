@@ -952,10 +952,7 @@ timer_process(struct pt_regs *regs)
 	thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &comp);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	assert(comp);
-	//if (get_cpuid() == 0)
-		printk("\t^^^^^^^^^^^timer\n");
 	int ret = expended_process(regs, thd_curr, comp, cos_info, 1);
-	//printk("---ret: %d\n", ret);
 	return ret;
 }
 

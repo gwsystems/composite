@@ -52,7 +52,7 @@ rcv_spiner()
 {
 	while (!spin_thd[1]) ;
 	while (1) {
-		printc("*************spiner1**************: %d\n\n", spin_thd[0]);
+		printc("*************spiner1**************: %ld\n\n", spin_thd[0]);
 		sched_thd_yield_to(spin_thd[1]);
 		rdtscll(global_time[0]);
 	//printc("yield ret1----\n");
@@ -70,7 +70,7 @@ rcv_spiner2()
 {
 	while (!spin_thd[0]) ;
 	while (1) {
-		printc("*************spiner2**************: %d\n\n", spin_thd[1]);
+		printc("*************spiner2**************: %ld\n\n", spin_thd[1]);
 		sched_thd_yield_to(spin_thd[0]);
 		rdtscll(global_time[0]);
 	}

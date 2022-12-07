@@ -208,7 +208,7 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	//	int i = 0;
 	//	while (i < 10) {
 	//		i++;
-			printk("arcv_cap: %d, cpuid: %d\n", arcv_cap, get_cpuid());
+			//printk("arcv_cap: %d, cpuid: %d\n", arcv_cap, get_cpuid());
 	//	}
 	//	assert(0);
 	//}
