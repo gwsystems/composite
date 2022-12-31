@@ -55,10 +55,6 @@ rcv_spiner()
 		printc("*************spiner1**************: %ld\n\n", spin_thd[0]);
 		sched_thd_yield_to(spin_thd[1]);
 		rdtscll(global_time[0]);
-	//printc("yield ret1----\n");
-	//int aaa = 0;
-	//printc("yield ret1----: %lx\n", &aaa);
-	//printc("yield ret1----\n");
 	}
 	assert(0);
 	SPIN();
@@ -194,4 +190,10 @@ parallel_main(coreid_t cid, int init_core, int ncores)
 
 	assert(0);
 	return;
+}
+
+void
+cos_init(void)
+{
+	if (sched_scb_mapping()) BUG();
 }

@@ -88,6 +88,7 @@ struct cos_compinfo {
 	/* shared comp cap */
 	capid_t comp_cap_shared;
 	capid_t pgtbl_cap_shared;
+	//vaddr_t scb_base;
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,

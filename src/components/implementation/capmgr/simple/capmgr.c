@@ -566,27 +566,22 @@ capmgr_comp_sched_get(compid_t cid)
 extern scbcap_t scb_mapping(compid_t id, vaddr_t scb_uaddr);
 
 int
-capmgr_scb_mapping(void)
+capmgr_scb_mapping(compid_t id)
 {
-	compid_t schedid = (compid_t)cos_inv_token();
 	struct cos_compinfo *ci;
 	struct cm_comp *s;
 	struct cos_defcompinfo *def = cos_defcompinfo_curr_get();
 	vaddr_t scb_uaddr;
 
-	if (schedid == 0) {
-		ci = cos_compinfo_get(def);
-		scb_uaddr = (vaddr_t)cos_scb_info_get();
-	} else {
-		s = ss_comp_get(schedid);
-		assert(s);
+	if (!id) id = (compid_t)cos_inv_token();
 
-		ci = cos_compinfo_get(s->comp.comp_res);
-		scb_uaddr = (vaddr_t)(s->dcb_init_ptr - COS_SCB_SIZE);
-	}
+	s = ss_comp_get(id);
+	assert(s);
+	ci = cos_compinfo_get(s->comp.comp_res);
 	assert(ci);
+	scb_uaddr = (vaddr_t)(s->dcb_init_ptr - COS_SCB_SIZE);
 
-	return scb_mapping(schedid, scb_uaddr);
+	return scb_mapping(id, scb_uaddr);
 }
 
 static void
@@ -940,9 +935,10 @@ cos_init(void)
 	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER), 0);
 	if (!cm_comp_self_alloc("capmgr")) BUG();
 
-	/* Initialize the other component's for which we're responsible */
-	if (capmgr_scb_mapping()) BUG();
+	vaddr_t	scb_uaddr = (vaddr_t)cos_scb_info_get();
+	scb_mapping(0, scb_uaddr);
 
+	/* Initialize the other component's for which we're responsible */
 	capmgr_comp_init();
 
 	return;

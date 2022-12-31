@@ -26,3 +26,4 @@ cos_asm_stub(sched_arcv_create);
 cos_asm_stub(sched_asnd_create);
 cos_asm_stub(sched_arcv);
 cos_asm_stub(sched_asnd);
+cos_asm_stub(sched_scb_mapping);

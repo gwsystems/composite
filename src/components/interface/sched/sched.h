@@ -69,4 +69,6 @@ int sched_asnd(thdid_t t);
 int COS_STUB_DECL(sched_asnd)(thdid_t);
 /* TODO: lock i/f */
 
+int sched_scb_mapping(void);
+int COS_STUB_DECL(sched_scb_mapping)(void);
 #endif /* SCHED_H */

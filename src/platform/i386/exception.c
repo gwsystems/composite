@@ -125,7 +125,7 @@ page_fault_handler(struct pt_regs *regs)
 	struct thread * curr             = thd_current(ci);
 	thdid_t                    thdid = curr->tid;
 
-	print_pt_regs(regs);
+	//print_pt_regs(regs);
 	fault_addr = chal_cpu_fault_vaddr(regs);
 	errcode    = chal_cpu_fault_errcode(regs);
 	ip        = chal_cpu_fault_ip(regs);

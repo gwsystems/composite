@@ -65,8 +65,6 @@ done:
 	return 0;
 }
 
-volatile int tmp = 0;
-volatile int tmp2 = 0;
 /* TODO: inline fast path and force non-inlined slow-path */
 static inline struct thread *
 cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, int interrupt, struct comp_info **ci_ptr)
@@ -87,8 +85,6 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	ultc     = scb_core->curr_thd;
 
 	/* reset inconsistency from user-level thd! */
-	//tmp = thd->tid;
-	//tmp2 = scb_core->curr_thd;
 	scb_core->curr_thd = 0;
 	if (!ultc && !interrupt) goto done;
 	if (likely(ultc)) {
@@ -96,7 +92,6 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 		if (unlikely(!CAP_TYPECHK_CORE(ch_ult, CAP_THD))) ch_ult = NULL;
 		else                                              ulthd = ch_ult->t;
 	}
-	//printk("\tulthd: %d, curr: %d\n", ulthd->tid, thd->tid);
 
 	if (unlikely(interrupt)) {
 		struct thread *fixthd = thd;
@@ -677,8 +672,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	tcap_time_t  timeout = (tcap_time_t)__userregs_get4(regs);
 	struct tcap *tcap    = tcap_current(cos_info);
 	int          ret;
-	//printk("*********curr: %d, next: %d\n", thd->tid, next->tid);
-	//printk("tttttttimer: %d\n", timeout);
 
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
@@ -687,7 +680,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	}
 
 	//if (arcv == 0) arcv = next->dcbinfo->pending;
-	//printk("oooo: %d\n", arcv);
 	if (arcv) {
 		struct cap_arcv *arcv_cap;
 		struct thread *  rcvt;
@@ -697,7 +689,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		rcvt = arcv_cap->thd;
 
 		ret  = cap_sched_tok_validate(rcvt, usr_counter, ci, cos_info);
-		//printk("ret: %d\n", ret);
 		if (ret) return ret;
 
 		if (thd_rcvcap_pending(rcvt) > 0) {
@@ -709,15 +700,11 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 			timeout = TCAP_TIME_NIL;
 		} else {
 			thd_scheduler_set(next, rcvt);
-			//printk("\t@@@@@@@next: %d, %d, %d\n",next->tid, rcvt->tid, get_cpuid());
-			//printk("\tschduler: %d, thd: %d\n", next->scheduler_thread->tid, next->tid);
 		}
 	} else {
 		/* TODO: set current thread as it's scheduler? */
 		if (!thd_scheduler(next)) thd_scheduler_set(next, thd);
 		assert(next->scheduler_thread);
-		//printk("\t???????next: %d, %d\n",next->tid, get_cpuid());
-		//printk("\tschduler: %d, thd: %d\n", next->scheduler_thread->tid, next->tid);
 	}
 
 	if (tc) {
@@ -730,15 +717,8 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		if (unlikely(!tcap_is_active(tcap))) return -EPERM;
 	}
 
-	//struct cos_scb_info *scb_core = ci->scb_data + get_cpuid();
-	//if (!timeout) {
-		//printk("\tuse timer_pre\n");
-	//	timeout = scb_core->timer_pre;
-	//}//printk("\ttctct: %x, %d\n", tcap, tc);
 	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
 	if (tc && tcap_current(cos_info) == tcap) tcap_setprio(tcap, prio);
-	//if (get_cpuid() == 1)
-	//	printk("kernel done\n");
 	return ret;
 }
 
@@ -958,7 +938,7 @@ timer_process(struct pt_regs *regs)
 
 static int
 cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, struct comp_info *ci,
-            struct cos_cpu_local_info *cos_info, int input)
+            struct cos_cpu_local_info *cos_info)
 {
 	struct thread *      next;
 	struct tcap *        tc_next     = tcap_current(cos_info);
@@ -1073,7 +1053,6 @@ composite_syscall_handler(struct pt_regs *regs)
 	int                        thd_switch = 0;
 
 	/* Definitely do it for all the fast-path calls. */
-	tmp2 = thd_current(cos_info)->tid;
 	//thd = thd_current(cos_info);
 	thd = cap_ulthd_lazyupdate(regs, cos_info, 0, &ci);
 
@@ -1132,9 +1111,8 @@ composite_syscall_handler(struct pt_regs *regs)
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	case CAP_ARCV:
-		tmp = thd->tid;
 		assert(cap != 56);
-		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info, tmp2);
+		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 
 		return ret;

@@ -54,8 +54,8 @@ asndcap_t COS_STUB_DECL(capmgr_asnd_create)(spdid_t child, thdid_t t);
 asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv);
 asndcap_t COS_STUB_DECL(capmgr_asnd_rcv_create)(arcvcap_t rcv);
 
-int capmgr_scb_mapping(void);
-int COS_STUB_DECL(capmgr_scb_mapping)(void);
+int capmgr_scb_mapping(compid_t id);
+int COS_STUB_DECL(capmgr_scb_mapping)(compid_t id);
 
 asndcap_t capmgr_asnd_key_create(cos_channelkey_t key);
 asndcap_t COS_STUB_DECL(capmgr_asnd_key_create)(cos_channelkey_t key);

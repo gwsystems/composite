@@ -562,6 +562,14 @@ sched_get_cpu_freq(void)
 	return slm_get_cycs_per_usec();
 }
 
+int
+sched_scb_mapping(void)
+{
+	compid_t id = (compid_t)cos_inv_token();
+
+	return capmgr_scb_mapping(id);
+}
+
 thdcap_t idlecap;
 
 void
@@ -602,5 +610,5 @@ cos_init(void)
 	calculate_initialization_schedule();
 	cos_defcompinfo_init();
 
-	if (capmgr_scb_mapping()) BUG();
+	if (capmgr_scb_mapping(0)) BUG();
 }

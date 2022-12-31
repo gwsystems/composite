@@ -535,7 +535,7 @@ scb_mapping(compid_t id, vaddr_t scb_uaddr)
 	struct cos_compinfo *ci;
 	struct crt_comp     *target;
 
-	if (!id) id = cos_inv_token();
+	if (!id) id = (compid_t)cos_inv_token();
 	target = boot_comp_get(id);
 
 	ci = cos_compinfo_get(target->comp_res);

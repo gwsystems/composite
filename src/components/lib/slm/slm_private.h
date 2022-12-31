@@ -140,7 +140,7 @@ struct slm_thd *slm_thd_special(void);
 static inline int
 cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_dcb_info *nd, tcap_prio_t prio, tcap_time_t timeout, sched_tok_t tok)
 {
-	volatile struct cos_scb_info *scb = slm_scb_info_core();
+	volatile struct cos_scb_info *scb = cos_scb_info_get_core();
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_compinfo *ci = cos_compinfo_get(defci);
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
@@ -152,10 +152,12 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 	 * If previous timer smaller than current timeout, we need to take 
 	 * the kernel path to update the timer.
 	 */
+
 	if (scb->timer_pre < timeout) {
 		scb->timer_pre = timeout;
 		return cos_defswitch(next, prio, timeout, tok);
 	}
+
 	/*
 	 * jump labels in the asm routine:
 	 *
@@ -227,6 +229,7 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 	 *	  "c" (&(scb->curr_thd)), "d" (next)
 	 *	: "memory", "cc");
      */
+
 #if defined(__x86_64__)
 	__asm__ __volatile__ (
 		"pushq %%rbp\n\t"               \
@@ -261,7 +264,7 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		: "a" (cd), "b" (nd),
 		  "S" (tok), "D" (timeout),
 		  "c" (&(scb->curr_thd)), "d" (next)
-		: "memory", "cc", "r8", "r9", "r11", "r12");
+		: "memory", "cc", "r8", "r9", "r11", "r12", "r15");
 #else
 	__asm__ __volatile__ (              \
 		"pushl %%ebp\n\t"               \
@@ -291,20 +294,17 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		".align 4\n\t"                  \
 		"3:\n\t"                        \
 		"popl %%ebp\n\t"                \
-		: "=S" (htok)
+		: "=S" (pre_tok)
 		: "a" (cd), "b" (nd),
 		  "S" (tok), "D" (timeout),
 		  "c" (&(scb->curr_thd)), "d" (next)
 		: "memory", "cc");
 #endif
-	scb = slm_scb_info_core();
-	//printc("pre_tok: %ld \n", pre_tok);
+	scb = cos_scb_info_get_core();
+	assert(scb);
 
-	//if (cos_cpuid() == 1)
-	//	printc("sched_tok: %d \n", scb->sched_tok);
 	//if (pre_tok != scb->sched_tok) {
-		//assert(0);
-		//return -EAGAIN;
+	//	return -EAGAIN;
 	//}
 	return 0;
 }
