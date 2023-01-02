@@ -25,8 +25,8 @@
 
 #define COS_ASM_REQUEST_STACK
 
-#define COS_SIMPLE_STACK_THDID_OFF 0xff0
-#define COS_SIMPLE_STACK_CPUID_OFF 0xff8
+#define COS_SIMPLE_STACK_THDID_OFF 0xffff0
+#define COS_SIMPLE_STACK_CPUID_OFF 0xffff8
 
 /*
  * pkru = ~(0b11 << (2 * pkey)) & ~0b11;
