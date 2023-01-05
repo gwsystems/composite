@@ -155,7 +155,10 @@ typedef enum {
 	CAPTBL_OP_HW_L1FLUSH,
 	CAPTBL_OP_HW_TLBFLUSH,
 	CAPTBL_OP_HW_TLBSTALL,
-	CAPTBL_OP_HW_TLBSTALL_RECOUNT
+	CAPTBL_OP_HW_TLBSTALL_RECOUNT,
+
+	CAPTBL_OP_ULK_MEMACTIVATE,
+
 } syscall_op_t;
 
 typedef enum {
@@ -173,6 +176,7 @@ typedef enum {
 	CAP_QUIESCENCE, /* when deactivating, set to track quiescence state */
 	CAP_TCAP,       /* tcap captable entry */
 	CAP_HW,         /* hardware (interrupt) */
+	CAP_ULK,        /* a page of ULK memory */
 } cap_t;
 
 /* TODO: pervasive use of these macros */
@@ -230,6 +234,7 @@ __captbl_cap2sz(cap_t c)
 	case CAP_TCAP:
 		return CAP_SZ_16B;
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
+	case CAP_ULK:
 		return CAP_SZ_32B;
 	case CAP_SINV:
 	case CAP_COMP:
@@ -383,15 +388,30 @@ typedef unsigned long      invtoken_t;
 #define THDCLOSURE_INIT
 typedef int                thdclosure_index_t;
 
+/* 
+ * This is an attempt decouple hardware specific code from
+ * parts of the kernel interface that are kernel agnostic.
+ * This type provides an abstraction for hardware-specific 
+ * protection domain identifiers (ASID, MPK) that are 
+ * interpreted at the hardware-abstraction-layer level. 
+ * It is intended for interfaces for hardware-aware user-level 
+ * code such as namespace managers. There might be a better 
+ * way to do this but it cleans up the kernel interface. 
+ */
+typedef unsigned long prot_domain_t;
+
 struct restartable_atomic_sequence {
 	vaddr_t start, end;
 };
+
+
+typedef int (*callgate_fn_t)(word_t p0, word_t p1, word_t p2, word_t p3, word_t *r1, word_t *r2);
 
 /* see explanation in spd.h */
 struct usr_inv_cap {
 	vaddr_t       invocation_fn;
 	unsigned long cap_no;
-	void         *data;
+	callgate_fn_t alt_fn;
 };
 
 #define COMP_INFO_POLY_NUM 10
@@ -426,6 +446,21 @@ struct cos_stack_freelists {
 /* #error "Assembly in <fill in file name here> requires that COMP_INFO_STACK_FREELISTS != 1 ||
  * COMP_INFO_TMEM_STK_RELINQ != 0.  Change the defines, or change the assembly" */
 /* #endif */
+
+struct ulk_invstk_entry {
+	capid_t sinv_cap;
+	vaddr_t sp;
+} __attribute__((packed));
+
+#define ULK_INVSTK_NUM_ENT 15
+#define ULK_INVSTK_SZ 256ul
+
+struct ulk_invstk {
+	u64_t top, pad;
+	struct ulk_invstk_entry stk[ULK_INVSTK_NUM_ENT];
+};
+
+#define ULK_STACKS_PER_PAGE (PAGE_SIZE / sizeof(struct ulk_invstk))
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;

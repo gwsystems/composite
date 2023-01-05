@@ -295,8 +295,10 @@ comps_init(void)
 			assert(ret == 0);
 		} else {
 			assert(elf_hdr);
-			if (crt_comp_create(comp, name, id, elf_hdr, info)) BUG();
-			assert(comp->refcnt != 0);
+			if (crt_comp_create(comp, name, id, elf_hdr, info, 0)) {
+				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
+				BUG();
+			}	
 		}
 	}
 
@@ -389,8 +391,12 @@ comps_init(void)
 		sinv = ss_sinv_alloc();
 		assert(sinv);
 		crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
-				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
-				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10));
+				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), 
+				strtoul(args_get_from("c_fast_callgate_addr", &curr), NULL, 10), 
+				strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
+				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10),
+				strtoul(args_get_from("s_altfn_addr", &curr), NULL, 10)
+		);
 		ss_sinv_activate(sinv);
 		printc("\t%s (%lu->%lu):\tclient_fn @ 0x%lx, client_ucap @ 0x%lx, server_fn @ 0x%lx\n",
 		       sinv->name, sinv->client->id, sinv->server->id, sinv->c_fn_addr, sinv->c_ucap_addr, sinv->s_fn_addr);

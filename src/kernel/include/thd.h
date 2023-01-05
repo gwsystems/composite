@@ -14,16 +14,21 @@
 #include "chal/cpuid.h"
 #include "chal/call_convention.h"
 #include "pgtbl.h"
+#include "ulk.h"
 #include "retype_tbl.h"
 #include "tcap.h"
 #include "list.h"
 
+
 struct invstk_entry {
 	struct comp_info comp_info;
-	unsigned long    sp, ip; /* to return to */
+	unsigned long    sp, ip;
+	unsigned long    ulk_stkoff;
+	prot_domain_t    protdom;
 } HALF_CACHE_ALIGNED;
 
-#define THD_INVSTK_MAXSZ 32
+
+#define THD_INVSTK_MAXSZ 16
 
 /*
  * This is the data structure embedded in threads that are associated
@@ -45,6 +50,24 @@ typedef enum {
 	THD_STATE_RCVING    = 1 << 1, /* report to parent rcvcap that we're receiving */
 } thd_state_t;
 
+static inline int
+curr_invstk_inc(struct cos_cpu_local_info *cos_info)
+{
+	return cos_info->invstk_top++;
+}
+
+static inline int
+curr_invstk_dec(struct cos_cpu_local_info *cos_info)
+{
+	return cos_info->invstk_top--;
+}
+
+static inline int
+curr_invstk_top(struct cos_cpu_local_info *cos_info)
+{
+	return cos_info->invstk_top;
+}
+
 /**
  * The thread descriptor.  Contains all information pertaining to a
  * thread including its registers, id, rcvcap information, and, most
@@ -60,6 +83,8 @@ struct thread {
 
 	/* TODO: same cache-line as the tid */
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
+
+	struct ulk_invstk  *ulk_invstk;
 
 	thd_state_t    state;
 	word_t          tls;
@@ -322,7 +347,7 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 }
 
 static int
-thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data)
+thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data, thdid_t tid, struct ulk_invstk *ulinvstk)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
 	struct cap_thd            *tc;
@@ -339,10 +364,12 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
-	thd->tid                              = thdid_alloc();
+	thd->invstk[0].protdom                = compc->info.protdom;
+	thd->tid                              = tid;
 	thd->refcnt                           = 1;
 	thd->invstk_top                       = 0;
 	thd->cpuid                            = get_cpuid();
+	thd->ulk_invstk                       = ulinvstk;
 	assert(thd->tid <= MAX_NUM_THREADS);
 	thd_scheduler_set(thd, thd_current(cli));
 
@@ -444,37 +471,6 @@ thd_init(void)
 	// assert(offsetof(struct thread, regs) == 4); /* see THD_REGS in entry.S */
 }
 
-static inline int
-curr_invstk_inc(struct cos_cpu_local_info *cos_info)
-{
-	return cos_info->invstk_top++;
-}
-
-static inline int
-curr_invstk_dec(struct cos_cpu_local_info *cos_info)
-{
-	return cos_info->invstk_top--;
-}
-
-static inline int
-curr_invstk_top(struct cos_cpu_local_info *cos_info)
-{
-	return cos_info->invstk_top;
-}
-
-static inline struct comp_info *
-thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
-{
-	/* curr_thd should be the current thread! We are using cached invstk_top. */
-	struct invstk_entry *curr;
-
-	curr = &curr_thd->invstk[curr_invstk_top(cos_info)];
-	*ip  = curr->ip;
-	*sp  = curr->sp;
-
-	return &curr->comp_info;
-}
-
 static inline pgtbl_t
 thd_current_pgtbl(struct thread *thd)
 {
@@ -497,20 +493,126 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 	prev = &thd->invstk[curr_invstk_top(cos_info)];
 	top  = &thd->invstk[curr_invstk_top(cos_info) + 1];
 	curr_invstk_inc(cos_info);
-	prev->ip = ip;
-	prev->sp = sp;
+	prev->ip      = ip;
+	prev->sp      = sp;
+	prev->protdom = chal_protdom_read();
 	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
 	top->ip = top->sp = 0;
+	
+	if (likely(thd->ulk_invstk)) top->ulk_stkoff = thd->ulk_invstk->top;
 
 	return 0;
 }
 
 static inline struct comp_info *
-thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
+thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, prot_domain_t *protdom, struct cos_cpu_local_info *cos_info)
 {
+	struct invstk_entry *curr;
+	struct ulk_invstk   *ulk_invstk;
+	struct comp_info    *ci;
+
 	if (unlikely(curr_invstk_top(cos_info) == 0)) return NULL;
 	curr_invstk_dec(cos_info);
-	return thd_invstk_current(thd, ip, sp, cos_info);
+	curr = &thd->invstk[curr_invstk_top(cos_info)];
+
+	ci       = &curr->comp_info;
+	*ip      = curr->ip;
+	*sp      = curr->sp;
+	*protdom = curr->protdom;
+
+	return ci;
+}
+
+static inline void
+thd_invstk_protdom_update(struct thread *thd,struct cos_cpu_local_info *cos_info, prot_domain_t protdom)
+{
+	thd->invstk[curr_invstk_top(cos_info)].protdom = protdom; 
+}
+
+static inline prot_domain_t
+thd_invstk_protdom_curr(struct thread *thd)
+{
+	return thd->invstk[thd->invstk_top].protdom; 
+}
+
+/* defined in ulinv.c */
+struct comp_info *ulinvstk_current(struct ulk_invstk *stk, struct comp_info *origin, unsigned long offset);
+
+static inline struct comp_info *
+thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
+{
+	/* curr_thd should be the current thread! We are using cached invstk_top. */
+	struct invstk_entry *curr;
+	struct ulk_invstk   *ulk_invstk;
+	struct comp_info    *ci;
+
+	curr = &curr_thd->invstk[curr_invstk_top(cos_info)];
+	ulk_invstk = curr_thd->ulk_invstk;
+
+	/* this thread makes no userlevel-invs */
+	if (unlikely(!ulk_invstk)) {
+		*ip = curr->ip;
+		*sp = curr->sp;
+		return &curr->comp_info;
+	}
+
+	/* 
+	 * if there are new entries on the UL stack, 
+	 * we must be coming from a comp on the UL stack 
+	 */
+	if (ulk_invstk->top > curr->ulk_stkoff) {
+		ci = ulinvstk_current(ulk_invstk, &curr->comp_info, curr->ulk_stkoff);
+		curr->protdom = ci->protdom;
+		if (unlikely(!ci)) return NULL;
+	} else {
+		ci = &curr->comp_info;
+	}
+
+	*ip = curr->ip;
+	*sp = curr->sp;
+
+	return ci;
+}
+
+/* 
+ * performs the same op as `thd_invstk_current` except:
+ *  - does not assume thd is the current running thd
+ *  - always returns the pgtbl on top of the kernel
+ *    invstk as it will be the pgtbl that should be
+ *    associated with the component running in that thd
+ *    regardless of whether it is from the kernel or user
+ *    invocation stack.
+ */
+static inline struct comp_info *
+thd_invstk_curr_comp(struct thread *thd, struct pgtbl_info **next_pt, struct cos_cpu_local_info *cos_info)
+{
+	struct invstk_entry *curr;
+	struct ulk_invstk   *ulk_invstk;
+	struct comp_info    *ci;
+
+	curr = &thd->invstk[thd->invstk_top];
+	ulk_invstk = thd->ulk_invstk;
+
+	/* current pagetable is always on the kernel invstk */
+	*next_pt = &curr->comp_info.pgtblinfo;
+
+	/* this thread makes no userlevel-invs */
+	if (unlikely(!ulk_invstk)) {
+		return &curr->comp_info;
+	}
+
+	/* 
+	 * if there are new entries on the UL stack, 
+	 * we must be coming from a comp on the UL stack 
+	 */
+	if (ulk_invstk->top > curr->ulk_stkoff) {
+		ci = ulinvstk_current(ulk_invstk, &curr->comp_info, curr->ulk_stkoff);
+		if (unlikely(!ci)) return NULL;
+	} else {
+		ci = &curr->comp_info;
+	}
+
+	return ci;
 }
 
 static inline void

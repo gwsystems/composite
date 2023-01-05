@@ -32,8 +32,7 @@
 typedef struct pgtbl *pgtbl_t;
 
 struct pgtbl_info {
-	asid_t  asid; /* Unused */
-	pgtbl_t pgtbl;
+	pgtbl_t  pgtbl;
 } __attribute__((packed));
 
 /* identical to the capability structure */
@@ -46,11 +45,74 @@ struct cap_pgtbl {
 	u64_t             frozen_ts; /* timestamp when frozen is set. */
 } __attribute__((packed));
 
+static inline void
+wrpkru(u32_t pkru)
+{
+	asm volatile (
+		"xor %%rcx, %%rcx\n\t"
+		"xor %%rdx, %%rdx\n\t"
+		"mov %0,    %%eax\n\t"
+		"wrpkru\n\t"
+		: 
+		: "r" (pkru)
+		: "eax", "rcx", "rdx"
+	);
+}
+
+static inline u32_t
+rdpkru(void)
+{
+	u32_t pkru;
+
+	asm volatile(
+		"xor %%rcx, %%rcx\n\t"
+		"xor %%rdx, %%rdx\n\t"
+		"rdpkru"
+		: "=a" (pkru) 
+		: 
+		: "rcx", "rdx"
+	);
+
+	return pkru;
+}
+
+static inline u32_t
+pkru_state(prot_domain_t mpk_key)
+{
+	return ~(0b11 << (2 * mpk_key)) & ~0b11;
+}
+
+static inline void
+chal_protdom_write(prot_domain_t protdom)
+{
+	wrpkru(pkru_state(protdom));
+}
+
+static inline prot_domain_t
+chal_protdom_read(void)
+{
+	u32_t pkru = rdpkru();
+	assert(pkru);
+	/* inverse of `pkru_state` */
+	return (32 - __builtin_clz(~pkru)) / 2 - 1;
+}
+
 /* Update the page table */
 static inline void
 chal_pgtbl_update(struct pgtbl_info *pt)
 {
 	asm volatile("mov %0, %%cr3" : : "r"(pt->pgtbl));
+}
+
+/* Check current page table */
+static inline pgtbl_t
+chal_pgtbl_read(void)
+{
+	unsigned long pt;
+
+	asm volatile("mov %%cr3, %0" : "=r"(pt) : :);
+
+	return (pgtbl_t)(pt & PGTBL_ENTRY_ADDR_MASK);
 }
 
 static inline asid_t

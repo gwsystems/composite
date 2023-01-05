@@ -14,6 +14,7 @@
 #include <string.h>
 #include <bitmap.h>
 #include <ps_plat.h>
+#include <cos_stubs.h>
 
 /*
  * dewarn: strtok_r()
@@ -205,21 +206,27 @@ cos_print(char *s, int len)
 }
 
 static inline int
-cos_sinv(u32_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
+cos_sinv(struct usr_inv_cap *uc, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
-	return call_cap_op(sinv, 0, arg1, arg2, arg3, arg4);
+	word_t r1, r2;
+
+	if (likely(uc->alt_fn)) return (uc->alt_fn)(arg1, arg2, arg3, arg4, &r1, &r2);
+
+	return call_cap_op(uc->cap_no, 0, arg1, arg2, arg3, arg4);
+}
+
+static inline int
+cos_sinv_2rets(struct usr_inv_cap *uc, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2)
+{
+	if (likely(uc->alt_fn)) return (uc->alt_fn)(arg1, arg2, arg3, arg4, ret1, ret2);
+
+	return call_cap_2retvals_asm(uc->cap_no, 0, arg1, arg2, arg3, arg4, ret1, ret2);
 }
 
 static inline int
 cos_sinv_rets(u32_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2, word_t *ret3)
 {
 	return call_cap_retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret1, ret2, ret3);
-}
-
-static inline int
-cos_sinv_2rets(u32_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2)
-{
-	return call_cap_2retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret1, ret2);
 }
 
 /**

@@ -9,7 +9,7 @@ COS_CLIENT_STUB(shm_bm_objid_t, netmgr_tcp_shmem_read, u16_t *data_offset, u16_t
 	word_t offset, len;
 	int ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, 0, 0, 0, 0, &offset, &len);
+	ret = cos_sinv_2rets(uc, 0, 0, 0, 0, &offset, &len);
 	*data_len = (u16_t)len;
 	*data_offset = (u16_t)offset;
 
@@ -22,7 +22,7 @@ COS_CLIENT_STUB(shm_bm_objid_t, netmgr_udp_shmem_read, u16_t *data_offset, u16_t
 	word_t r1, r2;
 	int ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, 0, 0, 0, 0, &r1, &r2);
+	ret = cos_sinv_2rets(uc, 0, 0, 0, 0, &r1, &r2);
 	*data_len = (u16_t)r1;
 	*data_offset = (u16_t)(r1 >> 32);
 	*remote_port = (u16_t)(r2);
@@ -37,7 +37,7 @@ COS_CLIENT_STUB(int, netmgr_udp_shmem_write, shm_bm_objid_t objid, u16_t data_of
 	word_t r1, r2;
 	int ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, objid, data_offset, data_len, (word_t)(remote_ip) << 32 | remote_port, &r1, &r2);
+	ret = cos_sinv_2rets(uc, objid, data_offset, data_len, (word_t)(remote_ip) << 32 | remote_port, &r1, &r2);
 
 	return ret;
 }

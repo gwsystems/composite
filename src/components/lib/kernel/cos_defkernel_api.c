@@ -135,7 +135,7 @@ cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, 
 	struct cos_aep_info    *child_aep = cos_sched_aep_get(child_defci);
 
 	assert(curr_defci_init_status == INITIALIZED);
-	ret = cos_compinfo_alloc(child_ci, heap_ptr, cap_frontier, entry, ci);
+	ret = cos_compinfo_alloc(child_ci, heap_ptr, cap_frontier, entry, ci, 0);
 	if (ret) return ret;
 	ret = cos_aep_alloc_intern(child_aep, child_defci, 0, is_sched ? sched_aep : NULL, NULL, NULL, 0);
 

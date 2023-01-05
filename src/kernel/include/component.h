@@ -13,11 +13,11 @@
 #include "pgtbl.h"
 #include "cap_ops.h"
 
-/* 24B */
 struct comp_info {
 	struct liveness_data liveness;
 	struct pgtbl_info    pgtblinfo;
 	struct captbl *      captbl;
+	prot_domain_t        protdom;
 } __attribute__((packed));
 
 struct cap_comp {
@@ -30,7 +30,7 @@ struct cap_comp {
 
 static int
 comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, capid_t pgtbl_cap, livenessid_t lid,
-              vaddr_t entry_addr)
+              vaddr_t entry_addr, prot_domain_t protdom)
 {
 	struct cap_comp *  compc;
 	struct cap_pgtbl * ptc;
@@ -56,13 +56,12 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 
 	compc = (struct cap_comp *)__cap_capactivate_pre(t, cap, capin, CAP_COMP, &ret);
 	if (!compc) cos_throw(undo_ctc, ret);
-
-	compc->entry_addr           = entry_addr;
-	compc->info.pgtblinfo.pgtbl = ptc->pgtbl;
-	compc->info.pgtblinfo.asid  = chal_asid_alloc();
-	compc->info.captbl          = ctc->captbl;
-	compc->pgd                  = ptc;
-	compc->ct_top               = ctc;
+	compc->entry_addr             = entry_addr;
+	compc->info.pgtblinfo.pgtbl   = ptc->pgtbl;
+	compc->info.protdom           = protdom;
+	compc->info.captbl            = ctc->captbl;
+	compc->pgd                    = ptc;
+	compc->ct_top                 = ctc;
 	ltbl_get(lid, &compc->info.liveness);
 	__cap_capactivate_post(&compc->h, CAP_COMP);
 

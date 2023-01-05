@@ -19,6 +19,8 @@ struct cap_asnd hw_asnd_caps[HW_IRQ_TOTAL];
 void *thd_mem[NUM_CPU], *tcap_mem[NUM_CPU];
 struct captbl *glb_boot_ct;
 
+thdid_t tid = 0;
+
 /* FIXME:  loops to create threads/tcaps/rcv caps per core. */
 static void
 kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cpu_id)
@@ -37,7 +39,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	cos_info->cpuid          = cpu_id;
 	cos_info->invstk_top     = 0;
 	cos_info->overflow_check = 0xDEADBEEF;
-	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
+	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0, tid++, NULL);
 	assert(!ret);
 
 	tcap_active_init(cos_info);
@@ -323,7 +325,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	glb_memlayout.allocs_avail = 0;
 
 	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
-	                  mem_bootc_entry()))
+	                  mem_bootc_entry(), 0))
 		assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 

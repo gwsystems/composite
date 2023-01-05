@@ -88,7 +88,7 @@ test_inv(void)
 
         perfdata_init(&result, "SINV", test_results, ARRAY_SIZE);
 
-        cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
+        cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL, 0);
         if (EXPECT_LL_LT(1, cc, "Invocation: Cannot Allocate")) return;
         ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn, 0xdead);
         if (EXPECT_LL_LT(1, ic, "Invocation: Cannot Allocate")) return;

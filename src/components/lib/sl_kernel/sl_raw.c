@@ -134,7 +134,6 @@ sl_thd_alloc_ext_no_cs(struct cos_defcompinfo *comp, thdclosure_index_t idx)
 	struct sl_thd          *t      = NULL;
 	struct cos_aep_info    *aep    = NULL;
 	int                     ret;
-
 	if (idx) {
 		aep = sl_thd_alloc_aep_backend();
 		if (!aep) goto done;
