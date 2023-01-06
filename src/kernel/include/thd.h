@@ -652,7 +652,6 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		regs->dx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
 		regs->cx = regs->sp = thd->dcbinfo->sp;
 #endif
-		thd->dcbinfo->sp = 0;
 	}
 	if (issame && preempt == 0) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));

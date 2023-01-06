@@ -112,15 +112,8 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	if (unlikely(!ultc || !ulthd || ulthd->dcbinfo == NULL)) goto done;
 	if (ulthd == thd) goto done;
 	/* check if kcurr and ucurr threads are both in the same page-table(component) */
-	//printk("updatefrom: %d, to: %d\n",thd->tid, ulthd->tid);
 	thd_current_update(ulthd, thd, cos_info);
 	if (thd_current_pgtbl(ulthd) != thd_current_pgtbl(thd)) {
-		//printk("---ulthd: %d, curr: %d, %d\n", ulthd->tid, thd->tid, thd_current(cos_info)->tid);
-		//printk("invstk_top->ul: %d, kern: %d\n", ulthd->invstk_top, thd->invstk_top);
-		//printk("pgtbl->ul: %lx, ker: %lx\n", thd_current_pgtbl(ulthd), thd_current_pgtbl(thd));
-		//printk("ul[0]%lx\n", ulthd->invstk[0].comp_info.pgtblinfo.pgtbl);
-		//printk("ker[1]%lx\n", thd->invstk[1].comp_info.pgtblinfo.pgtbl);
-		assert(0);
 		goto done;
 	}
 	thd = ulthd;
@@ -679,7 +672,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		assert(__userregs_getsp(regs) == thd->dcbinfo->sp);
 	}
 
-	//if (arcv == 0) arcv = next->dcbinfo->pending;
 	if (arcv) {
 		struct cap_arcv *arcv_cap;
 		struct thread *  rcvt;

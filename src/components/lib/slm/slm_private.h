@@ -232,23 +232,23 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 
 #if defined(__x86_64__)
 	__asm__ __volatile__ (
+		"pushq %%r10\n\t"               \
 		"pushq %%rbp\n\t"               \
 		"mov %%rsp, %%rbp\n\t"          \
 		"movabs $2f, %%r8\n\t"          \
 		"mov %%r8, (%%rax)\n\t"         \
 		"mov %%rsp, 8(%%rax)\n\t"       \
-		"cmp $0, 8(%%rbx)\n\t"          \
+		"cmp $0, 8(%%rsi)\n\t"          \
 		"je 1f\n\t"                     \
 		"mov %%rdx, (%%rcx)\n\t"        \
-		"mov 8(%%rbx), %%rsp\n\t"       \
-		"jmp *(%%rbx)\n\t"              \
+		"mov 8(%%rsi), %%rsp\n\t"       \
+		"jmp *(%%rsi)\n\t"              \
 		".align 4\n\t"                  \
 		"1:\n\t"                        \
 		"movq $3f, %%r8\n\t"            \
 		"mov %%rdx, %%rax\n\t"          \
 		"inc %%rax\n\t"                 \
 		"shl $16, %%rax\n\t"            \
-		"mov %%rsi, %%rbx\n\t"          \
 		"mov $0, %%rsi\n\t"             \
 		"mov %%rdi, %%rdx\n\t"          \
 		"mov $0, %%rdi\n\t"             \
@@ -256,15 +256,16 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		"jmp 3f\n\t"                    \
 		".align 4\n\t"                  \
 		"2:\n\t"                        \
-		"movq $0, 8(%%rbx)\n\t"         \
+		"movq $0, 8(%%rsi)\n\t"         \
 		".align 4\n\t"                  \
 		"3:\n\t"                        \
 		"popq %%rbp\n\t"                \
-		: "=S" (pre_tok)
-		: "a" (cd), "b" (nd),
-		  "S" (tok), "D" (timeout),
+		"popq %%r10\n\t"                \
+		: "=b" (pre_tok)
+		: "a" (cd), "S" (nd),
+		  "b" (tok), "D" (timeout),
 		  "c" (&(scb->curr_thd)), "d" (next)
-		: "memory", "cc", "r8", "r9", "r11", "r12", "r15");
+		: "memory", "cc", "r8", "r9", "r11", "r12", "r13", "r14", "r15");
 #else
 	__asm__ __volatile__ (              \
 		"pushl %%ebp\n\t"               \
@@ -303,9 +304,9 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 	scb = cos_scb_info_get_core();
 	assert(scb);
 
-	//if (pre_tok != scb->sched_tok) {
-	//	return -EAGAIN;
-	//}
+	if (pre_tok != scb->sched_tok) {
+		return -EAGAIN;
+	}
 	return 0;
 }
 
@@ -418,14 +419,14 @@ try_again:
 	/* Assuming only the single tcap with infinite budget...should not get EPERM */
 	assert(ret != -EPERM);
 	
-	//if (unlikely(ret != 0)) {
+	if (unlikely(ret != 0)) {
 		/* Assuming only the single tcap with infinite budget...should not get EPERM */
-	//	assert(ret != -EPERM);
+		assert(ret != -EPERM);
 
 		/* If the slm_thd_activate returns -EAGAIN, this means this scheduling token is outdated, try again */
-	//	slm_cs_enter(curr, SLM_CS_NONE);
-	//	goto try_again;
-	//}
+		slm_cs_enter(curr, SLM_CS_NONE);
+		goto try_again;
+	}
 
 	return ret;
 }

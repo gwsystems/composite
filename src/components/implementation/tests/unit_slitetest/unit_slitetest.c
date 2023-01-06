@@ -54,7 +54,7 @@ rcv_spiner()
 	while (1) {
 		printc("*************spiner1**************: %ld\n\n", spin_thd[0]);
 		sched_thd_yield_to(spin_thd[1]);
-		rdtscll(global_time[0]);
+		//rdtscll(global_time[0]);
 	}
 	assert(0);
 	SPIN();
@@ -68,7 +68,7 @@ rcv_spiner2()
 	while (1) {
 		printc("*************spiner2**************: %ld\n\n", spin_thd[1]);
 		sched_thd_yield_to(spin_thd[0]);
-		rdtscll(global_time[0]);
+		//rdtscll(global_time[0]);
 	}
 	return;
 }
@@ -146,8 +146,8 @@ test_ipi_switch(void)
 
 	if (cos_cpuid() == TEST_RCV_CORE) {
 		printc("test ipi switch\n");
-		thd[cos_cpuid()] = sched_thd_create(test_rcv_fn, NULL);
-		sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+		//thd[cos_cpuid()] = sched_thd_create(test_rcv_fn, NULL);
+		//sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
 		spin_thd[0] = sched_thd_create(rcv_spiner, NULL);
 		sched_thd_param_set(spin_thd[0], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
@@ -159,8 +159,8 @@ test_ipi_switch(void)
 
 		sched_thd_yield_to(spin_thd[0]);
 	} else {
-		thd[cos_cpuid()] = sched_thd_create(test_snd_fn, NULL);
-		sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+		//thd[cos_cpuid()] = sched_thd_create(test_snd_fn, NULL);
+		//sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 	}
 	SPIN();
 }
