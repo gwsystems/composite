@@ -7,11 +7,12 @@
 
 #define COS_STATIC_STACK		\
 .align COS_STACK_SZ;			\
+.bss;					\
 .globl cos_static_stack;		\
 cos_static_stack:			\
 	.rep ALL_STACK_SZ_FLAT;		\
-	.long 0	;			\
-	.endr ;				\
+	.4byte 0;			\
+	.endr;				\
 .globl cos_static_stack_end;		\
 cos_static_stack_end:
 

@@ -215,7 +215,7 @@ __cosrt_fast_callgate_##name:					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	/* thread ID and cpu ID */				\
 	movq    %rsp, %rdx;					\
-	andq    $0xfffffffffff00000, %rdx;			\
+	andq    $0xfffffffffffe0000, %rdx;			\
 	movzwq  COS_SIMPLE_STACK_THDID_OFF(%rdx), %r13;		\
 	movzwq  COS_SIMPLE_STACK_CPUID_OFF(%rdx), %rax;		\
 	shl	$16, %rax;					\
@@ -239,7 +239,7 @@ srv_call_ret_##name:						\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
 	/* thread ID */						\
 	movq    %rsp, %rdx;					\
-	andq    $0xfffffffffff00000, %rdx;			\
+	andq    $0xfffffffffffe0000, %rdx;			\
 	movzwq  COS_SIMPLE_STACK_THDID_OFF(%rdx), %r13;		\
 	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
@@ -298,7 +298,7 @@ __cosrt_fast_callgate_##name:					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	/* thread ID and cpu ID */				\
 	movq    %rsp, %rdx;					\
-	andq    $0xfffffffffff00000, %rdx;			\
+	andq    $0xfffffffffffe0000, %rdx;			\
 	movzwq  COS_SIMPLE_STACK_THDID_OFF(%rdx), %r13;		\
 	movzwq  COS_SIMPLE_STACK_CPUID_OFF(%rdx), %rax;		\
 	shl	$16, %rax;					\
@@ -322,7 +322,7 @@ srv_call_ret_##name:						\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
 	/* thread ID */						\
 	movq    %rsp, %rdx;					\
-	andq    $0xfffffffffff00000, %rdx;			\
+	andq    $0xfffffffffffe0000, %rdx;			\
 	movzwq  COS_SIMPLE_STACK_THDID_OFF(%rdx), %r13;		\
 	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0x01)				\
