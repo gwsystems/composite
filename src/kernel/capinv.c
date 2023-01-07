@@ -16,6 +16,8 @@
 #include "include/chal/defs.h"
 #include "include/hw.h"
 #include "include/chal/chal_proto.h"
+#include "include/ulk.h"
+
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -347,11 +349,15 @@ static int
 cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struct comp_info *ci,
                struct cos_cpu_local_info *cos_info)
 {
-	struct next_thdinfo *nti     = &cos_info->next_ti;
-	struct comp_info *   next_ci = &(next->invstk[next->invstk_top].comp_info);
+	struct next_thdinfo *nti = &cos_info->next_ti;
+	struct comp_info *   next_ci;
+	struct pgtbl_info *  next_pt;
 	int                  preempt = 0;
+	prot_domain_t        next_protdom;
 
-	assert(next_ci && curr && next);
+	next_ci = thd_invstk_curr_comp(next, &next_pt, cos_info);
+
+	assert(next_ci && curr && next && next_pt);
 	assert(curr->cpuid == get_cpuid() && next->cpuid == get_cpuid());
 	if (unlikely(curr == next)) return thd_switch_update(curr, regs, 1);
 
@@ -369,8 +375,16 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 		copy_all_regs(regs, &curr->regs);
 	}
 
+	/* store the protection domain state for the thread for when we wake it up. */
+	thd_invstk_protdom_update(curr, cos_info, chal_protdom_read());
+	next_protdom = thd_invstk_protdom_curr(next);
+
 	thd_current_update(next, curr, cos_info);
-	if (likely(ci->pgtblinfo.pgtbl != next_ci->pgtblinfo.pgtbl)) pgtbl_update(&next_ci->pgtblinfo);
+	if (likely(pgtbl_current() != next_pt->pgtbl)) {
+		pgtbl_update(next_pt);
+	}
+	
+	chal_protdom_write(next_protdom);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
 	if (next->tls != curr->tls) chal_tls_update(next->tls);
@@ -922,9 +936,9 @@ COS_SYSCALL __attribute__((section("__ipc_entry"))) int
 composite_syscall_handler(struct pt_regs *regs)
 {
 	struct cap_header *ch;
-	struct comp_info * ci;
 	struct thread *    thd;
 	capid_t            cap;
+	struct comp_info  *ci;
 	unsigned long      ip, sp;
 
 	/*
@@ -953,7 +967,6 @@ composite_syscall_handler(struct pt_regs *regs)
 
 	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
-
 	/*
 	 * We don't check the liveness of the current component
 	 * because it's guaranteed by component quiescence period,
@@ -964,6 +977,7 @@ composite_syscall_handler(struct pt_regs *regs)
 		printk("cos: cap %d not found!\n", (int)cap);
 		cos_throw(done, 0);
 	}
+
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
 		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info);
@@ -995,7 +1009,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	/* slowpath restbl (captbl and pgtbl) operations */
 	ret = composite_syscall_slowpath(regs, &thd_switch);
 	if (ret < 0) cos_throw(done, ret);
-
+	
 	if (thd_switch) return ret;
 done:
 	/*
@@ -1003,6 +1017,7 @@ done:
 	 * value), which is not the return value of this function.
 	 * Thus the level of indirection here.
 	 */
+
 	__userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
 
 	return 0;
@@ -1015,13 +1030,13 @@ done:
 static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 {
 	struct cap_header *        ch;
-	struct comp_info *         ci;
 	struct captbl *            ct;
 	struct thread *            thd;
 	capid_t                    cap, capin;
 	syscall_op_t               op;
 	int                        ret      = -ENOENT;
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
+	struct comp_info          *ci;
 	unsigned long              ip, sp;
 
 	/*
@@ -1128,19 +1143,29 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_THDACTIVATE: {
 			thdclosure_index_t init_data  = __userregs_get1(regs) >> 16;
 			capid_t thd_cap               = __userregs_get1(regs) & 0xFFFF;
-			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t pgtbl_cap             = __userregs_get2(regs) >> 16;
+			capid_t compcap               = __userregs_get2(regs) & 0xFFFF;
 			capid_t pgtbl_addr            = __userregs_get3(regs);
-			capid_t compcap               = __userregs_get4(regs);
+			capid_t ulk_cap               = __userregs_get4(regs) >> 16;
+			thdid_t tid                   = __userregs_get4(regs) & 0xFFFF;
 
-			struct thread *thd;
-			unsigned long *pte = NULL;
+			struct thread     *thd;
+			unsigned long     *pte = NULL;
+			struct ulk_invstk *ulstk = NULL;
+			struct cap_ulk    *ulkc;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(thd && pte);
 
+			if (ulk_cap) {
+				ulkc = (struct cap_ulk *)captbl_lkup(ct, ulk_cap);
+				if (!CAP_TYPECHK(ulkc, CAP_ULK)) cos_throw(err, -EINVAL);
+				ulstk = &((struct ulk_invstk *)(ulkc->kern_addr))[tid % ULK_STACKS_PER_PAGE];
+			}
+			
 			/* ret is returned by the overall function */
-			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data);
+			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, tid, ulstk);
 			if (ret) kmem_unalloc(pte);
 
 			break;
@@ -1190,12 +1215,13 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			break;
 		}
 		case CAPTBL_OP_COMPACTIVATE: {
-			capid_t      captbl_cap = __userregs_get2(regs) >> 16;
-			capid_t      pgtbl_cap  = __userregs_get2(regs) & 0xFFFF;
-			livenessid_t lid        = __userregs_get3(regs);
-			vaddr_t      entry_addr = __userregs_get4(regs);
+			capid_t       captbl_cap = __userregs_get2(regs) >> 16;
+			capid_t       pgtbl_cap  = __userregs_get2(regs) & 0xFFFF;
+			prot_domain_t protdom    = __userregs_get3(regs) >> 16;
+			livenessid_t  lid        = __userregs_get3(regs) & 0xFFFF;
+			vaddr_t       entry_addr = __userregs_get4(regs);
 
-			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr);
+			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr, protdom);
 			break;
 		}
 		case CAPTBL_OP_COMPDEACTIVATE: {
@@ -1302,6 +1328,24 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			livenessid_t lid = __userregs_get2(regs);
 
 			ret = hw_deactivate(op_cap, capin, lid);
+			break;
+		}
+		case CAPTBL_OP_ULK_MEMACTIVATE: {
+			capid_t      ulkcap   = __userregs_get1(regs) >> 16;
+			livenessid_t lid      = __userregs_get1(regs) & 0xFFFF;
+			capid_t      ptcap    = __userregs_get2(regs) >> 16;
+			capid_t      ptcapin  = __userregs_get2(regs) & 0xFFFF;
+			vaddr_t      kaddr    = __userregs_get3(regs);
+			vaddr_t      uaddrin  = __userregs_get4(regs);
+
+			struct ulk_invstk *stk_mem;
+			unsigned long     *pte;
+
+			ret = cap_kmem_activate(ct, ptcap, kaddr, (word_t *)&stk_mem, &pte);
+			if (ret) cos_throw(err, ret);
+
+			ret = ulk_activate(ct, cap, ulkcap, lid, (vaddr_t)stk_mem, ptcapin, uaddrin);
+			if (ret) kmem_unalloc(pte);
 			break;
 		}
 		default:
@@ -1480,7 +1524,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			struct thread *  n;
 			tcap_prio_t      prio;
 			int              yield;
-
 			/* highest-order bit is dispatch flag */
 			yield       = prio_higher >> ((sizeof(prio_higher) * 8) - 1);
 			prio_higher = (prio_higher << 1) >> 1;

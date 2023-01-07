@@ -9,7 +9,7 @@ COS_CLIENT_STUB(cbuf_t, contigmem_shared_alloc_aligned, unsigned long num_pages,
 	word_t unused, addrret;
 	cbuf_t ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, num_pages, align, 0, 0, &addrret, &unused);
+	ret = cos_sinv_2rets(uc, num_pages, align, 0, 0, &addrret, &unused);
 	*pgaddr = addrret;
 
 	return ret;

@@ -5,7 +5,7 @@ use xmas_elf::ElfFile;
 use itertools::Itertools;
 use passes::{
     component, BuildState, ClientSymb, CompSymbs, ComponentId, ComponentName, ConstructorPass,
-    ObjectsPass, SystemState, Transition, TransitionIter, VAddr,
+    ObjectsPass, ServerSymb, SystemState, Transition, TransitionIter,
 };
 use std::collections::HashMap;
 use symbols::{Symb, SymbType};
@@ -27,17 +27,19 @@ impl SymbType {
 struct ClientSymbol {
     name: String,
     func_addr: u64,
+    callgate_addr: u64,
     ucap_addr: u64,
 }
 
-struct ServerSymb {
+struct ServerSymbol {
     name: String,
     addr: u64,
+    altfn_addr: u64,
 }
 
 struct CompObject {
     dep_symbs: Vec<ClientSymbol>,
-    exp_symbs: Vec<ServerSymb>,
+    exp_symbs: Vec<ServerSymbol>,
     compinfo_symb: u64,
     entryfn_symb: u64,
 }
@@ -62,7 +64,7 @@ impl CompObject {
         })
     }
 
-    pub fn exported(&self) -> &Vec<ServerSymb> {
+    pub fn exported(&self) -> &Vec<ServerSymbol> {
         &self.exp_symbs
     }
 
@@ -128,8 +130,16 @@ fn client_stubs<'a>(symbs: &Vec<Symb<'a>>) -> Vec<Symb<'a>> {
     symbol_prefix_filter(symbs, "__cosrt_c_", global_functions)
 }
 
+fn client_callgate_stubs<'a>(symbs: &Vec<Symb<'a>>) -> Vec<Symb<'a>> {
+    symbol_prefix_filter(symbs, "__cosrt_fast_callgate_", global_functions)
+}
+
 fn server_stubs<'a>(symbs: &Vec<Symb<'a>>) -> Vec<Symb<'a>> {
     symbol_prefix_filter(symbs, "__cosrt_s_", global_functions)
+}
+
+fn server_alt_stubs<'a>(symbs: &Vec<Symb<'a>>) -> Vec<Symb<'a>> {
+    symbol_prefix_filter(symbs, "__cosrt_alts_", global_functions)
 }
 
 fn unique_symbol<T>(symbs: &mut Vec<T>) -> Option<T> {
@@ -197,12 +207,11 @@ fn symbs_retrieve<'a>(e: &ElfFile<'a>) -> Result<Vec<Symb<'a>>, String> {
     }
 }
 
-fn compute_dependencies<'a>(
-    symbs: &Vec<Symb<'a>>,
-) -> Result<Vec<ClientSymbol>, String> {
+fn compute_dependencies<'a>(symbs: &Vec<Symb<'a>>) -> Result<Vec<ClientSymbol>, String> {
     let defstub = defcli_stub_addr(symbs)?;
     let ucap_symbs = client_caps(symbs);
     let dep_symbs = client_stubs(symbs);
+    let callgate_symbs = client_callgate_stubs(symbs);
 
     Ok(ucap_symbs
         .iter()
@@ -217,21 +226,47 @@ fn compute_dependencies<'a>(
                     }
                 })
                 .unwrap_or(defstub.addr());
+            let callgate_stub = callgate_symbs
+                .iter()
+                .fold(None, |found, next| {
+                    if next.name() == s.name() {
+                        Some(next.addr())
+                    } else {
+                        found
+                    }
+                })
+                .unwrap_or(0);
             ClientSymbol {
                 name: String::from(s.name()),
                 func_addr: stub,
+                callgate_addr: callgate_stub,
                 ucap_addr: s.addr(),
             }
         })
         .collect())
 }
 
-fn compute_exports<'a>(symbs: &Vec<Symb<'a>>) -> Result<Vec<ServerSymb>, String> {
+fn compute_exports<'a>(symbs: &Vec<Symb<'a>>) -> Result<Vec<ServerSymbol>, String> {
+    let alt_symbs = server_alt_stubs(symbs);
+
     Ok(server_stubs(symbs)
         .iter()
-        .map(|s| ServerSymb {
-            name: String::from(s.name()),
-            addr: s.addr(),
+        .map(|s| {
+            let altstub = alt_symbs
+                .iter()
+                .fold(None, |found, next|{
+                    if next.name() == s.name() {
+                        Some(next.addr())
+                    } else {
+                        found
+                    }
+                })
+                .unwrap_or(0);
+            ServerSymbol {
+                name: String::from(s.name()),
+                addr: s.addr(),
+                altfn_addr: altstub,
+            }
         })
         .collect())
 }
@@ -239,7 +274,7 @@ fn compute_exports<'a>(symbs: &Vec<Symb<'a>>) -> Result<Vec<ServerSymb>, String>
 pub struct ElfObject {
     obj_path: String,
     client_symbs: HashMap<String, ClientSymb>,
-    server_symbs: HashMap<String, VAddr>,
+    server_symbs: HashMap<String, ServerSymb>,
     comp_symbs: CompSymbs,
 }
 
@@ -260,13 +295,20 @@ fn compute_elfobj(
             d.name.clone(),
             ClientSymb {
                 func_addr: d.func_addr,
+                callgate_addr: d.callgate_addr,
                 ucap_addr: d.ucap_addr,
             },
         );
     }
 
     for e in obj.exported().iter() {
-        server_symbs.insert(e.name.clone(), e.addr);
+        server_symbs.insert(
+            e.name.clone(),
+            ServerSymb {
+                func_addr: e.addr,
+                altfn_addr: e.altfn_addr,
+            }
+        );
     }
 
     Ok(Box::new(ElfObject {
@@ -297,7 +339,7 @@ impl ObjectsPass for ElfObject {
         &self.client_symbs
     }
 
-    fn server_symbs(&self) -> &HashMap<String, VAddr> {
+    fn server_symbs(&self) -> &HashMap<String, ServerSymb> {
         &self.server_symbs
     }
 
@@ -347,8 +389,16 @@ impl Transition for Constructor {
             let obj_path = b.constructor_build(&id, &s)?;
             let obj = compute_elfobj(&id, &obj_path, &s, b)?;
 
-            if obj.server_symbs() != s.get_objs_id(&id).server_symbs() {
-                return Err(format!("Constructor {:?} creation error: Between when the object's synchronous invocations were generated, and when the constructor was synthesized, the code layout changed. This is an internal error, but we cannot proceed.", c_name));
+            for (name, symb) in obj.server_symbs().iter() {
+                if symb.func_addr
+                    != s.get_objs_id(&id)
+                        .server_symbs()
+                        .get(name)
+                        .unwrap() // this really should not fail! How could the object have, then not have the symbol?
+                        .func_addr
+                {
+                    return Err(format!("Constructor {:?} creation error: Between when the object's synchronous invocations were generated, and when the constructor was synthesized, the code layout changed. This is an internal error, but we cannot proceed.", c_name));
+                }
             }
 
             if component(&s, &id).constructor.var_name == "kernel" {

@@ -9,7 +9,7 @@ COS_CLIENT_STUB(shm_bm_objid_t, nic_get_a_packet, u16_t *pkt_len)
 	word_t r1, r2;
 	int ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, 0, 0, 0, 0, &r1, &r2);
+	ret = cos_sinv_2rets(uc, 0, 0, 0, 0, &r1, &r2);
 	*pkt_len = (u16_t)r1;
 
 	return ret;

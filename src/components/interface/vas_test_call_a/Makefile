@@ -2,13 +2,13 @@
 # for many of these to be empty.
 #
 # The library names associated with .a files output that are linked
-# (via, for example, -lpongshvas) into dependents. This list should be
-# "pongshvas" for output files such as libpongshvas.a.
-LIBRARY_OUTPUT = 
+# (via, for example, -lpong) into dependents. This list should be
+# "pong" for output files such as libpong.a.
+LIBRARY_OUTPUT =
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,
-# pongshvas) which will generate pongshvas.lib.o. Do NOT include the list of .o
+# pong) which will generate pong.lib.o. Do NOT include the list of .o
 # files here. Please note that using this list is *very rare* and
 # should only be used when the .a support above is not appropriate.
 OBJECT_OUTPUT =
@@ -18,13 +18,13 @@ OBJECT_OUTPUT =
 INCLUDE_PATHS = .
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES = 
+INTERFACE_DEPENDENCIES =
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = stubs
+LIBRARY_DEPENDENCIES = stubs component
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this
 # minimality; that's on you!
 
-include Makefile.subdir
+include ../Makefile.subdir

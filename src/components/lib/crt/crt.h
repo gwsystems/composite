@@ -88,7 +88,7 @@ struct crt_comp {
 	struct crt_sinv sinvs[CRT_COMP_SINVS_LEN];
 	u32_t  n_sinvs;
 
-	u32_t mpk_key;
+	prot_domain_t protdom; /* The meaning of this value is left to architecture specific implementations */
 	capid_t second_lvl_pgtbl_cap;
 	struct crt_ns_vas *ns_vas;
 
@@ -163,7 +163,7 @@ struct crt_sinv_resources {
 	sinvcap_t sinv_cap;
 };
 
-int crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info);
+int crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, prot_domain_t protdom);
 int crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_comp_resources *resources);
 
 int crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt);
@@ -183,7 +183,7 @@ int crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt);
 struct crt_rcv *crt_comp_exec_rcv(struct crt_comp *comp);
 struct crt_thd *crt_comp_exec_thd(struct crt_comp *comp);
 
-int crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr);
+int crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_fast_callgate_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr, vaddr_t s_altfn_addr);
 int crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr);
 
 int crt_sinv_alias_in(struct crt_sinv *s, struct crt_comp *c, struct crt_sinv_resources *res);
@@ -305,12 +305,19 @@ int crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids);
  */
 int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids);
 
+int crt_ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2);
+
+int crt_ulk_init(void);
+int crt_ulk_map_in(struct crt_comp *c);
+
+
 /*
  * A `crt_comp_create` replacement if you want to create a component
  * in a vas directly. Note that, the
  * `crt_comp_create` likely needs to take the asid namespace as well.
  */
 int crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct crt_ns_vas *vas);
+
 
 /*
  * VAS name mapping/allocation.

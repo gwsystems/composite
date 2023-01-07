@@ -89,7 +89,6 @@ sched_childinfo_init_component(compid_t id)
 	for (cpu = 0; cpu < NUM_CPU; cpu++) {
 		bitmap_set(schedinfo->cpubmp, cpu);
 	}
-
 	assert(bitmap_check(schedinfo->cpubmp, cos_cpuid()));
 	initthd = sl_thd_initaep_alloc(child_dci, NULL, childflags & COMP_FLAG_SCHED, childflags & COMP_FLAG_SCHED ? 1 : 0, 0, 0, 0); /* TODO: rate information */
 	assert(initthd); 	/* Failure here? Capability manager likely needs to be depended on with capmgr_create */

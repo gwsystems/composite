@@ -31,7 +31,8 @@ typedef enum {
 	CR4_FSGSBASE   = 1 << 16, /* user level fs/gs access permission bit */
 	CR4_OSXSAVE    = 1 << 18, /* XSAVE and Processor Extended States Enable */
 	CR4_SMEP       = 1 << 20, /* Supervisor Mode Execution Protection Enable */
-	CR4_SMAP       = 1 << 21  /* Supervisor Mode Access Protection Enable */
+	CR4_SMAP       = 1 << 21, /* Supervisor Mode Access Protection Enable */
+	CR4_PKE        = 1 << 22  /* MPK Support */
 } cr4_flags_t;
 
 typedef enum {
@@ -188,7 +189,10 @@ chal_cpu_init(void)
 	word_t cr0;
 
 	/* CR4_OSXSAVE has to be set to enable xgetbv/xsetbv */
-	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE);
+	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE | CR4_PKE);
+
+	/* I'm not sure this is the best spot for this */
+	assert(sizeof(struct ulk_invstk) == ULK_INVSTK_SZ);
 
 	/* Check if the CPU support XSAVE and AVX */
 	a = 0x01;

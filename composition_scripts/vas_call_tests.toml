@@ -1,0 +1,73 @@
+[system]
+description = "Test chain of synchronous invocations using both kernel and user-level invocations."
+
+[[components]]
+name = "booter"
+img  = "no_interface.llbooter"
+baseaddr = "0x1600000"
+implements = [{interface = "init"}, {interface = "addr"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"
+
+[[components]]
+name = "capmgr"
+img  = "capmgr.simple"
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
+implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
+constructor = "booter"
+
+[[components]]
+name = "sched"
+img  = "sched.pfprr_quantum_static"
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "sched"}, {interface = "init"}]
+constructor = "booter"
+
+[[components]]
+name = "client"
+img  = "tests.vas_tests_client"
+deps = [{srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "server_1", interface = "vas_test_call_a"}]
+constructor = "booter"
+
+[[components]]
+name = "server_1"
+img  = "tests.vas_tests_server_1"
+deps = [{srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "server_2", interface = "vas_test_call_b"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "vas_test_call_a"}]
+constructor = "booter"
+
+[[components]]
+name = "server_2"
+img  = "tests.vas_tests_server_2"
+deps = [{srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "server_3", interface = "vas_test_call_a"}]
+implements = [{interface = "vas_test_call_b"}]
+constructor = "booter"
+
+[[components]]
+name = "server_3"
+img  = "tests.vas_tests_server_3"
+deps = [{srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "server_4", interface = "vas_test_call_b"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "vas_test_call_a"}, ]
+constructor = "booter"
+
+[[components]]
+name = "server_4"
+img  = "tests.vas_tests_server_4"
+deps = [{srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "vas_test_call_b"}]
+constructor = "booter"
+
+# client   --kernel-->   server_1   --userlvl-->   server_2   --kernel-->   server_3   --userlvl-->   server_4
+
+[[address_spaces]]
+name = "system"
+components = ["capmgr", "sched"]
+
+[[address_spaces]]
+name = "server_group_B"
+components = ["server_3", "server_4"]
+parent = "system"
+
+[[address_spaces]]
+name = "server_group_A"
+components = ["server_1", "server_2"]
