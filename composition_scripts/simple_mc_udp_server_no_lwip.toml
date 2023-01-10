@@ -54,3 +54,7 @@ name = "simple_mc_udp_server3"
 img  = "simple_mc_udp_server.simple_mc_udp_server_no_lwip"
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}, {srv = "memcached", interface = "mc"}]
 constructor = "booter"
+
+[[address_spaces]]
+name = "system"
+components = ["capmgr", "sched", "nicmgr", "memcached", "simple_mc_udp_server1", "simple_mc_udp_server2", "simple_mc_udp_server3"]
