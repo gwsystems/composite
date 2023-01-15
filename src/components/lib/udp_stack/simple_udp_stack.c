@@ -14,12 +14,12 @@ static u16_t host_port;
 
 static struct ether_addr nic_mac;
 static struct ether_addr gw_mac = {
-	.addr_bytes[0] = 0x52,
-	.addr_bytes[1] = 0x9c,
-	.addr_bytes[2] = 0xd1,
-	.addr_bytes[3] = 0x13,
-	.addr_bytes[4] = 0xa2,
-	.addr_bytes[5] = 0x0e,
+	.addr_bytes[0] = 0x10,
+	.addr_bytes[1] = 0x10,
+	.addr_bytes[2] = 0x10,
+	.addr_bytes[3] = 0x10,
+	.addr_bytes[4] = 0x10,
+	.addr_bytes[5] = 0x11,
 };
 
 static inline void

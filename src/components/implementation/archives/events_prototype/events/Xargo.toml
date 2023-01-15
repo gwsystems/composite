@@ -1,3 +1,0 @@
-[target.i686-unknown-composite-musl.dependencies.std]
-features = ["force_alloc_system"]
-

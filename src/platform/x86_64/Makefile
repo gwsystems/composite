@@ -50,6 +50,7 @@ KERNEL_CFILES += exception.c
 KERNEL_CFILES += lapic.c
 KERNEL_CFILES += chal_pgtbl.c
 KERNEL_CFILES += fpu.c
+KERNEL_CFILES += ulinv.c
 
 OBJS := $(KERNEL_CFILES:%.c=%.o)
 DEPS := $(KERNEL_CFILES:%.c=%.d)
@@ -98,6 +99,10 @@ endef
 
 %.o:../../kernel/%.c ; $(COMPILE_OBJ_RULE)
 %.o: %.c ; $(COMPILE_OBJ_RULE)
+
+ulinv.o: ../../kernel/ulinv.c
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
 
 
 %.d:../../kernel/%.c ; $(COMPILE_DEP_RULE)

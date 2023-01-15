@@ -51,23 +51,22 @@ MUSL_BIN_PATH = PATH=$(shell pwd)/../libc/musl-1.2.0/bin/:$(PATH)
 config: 
 	$(info Configing DPDK)
 #	TODO: make this copy more generic so that it can be applied to different OS platforms like Fedora
-	@mkdir -p $(DPDK_INC_DIR);
+	mkdir -p $(DPDK_INC_DIR);
 #	Even though we have MUSL, DPDK still rely on some definitions from the GNU lib
-	@find /usr/lib/gcc/x86_64-linux-gnu/$(shell gcc --version | grep ^gcc | sed 's/^.* //g' | awk -F. '{print $$1}')/include/ -iname "*.h" | grep -v "std.*" | xargs cp -rft $(DPDK_INC_DIR)
-	@cd ../libc/musl-1.2.0/include; \
+	find /usr/lib/gcc/x86_64-linux-gnu/$(shell gcc --version | grep ^gcc | sed 's/^.* //g' | awk -F. '{print $$1}')/include/ -iname "*.h" | grep -v "std.*" | xargs cp -rft $(DPDK_INC_DIR)
+	cd ../libc/musl-1.2.0/include; \
 	cp -rf /usr/include/linux/ ./; \
 	cp -rf /usr/include/asm-generic/ ./; \
 	cp -rf /usr/include/x86_64-linux-gnu/asm/ ./; \
 	cp -rf /usr/include/x86_64-linux-gnu/sys/queue.h ./sys
 
-	@cd $(DPDK_DIR);\
+	cd $(DPDK_DIR);\
 	$(MUSL_BIN_PATH) meson build \
 	--cross-file $(shell pwd)/cross_x86_64_composite_with_musl \
 	-Dmachine=default -Dc_args="-nostdlib -nostdinc -mcmodel=large -DCOMPOSITE_EXISTS $(DPDK_ADAPTER_INC)" \
 	-Ddefault_library=static -Ddebug=true \
 	-Doptimization=0 -Dincludedir=$(shell pwd)/$(DPDK_INC_DIR) \
 	-Dprefix=$(shell pwd)/$(DPDK_INSTALL_DIR) $(DISABLED_DRIVERS)
-	
 build:
 	$(info Building DPDK)
 ifneq ($(PLATFORM),x86_64)

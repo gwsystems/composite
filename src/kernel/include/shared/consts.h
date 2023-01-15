@@ -32,10 +32,9 @@
 #define MAX_NUM_THREADS (64 * NUM_CPU)
 
 /*
- * Stacks are 4 * page_size (expressed in words) 
- * Thus, usually this would be 4 * 4k = 16k bytes
+ * A single thread's stack size is 2^17 = 128kb by default
  */
-#define MAX_STACK_SZ_BYTE_ORDER 14
+#define MAX_STACK_SZ_BYTE_ORDER 17
 /* Stack size in bytes */
 #define COS_STACK_SZ (1 << MAX_STACK_SZ_BYTE_ORDER)
 /* Stack size in words */
@@ -45,10 +44,10 @@
 /* 
  * 4096B / 4 * (64+1) : to flatten the math because of the below error
  * cos_asm_upcall_simple_stacks.S:28: Error: bad or irreducible absolute expression
- * Use a 66506 * 4 all stack size simply because the statck size is changed to 4 * 4k,
- * and applications like DPDK would require a larger stack size
+ * All stack size = per_stack_size * number_of_threads, here we set it as COS_STACK_SZ * 8
+ * by default
  */
-#define ALL_STACK_SZ_FLAT (66560*4)
+#define ALL_STACK_SZ_FLAT (COS_STACK_SZ * 8)
 #define MAX_SPD_VAS_LOCATIONS 8
 
 /* a kludge:  should not use a tmp stack on a stack miss */
@@ -130,6 +129,8 @@
 #include "../asm_ipc_defs.h" /* FIXME: just for cos_component.h now */
 
 #define KERN_BASE_ADDR 0xc0000000 // should be COS_MEM_KERN_START_VA
+
+#define ULK_BASE_ADDR 0x7f8000000000
 
 /* We save information on the user level stack for fast access. The
  * offsets below are used to access CPU and thread IDs. */

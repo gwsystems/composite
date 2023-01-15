@@ -5,14 +5,16 @@
  * Public License v2.
  */
 
-#define COS_STATIC_STACK		\
-.align COS_STACK_SZ;			\
-.globl cos_static_stack;		\
-cos_static_stack:			\
-	.rep ALL_STACK_SZ_FLAT;		\
-	.long 0	;			\
-	.endr ;				\
-.globl cos_static_stack_end;		\
+#define COS_STATIC_STACK				\
+/* .bss declaration must be put at the beginning */	\
+.bss;							\
+.align COS_STACK_SZ;					\
+.globl cos_static_stack;				\
+cos_static_stack:					\
+	.rep ALL_STACK_SZ_FLAT;				\
+	.8byte 0	;				\
+	.endr ;						\
+.globl cos_static_stack_end;				\
 cos_static_stack_end:
 
 #define COS_UPCALL_ENTRY 		\

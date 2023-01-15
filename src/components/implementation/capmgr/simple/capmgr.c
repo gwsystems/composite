@@ -659,7 +659,7 @@ capmgr_execution_init(int is_init_core)
 static void
 capmgr_comp_init(void)
 {
-	struct initargs cap_entries, exec_entries, curr;
+	struct initargs cap_entries, exec_entries, shared_comps, curr;
 	struct initargs_iter i;
 	vaddr_t vasfr = 0;
 	capid_t capfr = 0;
@@ -720,6 +720,19 @@ capmgr_comp_init(void)
 		       comp_res.ctc, comp_res.ptc, comp_res.compc, comp_res.captbl_frontier, comp_res.heap_ptr, sched_id);
 		comp = cm_comp_alloc_with(name, id, &comp_res);
 		assert(comp);
+	}
+
+	/* Create ULK memory region for UL sinvs and map it into comps that need it */
+	ret = crt_ulk_init();
+	assert(!ret);
+	ret = args_get_entry("addrspc_shared", &shared_comps);
+	assert(!ret);
+	for (cont = args_iter(&shared_comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		compid_t        id  = atoi(args_value(&curr));
+		struct cm_comp *cmc = ss_comp_get(id);
+
+		/* if this fails, we already aliased the ICB memory into this shared pt */
+		crt_ulk_map_in(&cmc->comp);
 	}
 
 	return;
@@ -904,6 +917,13 @@ cos_init(void)
 	int cont, found_shared = 0;
 	int ret;
 
+	/* 
+	 * FIXME: This is a hack since the booter's __thdid_alloc is
+	 *        initialized the same as ours. Need a better solution.
+	 */
+	extern unsigned long __thdid_alloc;
+	__thdid_alloc = NUM_CPU * 4;
+
 	printc("Starting the capability manager.\n");
 	assert(atol(args_get("captbl_end")) >= BOOT_CAPTBL_FREE);
 
@@ -925,6 +945,7 @@ cos_init(void)
 	/* Get our house in order. Initialize ourself and our data-structures */
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
+
 	/*
 	 * FIXME: this is a hack. The captbl_end variable does *not*
 	 * take into account the synchronous invocations yet. That is

@@ -19,6 +19,7 @@
 #define SIZEOFUSERCAP (UCAP_SZ * 4)
 #define INVFN 0
 #define CAPNUM 4
+#define SERVER_FN 16 
 
 /* offsets into syscall integer */
 #define COS_ASYNC_CAP_FLAG_BIT 32 /* async cap flag -> 32 */

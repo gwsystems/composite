@@ -57,6 +57,7 @@ typedef capid_t hwcap_t;
 typedef capid_t scbcap_t;
 typedef capid_t dcbcap_t;
 typedef unsigned short dcboff_t;
+typedef capid_t ulkcap_t;
 
 /* Memory source information */
 struct cos_meminfo {
@@ -113,21 +114,26 @@ pgtblcap_t cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int
  */
 int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem);
 
-int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources);
+int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources, prot_domain_t protdom);
 
 /*
  * This uses the next three functions to allocate a new component and
  * correctly populate ci (allocating all resources from ci_resources).
  */
 int         cos_compinfo_alloc(struct cos_compinfo *ci, scbcap_t sc, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
-                               struct cos_compinfo *ci_resources);
+                               struct cos_compinfo *ci_resources, prot_domain_t protdom);
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
-compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, scbcap_t scbc, vaddr_t entry);
+compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, scbcap_t scbc, vaddr_t entry, prot_domain_t protdom);
 scbcap_t    cos_scb_alloc(struct cos_compinfo *ci);
 int         cos_scb_mapping(struct cos_compinfo *ci, compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr);
-
 dcbcap_t    cos_dcb_alloc(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t dcb_uaddr);
+
+void       cos_ulk_info_init(struct cos_compinfo *ci);
+pgtblcap_t cos_ulk_pgtbl_create(struct cos_compinfo *ci, pgtblcap_t *secondlvl);
+ulkcap_t   cos_ulk_page_alloc(struct cos_compinfo *ci, pgtblcap_t ulkpt, vaddr_t uaddr);
+int        cos_ulk_map_in(pgtblcap_t ptc);
+
 void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, int try_expand);
 
 typedef void (*cos_thd_fn_t)(void *);
@@ -140,6 +146,7 @@ thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp, dcbcap_t dc
 int cos_thd_migrate(struct cos_compinfo *ci, thdcap_t thdc, cpuid_t core);
 /* update the thdcap to migrated core */
 int cos_thdcap_migrate(struct cos_compinfo *ci, thdcap_t thdc);
+
 sinvcap_t cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, invtoken_t token);
 arcvcap_t cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap, arcvcap_t enotif);
 asndcap_t cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t ctcap);

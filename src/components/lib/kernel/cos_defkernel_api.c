@@ -142,7 +142,7 @@ cos_defcompinfo_child_alloc(struct cos_defcompinfo *child_defci, vaddr_t entry, 
 	assert(scbcap);
 
 	assert(curr_defci_init_status == INITIALIZED);
-	ret = cos_compinfo_alloc(child_ci, scbcap, heap_ptr, cap_frontier, entry, ci);
+	ret = cos_compinfo_alloc(child_ci, scbcap, heap_ptr, cap_frontier, entry, ci, 0);
 	if (ret) return ret;
 	dcbaddr = (vaddr_t)cos_page_bump_intern_valloc(child_ci, PAGE_SIZE);
 	assert(dcbaddr);

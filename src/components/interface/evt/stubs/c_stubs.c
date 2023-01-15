@@ -7,7 +7,7 @@ COS_CLIENT_STUB(int, __evt_get, evt_id_t id, evt_wait_flags_t flags, evt_res_typ
 	word_t s = 0, d = 0;
 	int ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, id, flags, 0, 0, &s, &d);
+	ret = cos_sinv_2rets(uc, id, flags, 0, 0, &s, &d);
 	*src = s;
 	*ret_data = d;
 

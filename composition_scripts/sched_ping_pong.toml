@@ -41,3 +41,4 @@ img  = "pong.pingpong"
 deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}]
 implements = [{interface = "pong"}]
 constructor = "booter"
+

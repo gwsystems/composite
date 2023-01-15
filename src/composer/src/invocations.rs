@@ -36,8 +36,10 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
                         client: id.clone(),
                         server: srv_id.clone(),
                         c_fn_addr: symbinfo.func_addr.clone(),
+                        c_callgate_addr: symbinfo.callgate_addr.clone(),
                         c_ucap_addr: symbinfo.ucap_addr.clone(),
-                        s_fn_addr: *srv_symbs.clone(),
+                        s_fn_addr: srv_symbs.func_addr.clone(),
+                        s_altfn_addr: srv_symbs.altfn_addr.clone(),
                     });
                     found = true;
                 }

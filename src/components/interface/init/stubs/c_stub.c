@@ -20,7 +20,7 @@ COS_CLIENT_STUB(int, init_done, int parallel_init, init_main_t cont)
 	COS_CLIENT_INVCAP;
 	int ret;
 
-	ret = cos_sinv(uc->cap_no, parallel_init, cont, 0, 0);
+	ret = cos_sinv(uc, parallel_init, cont, 0, 0);
 	ps_store(&awaiting_init, 0);
 
 	return ret;

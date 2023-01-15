@@ -28,3 +28,13 @@ img  = "tests.bench_syncipc"
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "sched", interface = "syncipc"}, {srv = "capmgr", interface = "capmgr_create"}]
 baseaddr = "0x1600000"
 constructor = "booter"
+
+# [[address_spaces]]
+# name = "system"
+# components = ["capmgr", "sched"]
+
+# [[address_spaces]]
+# name = "bench"
+# components = ["syncipc"]
+# parent = "system"
+

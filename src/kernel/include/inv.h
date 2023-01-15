@@ -313,12 +313,13 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	//printk("\t===>pgtbl: %lx\n", thd_current_pgtbl(thd));
 
 	pgtbl_update(&sinvc->comp_info.pgtblinfo);
+	chal_protdom_write(sinvc->comp_info.protdom);
 
 	/* TODO: test this before pgtbl update...pre- vs. post-serialization */
 	__userregs_sinvupdate(regs);
 	__userregs_setinv(regs, thd->tid | (get_cpuid() << 16), sinvc->token,
 			  sinvc->entry_addr);
-
+	
 	return;
 }
 
@@ -327,8 +328,9 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 {
 	struct comp_info *ci;
 	unsigned long     ip, sp;
+	prot_domain_t     protdom;
 
-	ci = thd_invstk_pop(thd, &ip, &sp, cos_info);
+	ci = thd_invstk_pop(thd, &ip, &sp, &protdom, cos_info);
 	if (unlikely(!ci)) {
 		assert(0);
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
@@ -344,6 +346,8 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	}
 
 	pgtbl_update(&ci->pgtblinfo);
+	chal_protdom_write(protdom);
+
 	/* Set return sp and ip and function return value in eax */
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);
 }

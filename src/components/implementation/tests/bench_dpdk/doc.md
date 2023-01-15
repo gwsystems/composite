@@ -9,6 +9,8 @@ sudo apt install -y python3-scapy netsniff-ng
 ### Create a tap device to connect DPDK port
 ```shell
 sudo ip tuntap add dev tap0 mode tap
+# you may want to set the mac address manually for debugging
+sudo ip link set address 10:10:10:10:10:11 dev tap0
 sudo ip link set tap0 up
 sudo ip addr add 10.10.1.1/24 dev tap0
 ```

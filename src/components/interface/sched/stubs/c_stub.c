@@ -17,7 +17,7 @@ COS_CLIENT_STUB(cycles_t, sched_thd_block_timeout, thdid_t dep_id, cycles_t abs_
 	word_t abs_hi, abs_lo;
 
 	COS_ARG_DWORD_TO_WORD(abs_timeout, abs_hi, abs_lo);
-	cos_sinv_2rets(uc->cap_no, dep_id, abs_hi, abs_lo, 0, &elapsed_hi, &elapsed_lo);
+	cos_sinv_2rets(uc, dep_id, abs_hi, abs_lo, 0, &elapsed_hi, &elapsed_lo);
 	elapsed_cycles = ((cycles_t)elapsed_hi << 32) | (cycles_t)elapsed_lo;
 
 	return elapsed_cycles;
@@ -34,7 +34,7 @@ COS_CLIENT_STUB(thdid_t, sched_aep_create_closure, thdclosure_index_t id, int ow
 
 	if (id < 1) return 0;
 
-	ret = cos_sinv_2rets(uc->cap_no, idx_owntc, key_ipimax, 0, ipiwin32b, &r, &unused);
+	ret = cos_sinv_2rets(uc, idx_owntc, key_ipimax, 0, ipiwin32b, &r, &unused);
 	*rcv = r;
 
 	return ret;

@@ -25,7 +25,7 @@ COS_CLIENT_STUB(thdcap_t, capmgr_initthd_create, spdid_t child, thdid_t *tid)
 	word_t unused, tid_ret;
 	thdcap_t ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, child, 0, 0, 0, &tid_ret, &unused);
+	ret = cos_sinv_2rets(uc, child, 0, 0, 0, &tid_ret, &unused);
 	*tid = tid_ret;
 
 	return ret;
@@ -87,7 +87,7 @@ COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_thunk, struct cos_aep_info *aep, thd
 
 	if (idx < 1) return 0;
 
-	thd = cos_sinv_2rets(uc->cap_no, owntc_idx, key_ipimax, ipiwin32b, 0, &tid, &tcrcvret);
+	thd = cos_sinv_2rets(uc, owntc_idx, key_ipimax, ipiwin32b, 0, &tid, &tcrcvret);
 	if (!thd) return 0;
 
 	aep->thd  = thd;
@@ -109,7 +109,7 @@ COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_ext, spdid_t child, struct cos_aep_i
 	u32_t key_ipimax   = (key << 16) | (ipimax & 0xFFFF);
 	u32_t ipiwin32b    = (u32_t)ipiwin;
 
-	thd = cos_sinv_2rets(uc->cap_no, spdid_thdidx, owntc, key_ipimax, ipiwin32b, &drcvtidret, &tcrcvret);
+	thd = cos_sinv_2rets(uc, spdid_thdidx, owntc, key_ipimax, ipiwin32b, &drcvtidret, &tcrcvret);
 	if (!thd) return thd;
 
 	aep->fn   = NULL;
@@ -132,7 +132,7 @@ COS_CLIENT_STUB(thdcap_t, capmgr_initaep_create, spdid_t child, struct cos_aep_i
 	thdcap_t thd = 0;
 	word_t sndtidret = 0, rcvtcret = 0;
 
-	thd = cos_sinv_2rets(uc->cap_no, child_owntc, key_ipimax, ipiwin32b, 0, &sndtidret, &rcvtcret);
+	thd = cos_sinv_2rets(uc, child_owntc, key_ipimax, ipiwin32b, 0, &sndtidret, &rcvtcret);
 	if (!thd) return thd;
 
 	aep->fn   = NULL;

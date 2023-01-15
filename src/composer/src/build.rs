@@ -131,12 +131,20 @@ fn constructor_serialize_args(
             String::from(format!("{}", s.c_fn_addr)),
         ));
         sinv.push(ArgsKV::new_key(
+            String::from("c_fast_callgate_addr"),
+            String::from(format!("{}", s.c_callgate_addr)),
+        ));
+        sinv.push(ArgsKV::new_key(
             String::from("c_ucap_addr"),
             String::from(format!("{}", s.c_ucap_addr)),
         ));
         sinv.push(ArgsKV::new_key(
             String::from("s_fn_addr"),
             String::from(format!("{}", s.s_fn_addr)),
+        ));
+        sinv.push(ArgsKV::new_key(
+            String::from("s_altfn_addr"),
+            String::from(format!("{}", s.s_altfn_addr)),
         ));
 
         // Just an array of each of the maps for each sinv.  Arrays
