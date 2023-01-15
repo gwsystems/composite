@@ -1119,7 +1119,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	/* slowpath restbl (captbl and pgtbl) operations */
 	ret = composite_syscall_slowpath(regs, &thd_switch);
 	if (ret < 0) cos_throw(done, ret);
-	
+
 	if (thd_switch) return ret;
 done:
 	/*
@@ -1260,7 +1260,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			word_t  lo                    = __userregs_get4(regs) & 0xFFFFFFFF;
 			capid_t ulk_cap               = lo >> 16;
 			thdid_t tid                   = lo & 0xFFFF;
-			capid_t dc                    = hi >> 16;
+			capid_t dcb_cap               = hi >> 16;
 			unsigned short dcboff         = hi & 0xFFFF;
 
 			struct thread     *thd;
@@ -1270,7 +1270,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);
-			assert(thd && tpte);
+			assert(thd && pte);
 
 			if (ulk_cap) {
 				ulkc = (struct cap_ulk *)captbl_lkup(ct, ulk_cap);
@@ -1280,7 +1280,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			
 			/* ret is returned by the overall function */
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, dcb_cap, dcboff, tid, ulstk);
-			if (ret) kmem_unalloc(tpte);
+			if (ret) kmem_unalloc(pte);
 
 			break;
 		}
@@ -1541,7 +1541,8 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t      ptcapin = (r4 << 20) >> 12 | ((r3 << 20) >> 20);
 
 			ret = dcb_deactivate(op_cap, capin, lid, ptcap, cf_addr, ptcapin, uaddrin);
-
+			break;
+		}
 		case CAPTBL_OP_ULK_MEMACTIVATE: {
 			capid_t      ulkcap   = __userregs_get1(regs) >> 16;
 			livenessid_t lid      = __userregs_get1(regs) & 0xFFFF;
@@ -1736,6 +1737,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			struct thread *  n;
 			tcap_prio_t      prio;
 			int              yield;
+
 			/* highest-order bit is dispatch flag */
 			yield       = prio_higher >> ((sizeof(prio_higher) * 8) - 1);
 			prio_higher = (prio_higher << 1) >> 1;

@@ -880,12 +880,12 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	assert(kmem && (round_to_page(kmem) == kmem));
 
 	assert(!(init_data & ~((1 << 16) - 1)));
-	assert(!(cap & ~ ((1 << 16) - 1)));
-	assert(!(comp & ~ ((1 << 16) - 1)));
-	assert(!(dc & ~ ((1 << 16) - 1)));
-	assert(!(tid & ~((1 << 16) - 1));
-	assert(!(off & ~((1 << 16) - 1));
-	assert(!(ulkcap & ~((1 << 16) - 1));
+	assert(!(cap & ~((1 << 16) - 1)));
+	assert(!(comp & ~((1 << 16) - 1)));
+	assert(!(dc & ~((1 << 16) - 1)));
+	assert(!(tid & ~((1 << 16) - 1)));
+	assert(!(off & ~((1 << 16) - 1)));
+	assert(!(ulkcap & ~((1 << 16) - 1)));
 
 	hi = (u32_t)(dc << 16) | off;
 	lo = (u32_t)(ulkcap << 16) | cap;
@@ -928,7 +928,9 @@ cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *da
 thdcap_t
 cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp, dcbcap_t dc, dcboff_t off)
 {
-	return __cos_thd_alloc(ci, comp, 0, dc, off);
+	thdid_t tid = cos_thd_id_alloc();
+
+	return __cos_thd_alloc(ci, comp, 0, dc, off, tid);
 }
 
 /*

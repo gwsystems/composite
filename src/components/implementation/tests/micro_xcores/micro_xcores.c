@@ -20,7 +20,10 @@ static int test_done[NUM_CPU];
 void
 cos_init(void)
 {
-        int cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+		int cycs, i;
+		static int first_init = 1, init_done = 0;
+
+        cycs = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
         printc("\t%d cycles per microsecond\n", cycs);
 
         if (first_init) {

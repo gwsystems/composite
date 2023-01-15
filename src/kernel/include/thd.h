@@ -615,6 +615,14 @@ thd_invstk_protdom_curr(struct thread *thd)
 /* defined in ulinv.c */
 struct comp_info *ulinvstk_current(struct ulk_invstk *stk, struct comp_info *origin, unsigned long offset);
 
+static inline struct comp_info*
+thd_invstk_current_compinfo(struct thread *curr_thd, struct cos_cpu_local_info *cos_info, int *invstk_top)
+{
+	*invstk_top = curr_invstk_top(cos_info);
+
+	return &(curr_thd->invstk[*invstk_top].comp_info);
+}
+
 static inline struct comp_info *
 thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
 {

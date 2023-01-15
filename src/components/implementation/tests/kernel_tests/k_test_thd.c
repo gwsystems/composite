@@ -207,9 +207,9 @@ test_thds_fpu(void)
         intptr_t i = 0;
         int      ret;
         
-        thds[0] = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_thds_reg, (void *)i);
+        thds[0] = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_thds_reg, (void *)i, 0, 0);
         for (i = 1; i <= 3; i++) {
-                thds[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thds_fpu, (void *)i);
+                thds[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thds_fpu, (void *)i, 0, 0);
                 if (EXPECT_LL_LT(1, thds[i], "Thread FPU: Cannot Allocate")) {
                         return;
                 }
