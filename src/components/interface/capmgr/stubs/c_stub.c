@@ -16,7 +16,7 @@ COS_CLIENT_STUB(arcvcap_t, capmgr_rcv_create, spdid_t child, thdcap_t thdcap)
 	word_t spd = child;
 	word_t thd = thdcap;
 
-	return cos_sinv(uc->cap_no, spd, thdcap, 0, 0);
+	return cos_sinv(uc, spd, thdcap, 0, 0);
 }
 
 COS_CLIENT_STUB(thdcap_t, capmgr_initthd_create, spdid_t child, thdid_t *tid)
@@ -37,7 +37,7 @@ COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_thunk, thdclosure_index_t id, thdid_
 	word_t dcb_ret, tid_ret;
 	thdcap_t ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, id, 0, 0, 0, &tid_ret, &dcb_ret);
+	ret = cos_sinv_2rets(uc, id, 0, 0, 0, &tid_ret, &dcb_ret);
 	*dcb = (struct cos_dcb_info *)dcb_ret;
 	*tid = tid_ret;
 
@@ -50,7 +50,7 @@ COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext, spdid_t child, thdclosure_index
 	word_t unused, tid_ret;
 	thdcap_t ret;
 
-	ret  = cos_sinv_2rets(uc->cap_no, child, idx, 0, 0, &tid_ret, &unused);
+	ret  = cos_sinv_2rets(uc, child, idx, 0, 0, &tid_ret, &unused);
 	*tid  = tid_ret;
 
 	return ret;
@@ -62,7 +62,7 @@ COS_CLIENT_STUB(thdid_t, capmgr_retrieve_dcbinfo, thdid_t tid, arcvcap_t *arcv, 
 	word_t retrs, retdcb;
 	thdid_t ret;
 
-	ret = cos_sinv_2rets(uc->cap_no, tid, 0, 0, 0, &retrs, &retdcb);
+	ret = cos_sinv_2rets(uc, tid, 0, 0, 0, &retrs, &retdcb);
 	*dcb  = (struct cos_dcb_info *)retdcb;
 #if defined(__x86_64__)
 	*arcv = (retrs >> 32);

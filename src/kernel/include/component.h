@@ -15,7 +15,7 @@
 #include "shared/cos_sched.h"
 
 struct comp_info {
-	struct liveness_data liveness;
+	//struct liveness_data liveness;
 	struct pgtbl_info    pgtblinfo;
 	struct captbl *      captbl;
 	struct cos_scb_info *scb_data;
@@ -78,7 +78,7 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	compc->info.captbl          = ctc->captbl;
 	compc->pgd                  = ptc;
 	compc->ct_top               = ctc;
-	ltbl_get(lid, &compc->info.liveness);
+	//ltbl_get(lid, &compc->info.liveness);
 	__cap_capactivate_post(&compc->h, CAP_COMP);
 
 	return 0;
@@ -104,7 +104,7 @@ comp_deactivate(struct cap_captbl *ct, capid_t capin, livenessid_t lid)
 	compc = (struct cap_comp *)captbl_lkup(ct->captbl, capin);
 	if (compc->h.type != CAP_COMP) return -EINVAL;
 
-	ltbl_expire(&compc->info.liveness);
+	//ltbl_expire(&compc->info.liveness);
 	pgd    = compc->pgd;
 	ct_top = compc->ct_top;
 	/* TODO: right way to remove scb info */

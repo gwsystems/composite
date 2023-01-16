@@ -183,8 +183,8 @@ typedef enum {
 	CAP_QUIESCENCE, /* when deactivating, set to track quiescence state */
 	CAP_TCAP,       /* tcap captable entry */
 	CAP_HW,         /* hardware (interrupt) */
-	CAP_SCB,	/* Scheduler control block (SCB) */
-	CAP_DCB,	/* Dispatch control block (DCB) */
+	CAP_SCB,        /* Scheduler control block (SCB) */
+	CAP_DCB,        /* Dispatch control block (DCB) */
 	CAP_ULK,        /* a page of ULK memory */
 } cap_t;
 

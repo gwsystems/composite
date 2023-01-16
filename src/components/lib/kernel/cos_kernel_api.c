@@ -888,11 +888,11 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	assert(!(ulkcap & ~((1 << 16) - 1)));
 
 	hi = (u32_t)(dc << 16) | off;
-	lo = (u32_t)(ulkcap << 16) | cap;
+	lo = (u32_t)(ulkcap << 16) | tid;
 	/* FIXME: add 32bit support */
 #if defined (__x86_64__)
 	ret = call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap,
-			  __compinfo_metacap(ci)->mi.pgtbl_cap << 16 | comp, kmem, hi << 32 | lo);
+			  __compinfo_metacap(ci)->mi.pgtbl_cap << 16 | comp, kmem, (u64_t)hi << 32 | lo);
 #endif
 	if (ret) BUG();
 
@@ -908,7 +908,7 @@ cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t id
 
 	if (idx < 1) return 0;
 
-	return __cos_thd_alloc(ci, comp, idx, tid, dc, off);
+	return __cos_thd_alloc(ci, comp, idx, dc, off, tid);
 }
 
 thdcap_t
@@ -958,11 +958,11 @@ cos_dcb_alloc(struct cos_compinfo *ci, pgtblcap_t ptcap, vaddr_t uaddr)
 
 	assert(ci);
 
-	assert(!(cap & ~ ((1 << 16) -1)));
 	assert(!(lid & ~ ((1 << 16) -1)));
 	assert(!((__compinfo_metacap(ci)->mi.pgtbl_cap) & ~ ((1 << 16) -1)));
 	if (__alloc_mem_cap(ci, CAP_DCB, &kmem, &cap)) return 0;
 	assert(kmem && (round_to_page(kmem) == kmem));
+	assert(!(cap & ~ ((1 << 16) -1)));
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_DCB_ACTIVATE, cap << 16 | lid, (__compinfo_metacap(ci)->mi.pgtbl_cap) << 16 | ptcap, kmem, uaddr)) BUG();
 
 	return cap;
@@ -1025,6 +1025,8 @@ int
 cos_scb_mapping(struct cos_compinfo *ci,  compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr)
 {
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_SCB_MAPPING, comp, ptc, scbc, scb_uaddr)) return 1;
+
+	return 0;
 }
 
 compcap_t

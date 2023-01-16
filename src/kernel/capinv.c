@@ -454,11 +454,13 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	if (unlikely(curr == next)) return thd_switch_update(curr, regs, 1);
 
 	/* FIXME: trigger fault for the next thread, for now, return error */
-	if (unlikely(!ltbl_isalive(&next_ci->liveness))) {
-		assert(!(curr->state & THD_STATE_PREEMPTED));
-		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
-		return 0;
-	}
+	/*
+	 * if (unlikely(!ltbl_isalive(&next_ci->liveness))) {
+	 *	assert(!(curr->state & THD_STATE_PREEMPTED));
+	 *	__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
+	 *	return 0;
+	 * }
+	 */
 
 	if (!(curr->state & THD_STATE_PREEMPTED)) {
 		copy_gp_regs(regs, &curr->regs);
@@ -730,7 +732,7 @@ __cap_asnd_to_arcv(struct cap_asnd *asnd)
 {
 	struct cap_arcv *arcv;
 
-	if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) return NULL;
+	/* if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) return NULL; */
 	arcv = (struct cap_arcv *)captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid);
 	if (unlikely(!CAP_TYPECHK(arcv, CAP_ARCV))) return NULL;
 	/* FIXME: check arcv epoch + liveness */

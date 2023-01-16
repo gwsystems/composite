@@ -298,12 +298,14 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	 * this path (to avoid serialization in the store buffer), and
 	 * optimize the static branch prediction.
 	 */
-	if (unlikely(!ltbl_isalive(&(sinvc->comp_info.liveness)))) {
-		printk("cos: sinv comp (liveness %d) doesn't exist!\n", sinvc->comp_info.liveness.id);
-		// FIXME: add fault handling here.
-		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
-		return;
-	}
+	/*
+	 * if (unlikely(!ltbl_isalive(&(sinvc->comp_info.liveness)))) {
+	 *	printk("cos: sinv comp (liveness %d) doesn't exist!\n", sinvc->comp_info.liveness.id);
+	 *	// FIXME: add fault handling here.
+	 *	__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
+	 *	return;
+	 * }
+	 */
 
 	if (unlikely(thd_invstk_push(thd, &sinvc->comp_info, ip, sp, cos_info))) {
 		__userregs_set(regs, -1, sp, ip);
@@ -338,12 +340,14 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	}
 	//printk("\tpop: %lx, %d\n", sp, thd->tid);
 
-	if (unlikely(!ltbl_isalive(&ci->liveness))) {
-		printk("cos: ret comp (liveness %d) doesn't exist!\n", ci->liveness.id);
-		// FIXME: add fault handling here.
-		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
-		return;
-	}
+	/*
+	 * if (unlikely(!ltbl_isalive(&ci->liveness))) {
+	 *	printk("cos: ret comp (liveness %d) doesn't exist!\n", ci->liveness.id);
+	 *	// FIXME: add fault handling here.
+	 *	__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
+	 *	return;
+	 * }
+	 */
 
 	pgtbl_update(&ci->pgtblinfo);
 	chal_protdom_write(protdom);
