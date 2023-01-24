@@ -364,7 +364,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
-	thd->invstk[0].protdom                = compc->info.protdom;
+	thd->invstk[0].protdom                = compc->info.pgtblinfo.protdom;
 	thd->tid                              = tid;
 	thd->refcnt                           = 1;
 	thd->invstk_top                       = 0;
@@ -562,7 +562,7 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 	 */
 	if (ulk_invstk->top > curr->ulk_stkoff) {
 		ci = ulinvstk_current(ulk_invstk, &curr->comp_info, curr->ulk_stkoff);
-		curr->protdom = ci->protdom;
+		curr->protdom = ci->pgtblinfo.protdom;
 		if (unlikely(!ci)) return NULL;
 	} else {
 		ci = &curr->comp_info;

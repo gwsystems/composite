@@ -27,12 +27,23 @@
 /* FIXME:find a better way to do this */
 #define EXTRACT_SUB_PAGE(super) ((super) & SUPER_PAGE_PTE_MASK)
 
+#if defined(__x86_64__)
+#define NUM_ASID_BITS 12
+#define NUM_ASID_MAX (1<<NUM_ASID_BITS)-1
+#define CR3_NO_FLUSH (1ul << 63)
+#elif defined(__i386__)
+#define NUM_ASID_MAX (0)
+#define CR3_NO_FLUSH (0) /* this just wont do anything */
+#endif
+
 /* Page table related prototypes & structs */
 /* make it an opaque type...not to be touched */
 typedef struct pgtbl *pgtbl_t;
 
 struct pgtbl_info {
-	pgtbl_t  pgtbl;
+	pgtbl_t       pgtbl;
+	prot_domain_t protdom;
+	asid_t        asid;
 } __attribute__((packed));
 
 /* identical to the capability structure */
@@ -97,11 +108,21 @@ chal_protdom_read(void)
 	return (32 - __builtin_clz(~pkru)) / 2 - 1;
 }
 
+
+/* which pgtbl is cached in the tlb for and asid */
+inline pgtbl_t chal_curr_cached_pt(asid_t asid);
+
 /* Update the page table */
 static inline void
 chal_pgtbl_update(struct pgtbl_info *pt)
 {
-	asm volatile("mov %0, %%cr3" : : "r"(pt->pgtbl));
+	/* lowest 12 bits is the context identifier */
+	unsigned long cr3 = pt->pgtbl | pt->asid;
+	
+	/* fastpath: don't need to invalidate tlb entries */
+	if (likely(chal_curr_cached_pt(pt->asid) == pt->pgtbl)) cr3 |= CR3_NO_FLUSH;
+
+	asm volatile("mov %0, %%cr3" : : "r"(cr3));
 }
 
 /* Check current page table */
@@ -114,10 +135,6 @@ chal_pgtbl_read(void)
 
 	return (pgtbl_t)(pt & PGTBL_ENTRY_ADDR_MASK);
 }
-
-static inline asid_t
-chal_asid_alloc(void)
-{ return 0; }
 
 #endif /* CHAL_PROTO_H */
 
