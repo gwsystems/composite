@@ -6,7 +6,7 @@ pub struct Pipe {
 
 impl Pipe {
     pub fn new(cmd: &str) -> Self {
-        let args: Vec<&str> = cmd.split(' ').collect();
+        let args: Vec<&str> = cmd.split_whitespace().collect();
 
         Self {
             cur: Command::new(args[0])
@@ -22,7 +22,7 @@ impl Pipe {
     }
 
     pub fn next(self, next: &str) -> Self {
-        let args: Vec<&str> = next.split(' ').collect();
+        let args: Vec<&str> = next.split_whitespace().collect();
         let new_cmd = Command::new(args[0])
             .args(&args[1..])
             .stdin(self.cur.stdout.unwrap()) // It's spawned, so it's ok to unwrap
