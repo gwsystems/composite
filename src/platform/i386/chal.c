@@ -11,13 +11,7 @@ u32_t        chal_msr_mhz = 0;
 
 paddr_t chal_kernel_mem_pa;
 
-pgtbl_t tlb_asid_active[NUM_CPU][NUM_ASID_MAX];
-
-inline pgtbl_t
-chal_curr_cached_pt(asid_t asid)
-{
-	return tlb_asid_active[get_cpuid()][asid];
-}
+struct cpu_tlb_asid_map tlb_asid_map[NUM_CPU];
 
 void *
 chal_alloc_kern_mem(int order)

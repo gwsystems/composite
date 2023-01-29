@@ -51,6 +51,7 @@
 #include <ps.h>
 #include <initargs.h>
 #include <mpk_jit.h>
+#include <protdom.h>
 
 #include <crt.h>
 
@@ -329,39 +330,6 @@ crt_ulk_map_in(struct crt_comp *comp)
 	return cos_ulk_map_in(ci->pgtbl_cap);
 }
 
-/* Since the NS implementation is architecture-aware, it can provide this abstraction */
-static inline unsigned long
-crt_ns_vas_pgtbl_flags_readable(prot_domain_t protdom)
-{
-	/* This implementation assumes x86-64 and MPK support */
-	return COS_PAGE_READABLE | (protdom << 59);
-}
-
-static inline unsigned long
-crt_ns_vas_pgtbl_flags_writable(prot_domain_t protdom)
-{
-	/* This implementation assumes x86-64 and MPK support */
-	return COS_PAGE_READABLE | COS_PAGE_WRITABLE | (protdom << 59);
-}
-
-/*
- * helper function:
- * returns the first available MPK name within vas, or 0 if none available
- */
-static prot_domain_t
-crt_mpk_available_name(struct crt_ns_vas *vas)
-{
-	int i;
-
-	for (i = 2 ; i < CRT_MPK_NUM_NAMES ; i++) {
-		if ((vas->mpk_names[i].state & (CRT_NS_STATE_RESERVED | CRT_NS_STATE_ALLOCATED)) == CRT_NS_STATE_RESERVED) {
-			return i;
-		}
-	}
-
-	return 0;
-}
-
 /*
  * A `crt_comp_create` replacement if you want to create a component
  * in a vas directly.
@@ -375,17 +343,18 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	 * else --> not possible
 	 */
 	int           name_index =  (elf_hdr ? elf_entry_addr(elf_hdr) : 0) / CRT_VAS_NAME_SZ;
-	prot_domain_t mpk_key = 0;
+	prot_domain_t protdom;
 	int           cons_ret;
 
 	assert(name_index < CRT_VAS_NUM_NAMES);
 
 	if (!vas->names[name_index].state) return -1;
-	if (!(mpk_key = crt_mpk_available_name(vas))) return -1;
 
-	crt_comp_create(c, name, id, elf_hdr, info, mpk_key);
+	protdom = protdom_alloc(vas);
 
-	if (cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get()), (prot_domain_t)mpk_key) != 0) {
+	crt_comp_create(c, name, id, elf_hdr, info, protdom);
+
+	if (cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get()), protdom) != 0) {
 		printc("allocate comp cap/cap table cap failed\n");
 		assert(0);
 	}
@@ -397,7 +366,6 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	}
 
 	vas->names[name_index].state |= CRT_NS_STATE_ALLOCATED;
-	vas->mpk_names[mpk_key].state |= CRT_NS_STATE_ALLOCATED;
 	vas->names[name_index].comp = c;
 
 	c->ns_vas = vas;
@@ -567,7 +535,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 		assert(inv.server->id != chkpt->c->id);
 	}
 
-	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, 0);
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, prot_domain_zero());
 	assert(!ret);
 
 	mem = cos_page_bump_allocn(root_ci, chkpt->tot_sz_mem);
@@ -658,8 +626,8 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	c->n_sinvs = 0;
 	memset(c->sinvs, 0, sizeof(c->sinvs));
 
-	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(ro_sz), crt_ns_vas_pgtbl_flags_readable(protdom))) return -ENOMEM;
-	if (c->rw_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem + round_up_to_page(ro_sz), round_up_to_page(data_sz + bss_sz), crt_ns_vas_pgtbl_flags_writable(protdom))) return -ENOMEM;
+	if (c->ro_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem, round_up_to_page(ro_sz), protdom_pgtbl_flags_readable(protdom))) return -ENOMEM;
+	if (c->rw_addr != cos_mem_aliasn(ci, root_ci, (vaddr_t)mem + round_up_to_page(ro_sz), round_up_to_page(data_sz + bss_sz), protdom_pgtbl_flags_writable(protdom))) return -ENOMEM;
 
 	/* FIXME: cos_time.h assumes we have access to this... */
 	ret = cos_cap_cpy_at(ci, BOOT_CAPTBL_SELF_INITHW_BASE, root_ci, BOOT_CAPTBL_SELF_INITHW_BASE);

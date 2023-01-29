@@ -28,12 +28,14 @@
 #define EXTRACT_SUB_PAGE(super) ((super) & SUPER_PAGE_PTE_MASK)
 
 #if defined(__x86_64__)
-#define NUM_ASID_BITS 12
-#define NUM_ASID_MAX (1<<NUM_ASID_BITS)-1
+#define NUM_ASID_BITS (12)
+#define NUM_ASID_MAX ((1<<NUM_ASID_BITS)-1)
+#define PGTBL_ASID_MASK (0xfff)
 #define CR3_NO_FLUSH (1ul << 63)
 #elif defined(__i386__)
 #define NUM_ASID_MAX (0)
 #define CR3_NO_FLUSH (0) /* this just wont do anything */
+#define PGTBL_ASID_MASK (0)
 #endif
 
 /* Page table related prototypes & structs */
@@ -43,7 +45,6 @@ typedef struct pgtbl *pgtbl_t;
 struct pgtbl_info {
 	pgtbl_t       pgtbl;
 	prot_domain_t protdom;
-	asid_t        asid;
 } __attribute__((packed));
 
 /* identical to the capability structure */
@@ -88,7 +89,7 @@ rdpkru(void)
 }
 
 static inline u32_t
-pkru_state(prot_domain_t mpk_key)
+pkru_state(u16_t mpk_key)
 {
 	return ~(0b11 << (2 * mpk_key)) & ~0b11;
 }
@@ -96,31 +97,58 @@ pkru_state(prot_domain_t mpk_key)
 static inline void
 chal_protdom_write(prot_domain_t protdom)
 {
-	wrpkru(pkru_state(protdom));
+	/* we only update asid on pagetable switch */
+	wrpkru(pkru_state(protdom.mpk_key));
 }
 
 static inline prot_domain_t
 chal_protdom_read(void)
 {
+	prot_domain_t protdom;
+	unsigned long cr3;
+
 	u32_t pkru = rdpkru();
 	assert(pkru);
 	/* inverse of `pkru_state` */
-	return (32 - __builtin_clz(~pkru)) / 2 - 1;
+	protdom.mpk_key = (32 - __builtin_clz(~pkru)) / 2 - 1;
+
+	asm volatile("mov %%cr3, %0" : "=r"(cr3) : :);
+	protdom.asid = (u16_t)(cr3 & PGTBL_ASID_MASK);
+
+	return protdom;
 }
 
+struct cpu_tlb_asid_map {
+	pgtbl_t mapped_pt[NUM_ASID_MAX];
+} CACHE_ALIGNED;
 
-/* which pgtbl is cached in the tlb for and asid */
-inline pgtbl_t chal_curr_cached_pt(asid_t asid);
+extern struct cpu_tlb_asid_map tlb_asid_map[NUM_CPU];
+
+static inline pgtbl_t
+chal_cached_pt_curr(asid_t asid)
+{
+	return tlb_asid_map[get_cpuid()].mapped_pt[asid];
+}
+
+static inline void
+chal_cached_pt_update(pgtbl_t pt, asid_t asid)
+{
+	tlb_asid_map[get_cpuid()].mapped_pt[asid] = pt;
+}
 
 /* Update the page table */
 static inline void
 chal_pgtbl_update(struct pgtbl_info *pt)
 {
 	/* lowest 12 bits is the context identifier */
-	unsigned long cr3 = pt->pgtbl | pt->asid;
+	unsigned long cr3 = (unsigned long)pt->pgtbl | pt->protdom.asid;
 	
-	/* fastpath: don't need to invalidate tlb entries */
-	if (likely(chal_curr_cached_pt(pt->asid) == pt->pgtbl)) cr3 |= CR3_NO_FLUSH;
+	/* fastpath: don't need to invalidate tlb entries; otherwise flush tlb on switch */
+	if (likely(chal_cached_pt_curr(pt->protdom.asid) == pt->pgtbl)) {
+		cr3 |= CR3_NO_FLUSH;
+	} else {
+		chal_cached_pt_update(pt->pgtbl, pt->protdom.asid);
+	}
 
 	asm volatile("mov %0, %%cr3" : : "r"(cr3));
 }

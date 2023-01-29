@@ -394,11 +394,71 @@ typedef int                thdclosure_index_t;
  * This type provides an abstraction for hardware-specific 
  * protection domain identifiers (ASID, MPK) that are 
  * interpreted at the hardware-abstraction-layer level. 
- * It is intended for interfaces for hardware-aware user-level 
- * code such as namespace managers. There might be a better 
- * way to do this but it cleans up the kernel interface. 
+ * Only hardware-specific code should touch the type values
  */
-typedef unsigned long prot_domain_t;
+#if defined(__x86_64__)
+	typedef struct {
+		u16_t mpk_key;
+		u16_t asid;
+	} __attribute__((__packed__)) prot_domain_t;
+
+	_Static_assert(sizeof(prot_domain_t) == 4, "prot_domain_t must be 32 bits");
+
+	static inline prot_domain_t
+	prot_domain_zero(void)
+	{
+		prot_domain_t protdom;
+		protdom.mpk_key = 0;
+		protdom.asid    = 0;
+
+		return protdom;
+	}
+
+	static inline prot_domain_t
+	prot_domain_from(u32_t u32)
+	{
+		prot_domain_t protdom;
+		protdom.mpk_key = u32 & 0xFFFF;
+		protdom.asid    = u32 >> 16;
+
+		return protdom;
+	}
+
+	static inline u32_t
+	prot_domain_to(prot_domain_t pd)
+	{
+		u32_t u32 = pd.mpk_key | (pd.asid << 16);
+		return u32;
+	}
+
+#elif defined(__arm__)
+	typedef struct {
+		u32_t asid;
+	} prot_domain_t;
+
+	static inline prot_domain_t
+	prot_domain_zero()
+	{
+		prot_domain_t protdom;
+		protdom.asid    = 0;
+
+		return protdom;
+	}
+
+	static inline prot_domain_t
+	prot_domain_from(u32_t u32)
+	{
+		prot_domain_t protdom;
+		protdom.asid    = u32;
+
+		return protdom;
+	}
+#else
+	typedef u32_t prot_domain_t;
+	static inline prot_domain_t prot_domain_zero() {return 0;}
+#endif
+
+
 
 struct restartable_atomic_sequence {
 	vaddr_t start, end;

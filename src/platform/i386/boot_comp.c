@@ -253,7 +253,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 		assert(glb_boot_ct);
 		chal_cpu_pgtbl_activate(pgtbl);
 		kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
-		chal_protdom_write(0);
+		chal_protdom_write(prot_domain_zero());
 		return;
 	}
 
@@ -332,12 +332,12 @@ kern_boot_comp(const cpuid_t cpu_id)
 	glb_memlayout.allocs_avail = 0;
 
 	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
-	                  mem_bootc_entry(), 0))
+	                  mem_bootc_entry(), prot_domain_zero()))
 		assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
 	kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
-	chal_protdom_write(0);
+	chal_protdom_write(prot_domain_zero());
 
 	printk("\tBoot component initialization complete.\n");
 }

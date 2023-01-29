@@ -954,7 +954,7 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 int
 cos_comp_alloc_with(struct cos_compinfo *ci, compcap_t comp, u32_t lid, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, prot_domain_t protdom)
 {
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, comp, (ctc << 16) | ptc, ((u64_t)protdom << 16) | lid, entry)) return 1;
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, comp, (ctc << 16) | ptc, ((unsigned long)lid << 32) | prot_domain_to(protdom), entry)) return 1;
 
 	return 0;
 }

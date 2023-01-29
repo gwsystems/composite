@@ -295,7 +295,7 @@ comps_init(void)
 			assert(ret == 0);
 		} else {
 			assert(elf_hdr);
-			if (crt_comp_create(comp, name, id, elf_hdr, info, 0)) {
+			if (crt_comp_create(comp, name, id, elf_hdr, info, prot_domain_zero())) {
 				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
 				BUG();
 			}	
