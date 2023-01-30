@@ -17,6 +17,7 @@
 #include <addr.h>
 #include <dcb.h>
 #include <contigmem.h>
+#include <capmgr.h>
 
 struct cm_rcv {
 	struct crt_rcv rcv;
@@ -139,7 +140,7 @@ cm_rcv_alloc_in(struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t cl
 	vaddr_t        dcbaddr;
 
 	if (!r) return NULL;
-	if (crt_rcv_create_in(&r->rcv, c, sched, closure_id, flags, &dcbaddr)) {
+	if (crt_rcv_create_in(&r->rcv, c, sched, closure_id, flags, c->scb, &dcbaddr)) {
 		ss_rcv_free(r);
 		return NULL;
 	}
@@ -167,7 +168,7 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, struct cm_dcb *dcb, th
 	arcvcap_t rcvcap;
 
 	if (!t || !r || !s) return NULL;
-	if (crt_thd_create_in(&t->thd, &c->comp, dcb->dcb_cap, dcb->dcb_off, closure_id)) {
+	if (crt_thd_create_in(&t->thd, &c->comp, &sched->comp, dcb->dcb_cap, dcb->dcb_off, closure_id)) {
 		ss_thd_free(t);
 		printc("capmgr: couldn't create new thread correctly.\n");
 		return NULL;
@@ -563,11 +564,12 @@ capmgr_comp_sched_get(compid_t cid)
 	return atoi(sched);
 }
 
-extern scbcap_t scb_mapping(compid_t id, vaddr_t scb_uaddr);
+/*extern scbcap_t scb_mapping(compid_t id, vaddr_t scb_uaddr);
 
 int
 capmgr_scb_mapping(compid_t id)
 {
+	assert(0);
 	struct cos_compinfo *ci;
 	struct cm_comp *s;
 	struct cos_defcompinfo *def = cos_defcompinfo_curr_get();
@@ -580,8 +582,33 @@ capmgr_scb_mapping(compid_t id)
 	ci = cos_compinfo_get(s->comp.comp_res);
 	assert(ci);
 	scb_uaddr = (vaddr_t)(s->dcb_init_ptr - COS_SCB_SIZE);
-
+	
 	return scb_mapping(id, scb_uaddr);
+}*/
+
+#define SCHED_COMP 3
+
+unsigned long
+capmgr_ctrlblk_get(ctrlblk_t type)
+{
+	compid_t client = (compid_t)cos_inv_token();
+	struct cm_comp *c;
+	struct cos_compinfo *ci;
+
+	c = ss_comp_get(client);
+	assert(c);
+	assert(c->comp.id == SCHED_COMP);
+	ci = cos_compinfo_get(c->comp.comp_res);
+	assert(ci);
+
+	switch (type) {
+	case CB_ADDR_SCB:
+		return ci->scb_uaddr;
+	case CB_ADDR_DCB:
+		return 0;
+	default:
+		return 0;
+	}
 }
 
 static void
@@ -711,6 +738,7 @@ capmgr_comp_init(void)
 		}
 		comp_res.heap_ptr        = addr_get(id, ADDR_HEAP_FRONTIER) + COS_SCB_SIZE + (PAGE_SIZE * NUM_CPU);
 		comp_res.captbl_frontier = addr_get(id, ADDR_CAPTBL_FRONTIER);
+		comp_res.scb_uaddr       = addr_get(id, ADDR_SCB);
 
 		snprintf(id_serialized, 20, "names/%ld", id);
 		name = args_get(id_serialized);
@@ -897,8 +925,8 @@ capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_inf
 	return t->aliased_cap;
 }
 
-thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, struct cos_dcb_info **dcb) { BUG(); return 0; }
-thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, struct cos_dcb_info **dcb, arcvcap_t *extrcv) { BUG(); return 0; }
+thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }
+thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv) { BUG(); return 0; }
 
 asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t) { BUG(); return 0; }
 arcvcap_t capmgr_rcv_create(spdid_t child, thdcap_t thdcap) { BUG(); return 0; }
@@ -945,6 +973,8 @@ cos_init(void)
 	/* Get our house in order. Initialize ourself and our data-structures */
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
+	ci->scb_uaddr = addr_get(cos_compid(), ADDR_SCB);
+	//printc(">>>>>>>>>%d, ci_uaddr: %x\n", cos_compid(), ci->scb_uaddr);
 
 	/*
 	 * FIXME: this is a hack. The captbl_end variable does *not*
@@ -956,8 +986,8 @@ cos_init(void)
 	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER), 0);
 	if (!cm_comp_self_alloc("capmgr")) BUG();
 
-	vaddr_t	scb_uaddr = (vaddr_t)cos_scb_info_get();
-	scb_mapping(0, scb_uaddr);
+	//vaddr_t	scb_uaddr = (vaddr_t)cos_scb_info_get();
+	//scb_mapping(0, scb_uaddr);
 
 	/* Initialize the other component's for which we're responsible */
 	capmgr_comp_init();

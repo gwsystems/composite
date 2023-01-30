@@ -5,14 +5,14 @@ description = "Test chain of synchronous invocations using both kernel and user-
 name = "booter"
 img  = "no_interface.llbooter"
 baseaddr = "0x1600000"
-implements = [{interface = "init"}, {interface = "addr"}]
+implements = [{interface = "init"}, {interface = "addr"}, {interface = "scb_mapping"}]
 deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
 constructor = "kernel"
 
 [[components]]
 name = "capmgr"
 img  = "capmgr.simple"
-deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}, {srv = "booter", interface = "scb_mapping"}]
 implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
 constructor = "booter"
 

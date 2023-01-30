@@ -19,7 +19,7 @@ cos_asm_stub_indirect(capmgr_aep_create_ext)
 cos_asm_stub_indirect(capmgr_rcv_create)
 
 cos_asm_stub(capmgr_set_tls)
-cos_asm_stub(capmgr_scb_mapping)
+cos_asm_stub(capmgr_ctrlblk_get)
 cos_asm_stub(capmgr_sched_initdcb_get)
 cos_asm_stub(capmgr_asnd_create)
 cos_asm_stub(capmgr_asnd_rcv_create)

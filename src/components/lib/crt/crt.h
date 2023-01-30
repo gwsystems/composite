@@ -94,6 +94,7 @@ struct crt_comp {
 	struct crt_ns_vas *ns_vas;
 	struct cos_dcbinfo_data dcb_data[NUM_CPU];
 	vaddr_t init_dcb_addr[NUM_CPU];
+	scbcap_t scb;
 };
 
 struct crt_comp_resources {
@@ -103,6 +104,7 @@ struct crt_comp_resources {
 	cap_t       captbl_frontier;
 	vaddr_t     heap_ptr;
 	vaddr_t     info;
+	vaddr_t     scb_uaddr;
 };
 
 struct crt_chkpt {
@@ -195,13 +197,13 @@ int crt_asnd_create(struct crt_asnd *s, struct crt_rcv *r);
 int crt_asnd_alias_in(struct crt_asnd *s, struct crt_comp *c, struct crt_asnd_resources *res);
 
 typedef cos_thd_fn_t crt_thd_fn_t;
-int crt_rcv_create(struct crt_rcv *r, struct crt_comp *self, crt_thd_fn_t fn, void *data);
-int crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t closure_id, crt_rcv_flags_t flags, vaddr_t *dcbaddr);
+int crt_rcv_create(struct crt_rcv *r, struct crt_comp *self, crt_thd_fn_t fn, scbcap_t scb, void *data);
+int crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t closure_id, crt_rcv_flags_t flags, scbcap_t scb, vaddr_t *dcbaddr);
 int crt_rcv_create_with(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resources *rs);
 int crt_rcv_alias_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resources *res, crt_rcv_alias_t flags);
 
-int crt_thd_create(struct crt_thd *t, struct crt_comp *self, crt_thd_fn_t fn, void *data);
-int crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, dcbcap_t dcbcap, dcboff_t dcboff, thdclosure_index_t closure_id);
+int crt_thd_create(struct crt_thd *t, struct crt_comp *self, struct crt_comp *sched, crt_thd_fn_t fn, void *data);
+int crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, struct crt_comp *sched, dcbcap_t dcbcap, dcboff_t dcboff, thdclosure_index_t closure_id);
 int crt_thd_create_with(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resources *rs);
 int crt_thd_alias_in(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resources *res);
 

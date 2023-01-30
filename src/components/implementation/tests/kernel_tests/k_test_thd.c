@@ -25,7 +25,7 @@ test_thds_create_switch(void)
         intptr_t i = THD_ARG;
         int      ret;
 
-        ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_thd_arg, (void *)i, 0, 0);
+        ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_thd_arg, (void *)i, 0, 0, 0);
         if (EXPECT_LL_LT(1, ts, "Thread Creation: Cannot Allocate")) {
                 return;
         }
@@ -72,7 +72,7 @@ test_mthds_ring(void)
         count	= 0;
 
         for (i = 0; i < TEST_NTHDS; i++) {
-                thd_test[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_mthds_ring, (void *)i, 0, 0);
+                thd_test[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_mthds_ring, (void *)i, 0, 0, 0);
                 if (EXPECT_LL_LT(1, thd_test[i], "Thread Ring: Cannot Allocate")) {
                         return;
                 }
@@ -113,7 +113,7 @@ test_mthds_classic(void)
         thdcap_t  ts;
         int       i, ret;
 
-        ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_mthds_classic, NULL, 0, 0);
+        ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_mthds_classic, NULL, 0, 0, 0);
         if (EXPECT_LL_LT(1, ts, "Thread Classic: Cannot Allocate")) {
                 return;
         }
@@ -151,7 +151,7 @@ test_thds_tls(void)
         int      ret;
 
         for (i = 0; i < TEST_NTHDS; i++) {
-                ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_tls, (void *)i, 0, 0);
+                ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_tls, (void *)i, 0, 0, 0);
                 if (EXPECT_LL_LT(1, ts[i], "Thread TLS: Cannot Allocate")) {
                         return;
                 }
@@ -207,9 +207,9 @@ test_thds_fpu(void)
         intptr_t i = 0;
         int      ret;
         
-        thds[0] = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_thds_reg, (void *)i, 0, 0);
+        thds[0] = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_thds_reg, (void *)i, 0, 0, 0);
         for (i = 1; i <= 3; i++) {
-                thds[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thds_fpu, (void *)i, 0, 0);
+                thds[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thds_fpu, (void *)i, 0, 0, 0);
                 if (EXPECT_LL_LT(1, thds[i], "Thread FPU: Cannot Allocate")) {
                         return;
                 }

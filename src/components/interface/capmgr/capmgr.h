@@ -22,6 +22,11 @@
 #include <cos_defkernel_api.h>
 #include <cos_stubs.h>
 
+typedef enum {
+	CB_ADDR_SCB,
+	CB_ADDR_DCB,
+} ctrlblk_t;
+
 void capmgr_set_tls(thdcap_t cap, void* tls_addr);
 
 thdcap_t  capmgr_initthd_create(spdid_t child, thdid_t *tid);
@@ -54,8 +59,8 @@ asndcap_t COS_STUB_DECL(capmgr_asnd_create)(spdid_t child, thdid_t t);
 asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv);
 asndcap_t COS_STUB_DECL(capmgr_asnd_rcv_create)(arcvcap_t rcv);
 
-int capmgr_scb_mapping(compid_t id);
-int COS_STUB_DECL(capmgr_scb_mapping)(compid_t id);
+unsigned long capmgr_ctrlblk_get(ctrlblk_t type);
+unsigned long COS_STUB_DECL(capmgr_ctrlblk_get)(ctrlblk_t type);
 
 asndcap_t capmgr_asnd_key_create(cos_channelkey_t key);
 asndcap_t COS_STUB_DECL(capmgr_asnd_key_create)(cos_channelkey_t key);

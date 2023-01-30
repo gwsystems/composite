@@ -53,7 +53,7 @@ main(void)
         int i;
 
         PRINTC("Kernel Tests\n");
-        termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL, 0, 0);
+        termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL, 0, 0, 0);
         assert(termthd[cos_cpuid()]);
 
         cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);

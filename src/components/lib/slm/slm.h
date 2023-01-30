@@ -214,12 +214,14 @@ slm_cs_enter(struct slm_thd *current, slm_cs_flags_t flags)
 	sched_tok_t     tok;
 	struct slm_thd  *owner;
 	int             contended;
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
 	assert(current);
 	cs = &(slm_global()->lock);
 
 	while (1) {
-		tok    = cos_sched_sync();
+		tok    = cos_sched_sync(ci);
 		cached = __slm_cs_data(cs, &owner, &contended);
 
 		if (unlikely(owner)) {
@@ -254,7 +256,9 @@ static inline void
 slm_cs_exit(struct slm_thd *switchto, slm_cs_flags_t flags)
 {
 	int ret = 1;
-	struct slm_cs *cs = &(slm_global()->lock);
+	struct slm_cs          *cs    = &(slm_global()->lock);
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo   *ci    = cos_compinfo_get(defci);
 
 	while (ret != 0) {
 		int             contention;
@@ -262,7 +266,7 @@ slm_cs_exit(struct slm_thd *switchto, slm_cs_flags_t flags)
 		slm_cs_cached_t cached;
 		struct slm_thd *current;
 
-		tok    = cos_sched_sync();
+		tok    = cos_sched_sync(ci);
 		cached = __slm_cs_data(cs, &current, &contention);
 		/* Another thread attempted to enter the critical section */
 		if (unlikely(contention)) {

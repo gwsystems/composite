@@ -39,7 +39,7 @@ test_thds_create_switch(void)
 
         perfdata_init(&pd[cos_cpuid()], "COS THD => COS_THD_SWITCH", test_results, ARRAY_SIZE);
 
-        ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, bounceback, NULL, 0, 0);
+        ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, bounceback, NULL, 0, 0, 0);
         if (EXPECT_LL_LT(1, ts, "Thread Creation: Cannot Allocate")) {
                 return;
         }
@@ -152,7 +152,7 @@ test_async_endpoints_perf(void)
 
         /* parent rcv capabilities */
         tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf,
-                                                (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, 0, 0);
+                                                (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, 0, 0, 0);
         if(EXPECT_LL_LT(1, tcp, "Test Async Endpoints")) return;
         tccp = cos_tcap_alloc(&booter_info);
         if(EXPECT_LL_LT(1, tccp, "Test Async Endpoints")) return;
@@ -164,7 +164,7 @@ test_async_endpoints_perf(void)
         }
 
         /* child rcv capabilities */
-        tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void *)tcp, 0, 0);
+        tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void *)tcp, 0, 0, 0);
         if(EXPECT_LL_LT(1, tcc, "Test Async Endpoints")) return;
         tccc = cos_tcap_alloc(&booter_info);
         if(EXPECT_LL_LT(1, tccc, "Test Async Endpoints")) return;

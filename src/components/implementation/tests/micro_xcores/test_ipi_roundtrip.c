@@ -167,7 +167,7 @@ test_ipi_roundtrip(void)
                         return;
 
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL, 0, 0);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_rcv_fn, NULL, 0, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI ROUNDTRIP: Thread Allocation"))
                         return;
 
@@ -196,7 +196,7 @@ test_ipi_roundtrip(void)
 
                 /* Test Sender Time */
 
-                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL, 0, 0);
+                t = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_asnd_fn, NULL, 0, 0, 0);
                 if (EXPECT_LL_LT(1, t, "IPI ROUNDTRIP: Thread Allocation"))
                         return;
 

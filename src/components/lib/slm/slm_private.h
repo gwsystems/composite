@@ -140,14 +140,17 @@ struct slm_thd *slm_thd_special(void);
 static inline int
 cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_dcb_info *nd, tcap_prio_t prio, tcap_time_t timeout, sched_tok_t tok)
 {
-	volatile struct cos_scb_info *scb = cos_scb_info_get_core();
-	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
-	struct cos_compinfo *ci = cos_compinfo_get(defci);
-	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
+	struct cos_defcompinfo       *defci     = cos_defcompinfo_curr_get();
+	struct cos_compinfo          *ci        = cos_compinfo_get(defci);
+	struct cos_aep_info          *sched_aep = cos_sched_aep_get(defci);
+	volatile struct cos_scb_info *scb       = (struct cos_scb_info*)ci->scb_uaddr + cos_cpuid();
 	sched_tok_t rcv_tok;
 	unsigned long pre_tok = 0;
+	//printc("\n\tscb: %x\n", scb);
+	//printc("\ttok: %x\n\n", scb->sched_tok);
 
 	assert(curr != next);
+	assert(scb);
 	/* 
 	 * If previous timer smaller than current timeout, we need to take 
 	 * the kernel path to update the timer.
@@ -245,7 +248,7 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		"jmp *(%%rsi)\n\t"              \
 		".align 4\n\t"                  \
 		"1:\n\t"                        \
-		"movq $3f, %%r8\n\t"            \
+		"movabs $3f, %%r8\n\t"            \
 		"mov %%rdx, %%rax\n\t"          \
 		"inc %%rax\n\t"                 \
 		"shl $16, %%rax\n\t"            \
@@ -301,11 +304,12 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		  "c" (&(scb->curr_thd)), "d" (next)
 		: "memory", "cc");
 #endif
-	scb = cos_scb_info_get_core();
+	scb = (struct cos_scb_info*)ci->scb_uaddr + cos_cpuid();
 	assert(scb);
 
 	if (pre_tok != scb->sched_tok) {
-		return -EAGAIN;
+		//printc("pre_tok: %d, schedtok: %d\n", pre_tok, scb->sched_tok);
+		//return -EAGAIN;
 	}
 	return 0;
 }
@@ -344,7 +348,9 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 		scb->timer_pre = timeout;
 		ret = cos_defswitch(t->thd, prio, timeout, tok);
 	} else {
+		//printc("ulswitch: %d\n", t->tid);
 		ret = cos_ulswitch(curr->thd, t->thd, cd, nd, prio, timeout, tok);
+		//printc("return from ulswitch\n");
 	}
 
 	if (unlikely(ret == -EPERM && !slm_thd_normal(t))) {
@@ -396,7 +402,7 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 	s64_t    diff;
 
 try_again:
-	tok  = cos_sched_sync();
+	tok  = cos_sched_sync(ci);
 	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
 		cycles_t now = slm_now();
 
@@ -411,6 +417,7 @@ try_again:
 	/* Make a policy decision! */
 	t = slm_sched_schedule();
 	if (unlikely(!t)) t = &g->idle_thd;
+	//printc("======>tid: %d\n", t->tid);
 
 	assert(slm_state_is_runnable(t->state));
 	slm_cs_exit(NULL, flags);
@@ -418,8 +425,9 @@ try_again:
 	ret = slm_thd_activate(curr, t, tok, 0);
 	/* Assuming only the single tcap with infinite budget...should not get EPERM */
 	assert(ret != -EPERM);
-	
+	//printc("======>ret: %d\n", ret);
 	if (unlikely(ret != 0)) {
+		printc("AGAIN\n");
 		/* Assuming only the single tcap with infinite budget...should not get EPERM */
 		assert(ret != -EPERM);
 

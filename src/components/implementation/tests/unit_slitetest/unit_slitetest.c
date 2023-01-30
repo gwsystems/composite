@@ -191,9 +191,3 @@ parallel_main(coreid_t cid, int init_core, int ncores)
 	assert(0);
 	return;
 }
-
-void
-cos_init(void)
-{
-	if (sched_scb_mapping()) BUG();
-}

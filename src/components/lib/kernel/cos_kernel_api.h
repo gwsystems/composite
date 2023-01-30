@@ -72,7 +72,7 @@ struct cos_meminfo {
 /* Component captbl/pgtbl allocation information */
 struct cos_compinfo {
 	/* capabilities to higher-order capability tables (or -1) */
-	capid_t pgtbl_cap, captbl_cap, comp_cap, scb_cap;
+	capid_t pgtbl_cap, captbl_cap, comp_cap;
 	/* the frontier of unallocated caps, and the allocated captbl range */
 	capid_t cap_frontier, caprange_frontier;
 	/* the frontier for each of the various sizes of capability per core! */
@@ -89,7 +89,8 @@ struct cos_compinfo {
 	/* shared comp cap */
 	capid_t comp_cap_shared;
 	capid_t pgtbl_cap_shared;
-	//vaddr_t scb_base;
+
+	vaddr_t scb_uaddr;
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
@@ -120,11 +121,11 @@ int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t en
  * This uses the next three functions to allocate a new component and
  * correctly populate ci (allocating all resources from ci_resources).
  */
-int         cos_compinfo_alloc(struct cos_compinfo *ci, scbcap_t sc, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
+int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
                                struct cos_compinfo *ci_resources, prot_domain_t protdom);
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
-compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, scbcap_t scbc, vaddr_t entry, prot_domain_t protdom);
+compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, prot_domain_t protdom);
 scbcap_t    cos_scb_alloc(struct cos_compinfo *ci);
 int         cos_scb_mapping(struct cos_compinfo *ci, compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr);
 dcbcap_t    cos_dcb_alloc(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t dcb_uaddr);
@@ -137,12 +138,10 @@ int        cos_ulk_map_in(pgtblcap_t ptc);
 void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, int try_expand);
 
 typedef void (*cos_thd_fn_t)(void *);
-thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data, dcbcap_t dc,
-		       dcboff_t dcboff);
-thdcap_t cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx, dcbcap_t dc,
-			   dcboff_t dcboff);
+thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data, scbcap_t sched_scbc, dcbcap_t dc, dcboff_t dcboff);
+thdcap_t cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx, scbcap_t sched_scbc, dcbcap_t dc, dcboff_t dcboff);
 /* Create the initial (cos_init) thread */
-thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp, dcbcap_t dc, dcboff_t off);
+thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp, scbcap_t sched_scbc, dcbcap_t dc, dcboff_t off);
 int cos_thd_migrate(struct cos_compinfo *ci, thdcap_t thdc, cpuid_t core);
 /* update the thdcap to migrated core */
 int cos_thdcap_migrate(struct cos_compinfo *ci, thdcap_t thdc);
@@ -164,7 +163,7 @@ int     cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_co
 int cos_thd_switch(thdcap_t c);
 int cos_thd_wakeup(thdcap_t thd, tcap_t tc, tcap_prio_t prio, tcap_res_t res);
 #define CAP_NULL 0
-sched_tok_t cos_sched_sync(void);
+sched_tok_t cos_sched_sync(struct cos_compinfo *ci);
 /*
  * returns 0 on success and errno on failure:
  * -EBUSY: if rcv has pending notifications and if current thread is the thread associated with rcv.

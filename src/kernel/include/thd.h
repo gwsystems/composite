@@ -87,7 +87,7 @@ struct thread {
 	struct ulk_invstk  *ulk_invstk;
 
 	thd_state_t    state;
-	word_t          tls;
+	word_t         tls;
 	cpuid_t        cpuid;
 	unsigned int   refcnt;
 	tcap_res_t     exec; /* execution time */
@@ -95,6 +95,8 @@ struct thread {
 	struct thread *interrupted_thread;
 	struct thread *scheduler_thread;
 	struct cos_dcb_info *dcbinfo;
+	struct cos_scb_info *scb_cached;
+	capid_t        scheduler;
 
 	/* rcv end-point data-structures */
 	struct rcvcap_info rcvcap;
@@ -325,7 +327,26 @@ thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long 
 static inline struct thread *
 thd_current(struct cos_cpu_local_info *cos_info)
 {
-	return (struct thread *)(cos_info->curr_thd);
+	struct thread       *thread = (struct thread *)cos_info->curr_thd;
+	struct thread       *sched_thd;
+	struct thread       *curr_thd;
+	struct comp_info    *sched_comp;
+	struct cos_scb_info *scb_core;
+	capid_t              curr;
+
+	//printk("cos_info: %x\n", cos_info);
+	//printk("thread: %x\n", thread);
+	//printk("cached_scb: %x\n", thread->cached_scb);
+	if (!thread || !thread->scb_cached) return thread;
+
+	sched_thd  = thread->scheduler_thread;
+	/* We assume sched_thread is always created in the scheduler component. */
+	sched_comp = &(sched_thd->invstk[0].comp_info);
+	scb_core   = thread->scb_cached + get_cpuid();
+	curr       = scb_core->curr_thd;
+	curr_thd   = curr ? (struct thread *)captbl_lkup(sched_comp->captbl, curr) : thread;
+
+	return curr_thd;
 }
 
 static inline void
@@ -350,21 +371,29 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 }
 
 static int
-thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data, capid_t dcbcap, unsigned short dcboff, thdid_t tid, struct ulk_invstk *ulinvstk)
+thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data,
+             capid_t scbcap, capid_t dcbcap, unsigned short dcboff, thdid_t tid, struct ulk_invstk *ulinvstk)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
 	struct cap_thd            *tc = NULL;
 	struct cap_comp           *compc = NULL;
 	struct cap_dcb            *dc = NULL;
+	struct cap_scb            *sc = NULL;
 	int                        ret;
 
 	memset(thd, 0, sizeof(struct thread));
 	compc = (struct cap_comp *)captbl_lkup(t, compcap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
 	if (likely(dcbcap)) {
-		dc    = (struct cap_dcb *)captbl_lkup(t, dcbcap);
+		dc = (struct cap_dcb *)captbl_lkup(t, dcbcap);
 		if (unlikely(!dc || dc->h.type != CAP_DCB)) return -EINVAL;
 		if (dcboff > PAGE_SIZE / sizeof(struct cos_dcb_info)) return -EINVAL;
+	}
+	if (likely(scbcap)) {
+		//printk("has scb : %d\n", scbcap);
+		sc = (struct cap_scb *)captbl_lkup(t, scbcap);
+		if (unlikely(!sc || sc->h.type != CAP_SCB)) return -EINVAL;
+		thd->scb_cached = (struct cos_scb_info *)(sc->kern_addr);
 	}
 
 	tc = (struct cap_thd *)__cap_capactivate_pre(t, cap, capin, CAP_THD, &ret);
@@ -378,6 +407,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->refcnt                           = 1;
 	thd->invstk_top                       = 0;
 	thd->cpuid                            = get_cpuid();
+	//printk("#########: %x, tid: %d\n", thd->scb_cached, thd->tid);
 	if (likely(dc)) {
 		ret = dcb_thd_ref(dc, thd);
 		if (ret) goto err; /* TODO: cleanup captbl slot */
@@ -386,6 +416,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	}
 	thd->ulk_invstk                       = ulinvstk;
 	assert(thd->tid <= MAX_NUM_THREADS);
+	//printk("set schedulercurr: %x\n", thd);
 	thd_scheduler_set(thd, thd_current(cli));
 
 	thd_rcvcap_init(thd);
@@ -393,11 +424,13 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	list_head_init(&thd->event_head);
 	list_init(&thd->event_list, thd);
 
+	//printk("initdata: %x\n", init_data);
 	thd_upcall_setup(thd, compc->entry_addr, COS_UPCALL_THD_CREATE, init_data, 0, 0);
 	tc->t     = thd;
 	tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD);
 
+	//printk("return\n");
 	return 0;
 
 err:
@@ -645,6 +678,7 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 	 * if there are new entries on the UL stack, 
 	 * we must be coming from a comp on the UL stack 
 	 */
+	// printk("invstl: %d\n", ulk_invstk->top);
 	if (ulk_invstk->top > curr->ulk_stkoff) {
 		ci = ulinvstk_current(ulk_invstk, &curr->comp_info, curr->ulk_stkoff);
 		curr->protdom = ci->protdom;

@@ -76,6 +76,8 @@ test_aeps(void)
 static void
 test_childcomps(void)
 {
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 	int id, ret;
 
 	printc("Test switching to new components\n");
@@ -90,7 +92,7 @@ test_childcomps(void)
 		printc("\tSwitching to [%d] component\n", id);
 		if (id == CHILD_SCHED_ID) {
 			ret = cos_switch(cos_sched_aep_get(&child_defci[id])->thd, cos_sched_aep_get(&child_defci[id])->tc, CHILD_SCHED_PRIO,
-			                 TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			                 TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync(ci));
 			assert(ret == 0);
 		} else {
 			cycles_t    now;
@@ -99,7 +101,7 @@ test_childcomps(void)
 			rdtscll(now);
 			timer = tcap_cyc2time(now + 100 * cycs_per_usec);
 
-			ret = cos_defswitch(cos_sched_aep_get(&child_defci[id])->thd, timer, CHILD_SCHED_PRIO, cos_sched_sync());
+			ret = cos_defswitch(cos_sched_aep_get(&child_defci[id])->thd, timer, CHILD_SCHED_PRIO, cos_sched_sync(ci));
 			assert(ret == 0);
 		}
 	}

@@ -69,7 +69,7 @@ scb_comp_update(struct captbl *ct, struct cap_scb *sc, struct cap_comp *compc)
 	/* FIXME: hard coded pgtbl order */
 
 	sc->compc = compc;
-	compc->info.scb_data = (struct cos_scb_info *)(sc->kern_addr);
+	//compc->info.scb_data = (struct cos_scb_info *)(sc->kern_addr);
 	
 	return 0;
 }

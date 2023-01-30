@@ -43,7 +43,6 @@ COS_SERVER_3RET_STUB(int, capmgr_retrieve_dcbinfo)
 
 	ret = capmgr_retrieve_dcbinfo(p0, &arcv, &asnd, &retdcb);
 #if defined(__x86_64__)
-	assert(!(arcv & ~((1 << 32) - 1)));
 	*r1 = (word_t)arcv << 32 | asnd;
 #else
 	assert(arcv < ((1 << 16) - 1));
