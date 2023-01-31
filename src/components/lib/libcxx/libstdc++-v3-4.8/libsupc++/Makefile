@@ -1,6 +1,6 @@
 BUILDDIR := ../../build/libsupc++
 INCLUDE := -I../../include
-MUSLFLAG := -isystem ../../../libc/musl-1.1.11/include
+MUSLFLAG := -isystem ../../../libc/musl-1.2.0/include
 include ../Makefile.inc
 
 EXCEPTION := eh_alloc.o eh_arm.o eh_aux_runtime.o eh_call.o eh_catch.o eh_exception.o eh_throw.o \
@@ -12,6 +12,8 @@ OBJ_CC += $(EXCEPTION)
 OBJ_CC_GCC48 := array_type_info.o atexit_arm.o bad_alloc.o bad_cast.o bad_typeid.o class_type_info.o \
 dyncast.o enum_type_info.o function_type_info.o fundamental_type_info.o pbase_type_info.o \
 pmem_type_info.o pointer_type_info.o si_class_type_info.o vmi_class_type_info.o guard_error.o hash_bytes.o
+
+CXXFLAGS += $(LIBCXX_ARCH)
 
 .PHONY: all clean
 

@@ -5,14 +5,14 @@
  * Author: Phani Gadepalli, phanikishoreg@gwu.edu
  */
 
-#include <memmgr.h>
 #include <capmgr.h>
 #include <cos_thd_init.h>
 #include <cos_defkernel_api.h>
 #include <cos_stubs.h>
 
-COS_CLIENT_STUB(arcvcap_t, capmgr_rcv_create)(struct usr_inv_cap *uc, spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
+COS_CLIENT_STUB(arcvcap_t, capmgr_rcv_create, spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
 {
+	COS_CLIENT_INVCAP;
 	word_t spd_tid    = (child << 16) | tid;
 	word_t key_ipimax = (key << 16) | ipimax;
 	word_t ipiwin32b  = (u32_t)ipiwin;
@@ -20,8 +20,9 @@ COS_CLIENT_STUB(arcvcap_t, capmgr_rcv_create)(struct usr_inv_cap *uc, spdid_t ch
 	return cos_sinv(uc->cap_no, spd_tid, key_ipimax, ipiwin32b, 0);
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_initthd_create)(struct usr_inv_cap *uc, spdid_t child, thdid_t *tid)
+COS_CLIENT_STUB(thdcap_t, capmgr_initthd_create, spdid_t child, thdid_t *tid)
 {
+	COS_CLIENT_INVCAP;
 	word_t unused, tid_ret;
 	thdcap_t ret;
 
@@ -31,8 +32,9 @@ COS_CLIENT_STUB(thdcap_t, capmgr_initthd_create)(struct usr_inv_cap *uc, spdid_t
 	return ret;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_thunk)(struct usr_inv_cap *uc, thdclosure_index_t id, thdid_t *tid)
+COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_thunk, thdclosure_index_t id, thdid_t *tid)
 {
+	COS_CLIENT_INVCAP;
 	word_t unused, tid_ret;
 	thdcap_t ret;
 
@@ -42,8 +44,9 @@ COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_thunk)(struct usr_inv_cap *uc, thdcl
 	return ret;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext)(struct usr_inv_cap *uc, spdid_t child, thdclosure_index_t idx, thdid_t *tid)
+COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext, spdid_t child, thdclosure_index_t idx, thdid_t *tid)
 {
+	COS_CLIENT_INVCAP;
 	word_t unused, tid_ret;
 	thdcap_t ret;
 
@@ -53,8 +56,9 @@ COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext)(struct usr_inv_cap *uc, spdid_t
 	return ret;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_thunk)(struct usr_inv_cap *uc, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
+COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_thunk, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
 {
+	COS_CLIENT_INVCAP;
 	word_t tcrcvret   = 0;
 	thdcap_t thd     = 0;
 	thdid_t tid      = 0;
@@ -75,8 +79,9 @@ COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_thunk)(struct usr_inv_cap *uc, struc
 	return thd;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_ext)(struct usr_inv_cap *uc, spdid_t child, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
+COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_ext, spdid_t child, struct cos_aep_info *aep, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv)
 {
+	COS_CLIENT_INVCAP;
 	word_t drcvtidret  = 0;
 	word_t tcrcvret    = 0;
 	thdcap_t thd       = 0;
@@ -98,8 +103,9 @@ COS_CLIENT_STUB(thdcap_t, capmgr_aep_create_ext)(struct usr_inv_cap *uc, spdid_t
 	return thd;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_initaep_create)(struct usr_inv_cap *uc, spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *snd)
+COS_CLIENT_STUB(thdcap_t, capmgr_initaep_create, spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *snd)
 {
+	COS_CLIENT_INVCAP;
 	u32_t child_owntc = (child << 16) | owntc;
 	u32_t key_ipimax  = (key << 16) >> ipimax;
 	u32_t ipiwin32b   = (u32_t)ipiwin;

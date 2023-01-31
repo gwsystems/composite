@@ -1,12 +1,14 @@
 include Makefile.src
+include Makefile.arch
 
 CC := gcc -m32 -march=i686
-LD := ld -m elf_i386
+LD := ld -m elf_i386 --nmagic
 AS := as --32 -g
 
 INCPATH := ../../kernel/include
-INCS    := -I$(INCPATH) -I$(INCPATH)/shared/
-CFLAGS  := -g3 -O3 -fcommon -fno-stack-protector -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone $(INCS)
+INCS    := -I$(INCPATH) -I$(INCPATH)/shared/ -I$(INCPATH)/chal/
+# This variable gets rid of the all the warnings on Ubuntu 20, but we should look into each...
+CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -fno-stack-protector -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone $(INCS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img
@@ -27,6 +29,7 @@ WARNINGS += -Wstrict-prototypes
 WARNINGS += -Wundef
 WARNINGS += -Wvolatile-register-var
 WARNINGS += -Wwrite-strings
+WARNINGS += -Wno-address-of-packed-member
 
 CFLAGS += $(WARNINGS)
 
@@ -48,6 +51,7 @@ OBJS += miniacpi.o
 OBJS += vga.o
 OBJS += exception.o
 OBJS += lapic.o
+OBJS += chal_pgtbl.o
 
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o
@@ -60,9 +64,11 @@ DEPS :=$(patsubst %.o, %.d, $(OBJS))
 
 OBJS += $(COS_OBJ)
 
+.PHONY: $(CONSTRUCTOR_COMP)
+
 all: $(KERNEL)
 
-$(KERNEL): linker.ld $(DEPS) $(OBJS) loader.o
+$(KERNEL): linker.ld $(OBJS) loader.o $(CONSTRUCTOR_COMP)
 	$(if $(CONSTRUCTOR_COMP), $(info |     [LD]   Linking in the constructor component $@))
 	$(if $(CONSTRUCTOR_COMP), @cp $(CONSTRUCTOR_COMP) constructor; $(LD) -r -b binary constructor -o constructor.o; objcopy --rename-section .data=.initial_component constructor.o; rm constructor)
 	$(if $(KERNEL_OUTPUT), $(info |     [LD]   Linking $@))
@@ -76,7 +82,12 @@ loader.o: loader.S entry.S
 	@$(CC) -c -I$(INCPATH) loader.S
 
 %.d: %.c
-	@$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@
+	@set +e; rm -f $@; \
+	$(CC) -M $(CFLAGS) $< > $@.$$$$ 2>/dev/null; \
+	if [ -s $@.$$$$ ]; then \
+		sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	fi; \
+	rm -f $@.$$$$
 
 pgtbl.o: ../../kernel/pgtbl.c
 	$(info |     [CC]   Compiling $@)
@@ -109,3 +120,5 @@ captbl.o: ../../kernel/captbl.c
 
 clean:
 	@rm -f *.d *.o $(KERNEL)
+
+-include $(DEPS)

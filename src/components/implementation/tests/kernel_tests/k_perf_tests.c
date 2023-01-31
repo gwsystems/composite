@@ -5,6 +5,8 @@ static struct perfdata pd[NUM_CPU] CACHE_ALIGNED;
 extern struct results  result_test_timer;
 extern struct results  result_budgets_single;
 extern struct results  result_sinv;
+struct results  result_switch, result_thd_switch;
+struct results  result_async_roundtrip, result_async_oneway;
 
 #define ARRAY_SIZE 10000
 static cycles_t test_results[ARRAY_SIZE] = { 0 };
@@ -24,7 +26,7 @@ static void
 bounceback(void *d)
 {
         while (1) {
-                rdtscll(side_thd);
+                side_thd = ps_tsc();
                 cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
         }
 }
@@ -42,8 +44,9 @@ test_thds_create_switch(void)
                 return;
         }
 
+	perfcntr_init(); /* 32bit counter, so resetting before every benchmark */
         for (i = 0; i < ITER; i++) {
-                rdtscll(main_thd);
+                main_thd = ps_tsc();
                 ret = cos_thd_switch(ts);
                 EXPECT_LL_NEQ(0, ret, "COS Switch Error");
 
@@ -51,17 +54,13 @@ test_thds_create_switch(void)
         }
 
         perfdata_calc(&pd[cos_cpuid()]);
-
-        PRINTC("\tCOS THD => COS_THD_SWITCH:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]), perfdata_95ptile(&pd[cos_cpuid()]), perfdata_99ptile(&pd[cos_cpuid()]));
+	results_save(&result_thd_switch, &pd[cos_cpuid()]);
 
         perfdata_init(&pd[cos_cpuid()], "COS THD => COS_SWITCH", test_results, ARRAY_SIZE);
 
+	perfcntr_init(); /* 32bit counter, so resetting before every benchmark */
         for (i = 0; i < ITER; i++) {
-                rdtscll(main_thd);
+                main_thd = ps_tsc();
                 ret = cos_switch(ts, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, 0, 0);
                 EXPECT_LL_NEQ(0, ret, "COS Switch Error");
 
@@ -69,12 +68,7 @@ test_thds_create_switch(void)
         }
 
         perfdata_calc(&pd[cos_cpuid()]);
-
-        PRINTC("\tCOS THD => COS_SWITCH:\t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]), perfdata_sz(&pd[cos_cpuid()]));
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]), perfdata_95ptile(&pd[cos_cpuid()]), perfdata_99ptile(&pd[cos_cpuid()]));
+	results_save(&result_switch, &pd[cos_cpuid()]);
 }
 
 /*
@@ -82,6 +76,7 @@ test_thds_create_switch(void)
  *   * Roundtrip: 2 Thd that bounce between eachother through cos_rcv() and cos_asnd()
  *   * One way: 1 thd send and 1 thd receives. When the receivers block the sender will be enqueue
  */
+static cycles_t end_oneway = 0;
 
 static void
 async_thd_fn_perf(void *thdcap)
@@ -96,14 +91,10 @@ async_thd_fn_perf(void *thdcap)
                 cos_asnd(sc, 1);
         }
 
-        cos_thd_switch(tc);
-
         for (i = 0; i < ITER + 1; i++) {
                 cos_rcv(rc, 0, NULL);
+		end_oneway = ps_tsc();
         }
-
-        ret = cos_thd_switch(tc);
-        EXPECT_LL_NEQ(0, ret, "COS Switch Error");
 
         EXPECT_LL_NEQ(1, 0, "Error, shouldn't get here!\n");
         assert(0);
@@ -119,45 +110,34 @@ async_thd_parent_perf(void *thdcap)
         int           i, pending = 0;
 
         perfdata_init(&pd[cos_cpuid()], "Async Endpoints => Roundtrip", test_results, ARRAY_SIZE);
-
+	perfcntr_init(); /* 32bit counter, so resetting before every benchmark */
         for (i = 0; i < ITER; i++) {
-                rdtscll(s);
+                s = ps_tsc();
                 cos_asnd(sc, 1);
                 cos_rcv(rc, 0, NULL);
-                rdtscll(e);
+                e = ps_tsc();
 
                 perfdata_add(&pd[cos_cpuid()], (e - s));
         }
 
         perfdata_calc(&pd[cos_cpuid()]);
-
-        PRINTC("\tAsync Endpoints => Roundtrip:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]),
-                        perfdata_sz(&pd[cos_cpuid()]));
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]), perfdata_95ptile(&pd[cos_cpuid()]),
-                        perfdata_99ptile(&pd[cos_cpuid()]));
+	results_save(&result_async_roundtrip, &pd[cos_cpuid()]);
 
         perfdata_init(&pd[cos_cpuid()], "Async Endpoints => One Way", test_results, ARRAY_SIZE);
-
-        for (i = 0; i < ITER; i++) {
-                rdtscll(s);
+	perfcntr_init(); /* 32bit counter, so resetting before every benchmark */
+	i = 0;
+	while (i < ITER) {
+		end_oneway = 0;
+                s = ps_tsc();
                 cos_asnd(sc, 1);
-                rdtscll(e);
-
+		e = end_oneway;
+		i++;
+		if (unlikely(e == 0)) continue;
                 perfdata_add(&pd[cos_cpuid()], (e - s));
         }
 
         perfdata_calc(&pd[cos_cpuid()]);
-
-        PRINTC("\tAsync Endpoints => One Way:\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        perfdata_avg(&pd[cos_cpuid()]), perfdata_max(&pd[cos_cpuid()]), perfdata_min(&pd[cos_cpuid()]),
-                        perfdata_sz(&pd[cos_cpuid()]));
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        perfdata_sd(&pd[cos_cpuid()]),perfdata_90ptile(&pd[cos_cpuid()]), perfdata_95ptile(&pd[cos_cpuid()]),
-                        perfdata_99ptile(&pd[cos_cpuid()]));
+	results_save(&result_async_oneway, &pd[cos_cpuid()]);
 
         async_test_flag_[cos_cpuid()] = 0;
         while (1) cos_thd_switch(tc);
@@ -212,34 +192,20 @@ test_async_endpoints_perf(void)
 void
 test_print_ubench(void)
 {
-        PRINTC("\tSINV:\t\t\t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        result_sinv.avg, result_sinv.max, result_sinv.max,
-                        result_sinv.sz);
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        result_sinv.sd, result_sinv.p90tile, result_sinv.p95tile,
-                        result_sinv.p99tile);
-
-        PRINTC("\tTimer => Timeout Overhead: \t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        result_test_timer.avg, result_test_timer.max, result_test_timer.min,
-                        result_test_timer.sz);
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        result_test_timer.sd, result_test_timer.p90tile, result_test_timer.p95tile,
-                        result_test_timer.p99tile);
-
-        PRINTC("\tTimer => Budget based: \t\t\tAVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-                        result_budgets_single.avg, result_budgets_single.max, result_budgets_single.min,
-                        result_budgets_single.sz);
-
-        printc("\t\t\t\t\t\t\tSD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-                        result_budgets_single.sd, result_budgets_single.p90tile, result_budgets_single.p95tile,
-                        result_budgets_single.p99tile);
+	results_print(&result_thd_switch, "Threads => cos_thd_switch:");
+	results_print(&result_switch, "Threads => cos_switch:");
+	results_print(&result_async_roundtrip, "Async => Roundtrip:");
+	results_print(&result_async_oneway, "Async => Oneway:");
+	results_print(&result_sinv, "Synchronous Invocations:");
+	results_print(&result_test_timer, "Timer => Timeout Overhead:");
+	results_print(&result_budgets_single, "Timer => Budget Based:");
 }
 
 void
 test_run_perf_kernel(void)
 {
+	printc("\n");
+	PRINTC("uBenchamarks Started:\n\n");
         cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
         test_thds_create_switch();
         test_async_endpoints_perf();

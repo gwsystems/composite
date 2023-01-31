@@ -34,9 +34,9 @@ void
 test_thd_fn(void *data)
 {
 	while (1) {
-		int workiters = WORKITERS * ((int)data);
+		int workiters = WORKITERS * ((word_t)data);
 
-		printc("%d", (int)data);
+		printc("%lu", (word_t)data);
 		SPIN(workiters);
 		sl_thd_yield(0);
 	}

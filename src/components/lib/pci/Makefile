@@ -40,8 +40,13 @@ LIBRARY_DEPENDENCIES = component
 # libraries written for composite. Get rid of this if you require a
 # custom Makefile (e.g. if you use an existing
 # (non-composite-specific) library. An example of this is `kernel`.
+ifneq ($(PLATFORM), armv7a)
 include Makefile.lib
+endif
 
+all:
+clean:
+init:
 ## Type 2, external library: If you need to specialize the Makefile
 ## for an external library, you can add the external code as a
 ## subdirectory, and drive its compilation, and integration with the

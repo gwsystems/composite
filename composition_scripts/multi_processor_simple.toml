@@ -1,0 +1,9 @@
+[system]
+description = "Simple system: the multiprocessor, and initialization ordering"
+
+[[components]]
+name = "multiprocessor_simple"
+img  = "tests.multi_processor_simple"
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+baseaddr = "0x1600000"
+constructor = "kernel"

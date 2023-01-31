@@ -22,6 +22,8 @@
 #include <cos_defkernel_api.h>
 #include <cos_stubs.h>
 
+void capmgr_set_tls(thdcap_t cap, void* tls_addr);
+
 thdcap_t  capmgr_initthd_create(spdid_t child, thdid_t *tid);
 thdcap_t  COS_STUB_DECL(capmgr_initthd_create)(spdid_t child, thdid_t *tid);
 

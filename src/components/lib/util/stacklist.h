@@ -12,8 +12,8 @@
 #include <ps.h>
 
 struct stacklist {
-	thdid_t thdid;
 	struct stacklist *next;
+	void *data;
 };
 
 struct stacklist_head {
@@ -42,10 +42,10 @@ stacklist_rem(struct stacklist *l)
 
 /* Add a thread that is going to block */
 static inline void
-stacklist_add(struct stacklist_head *h, struct stacklist *l)
+stacklist_add(struct stacklist_head *h, struct stacklist *l, void *data)
 {
-	l->thdid = cos_thdid();
-	l->next  = NULL;
+	l->next = NULL;
+	l->data = data;
 	assert(h);
 
 	while (1) {
@@ -57,12 +57,12 @@ stacklist_add(struct stacklist_head *h, struct stacklist *l)
 }
 
 /* Get a thread to wake up, and remove its record! */
-static inline thdid_t
+static inline struct stacklist *
 stacklist_dequeue(struct stacklist_head *h)
 {
 	struct stacklist *sl;
 
-	if (!h->head) return 0;
+	if (!h->head) return NULL;
 
 	/*
 	 * Only a single thread should trigger an event, and dequeue
@@ -77,7 +77,7 @@ stacklist_dequeue(struct stacklist_head *h)
 	}
 	sl->next = NULL;
 
-	return sl->thdid;
+	return sl;
 }
 
 /*

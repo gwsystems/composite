@@ -1,25 +1,24 @@
 # include ../../../Makefile.inc first!
-
-ARCH_CFLAGS =-m32 -D__x86__ -march=i686
-ARCH_ASFLAGS=$(ARCH_CFLAGS)
-ARCH_LDFLAGS=-melf_i386
+include ../Makefile.arch
 
 IMPLDIR=$(CDIR)/implementation/
 INTERDIR=$(CDIR)/interface/
 LIBDIR=$(CDIR)/lib/
 
-MUSLDIR=$(CDIR)/lib/libc/musl-1.1.11
-MUSLBIN=$(MUSLDIR)/bin
-MUSLCC=$(MUSLBIN)/musl-$(CC)
+MUSLDIR=$(CDIR)/lib/libc/musl-1.2.0
+MUSLBIN=$(MUSLDIR)/obj/
+MUSLCC=$(MUSLBIN)/musl-gcc
 MUSLINC=-isystem$(MUSLDIR)/include
 
-CINC=-I. -I$(SHAREDINC)
+CINC=-I. -I$(SHAREDINC) -I$(CHALSHAREDINC)
 
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib -fno-pic -fno-pie
-#OPT= -g -fvar-tracking
-OPT= -O3
+OPT= -g -fvar-tracking
+OPT+= -O3
 
-CFLAGS=$(ARCH_CFLAGS) -Wall -Wextra -Wno-unused-parameter -Wno-type-limits -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable $(CINC) $(MUSLINC) $(OPT) $(SHARED_FLAGS)
+# This removes warnings from Ubuntu 20 (gcc 9.3), but should likely be removed by fixing the issue
+TMPFLGS := -Wno-address-of-packed-member
+CFLAGS=$(ARCH_CFLAGS) -Wall -Wextra $(TMPFLGS) -Wno-unused-parameter -Wno-type-limits -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable $(CINC) $(MUSLINC) $(OPT) $(SHARED_FLAGS)
 CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
 LDFLAGS=$(ARCH_LDFLAGS)
 MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r
@@ -28,6 +27,7 @@ ASFLAGS=$(ARCH_ASFLAGS) $(CINC) $(SHARED_FLAGS)
 GCC_PIE=$(shell gcc -v 2>&1 | grep -c "\--enable-default-pie")
 ifeq ($(GCC_PIE),1)
 MUSLCFLAGS+=-no-pie
+LDFLAGS+=
 CFLAGS+=-fno-pie
 CXXFLAGS+=-fno-pie
 endif

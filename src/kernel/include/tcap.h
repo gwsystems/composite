@@ -251,7 +251,12 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 	}
 
 	/* timeout based on the tcap budget... */
-	timer       = now + left;
+	if (TCAP_RES_IS_INF(left)) {
+		timer = left;
+	} else {
+		timer = now + left;
+	}
+
 	timeout_cyc = tcap_time2cyc(timeout, now);
 	/* ...or explicit timeout within the bounds of the budget */
 	if (timeout != TCAP_TIME_NIL && timeout_cyc < timer) {

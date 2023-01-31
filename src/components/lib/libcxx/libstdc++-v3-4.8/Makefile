@@ -1,6 +1,6 @@
 BUILDDIR := ../build/libstdc++
 INCLUDE := -I../include
-MUSLFLAG := -isystem ../../libc/musl-1.1.11/include
+MUSLFLAG := -isystem ../../libc/musl-1.2.0/include
 include Makefile.inc
 
 EXCEPTION :=
@@ -14,6 +14,8 @@ c++98/streambuf.o c++98/streambuf-inst.o c++98/tree.o
 
 OBJ_CC += c++11/fstream-inst.o c++11/functexcept.o c++11/string-inst.o
 #OBJ_CC += $(EXCEPTION)
+
+CXXFLAGS += $(LIBCXX_ARCH)
 
 vpath %.cc ./src
 vpath %.cc ./config/io

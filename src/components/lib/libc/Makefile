@@ -18,7 +18,7 @@ OBJECT_OUTPUT =
 # The path within this directory that holds the .h files for
 # dependents to compile with (./ by default). Will be fed into the -I
 # compiler arguments.
-INCLUDE_PATHS = musl-1.1.11/include/
+INCLUDE_PATHS = musl-1.2.0/include/
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
 INTERFACE_DEPENDENCIES =
@@ -65,24 +65,40 @@ LIBRARY_DEPENDENCIES =
 # init: clean all
 # distclean: clean
 
-MUSLDIR=musl-1.1.11/
+MUSLDIR=musl-1.2.0/
 MUSLINC=$(MUSLDIR)/include/
 MUSLLIB=$(MUSLDIR)/lib/
 
 include Makefile.src Makefile.comp Makefile.dependencies
 
-.PHONY: all clean init distclean
+.PHONY: all clean init distclean armv7a_init i386_init x86_64_init
 all:
 clean:
 
-init:
-	$(info Building libc (musl)...)
+armv7a_init:
+	$(info Building libc (musl) for arm...)
+	cd $(MUSLDIR); ./configure "CC=arm-none-eabi-gcc" "CFLAGS=-march=armv7-a -g -O3" "LDFLAGS=" --disable-shared --target=arm; cd ..
+
+i386_init:
+	$(info Building libc (musl) for i386...)
 	cd $(MUSLDIR); ./configure "CFLAGS=-m32 -march=i686 -O3 -fno-stack-protector" "LDFLAGS=-Wl,-melf_i386" --disable-shared --target=i386; cd ..
-	make -C $(MUSLDIR)
-	make -C $(MUSLDIR) install
+
+x86_64_init:
+	$(info Building libc (musl) for x86_64)
+	cd $(MUSLDIR); ./configure "CFLAGS=-m64 -O3 -mcmodel=large -g" "LDFLAGS=-Wl,-melf_x86_64" --disable-shared --target=x86_64; cd ..
+
+libc.READY:
+	make $(PLATFORM)_init
+	make -j -C $(MUSLDIR)
+	make -j -C $(MUSLDIR) install
 	cp $(MUSLLIB)*.a .
+	touch libc.READY
 	rm libutil.a
+
+init: libc.READY
 
 distclean:
 	make -C $(MUSLDIR) distclean
+	rm -rf $(MUSLDIR)/bin/
 	rm -rf *.a
+	rm -f libc.READY

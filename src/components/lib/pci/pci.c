@@ -37,19 +37,20 @@ pci_scan(struct pci_dev *devices, int sz)
 			for (f = 0 ; f < PCI_FUNC_MAX ; f++) {
 				reg = pci_config_read(i, j, f, 0x0);
 				if (reg == PCI_BITMASK_32) continue;
-				for (k = 0 ; k < PCI_DATA_NUM ; k++) devices[dev_num].data[k] = pci_config_read(i, j, f, k << 2);
+				for (k = 0 ; k < PCI_DATA_NUM ; k++) {
+					devices[dev_num].data[k] = pci_config_read(i, j, f, k << 2);
+				}
 				
-				devices[dev_num] = (struct pci_dev) {
-					.bus       = (u32_t)i,
-					.dev       = (u32_t)j,
-					.func      = (u32_t)f,
-					.vendor    = (u16_t)PCI_VENDOR_ID(devices[dev_num].data[0]),
-					.device    = (u16_t)PCI_DEVICE_ID(devices[dev_num].data[0]),
-					.classcode = (u8_t)PCI_CLASS_ID(devices[dev_num].data[2]),
-					.subclass  = (u8_t)PCI_SUBCLASS_ID(devices[dev_num].data[2]),
-					.progIF    = (u8_t)PCI_PROG_IF(devices[dev_num].data[2]),
-					.header    = (u8_t)PCI_HEADER(devices[dev_num].data[3]),
-				};
+				devices[dev_num].bus       = (u32_t)i;
+				devices[dev_num].dev       = (u32_t)j;
+				devices[dev_num].func      = (u32_t)f;
+				devices[dev_num].vendor    = (u16_t)PCI_VENDOR_ID(devices[dev_num].data[0]);
+				devices[dev_num].device    = (u16_t)PCI_DEVICE_ID(devices[dev_num].data[0]);
+				devices[dev_num].classcode = (u8_t)PCI_CLASS_ID(devices[dev_num].data[2]);
+				devices[dev_num].subclass  = (u8_t)PCI_SUBCLASS_ID(devices[dev_num].data[2]);
+				devices[dev_num].progIF    = (u8_t)PCI_PROG_IF(devices[dev_num].data[2]);
+				devices[dev_num].header    = (u8_t)PCI_HEADER(devices[dev_num].data[3]);
+
 				for (k = 0 ; k < PCI_BAR_NUM ; k++) {
 					devices[dev_num].bar[k].raw = devices[dev_num].data[4+k];
 					/* the least signficant 8 bits hold data about the region type, locatable and prefetchable, so they are masked out */
