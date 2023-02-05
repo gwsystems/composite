@@ -1223,7 +1223,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			/* C struct madness */
 			prot_domain_t pd = prot_domain_from(protdom);
-			printk("asid %hu\n", pd.asid);
 
 			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr, pd);
 			break;
