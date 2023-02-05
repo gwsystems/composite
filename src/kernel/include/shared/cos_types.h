@@ -402,8 +402,6 @@ typedef int                thdclosure_index_t;
 		u16_t asid;
 	} __attribute__((__packed__)) prot_domain_t;
 
-	_Static_assert(sizeof(prot_domain_t) == 4, "prot_domain_t must be 32 bits");
-
 	static inline prot_domain_t
 	prot_domain_zero(void)
 	{
@@ -415,7 +413,7 @@ typedef int                thdclosure_index_t;
 	}
 
 	static inline prot_domain_t
-	prot_domain_from(u32_t u32)
+	u32_2_prot_domain(u32_t u32)
 	{
 		prot_domain_t protdom;
 		protdom.mpk_key = u32 & 0xFFFF;
@@ -425,7 +423,7 @@ typedef int                thdclosure_index_t;
 	}
 
 	static inline u32_t
-	prot_domain_to(prot_domain_t pd)
+	prot_domain_2_u32(prot_domain_t pd)
 	{
 		u32_t u32 = pd.mpk_key | (pd.asid << 16);
 		return u32;
@@ -446,7 +444,7 @@ typedef int                thdclosure_index_t;
 	}
 
 	static inline prot_domain_t
-	prot_domain_from(u32_t u32)
+	u32_2_prot_domain(u32_t u32)
 	{
 		prot_domain_t protdom;
 		protdom.asid    = u32;
@@ -456,6 +454,12 @@ typedef int                thdclosure_index_t;
 #else
 	typedef u32_t prot_domain_t;
 	static inline prot_domain_t prot_domain_zero() {return 0;}
+#endif
+
+#ifndef __cplusplus
+_Static_assert(sizeof(prot_domain_t) == 4, "prot_domain_t must be 32 bits");
+#else
+static_assert(sizeof(prot_domain_t) == 4, "prot_domain_t must be 32 bits");
 #endif
 
 
