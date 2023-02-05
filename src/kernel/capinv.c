@@ -1222,7 +1222,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t       entry_addr = __userregs_get4(regs);
 
 			/* C struct madness */
-			prot_domain_t pd = prot_domain_from(protdom);
+			prot_domain_t pd = u32_2_prot_domain(protdom);
 
 			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr, pd);
 			break;
