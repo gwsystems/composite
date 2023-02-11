@@ -44,7 +44,7 @@ struct slm_notify_buf {
 	struct ck_ring *ring;
 	struct slm_notify *ringbuf;
 };
-struct slm_notify_buf slm_xcpu_notify;
+struct slm_notify_buf slm_xcpu_notify[NUM_CPU];
 CK_RING_PROTOTYPE(slm_notify_buf, slm_notify);
 
 struct slm_thd *slm_thd_static_cm_lookup(thdid_t id);
@@ -244,8 +244,8 @@ thd_wakeup(struct slm_thd *t)
 	} else {
 		struct slm_notify notify;
 		notify.tid = t->tid;
-		ret = slm_notify_queue_enqueue(&slm_xcpu_notify, &notify);
-		assert(!slm_notify_queue_empty(&slm_xcpu_notify));
+		ret = slm_notify_queue_enqueue(&slm_xcpu_notify[t->cpuid], &notify);
+		assert(!slm_notify_queue_empty(&slm_xcpu_notify[t->cpuid]));
 		cos_asnd(ipithd->asnd, 1);
 	}
 
@@ -637,11 +637,11 @@ slm_ipi_process(void *d)
 
 	while (1) {
 		cos_rcv(r->rcv, RCV_ALL_PENDING, &rcvd);
-		assert(!slm_notify_queue_empty(&slm_xcpu_notify));
+		assert(!slm_notify_queue_empty(&slm_xcpu_notify[cos_cpuid()]));
 
 		slm_cs_enter(current, SLM_CS_NONE);
-		while (!slm_notify_queue_empty(&slm_xcpu_notify)) {
-			slm_notify_queue_dequeue(&slm_xcpu_notify, &notify);
+		while (!slm_notify_queue_empty(&slm_xcpu_notify[cos_cpuid()])) {
+			slm_notify_queue_dequeue(&slm_xcpu_notify[cos_cpuid()], &notify);
 			thd = slm_thd_static_cm_lookup(notify.tid);
 			ret = slm_thd_wakeup(thd, 0);
 			if (ret < 0) {
@@ -693,10 +693,10 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid);
 	if (!t) BUG();
 	//idlecap = thdcap;
-	
+
 	slm_init(thdcap, tid);
 
-	slm_notify_buf_init(&slm_xcpu_notify);
+	slm_notify_buf_init(&slm_xcpu_notify[cos_cpuid()]);
 	r = slm_ipithd_create(slm_ipi_process, NULL, 0, &ipithdcap, &ipitid);
 	if (!r) BUG();
 	sched_thd_param_set(ipitid, sched_param_pack(SCHEDP_PRIO, 20));
