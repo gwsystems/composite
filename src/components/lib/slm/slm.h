@@ -80,6 +80,7 @@ struct slm_thd {
 	arcvcap_t   rcv;
 	asndcap_t   asnd;
 	tcap_prio_t priority;
+	cpuid_t     cpuid;
 
 	/* Execution information retrieved by the scheduler thread */
 	struct event_info event_info;

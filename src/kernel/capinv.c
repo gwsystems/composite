@@ -435,6 +435,7 @@ notify_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap
 	notify_parent(rcv_thd, 1);
 
 	/* The thread switch decision: */
+		printk("yield: %d\n", yield);
 	if (yield || tcap_higher_prio(rcv_tcap, tcap)) {
 		next       = rcv_thd;
 		*tcap_next = rcv_tcap;
@@ -634,6 +635,7 @@ __cap_asnd_to_arcv(struct cap_asnd *asnd)
 int
 cap_ipi_process(struct pt_regs *regs)
 {
+	printk("ipi: \n");
 	struct cos_cpu_local_info  *cos_info = cos_cpu_local_info();
 	struct IPI_receiving_rings *receiver_rings;
 	struct xcore_ring 	   *ring;
@@ -681,6 +683,7 @@ cap_ipi_process(struct pt_regs *regs)
 	if (thd_next == thd_curr) return 1;
 	thd_curr->state |= THD_STATE_PREEMPTED;
 
+	printk("rcvd arcv notification\n");
 	return cap_switch(regs, thd_curr, thd_next, tcap_next, TCAP_TIME_NIL, ci, cos_info);
 }
 
@@ -748,8 +751,10 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs, str
 	}
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, yield, cos_info);
+	printk("^^^^^: %d, %d\n", next->tid, thd->tid);
 
 done:
+	printk("thd_currip: %x\n", next->regs.ip);
 	return cap_switch(regs, thd, next, tcap_next, timeout, ci, cos_info);
 }
 
@@ -906,6 +911,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 		thd->timeout = timeout;
 	}
 
+	printk("\trcv suspend and switch to %d\n", next->tid);
 	return cap_switch(regs, thd, next, tc_next, swtimeout, ci, cos_info);
 }
 

@@ -9,7 +9,7 @@ INTERFACE_EXPORTS = sched init syncipc
 INTERFACE_DEPENDENCIES = init capmgr
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = component slm ps util crt initargs
+LIBRARY_DEPENDENCIES = component slm ps util crt initargs ck
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this

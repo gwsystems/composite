@@ -188,6 +188,8 @@ try_again:
 
 	/* Make a policy decision! */
 	t = slm_sched_schedule();
+	//if (cos_cpuid() == 0)
+	//	printc("schedule: %d\n", t->tid);
 	if (unlikely(!t)) t = &g->idle_thd;
 
 	assert(slm_state_is_runnable(t->state));

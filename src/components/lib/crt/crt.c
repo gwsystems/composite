@@ -1102,6 +1102,7 @@ crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, 
 	rcvcap = cos_arcv_alloc(ci, thdcap, tcap, target_ci->comp_cap, sched_aep->rcv);
 	assert(rcvcap);
 
+	//printc("arcvalloc: %d\n", rcvcap);
 	res = (struct crt_rcv_resources) {
 		.tc   = tcap,
 		.thd  = thdcap,
@@ -1189,6 +1190,7 @@ crt_asnd_create(struct crt_asnd *s, struct crt_rcv *r)
 
 	assert(r->aep->rcv && target_ci->captbl_cap);
 	ascap = cos_asnd_alloc(ci, r->child_rcv, target_ci->captbl_cap);
+	printc("asnd2222: %d, %x\n", ascap, r);
 	assert(ascap);
 
 	*s = (struct crt_asnd) {
@@ -1370,6 +1372,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		ps_lock_release(&_lock);
 
 		*target_aep = r->local_aep; /* update the component's structures */
+		//printc("\tcrt->r->local_aep: %x\n", &r->local_aep);
 		assert(target_aep->thd && target_aep->tc && target_aep->rcv);
 
 		/*
