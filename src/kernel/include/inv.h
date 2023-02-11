@@ -199,24 +199,24 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 
 	/* Find the constituent capability structures */
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
-	if (unlikely(!CAP_TYPECHK(compc, CAP_COMP))) assert(0); //return -EINVAL;
+	if (unlikely(!CAP_TYPECHK(compc, CAP_COMP))) return -EINVAL;
 
 	thdc = (struct cap_thd *)captbl_lkup(t, thd_cap);
-	if (unlikely(!CAP_TYPECHK_CORE(thdc, CAP_THD))) assert(0);//return -EINVAL;
+	if (unlikely(!CAP_TYPECHK_CORE(thdc, CAP_THD))) return -EINVAL;
 	thd = thdc->t;
 
 	tcapc = (struct cap_tcap *)captbl_lkup(t, tcap_cap);
-	if (unlikely(!CAP_TYPECHK_CORE(tcapc, CAP_TCAP))) assert(0); //return -EINVAL;
+	if (unlikely(!CAP_TYPECHK_CORE(tcapc, CAP_TCAP))) return -EINVAL;
 	/* a single thread cannot be bound to multiple rcvcaps */
-	if (thd_bound2rcvcap(thd)) assert(0);//return -EINVAL;
+	if (thd_bound2rcvcap(thd)) return -EINVAL;
 	assert(!thd->rcvcap.rcvcap_tcap); /* an unbound thread should not have a tcap */
 
 	if (!init) {
 		arcv_p = (struct cap_arcv *)captbl_lkup(t, arcv_cap);
-		if (unlikely(!CAP_TYPECHK_CORE(arcv_p, CAP_ARCV))) assert(0);//return -EINVAL;
+		if (unlikely(!CAP_TYPECHK_CORE(arcv_p, CAP_ARCV))) return -EINVAL;
 
 		depth = arcv_p->depth + 1;
-		if (depth >= ARCV_NOTIF_DEPTH) assert(0); //return -EINVAL;
+		if (depth >= ARCV_NOTIF_DEPTH) return -EINVAL;
 	}
 
 	arcvc = (struct cap_arcv *)__cap_capactivate_pre(t, cap, capin, CAP_ARCV, &ret);

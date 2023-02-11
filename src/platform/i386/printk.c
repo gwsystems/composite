@@ -22,7 +22,6 @@ printk(const char *fmt, ...)
 	va_list      args;
 	unsigned int l, i;
 
-//if (get_cpuid() == 1) {
 	va_start(args, fmt);
 	l = vsprintf(buffer, fmt, args);
 	va_end(args);
@@ -30,7 +29,6 @@ printk(const char *fmt, ...)
 	for (i = 0; i < num_handlers; i++) {
 		printk_handlers[i](buffer);
 	}
-//}
 }
 
 void

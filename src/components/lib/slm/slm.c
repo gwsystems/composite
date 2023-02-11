@@ -557,7 +557,6 @@ slm_init(thdcap_t thd, thdid_t tid)
 		.rcv = sched_aep->rcv,
 		.priority = TCAP_PRIO_MAX
 	};
-	printc("===============: %d\n", sched_aep->tid);
 	ps_list_init(s, thd_list);
 	ps_list_init(s, graveyard_list);
 	assert(s->tid == cos_thdid());

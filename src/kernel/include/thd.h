@@ -371,7 +371,6 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->cpuid                            = get_cpuid();
 	thd->ulk_invstk                       = ulinvstk;
 	assert(thd->tid <= MAX_NUM_THREADS);
-	//printk("thd_curr: %x\n", thd_current(cli));
 	thd_scheduler_set(thd, thd_current(cli));
 
 	thd_rcvcap_init(thd);
