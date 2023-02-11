@@ -1190,7 +1190,6 @@ crt_asnd_create(struct crt_asnd *s, struct crt_rcv *r)
 
 	assert(r->aep->rcv && target_ci->captbl_cap);
 	ascap = cos_asnd_alloc(ci, r->child_rcv, target_ci->captbl_cap);
-	printc("asnd2222: %d, %x\n", ascap, r);
 	assert(ascap);
 
 	*s = (struct crt_asnd) {

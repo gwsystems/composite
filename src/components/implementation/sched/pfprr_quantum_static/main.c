@@ -1,6 +1,7 @@
 #include <cos_component.h>
 #include <llprint.h>
 #include <capmgr.h>
+#include <memmgr.h>
 #include <ck_ring.h>
 #include <static_slab.h>
 #include <ps_list.h>
@@ -28,7 +29,7 @@ struct slm_resources_thd {
 	compid_t comp;
 };
 
-struct slm_rcvthd {
+struct slm_ipithd {
 	arcvcap_t rcv;
 	asndcap_t asnd;
 	cpuid_t   cpuid;
@@ -54,7 +55,7 @@ SLM_MODULES_COMPOSE_FNS(quantum, fprr, static_cm);
 struct crt_comp self;
 
 SS_STATIC_SLAB(thd, struct slm_thd_container, MAX_NUM_THREADS);
-SS_STATIC_SLAB(rcvthd, struct slm_rcvthd, NUM_CPU+1);
+SS_STATIC_SLAB(ipithd, struct slm_ipithd, NUM_CPU+1);
 /* Implementation for use by the other parts of the slm */
 struct slm_thd *
 slm_thd_static_cm_lookup(thdid_t id)
@@ -230,7 +231,7 @@ thd_wakeup(struct slm_thd *t)
 {
 	int ret;
 	struct slm_thd *current = slm_thd_current();
-	struct slm_rcvthd *rcvthd = ss_rcvthd_get(t->cpuid + 1);
+	struct slm_ipithd *ipithd = ss_ipithd_get(t->cpuid + 1);
 
 	if (t->cpuid == cos_cpuid()) {
 			
@@ -245,7 +246,7 @@ thd_wakeup(struct slm_thd *t)
 		notify.tid = t->tid;
 		ret = slm_notify_queue_enqueue(&slm_xcpu_notify, &notify);
 		assert(!slm_notify_queue_empty(&slm_xcpu_notify));
-		cos_asnd(rcvthd->asnd, 1);
+		cos_asnd(ipithd->asnd, 1);
 	}
 
 	return slm_cs_exit_reschedule(current, SLM_CS_NONE);
@@ -589,9 +590,9 @@ sched_get_cpu_freq(void)
 //thdcap_t idlecap;
 
 struct slm_thd *
-slm_arcvthd_alloc(thd_fn_t fn, void * data, crt_rcv_flags_t flags, thdcap_t *thdcap, thdid_t *tid)
+slm_ipithd_create(thd_fn_t fn, void * data, crt_rcv_flags_t flags, thdcap_t *thdcap, thdid_t *tid)
 {
-	struct slm_rcvthd        *r = ss_rcvthd_alloc_at_id(cos_cpuid() + 1);
+	struct slm_ipithd        *r = ss_ipithd_alloc_at_id(cos_cpuid() + 1);
 	struct slm_thd_container *t;
 	struct slm_global        *g = slm_global();
 	struct slm_thd           *current = &g->sched_thd;
@@ -603,7 +604,7 @@ slm_arcvthd_alloc(thd_fn_t fn, void * data, crt_rcv_flags_t flags, thdcap_t *thd
 	r->rcv = capmgr_rcv_alloc(fn, data, flags, &r->asnd, &_thd, &_tid);
 	r->cpuid = cos_cpuid();
 	r->tid = _tid;
-	ss_rcvthd_activate(r);
+	ss_ipithd_activate(r);
 
 	t = slm_thd_mem_alloc(_thd, _tid, thdcap, tid);
 	if (!t) ERR_THROW(NULL, done);
@@ -625,12 +626,12 @@ free:
 	goto done;
 }
 
-int
-slm_rcv(void *d)
+void
+slm_ipi_process(void *d)
 {
 	int rcvd, ret;
-	struct slm_rcvthd *r = ss_rcvthd_get(cos_cpuid()+1);
-	struct slm_notify notify;
+	struct slm_ipithd *r = ss_ipithd_get(cos_cpuid()+1);
+	struct slm_notify notify = { 0 };
 	struct slm_thd *current = slm_thd_current();
 	struct slm_thd *thd;
 
@@ -641,11 +642,11 @@ slm_rcv(void *d)
 		slm_cs_enter(current, SLM_CS_NONE);
 		while (!slm_notify_queue_empty(&slm_xcpu_notify)) {
 			slm_notify_queue_dequeue(&slm_xcpu_notify, &notify);
-			thd = ss_thd_get(notify.tid);
+			thd = slm_thd_static_cm_lookup(notify.tid);
 			ret = slm_thd_wakeup(thd, 0);
 			if (ret < 0) {
 				slm_cs_exit(NULL, SLM_CS_NONE);
-				return ret;
+				return;
 			}
 		}
 		slm_cs_exit_reschedule(current, SLM_CS_NONE);
@@ -661,7 +662,7 @@ slm_notify_buf_init(struct slm_notify_buf *slm_notify_buf)
 	struct cos_compinfo    *ci  = cos_compinfo_get(def);
 	struct ck_ring *buf_addr;
 	
-	buf_addr = memmgr_heap_page_alloc(1);
+	buf_addr = (struct ck_ring *)memmgr_heap_page_alloc();
 	assert(buf_addr);
 
 	size_t slm_notify_num = PAGE_SIZE / sizeof(struct slm_notify);
@@ -674,7 +675,7 @@ slm_notify_buf_init(struct slm_notify_buf *slm_notify_buf)
 void
 parallel_main(coreid_t cid)
 {
-	if (cid == 0) printc("Starting scheduler loop...: %d\n", cos_thdid());
+	if (cid == 0) printc("Starting scheduler loop...\n");
 	slm_sched_loop_nonblock();
 }
 
@@ -683,9 +684,9 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
 	struct slm_thd_container *t;
 	struct slm_thd *r;
-	thdcap_t thdcap, rcvthdcap;
+	thdcap_t thdcap, ipithdcap;
 	arcvcap_t rcvcap;
-	thdid_t tid, rcvtid;
+	thdid_t tid, ipitid;
 
 	cos_defcompinfo_sched_init();
 
@@ -696,9 +697,9 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	slm_init(thdcap, tid);
 
 	slm_notify_buf_init(&slm_xcpu_notify);
-	r = slm_arcvthd_alloc(slm_rcv, NULL, 0, &rcvthdcap, &rcvtid);
+	r = slm_ipithd_create(slm_ipi_process, NULL, 0, &ipithdcap, &ipitid);
 	if (!r) BUG();
-	sched_thd_param_set(rcvtid, sched_param_pack(SCHEDP_PRIO, 20));
+	sched_thd_param_set(ipitid, sched_param_pack(SCHEDP_PRIO, 20));
 }
 
 void
