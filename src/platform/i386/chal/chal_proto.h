@@ -85,8 +85,9 @@ rdpkru(void)
 }
 
 static inline u32_t
-pkru_state(u16_t mpk_key)
+pkru_state(prot_domain_t protdom)
 {
+	u16_t mpk_key = PROTDOM_MPK_KEY(protdom);
 	return ~(0b11 << (2 * mpk_key)) & ~0b11;
 }
 
@@ -94,7 +95,7 @@ static inline void
 chal_protdom_write(prot_domain_t protdom)
 {
 	/* we only update asid on pagetable switch */
-	wrpkru(pkru_state(PROTDOM_MPK_KEY(protdom)));
+	wrpkru(pkru_state(protdom));
 }
 
 static inline prot_domain_t
@@ -121,14 +122,16 @@ struct cpu_tlb_asid_map {
 extern struct cpu_tlb_asid_map tlb_asid_map[NUM_CPU];
 
 static inline pgtbl_t
-chal_cached_pt_curr(asid_t asid)
+chal_cached_pt_curr(prot_domain_t protdom)
 {
+	u16_t asid = PROTDOM_ASID(protdom);
 	return tlb_asid_map[get_cpuid()].mapped_pt[asid];
 }
 
 static inline void
-chal_cached_pt_update(pgtbl_t pt, asid_t asid)
+chal_cached_pt_update(pgtbl_t pt, prot_domain_t protdom)
 {
+	u16_t asid = PROTDOM_ASID(protdom);
 	tlb_asid_map[get_cpuid()].mapped_pt[asid] = pt;
 }
 
