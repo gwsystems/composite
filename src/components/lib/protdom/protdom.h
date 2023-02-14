@@ -11,9 +11,6 @@
 	#include "struct_defs_arch/default/protdom_stuct_def.h"
 #endif
 
-/* structures are architecure defined, leave them opaque to the interface */
-typedef struct protdom_ns_vas  *protdom_ns_vas_t;
-typedef struct protdom_ns_asid *protdom_ns_asid_t;
 
 /**
  * NS creation:
@@ -25,36 +22,36 @@ typedef struct protdom_ns_asid *protdom_ns_asid_t;
  */
 
 /* Create a new asids namespace */
-int protdom_ns_asids_init(protdom_ns_asid_t asids);
+int protdom_ns_asids_init(struct protdom_ns_asid *asids);
 
 /*
  * Create a asid namespace from the names "left over" in `existing`,
  * i.e. those that have not been `protdom_ns_vas_alloc_in`ed.
  */
-int protdom_ns_asids_split(protdom_ns_asid_t new, protdom_ns_asid_t existing);
+int protdom_ns_asids_split(struct protdom_ns_asid *new, struct protdom_ns_asid *existing);
 
 /* Initialize a new vas namespace, pulling a name from the `asids`*/
-int protdom_ns_vas_init(protdom_ns_vas_t new, protdom_ns_asid_t asids);
+int protdom_ns_vas_init(struct protdom_ns_vas *new, struct protdom_ns_asid *asids);
 
 /*
  * Create a new vas namespace from the names "left over" in
  * `existing`, i.e. those that have not been `protdom_ns_vas_alloc_in`ed
  */
-int protdom_ns_vas_split(protdom_ns_vas_t new, protdom_ns_vas_t existing, protdom_ns_asid_t asids);
+int protdom_ns_vas_split(struct protdom_ns_vas *new, struct protdom_ns_vas *existing, struct protdom_ns_asid *asids);
 
-int protdom_ns_vas_shared(protdom_ns_vas_t c1, protdom_ns_vas_t c2);
+int protdom_ns_vas_shared(struct protdom_ns_vas *c1, struct protdom_ns_vas *c2);
 
-pgtblcap_t protdom_ns_vas_pgtbl(protdom_ns_vas_t vas);
+pgtblcap_t protdom_ns_vas_pgtbl(struct protdom_ns_vas *vas);
 
-void protdom_ns_vas_set_comp(protdom_ns_vas_t vas, vaddr_t entry_addr, struct cos_defcompinfo *comp_res);
+void protdom_ns_vas_set_comp(struct protdom_ns_vas *vas, vaddr_t entry_addr, struct cos_defcompinfo *comp_res);
 
 
 unsigned long protdom_pgtbl_flags_readable(prot_domain_t protdom);
 unsigned long protdom_pgtbl_flags_writable(prot_domain_t protdom);
 
-prot_domain_t protdom_ns_vas_alloc(protdom_ns_vas_t vas, vaddr_t comp_entry_addr);
+prot_domain_t protdom_ns_vas_alloc(struct protdom_ns_vas *vas, vaddr_t comp_entry_addr);
 
 /* allocate an asid without creating a VAS namespace */
-prot_domain_t protdom_ns_asid_alloc(protdom_ns_asid_t asids);
+prot_domain_t protdom_ns_asid_alloc(struct protdom_ns_asid *asids);
 
 #endif

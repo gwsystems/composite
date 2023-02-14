@@ -50,8 +50,8 @@ mpk_jit_jitcallgate(vaddr_t callgate, vaddr_t server_fn, prot_domain_t client_pr
 	u32_t mpk_placeholder = JIT_MPK_PLACEHOLDER;
 	u64_t srvfn_placeholder = JIT_SRVFN_PLACEHOLDER;
 
-	u32_t cli_pkey = (u32_t)client_protdom.mpk_key;
-	u32_t srv_pkey = (u32_t)server_protdom.mpk_key;
+	u32_t cli_pkey = (u32_t)PROTDOM_MPK_KEY(client_protdom);
+	u32_t srv_pkey = (u32_t)PROTDOM_MPK_KEY(server_protdom);
 
 	/* 
 	 * FIXME: 

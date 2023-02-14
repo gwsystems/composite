@@ -133,7 +133,7 @@ crt_ulk_map_in(struct crt_comp *comp)
  * in a vas directly.
  */
 int
-crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, protdom_ns_vas_t vas)
+crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct protdom_ns_vas *vas)
 {
 	/*
 	 * find the name at the entry addr for the elf object for c
@@ -145,7 +145,7 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 	int           cons_ret;
 	pgtblcap_t    top_lvl_ptc;
 
-	protdom = protdom_ns_vas_alloc(vas, elf_entry_addr(elf_hdr));
+	protdom = protdom_ns_vas_alloc(vas, (elf_hdr ? elf_entry_addr(elf_hdr) : 0));
 
 	crt_comp_create(c, name, id, elf_hdr, info, protdom);
 
@@ -330,7 +330,7 @@ crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chk
 		assert(inv.server->id != chkpt->c->id);
 	}
 
-	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, prot_domain_zero());
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, 0);
 	assert(!ret);
 
 	mem = cos_page_bump_allocn(root_ci, chkpt->tot_sz_mem);

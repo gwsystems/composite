@@ -325,7 +325,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 	glb_memlayout.allocs_avail = 0;
 
 	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
-	                  mem_bootc_entry(), prot_domain_zero()))
+	                  mem_bootc_entry(), 0))
 		assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 

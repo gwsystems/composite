@@ -42,6 +42,9 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0, tid++, NULL);
 	assert(!ret);
 
+	/* on x86 we store coreid in MSR_TSC_AUX for user-level access */
+	chal_cpu_coreid_set(cpu_id);
+
 	tcap_active_init(cos_info);
 	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpu_id), tcap_mem);
 	assert(!ret);
@@ -253,7 +256,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 		assert(glb_boot_ct);
 		chal_cpu_pgtbl_activate(pgtbl);
 		kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
-		chal_protdom_write(prot_domain_zero());
+		chal_protdom_write(0);
 		return;
 	}
 
@@ -332,12 +335,12 @@ kern_boot_comp(const cpuid_t cpu_id)
 	glb_memlayout.allocs_avail = 0;
 
 	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0,
-	                  mem_bootc_entry(), prot_domain_zero()))
+	                  mem_bootc_entry(), 0))
 		assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
 	kern_boot_thd(glb_boot_ct, thd_mem[cpu_id], tcap_mem[cpu_id], cpu_id);
-	chal_protdom_write(prot_domain_zero());
+	chal_protdom_write(0);
 
 	printk("\tBoot component initialization complete.\n");
 }

@@ -47,49 +47,48 @@
 unsigned long
 protdom_pgtbl_flags_readable(prot_domain_t protdom)
 {
-	return COS_PAGE_READABLE | ((unsigned long)protdom.mpk_key << 59);
+	return COS_PAGE_READABLE | ((unsigned long)PROTDOM_MPK_KEY(protdom) << 59);
 }
 
 unsigned long
 protdom_pgtbl_flags_writable(prot_domain_t protdom)
 {
-	return COS_PAGE_READABLE | COS_PAGE_WRITABLE | ((unsigned long)protdom.mpk_key << 59);
+	return COS_PAGE_READABLE | COS_PAGE_WRITABLE | ((unsigned long)PROTDOM_MPK_KEY(protdom) << 59);
 }
 
 prot_domain_t 
-protdom_ns_vas_alloc(protdom_ns_vas_t vas, vaddr_t comp_entry_addr)
+protdom_ns_vas_alloc(struct protdom_ns_vas *vas, vaddr_t comp_entry_addr)
 {
-    prot_domain_t protdom;
 	int i, name_index;
+	u16_t mpk_key = 0;
 
 	name_index = comp_entry_addr / PROTDOM_VAS_NAME_SZ;
 	assert(name_index < PROTDOM_VAS_NUM_NAMES);
 
-	if (!vas->names[name_index].state) return prot_domain_zero();
+	if (!vas->names[name_index].state) return 0;
 
 	for (i = PROTDOM_MPK_FIRST_COMP; i < PROTDOM_MPK_NUM_NAMES ; i++) {
 		if ((vas->mpk_names[i].state & (PROTDOM_NS_STATE_RESERVED | PROTDOM_NS_STATE_ALLOCATED)) == PROTDOM_NS_STATE_RESERVED) {
-			protdom.mpk_key = i;
-            break;
+			mpk_key = i;
+			break;
 		}
 	}
 
 	vas->names[name_index].state |= PROTDOM_NS_STATE_ALLOCATED;
 
-    protdom.asid = vas->asid_name;
-    vas->mpk_names[protdom.mpk_key].state |= PROTDOM_NS_STATE_ALLOCATED;
+	vas->mpk_names[mpk_key].state |= PROTDOM_NS_STATE_ALLOCATED;
 
-	return protdom;
+	return PROTDOM_INIT(vas->asid_name, mpk_key);
 }
 
 pgtblcap_t
-protdom_ns_vas_pgtbl(protdom_ns_vas_t vas)
+protdom_ns_vas_pgtbl(struct protdom_ns_vas *vas)
 {
 	return vas->top_lvl_pgtbl;
 }
 
 void 
-protdom_ns_vas_set_comp(protdom_ns_vas_t vas, vaddr_t entry_addr, struct cos_defcompinfo *comp_res)
+protdom_ns_vas_set_comp(struct protdom_ns_vas *vas, vaddr_t entry_addr, struct cos_defcompinfo *comp_res)
 {
 	int name_index = entry_addr / PROTDOM_VAS_NAME_SZ;
 	assert(name_index < PROTDOM_VAS_NUM_NAMES);
@@ -100,7 +99,7 @@ protdom_ns_vas_set_comp(protdom_ns_vas_t vas, vaddr_t entry_addr, struct cos_def
 
 /* Create a new asids namespace */
 int
-protdom_ns_asids_init(protdom_ns_asid_t asids)
+protdom_ns_asids_init(struct protdom_ns_asid *asids)
 {
 	int i;
 
@@ -124,7 +123,7 @@ protdom_ns_asids_init(protdom_ns_asid_t asids)
  *   -2: new already has allocations
  */
 int
-protdom_ns_asids_split(protdom_ns_asid_t new, protdom_ns_asid_t existing)
+protdom_ns_asids_split(struct protdom_ns_asid *new, struct protdom_ns_asid *existing)
 {
 	int i;
 
@@ -160,7 +159,7 @@ protdom_ns_asids_split(protdom_ns_asid_t new, protdom_ns_asid_t existing)
  * Return -1 if there are none available
  */
 static int
-protdom_asid_available_name(protdom_ns_asid_t asids)
+protdom_asid_available_name(struct protdom_ns_asid *asids)
 {
 	int i;
 
@@ -175,7 +174,7 @@ protdom_asid_available_name(protdom_ns_asid_t asids)
 
 /* allocate an asid without creating a VAS namespace */
 prot_domain_t
-protdom_ns_asid_alloc(protdom_ns_asid_t asids)
+protdom_ns_asid_alloc(struct protdom_ns_asid *asids)
 {
 	int asid = 0;
 	prot_domain_t pd;
@@ -183,10 +182,7 @@ protdom_ns_asid_alloc(protdom_ns_asid_t asids)
 	asid = protdom_asid_available_name(asids);
 	asids->names[asid].state |= PROTDOM_NS_STATE_ALLOCATED;
 
-	pd.asid = asid;
-	pd.mpk_key = 0;
-
-	return pd;
+	return PROTDOM_INIT(asid, 0);
 }
 
 /*
@@ -196,7 +192,7 @@ protdom_ns_asid_alloc(protdom_ns_asid_t asids)
  *  -1: new/asids not set up correctly, or no available ASID names, or pgtbl node allocation failed
  */
 int
-protdom_ns_vas_init(protdom_ns_vas_t new, protdom_ns_asid_t asids)
+protdom_ns_vas_init(struct protdom_ns_vas *new, struct protdom_ns_asid *asids)
 {
 	int asid_index = 0;
 	int i = 0;
@@ -243,7 +239,7 @@ protdom_ns_vas_init(protdom_ns_vas_t new, protdom_ns_asid_t asids)
  * NOTE: after this call, no further allocations can be made in existing
  */
 int
-protdom_ns_vas_split(protdom_ns_vas_t new, protdom_ns_vas_t existing, protdom_ns_asid_t asids)
+protdom_ns_vas_split(struct protdom_ns_vas *new, struct protdom_ns_vas *existing, struct protdom_ns_asid *asids)
 {
 	int i;
 	int cons_ret;
@@ -293,7 +289,7 @@ protdom_ns_vas_split(protdom_ns_vas_t new, protdom_ns_vas_t existing, protdom_ns
 }
 
 int
-protdom_ns_vas_shared(protdom_ns_vas_t client, protdom_ns_vas_t server)
+protdom_ns_vas_shared(struct protdom_ns_vas *client, struct protdom_ns_vas *server)
 {
 	if (!client || !server) return 0;
 
@@ -326,19 +322,19 @@ struct protdom_ns_asid {
 const size_t PROTDOM_NS_VAS_SIZE  = 0;
 const size_t PROTDOM_NS_ASID_SIZE = 0;
 
-int protdom_ns_asids_init(protdom_ns_asid_t asids) {
+int protdom_ns_asids_init(struct protdom_ns_asid *asids) {
 	return -1;
 }
 
-int protdom_ns_asids_split(protdom_ns_asid_t new, protdom_ns_asid_t existing) {
+int protdom_ns_asids_split(struct protdom_ns_asid *new, struct protdom_ns_asid *existing) {
 	return -1;
 }
 
-int protdom_ns_vas_init(protdom_ns_vas_t new, protdom_ns_asid_t asids) {
+int protdom_ns_vas_init(struct protdom_ns_vas *new, struct protdom_ns_asid *asids) {
 	return -1;
 }
 
-int protdom_ns_vas_split(protdom_ns_vas_t new, protdom_ns_vas_t existing, protdom_ns_asid_t asids) {
+int protdom_ns_vas_split(struct protdom_ns_vas *new, struct protdom_ns_vas *existing, struct protdom_ns_asid *asids) {
 	return -1;
 }
 
@@ -355,8 +351,8 @@ unsigned long protdom_pgtbl_flags_writable(prot_domain_t protdom) {
 	return -1;
 }
 
-prot_domain_t protdom_alloc(protdom_ns_vas_t vas)  {
-	return prot_domain_zero();
+prot_domain_t protdom_alloc(struct protdom_ns_vas *vas)  {
+	return 0;
 }
 
 

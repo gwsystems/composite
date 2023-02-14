@@ -98,24 +98,24 @@ static inline void
 chal_protdom_write(prot_domain_t protdom)
 {
 	/* we only update asid on pagetable switch */
-	wrpkru(pkru_state(protdom.mpk_key));
+	wrpkru(pkru_state(PROTDOM_MPK_KEY(protdom)));
 }
 
 static inline prot_domain_t
 chal_protdom_read(void)
 {
-	prot_domain_t protdom;
 	unsigned long cr3;
+	u16_t asid, mpk_key;
 
 	u32_t pkru = rdpkru();
 	assert(pkru);
 	/* inverse of `pkru_state` */
-	protdom.mpk_key = (32 - __builtin_clz(~pkru)) / 2 - 1;
+	mpk_key = (32 - __builtin_clz(~pkru)) / 2 - 1;
 
 	asm volatile("mov %%cr3, %0" : "=r"(cr3) : :);
-	protdom.asid = (u16_t)(cr3 & PGTBL_ASID_MASK);
+	asid = (u16_t)(cr3 & PGTBL_ASID_MASK);
 
-	return protdom;
+	return PROTDOM_INIT(asid, mpk_key);
 }
 
 struct cpu_tlb_asid_map {
@@ -140,14 +140,16 @@ chal_cached_pt_update(pgtbl_t pt, asid_t asid)
 static inline void
 chal_pgtbl_update(struct pgtbl_info *pt)
 {
+	u16_t asid = PROTDOM_ASID(pt->protdom);
+
 	/* lowest 12 bits is the context identifier */
-	unsigned long cr3 = (unsigned long)pt->pgtbl | pt->protdom.asid;
+	unsigned long cr3 = (unsigned long)pt->pgtbl | asid;
 	
 	/* fastpath: don't need to invalidate tlb entries; otherwise flush tlb on switch */
-	if (likely(chal_cached_pt_curr(pt->protdom.asid) == pt->pgtbl)) {
+	if (likely(chal_cached_pt_curr(asid) == pt->pgtbl)) {
 		cr3 |= CR3_NO_FLUSH;
 	} else {
-		chal_cached_pt_update(pt->pgtbl, pt->protdom.asid);
+		chal_cached_pt_update(pt->pgtbl, asid);
 	}
 
 	asm volatile("mov %0, %%cr3" : : "r"(cr3));

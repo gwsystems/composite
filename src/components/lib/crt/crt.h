@@ -91,7 +91,7 @@ struct crt_comp {
 
 	prot_domain_t protdom;
 	capid_t second_lvl_pgtbl_cap;
-	protdom_ns_vas_t ns_vas;
+	struct protdom_ns_vas *ns_vas;
 
 };
 
@@ -229,7 +229,7 @@ int crt_ulk_map_in(struct crt_comp *c);
  * in a vas directly. Note that, the
  * `crt_comp_create` likely needs to take the asid namespace as well.
  */
-int crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, protdom_ns_vas_t vas);
+int crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct protdom_ns_vas *vas);
 
 
 /**

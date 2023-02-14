@@ -18,6 +18,14 @@
 #include "../chal/shared/cos_config.h"
 #include "../chal/chal_config.h"
 
+/* compile-time assertions */
+#ifndef __cplusplus
+	#define COS_STATIC_ASSERT(cond, err_msg) _Static_assert(cond, err_msg)
+#else
+	/* g++ doesnt allow _Static_assert; compiling the c++ code will throw an error */
+	#define COS_STATIC_ASSERT(cond, err_msg) static_assert(cond, err_msg)
+#endif
+
 #ifndef LLONG_MAX
 #define LLONG_MAX 9223372036854775807LL
 #endif
@@ -390,77 +398,27 @@ typedef int                thdclosure_index_t;
 
 /* 
  * This is an attempt decouple hardware specific code from
- * parts of the kernel interface that are kernel agnostic.
+ * parts of the kernel interface that are hardware agnostic.
  * This type provides an abstraction for hardware-specific 
  * protection domain identifiers (ASID, MPK) that are 
  * interpreted at the hardware-abstraction-layer level. 
  * Only hardware-specific code should touch the type values
  */
+typedef u32_t prot_domain_t;
+
 #if defined(__x86_64__)
-	typedef struct {
-		u16_t mpk_key;
-		u16_t asid;
-	} __attribute__((__packed__)) prot_domain_t;
+	
+/* x86_64 prot_domain_t bits:
+ *
+ * |000......000|  pcid  |mpk key|
+ * |31........16|15.....4|3.....0|
+ */ 
+#define PROTDOM_MPK_KEY(prot_domain) ((prot_domain) & 0xF)
+#define PROTDOM_ASID(prot_domain) (((prot_domain) >> 4) & 0xFFF)
+#define PROTDOM_INIT(asid, mpk_key) ((prot_domain_t)((asid << 4) | mpk_key))
 
-	static inline prot_domain_t
-	prot_domain_zero(void)
-	{
-		prot_domain_t protdom;
-		protdom.mpk_key = 0;
-		protdom.asid    = 0;
-
-		return protdom;
-	}
-
-	static inline prot_domain_t
-	u32_2_prot_domain(u32_t u32)
-	{
-		prot_domain_t protdom;
-		protdom.mpk_key = u32 & 0xFFFF;
-		protdom.asid    = u32 >> 16;
-
-		return protdom;
-	}
-
-	static inline u32_t
-	prot_domain_2_u32(prot_domain_t pd)
-	{
-		u32_t u32 = pd.mpk_key | (pd.asid << 16);
-		return u32;
-	}
-
-#elif defined(__arm__)
-	typedef struct {
-		u32_t asid;
-	} prot_domain_t;
-
-	static inline prot_domain_t
-	prot_domain_zero()
-	{
-		prot_domain_t protdom;
-		protdom.asid    = 0;
-
-		return protdom;
-	}
-
-	static inline prot_domain_t
-	u32_2_prot_domain(u32_t u32)
-	{
-		prot_domain_t protdom;
-		protdom.asid    = u32;
-
-		return protdom;
-	}
-#else
-	typedef u32_t prot_domain_t;
-	static inline prot_domain_t prot_domain_zero() {return 0;}
 #endif
 
-#ifndef __cplusplus
-_Static_assert(sizeof(prot_domain_t) == 4, "prot_domain_t must be 32 bits");
-#else
-static_assert(sizeof(prot_domain_t) == 4, "prot_domain_t must be 32 bits");
-#endif
 
 
 

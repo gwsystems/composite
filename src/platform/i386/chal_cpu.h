@@ -177,6 +177,12 @@ chal_cpuid(u32_t *a, u32_t *b, u32_t *c, u32_t *d)
 	asm volatile("cpuid" : "+a"(*a), "+b"(*b), "+c"(*c), "+d"(*d));
 }
 
+static inline void
+chal_cpu_coreid_set(u32_t coreid)
+{
+	writemsr(MSR_TSC_AUX, coreid, 0x0u);
+}
+
 static void
 chal_cpu_init(void)
 {

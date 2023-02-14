@@ -1217,14 +1217,11 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_COMPACTIVATE: {
 			capid_t       captbl_cap = __userregs_get2(regs) >> 16;
 			capid_t       pgtbl_cap  = __userregs_get2(regs) & 0xFFFF;
-			u32_t         protdom    = __userregs_get3(regs) & 0xFFFFFFFF;
+			prot_domain_t protdom    = __userregs_get3(regs) & 0xFFFFFFFF;
 			livenessid_t  lid        = __userregs_get3(regs) >> 32; /* Need more registers!!! */
 			vaddr_t       entry_addr = __userregs_get4(regs);
 
-			/* C struct madness */
-			prot_domain_t pd = u32_2_prot_domain(protdom);
-
-			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr, pd);
+			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr, protdom);
 			break;
 		}
 		case CAPTBL_OP_COMPDEACTIVATE: {
