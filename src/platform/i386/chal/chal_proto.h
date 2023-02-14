@@ -12,12 +12,19 @@
 #define PGTBL_ENTRY_ORDER 9
 #define PGTBL_FLAG_MASK 0xf800000000000fff
 #define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
+#define NUM_ASID_BITS (12)
+#define NUM_ASID_MAX ((1<<NUM_ASID_BITS)-1)
+#define PGTBL_ASID_MASK (0xfff)
+#define CR3_NO_FLUSH (1ul << 63)
 #elif defined(__i386__)
 #define PGTBL_ENTRY_ADDR_MASK 0xfffff000
 #define PGTBL_DEPTH 2
 #define PGTBL_ENTRY_ORDER 10
 #define PGTBL_FLAG_MASK ((1 << PGTBL_PAGEIDX_SHIFT) - 1)
 #define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
+#define NUM_ASID_MAX (0)
+#define CR3_NO_FLUSH (0) /* this just wont do anything */
+#define PGTBL_ASID_MASK (0)
 #endif
 
 #define PGTBL_ENTRY (1 << PGTBL_ENTRY_ORDER)
@@ -26,17 +33,6 @@
 
 /* FIXME:find a better way to do this */
 #define EXTRACT_SUB_PAGE(super) ((super) & SUPER_PAGE_PTE_MASK)
-
-#if defined(__x86_64__)
-#define NUM_ASID_BITS (12)
-#define NUM_ASID_MAX ((1<<NUM_ASID_BITS)-1)
-#define PGTBL_ASID_MASK (0xfff)
-#define CR3_NO_FLUSH (1ul << 63)
-#elif defined(__i386__)
-#define NUM_ASID_MAX (0)
-#define CR3_NO_FLUSH (0) /* this just wont do anything */
-#define PGTBL_ASID_MASK (0)
-#endif
 
 /* Page table related prototypes & structs */
 /* make it an opaque type...not to be touched */
