@@ -4,6 +4,7 @@
 #include <cos_component.h>
 #include <cos_defkernel_api.h>
 #include <ps.h>
+#include <ck_ring.h>
 
 /*
  * Simple state machine for each thread
@@ -28,6 +29,23 @@ struct event_info {
 	cycles_t    cycles;  /* how many cycles the thread executed */
 	tcap_time_t timeout;
 };
+
+struct slm_ipi_thd {
+	arcvcap_t rcv;
+	asndcap_t asnd;
+	cpuid_t   cpuid;
+	thdid_t   tid;
+};
+
+struct slm_ipi_event {
+	thdid_t tid;
+};
+
+struct slm_ipi_percore {
+	struct slm_ipi_thd   ipi_thd;
+	struct ck_ring       ring;
+	struct slm_ipi_event ringbuf[PAGE_SIZE / sizeof(struct slm_ipi_event)];
+} CACHE_ALIGNED;
 
 struct slm_thd {
 	/*
@@ -366,5 +384,10 @@ slm_timeout_clear(void)
 {
 	slm_global()->timer_set = 0;
 }
+
+int slm_ipi_event_enqueue(struct slm_ipi_event *event, cpuid_t id);
+int slm_ipi_event_dequeue(struct slm_ipi_event *event, cpuid_t id);
+int slm_ipi_event_empty(cpuid_t id);
+struct slm_ipi_percore *slm_ipi_percore_get(cpuid_t id);
 
 #endif	/* SLM_H */

@@ -29,24 +29,6 @@ struct slm_resources_thd {
 	compid_t comp;
 };
 
-struct slm_ipithd {
-	arcvcap_t rcv;
-	asndcap_t asnd;
-	cpuid_t   cpuid;
-	thdid_t   tid;
-};
-
-struct slm_notify {
-	thdid_t tid;
-};
-
-struct slm_notify_buf {
-	struct ck_ring *ring;
-	struct slm_notify *ringbuf;
-};
-struct slm_notify_buf slm_xcpu_notify[NUM_CPU];
-CK_RING_PROTOTYPE(slm_notify_buf, slm_notify);
-
 struct slm_thd *slm_thd_static_cm_lookup(thdid_t id);
 
 SLM_MODULES_COMPOSE_DATA();
@@ -55,7 +37,7 @@ SLM_MODULES_COMPOSE_FNS(quantum, fprr, static_cm);
 struct crt_comp self;
 
 SS_STATIC_SLAB(thd, struct slm_thd_container, MAX_NUM_THREADS);
-SS_STATIC_SLAB(ipithd, struct slm_ipithd, NUM_CPU+1);
+
 /* Implementation for use by the other parts of the slm */
 struct slm_thd *
 slm_thd_static_cm_lookup(thdid_t id)
@@ -202,51 +184,17 @@ sched_thd_block(thdid_t dep_id)
 	return thd_block();
 }
 
-static inline int
-slm_notify_queue_enqueue(struct slm_notify_buf *slm_notify_buf, struct slm_notify *notify)
-{
-	assert(slm_notify_buf->ring && slm_notify_buf->ringbuf);
-
-	return CK_RING_ENQUEUE_MPSC(slm_notify_buf, slm_notify_buf->ring, slm_notify_buf->ringbuf, notify);
-}
-
-static inline int
-slm_notify_queue_dequeue(struct slm_notify_buf *slm_notify_buf, struct slm_notify *notify)
-{
-	assert(slm_notify_buf->ring && slm_notify_buf->ringbuf);
-
-	return CK_RING_DEQUEUE_MPSC(slm_notify_buf, slm_notify_buf->ring, slm_notify_buf->ringbuf, notify);
-}
-
-static inline int
-slm_notify_queue_empty(struct slm_notify_buf *slm_notify_buf)
-{
-	assert(slm_notify_buf->ring);
-
-	return (!ck_ring_size(slm_notify_buf->ring));
-}
-
 int
 thd_wakeup(struct slm_thd *t)
 {
 	int ret;
 	struct slm_thd *current = slm_thd_current();
-	struct slm_ipithd *ipithd = ss_ipithd_get(t->cpuid + 1);
 
-	if (t->cpuid == cos_cpuid()) {
-			
-		slm_cs_enter(current, SLM_CS_NONE);
-		ret = slm_thd_wakeup(t, 0);
-		if (ret < 0) {
-			slm_cs_exit(NULL, SLM_CS_NONE);
-			return ret;
-		}
-	} else {
-		struct slm_notify notify;
-		notify.tid = t->tid;
-		ret = slm_notify_queue_enqueue(&slm_xcpu_notify[t->cpuid], &notify);
-		assert(!slm_notify_queue_empty(&slm_xcpu_notify[t->cpuid]));
-		cos_asnd(ipithd->asnd, 1);
+	slm_cs_enter(current, SLM_CS_NONE);
+	ret = slm_thd_wakeup(t, 0);
+	if (ret < 0) {
+		slm_cs_exit(NULL, SLM_CS_NONE);
+		return ret;
 	}
 
 	return slm_cs_exit_reschedule(current, SLM_CS_NONE);
@@ -587,12 +535,11 @@ sched_get_cpu_freq(void)
 	return slm_get_cycs_per_usec();
 }
 
-//thdcap_t idlecap;
-
 struct slm_thd *
 slm_ipithd_create(thd_fn_t fn, void * data, crt_rcv_flags_t flags, thdcap_t *thdcap, thdid_t *tid)
 {
-	struct slm_ipithd        *r = ss_ipithd_alloc_at_id(cos_cpuid() + 1);
+	struct slm_ipi_percore   *ipi_data = slm_ipi_percore_get(cos_cpuid());
+	struct slm_ipi_thd       *r        = &ipi_data->ipi_thd;
 	struct slm_thd_container *t;
 	struct slm_global        *g = slm_global();
 	struct slm_thd           *current = &g->sched_thd;
@@ -604,7 +551,6 @@ slm_ipithd_create(thd_fn_t fn, void * data, crt_rcv_flags_t flags, thdcap_t *thd
 	r->rcv = capmgr_rcv_alloc(fn, data, flags, &r->asnd, &_thd, &_tid);
 	r->cpuid = cos_cpuid();
 	r->tid = _tid;
-	ss_ipithd_activate(r);
 
 	t = slm_thd_mem_alloc(_thd, _tid, thdcap, tid);
 	if (!t) ERR_THROW(NULL, done);
@@ -630,46 +576,29 @@ void
 slm_ipi_process(void *d)
 {
 	int rcvd, ret;
-	struct slm_ipithd *r = ss_ipithd_get(cos_cpuid()+1);
-	struct slm_notify notify = { 0 };
-	struct slm_thd *current = slm_thd_current();
-	struct slm_thd *thd;
+	struct slm_ipi_percore *ipi_data = slm_ipi_percore_get(cos_cpuid());
+	struct slm_ipi_thd     *r        = &ipi_data->ipi_thd;
+	struct slm_ipi_event    event    = { 0 };
+	struct slm_thd         *current  = slm_thd_current();
+	struct slm_thd         *thd;
 
 	while (1) {
 		cos_rcv(r->rcv, RCV_ALL_PENDING, &rcvd);
-		assert(!slm_notify_queue_empty(&slm_xcpu_notify[cos_cpuid()]));
+		assert(!slm_ipi_event_empty(cos_cpuid()));
 
-		slm_cs_enter(current, SLM_CS_NONE);
-		while (!slm_notify_queue_empty(&slm_xcpu_notify[cos_cpuid()])) {
-			slm_notify_queue_dequeue(&slm_xcpu_notify[cos_cpuid()], &notify);
-			thd = slm_thd_static_cm_lookup(notify.tid);
+		while (!slm_ipi_event_empty(cos_cpuid())) {
+			slm_ipi_event_dequeue(&event, cos_cpuid());
+			thd = slm_thd_static_cm_lookup(event.tid);
+			slm_cs_enter(current, SLM_CS_NONE);
 			ret = slm_thd_wakeup(thd, 0);
 			if (ret < 0) {
 				slm_cs_exit(NULL, SLM_CS_NONE);
 				return;
 			}
+			slm_cs_exit(current, SLM_CS_NONE);
 		}
-		slm_cs_exit_reschedule(current, SLM_CS_NONE);
 	}
 	return;
-}
-
-
-void
-slm_notify_buf_init(struct slm_notify_buf *slm_notify_buf)
-{
-	struct cos_defcompinfo *def = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci  = cos_compinfo_get(def);
-	struct ck_ring *buf_addr;
-	
-	buf_addr = (struct ck_ring *)memmgr_heap_page_alloc();
-	assert(buf_addr);
-
-	size_t slm_notify_num = PAGE_SIZE / sizeof(struct slm_notify);
-
-	ck_ring_init(buf_addr, slm_notify_num);
-	slm_notify_buf->ring = buf_addr;
-	slm_notify_buf->ringbuf = (struct slm_notify *)((char *)buf_addr + sizeof(struct ck_ring));
 }
 
 void
@@ -687,19 +616,19 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	thdcap_t thdcap, ipithdcap;
 	arcvcap_t rcvcap;
 	thdid_t tid, ipitid;
+	struct slm_ipi_percore *ipi_data = slm_ipi_percore_get(cos_cpuid());
 
 	cos_defcompinfo_sched_init();
 
 	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid);
 	if (!t) BUG();
-	//idlecap = thdcap;
 
 	slm_init(thdcap, tid);
 
-	slm_notify_buf_init(&slm_xcpu_notify[cos_cpuid()]);
 	r = slm_ipithd_create(slm_ipi_process, NULL, 0, &ipithdcap, &ipitid);
 	if (!r) BUG();
 	sched_thd_param_set(ipitid, sched_param_pack(SCHEDP_PRIO, 20));
+	ck_ring_init(&ipi_data->ring, PAGE_SIZE / sizeof(struct slm_ipi_event));
 }
 
 void

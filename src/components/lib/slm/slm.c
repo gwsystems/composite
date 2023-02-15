@@ -3,6 +3,41 @@
 #include <ps_list.h>
 
 struct slm_global __slm_global[NUM_CPU];
+struct slm_ipi_percore slm_ipi_percore_data[NUM_CPU];
+
+CK_RING_PROTOTYPE(slm_ipi_ringbuf, slm_ipi_event);
+
+inline int
+slm_ipi_event_enqueue(struct slm_ipi_event *event, cpuid_t id)
+{
+    struct slm_ipi_percore *ipi_data = &slm_ipi_percore_data[id];
+	assert(&ipi_data->ring && ipi_data->ringbuf);
+
+    return CK_RING_ENQUEUE_MPSC(slm_ipi_ringbuf, &ipi_data->ring, ipi_data->ringbuf, event);
+}
+
+inline int
+slm_ipi_event_dequeue(struct slm_ipi_event *event, cpuid_t id)
+{
+    struct slm_ipi_percore *ipi_data = &slm_ipi_percore_data[id];
+    assert(&ipi_data->ring && ipi_data->ringbuf);
+
+    return CK_RING_DEQUEUE_MPSC(slm_ipi_ringbuf, &ipi_data->ring, ipi_data->ringbuf, event);
+}
+
+inline int
+slm_ipi_event_empty(cpuid_t id)
+{
+    struct slm_ipi_percore *ipi_data = &slm_ipi_percore_data[id];
+    assert(&ipi_data->ring);
+    return (!ck_ring_size(&ipi_data->ring));
+}
+
+inline struct slm_ipi_percore *
+slm_ipi_percore_get(cpuid_t id)
+{
+    return &slm_ipi_percore_data[id];
+}
 
 struct slm_thd *
 slm_thd_special(void)
@@ -312,6 +347,15 @@ int
 slm_thd_wakeup(struct slm_thd *t, int redundant)
 {
 	assert(t);
+	if (unlikely(t->cpuid) != cos_cpuid()) {
+		struct slm_ipi_percore *ipi_data = slm_ipi_percore_get(t->cpuid);
+		struct slm_ipi_event    event    = { 0 };
+		event.tid = t->tid;
+		int ret = slm_ipi_event_enqueue(&event, t->cpuid);
+		assert(!slm_ipi_event_empty(t->cpuid));
+		cos_asnd(ipi_data->ipi_thd.asnd, 1);
+		return 0;
+	}
 
 	if (t->state == SLM_THD_WOKEN) return 1;
 

@@ -124,7 +124,7 @@ cm_rcv_alloc_in(struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t cl
 	struct cos_aep_info *sched_aep = cos_sched_aep_get(c->comp_res);
 
 	if (!r) return NULL;
-	if (crt_rcv_create_in(&r->rcv, c, sched , closure_id, flags)) {
+	if (crt_rcv_create_in(&r->rcv, c, sched, closure_id, flags)) {
 		ss_rcv_free(r);
 		return NULL;
 	}
@@ -155,12 +155,12 @@ cm_asnd_alloc_in(struct crt_comp *c, struct crt_rcv *rcv)
 		return NULL;
 	}
 
-	ss_asnd_activate(s);
 	if (crt_asnd_alias_in(&s->asnd, c, &res)) {
 		ss_asnd_free(s);
 		return NULL;
 	}
 	s->aliased_cap = res.asnd;
+	ss_asnd_activate(s);
 
 	return s;
 }
@@ -770,21 +770,21 @@ capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid)
 arcvcap_t
 capmgr_rcv_create(thdclosure_index_t idx, crt_rcv_flags_t flags, asndcap_t *asnd, thdcap_t *thdcap, thdid_t *tid)
 {
-    compid_t sched = (compid_t)cos_inv_token();
-    struct cm_comp   *c;
-    struct cm_rcv    *r;
+	compid_t sched = (compid_t)cos_inv_token();
+	struct cm_comp   *c;
+	struct cm_rcv    *r;
 	struct cm_asnd   *s;
-    arcvcap_t  child_rcv;
+	arcvcap_t  child_rcv;
 
-    assert(sched == 3);
-    c = ss_comp_get(sched);
+	/* TODO: Should replace this static check with one that uses the initargs to validate that the call is coming from the scheduler. */
+	c = ss_comp_get(sched);
 
-    r = cm_rcv_alloc_in(&c->comp, &c->sched_rcv[cos_cpuid()]->rcv, idx, flags, thdcap, tid);
+	r = cm_rcv_alloc_in(&c->comp, &c->sched_rcv[cos_cpuid()]->rcv, idx, flags, thdcap, tid);
 
 	s = cm_asnd_alloc_in(&c->comp, &r->rcv);
 	*asnd = s->aliased_cap;
 
-    return r->aliased_cap;
+	return r->aliased_cap;
 }
 
 

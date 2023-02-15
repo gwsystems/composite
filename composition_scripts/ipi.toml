@@ -1,5 +1,5 @@
 [system]
-description = "Simplest system with both capability manager and scheduler, from unit_schedcomp.sh"
+description = "Simple ipi test with one thread trying to wakeup another thread running on another core."
 
 [[components]]
 name = "booter"
