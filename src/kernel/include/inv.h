@@ -302,7 +302,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	}
 
 	pgtbl_update(&sinvc->comp_info.pgtblinfo);
-	chal_protdom_write(sinvc->comp_info.protdom);
+	chal_protdom_write(sinvc->comp_info.pgtblinfo.protdom);
 
 	/* TODO: test this before pgtbl update...pre- vs. post-serialization */
 	__userregs_sinvupdate(regs);

@@ -1,0 +1,38 @@
+[system]
+description = "Simple system designed to test user-level getting coreid. Run with NUM_CPU > 1 for this test to be useful."
+
+[[components]]
+name = "booter"
+img  = "no_interface.llbooter"
+implements = [{interface = "init"}, {interface = "addr"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"
+
+[[components]]
+name = "print"
+img  = "print.serializing"
+implements = [{interface = "print"}]
+deps = [{srv = "booter", interface = "init"}]
+constructor = "booter"
+
+[[components]]
+name = "capmgr"
+img  = "capmgr.simple"
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}, {srv = "print", interface = "print"}]
+implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
+constructor = "booter"
+
+[[components]]
+name = "sched"
+img  = "sched.pfprr_quantum_static"
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "print", interface = "print"}]
+implements = [{interface = "sched"}, {interface = "init"}]
+constructor = "booter"
+
+[[components]]
+name = "test"
+img  = "tests.unit_coreid"
+deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "print", interface = "print"}]
+constructor = "booter"
+
+

@@ -35,7 +35,6 @@
 #define COS_ASM_REQUEST_STACK
 
 #define COS_SIMPLE_STACK_THDID_OFF 0x1fff0
-#define COS_SIMPLE_STACK_CPUID_OFF 0x1fff8
 
 /*
  * pkru = ~(0b11 << (2 * pkey)) & ~0b11;

@@ -18,6 +18,14 @@
 #include "../chal/shared/cos_config.h"
 #include "../chal/chal_config.h"
 
+/* compile-time assertions */
+#ifndef __cplusplus
+	#define COS_STATIC_ASSERT(cond, err_msg) _Static_assert(cond, err_msg)
+#else
+	/* g++ doesnt allow _Static_assert; compiling the c++ code will throw an error */
+	#define COS_STATIC_ASSERT(cond, err_msg) static_assert(cond, err_msg)
+#endif
+
 #ifndef LLONG_MAX
 #define LLONG_MAX 9223372036854775807LL
 #endif
@@ -390,15 +398,29 @@ typedef int                thdclosure_index_t;
 
 /* 
  * This is an attempt decouple hardware specific code from
- * parts of the kernel interface that are kernel agnostic.
+ * parts of the kernel interface that are hardware agnostic.
  * This type provides an abstraction for hardware-specific 
  * protection domain identifiers (ASID, MPK) that are 
  * interpreted at the hardware-abstraction-layer level. 
- * It is intended for interfaces for hardware-aware user-level 
- * code such as namespace managers. There might be a better 
- * way to do this but it cleans up the kernel interface. 
+ * Only hardware-specific code should touch the type values
  */
-typedef unsigned long prot_domain_t;
+typedef u32_t prot_domain_t;
+
+#if defined(__x86_64__)
+	
+/* x86_64 prot_domain_t bits:
+ *
+ * |000......000|  pcid  |mpk key|
+ * |31........16|15.....4|3.....0|
+ */ 
+#define PROTDOM_MPK_KEY(prot_domain) ((prot_domain) & 0xF)
+#define PROTDOM_ASID(prot_domain) (((prot_domain) >> 4) & 0xFFF)
+#define PROTDOM_INIT(asid, mpk_key) ((prot_domain_t)((asid << 4) | mpk_key))
+
+#endif
+
+
+
 
 struct restartable_atomic_sequence {
 	vaddr_t start, end;
