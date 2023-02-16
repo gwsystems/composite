@@ -1,0 +1,79 @@
+/*
+ * Copyright 2016, Runyu Pan and Gabriel Parmer, GWU, gparmer@gwu.edu.
+ *
+ * This uses a two clause BSD License.
+ */
+
+#include <llprint.h>
+#include <sched.h>
+
+#include <sync_lock.h>
+#include <perfdata.h>
+#include <cos_time.h>
+
+#undef LOCK_TRACE_DEBUG
+#ifdef LOCK_TRACE_DEBUG
+#define debug(format, ...) printc(format, ##__VA_ARGS__)
+#else
+#define debug(format, ...)
+#endif
+
+#define ITERATION 10
+
+struct sync_lock lock;
+volatile unsigned long long cnt;
+volatile int res[NUM_CPU] = { 0 };
+volatile int done = 0;
+
+void
+spin(void)
+{
+	cnt = 0;
+	while (cnt < 1000000000) cnt++;
+}
+
+void
+contention_lock(void)
+{
+	int i = 0;
+	if (cos_cpuid() == 0) {
+		while (i < ITERATION) {
+			sync_lock_take(&lock);
+			printc("core 0 has the lock, SPIN...\n");
+			res[cos_cpuid()] ++;
+			sync_lock_release(&lock);
+			spin();
+			i++;
+		}
+		done = 1;
+		printc("CORE0: %d, CORE1: %d\nSUCCESS!\n", res[0], res[1]);
+	}
+
+	if (cos_cpuid() == 1) {
+		while (!done) {
+			sync_lock_take(&lock);
+			printc("core 1 has the lock, SPIN...\n");
+			res[cos_cpuid()] ++;
+			sync_lock_release(&lock);
+			spin();
+		}
+	}
+
+	return;
+}
+
+void
+cos_init()
+{
+	sync_lock_init(&lock);
+}
+
+void
+parallel_main(coreid_t cid, int init_core, int ncores)
+{
+	contention_lock();
+
+	if (cos_cpuid() == 0) printc("Running benchmark, exiting main thread...\n");
+
+	return;
+}
