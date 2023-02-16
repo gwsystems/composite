@@ -358,7 +358,6 @@ slm_thd_wakeup(struct slm_thd *t, int redundant)
 	}
 
 	if (t->state == SLM_THD_WOKEN) return 1;
-
 	if (unlikely(t->state == SLM_THD_RUNNABLE || (redundant && t->state == SLM_THD_WOKEN))) {
 		/*
 		 * We have an odd case. We have a thread that is

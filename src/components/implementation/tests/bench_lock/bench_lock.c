@@ -32,12 +32,6 @@ volatile cycles_t end;
 struct perfdata perf;
 cycles_t result[ITERATION] = {0, };
 
-sched_param_t sps[] = {
-		SCHED_PARAM_CONS(SCHEDP_PRIO, 4),
-		SCHED_PARAM_CONS(SCHEDP_PRIO, 6)
-};
-
-
 /***
  * The high priority thread periodically challenges the lock while the low priority thread keeps spinning.
  * When the low-priority thread detects that the flag is changed, it knows that the lock is challenged.
@@ -56,6 +50,7 @@ lock_hi_thd(void *d)
 		flag = 1;
 		start = time_now();
 		sync_lock_take(&lock);
+
 		sync_lock_release(&lock);
 		end = time_now();
 		debug("h3,");
@@ -70,8 +65,10 @@ lock_lo_thd(void *d)
 
 	for (i = 0; i < ITERATION + 1; i++) {
 		debug("l1,");
+		//sched_thd_wakeup(lock_hi);
 
 		debug("l2,");
+		//flag = 0;
 		sync_lock_take(&lock);
 
 		debug("l3,");
@@ -97,10 +94,17 @@ lock_lo_thd(void *d)
 }
 
 void
-uncontended_lock(void)
+test_lock(void)
 {
 	int i;
 	int first = 0;
+
+	sched_param_t sps[] = {
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 4),
+		SCHED_PARAM_CONS(SCHEDP_PRIO, 6)
+	};
+
+	sync_lock_init(&lock);
 
 	/* Uncontended lock taking/releasing */
 	perfdata_init(&perf, "Uncontended lock - take+release", result, ITERATION);
@@ -120,38 +124,32 @@ uncontended_lock(void)
 #else
 	perfdata_print(&perf);
 #endif
-	return;
+
+	perfdata_init(&perf, "Contended lock - take+release", result, ITERATION);
+
+	printc("Create threads:\n");
+
+	lock_lo = sched_thd_create(lock_lo_thd, NULL);
+	printc("\tcreating lo thread %lu at prio %d\n", lock_lo, sps[1]);
+	sched_thd_param_set(lock_lo, sps[1]);
+
+	lock_hi = sched_thd_create(lock_hi_thd, NULL);
+	printc("\tcreating hi thread %lu at prio %d\n", lock_hi, sps[0]);
+	sched_thd_param_set(lock_hi, sps[0]);
 }
 
 void
-contention_lock(void)
+cos_init(void)
 {
-	if (cos_cpuid() == 0) {
-		perfdata_init(&perf, "Contended lock - take+release", result, ITERATION);
-		printc("Create threads:\n");
-	}
-
-	if (cos_cpuid() == 0) {
-		lock_lo = sched_thd_create(lock_lo_thd, NULL);
-		sched_thd_param_set(lock_lo, sps[1]);
-	} else {
-		lock_hi = sched_thd_create(lock_hi_thd, NULL);
-		sched_thd_param_set(lock_hi, sps[0]);
-	}
-	return;
+	printc("Benchmark for the sync_lock (w/sched interface).\n");
 }
 
-void
-parallel_main(coreid_t cid, int init_core, int ncores)
+int
+main(void)
 {
-	if (cos_cpuid() == 0) {
-		sync_lock_init(&lock);
-		uncontended_lock();
-	}
+	test_lock();
 
-	contention_lock();
+	printc("Running benchmark, exiting main thread...\n");
 
-	if (cos_cpuid() == 0) printc("Running benchmark, exiting main thread...\n");
-
-	return;
+	return 0;
 }
