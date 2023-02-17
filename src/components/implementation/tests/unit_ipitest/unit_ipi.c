@@ -66,7 +66,7 @@ parallel_main(coreid_t cid, int init_core, int ncores)
 {
 	int i = 0;
 
-	if (NUM_CPU < 1) {
+	if (NUM_CPU < 2) {
 		printc("ERROR: This test requires at least 2 cores.\n");
 		return;
 	}
