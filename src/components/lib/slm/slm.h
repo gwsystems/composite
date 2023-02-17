@@ -385,6 +385,8 @@ slm_timeout_clear(void)
 	slm_global()->timer_set = 0;
 }
 
+#define SLM_IPI_THD_PRIO 20
+
 int slm_ipi_event_enqueue(struct slm_ipi_event *event, cpuid_t id);
 int slm_ipi_event_dequeue(struct slm_ipi_event *event, cpuid_t id);
 int slm_ipi_event_empty(cpuid_t id);

@@ -47,7 +47,7 @@ contention_lock(void)
 	int i = 0;
 	while (!done) {
 		sync_lock_take(&lock);
-		printc("core %d has the lock, SPIN...\n", cos_cpuid());
+		printc("core %ld has the lock, SPIN...\n", cos_cpuid());
 		res[cos_cpuid()] ++;
 		sync_lock_release(&lock);
 		spin();

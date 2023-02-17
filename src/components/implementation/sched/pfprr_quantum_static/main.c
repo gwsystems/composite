@@ -625,7 +625,7 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 
 	r = slm_ipithd_create(slm_ipi_process, NULL, 0, &ipithdcap, &ipitid);
 	if (!r) BUG();
-	sched_thd_param_set(ipitid, sched_param_pack(SCHEDP_PRIO, 20));
+	sched_thd_param_set(ipitid, sched_param_pack(SCHEDP_PRIO, SLM_IPI_THD_PRIO));
 	ck_ring_init(&ipi_data->ring, PAGE_SIZE / sizeof(struct slm_ipi_event));
 }
 
