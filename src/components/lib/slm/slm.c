@@ -347,7 +347,7 @@ int
 slm_thd_wakeup(struct slm_thd *t, int redundant)
 {
 	assert(t);
-	if (unlikely(t->cpuid) != cos_cpuid()) {
+	if (unlikely(t->cpuid != cos_cpuid())) {
 		struct slm_ipi_percore *ipi_data = slm_ipi_percore_get(t->cpuid);
 		struct slm_ipi_event    event    = { 0 };
 		event.tid = t->tid;
@@ -598,6 +598,7 @@ slm_init(thdcap_t thd, thdid_t tid)
 		.thd = sched_aep->thd,
 		.tid = sched_aep->tid,
 		.rcv = sched_aep->rcv,
+		.cpuid = cos_cpuid(),
 		.priority = TCAP_PRIO_MAX
 	};
 	ps_list_init(s, thd_list);
@@ -611,6 +612,7 @@ slm_init(thdcap_t thd, thdid_t tid)
 		.thd = thd,
 		.tid = tid,
 		.rcv = 0,
+		.cpuid = cos_cpuid(),
 		.priority = TCAP_PRIO_MIN
 	};
 	ps_list_init(i, thd_list);

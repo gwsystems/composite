@@ -33,29 +33,28 @@ spin(void)
 }
 
 void
+print_res(void)
+{
+	int i = 0;
+
+	for (i =0; i < NUM_CPU; i++)
+		printc("CPU%d take the lock %d times\n", i, res[i]);
+}
+
+void
 contention_lock(void)
 {
 	int i = 0;
-	if (cos_cpuid() == 0) {
-		while (i < ITERATION) {
-			sync_lock_take(&lock);
-			printc("core 0 has the lock, SPIN...\n");
-			res[cos_cpuid()] ++;
-			sync_lock_release(&lock);
-			spin();
-			i++;
-		}
-		done = 1;
-		printc("CORE0: %d, CORE1: %d\nSUCCESS!\n", res[0], res[1]);
-	}
-
-	if (cos_cpuid() == 1) {
-		while (!done) {
-			sync_lock_take(&lock);
-			printc("core 1 has the lock, SPIN...\n");
-			res[cos_cpuid()] ++;
-			sync_lock_release(&lock);
-			spin();
+	while (!done) {
+		sync_lock_take(&lock);
+		printc("core %d has the lock, SPIN...\n", cos_cpuid());
+		res[cos_cpuid()] ++;
+		sync_lock_release(&lock);
+		spin();
+		i++;
+		if (cos_cpuid() == 0 && i >= ITERATION) {
+			done = 1;
+			print_res();
 		}
 	}
 
