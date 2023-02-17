@@ -26,10 +26,10 @@ volatile int res[NUM_CPU] = { 0 };
 volatile int done = 0;
 
 void
-spin(void)
+simple_spin(unsigned long long iter)
 {
 	cnt = 0;
-	while (cnt < 1000000000) cnt++;
+	while (cnt < iter * 10000000) cnt++;
 }
 
 void
@@ -37,8 +37,9 @@ print_res(void)
 {
 	int i = 0;
 
-	for (i =0; i < NUM_CPU; i++)
+	for (i =0; i < NUM_CPU; i++) {
 		printc("CPU%d take the lock %d times\n", i, res[i]);
+	}
 }
 
 void
@@ -47,13 +48,14 @@ contention_lock(void)
 	int i = 0;
 	while (!done) {
 		sync_lock_take(&lock);
-		printc("core %ld has the lock, SPIN...\n", cos_cpuid());
 		res[cos_cpuid()] ++;
+		simple_spin((unsigned long long)50);
 		sync_lock_release(&lock);
-		spin();
+		simple_spin((unsigned long long)100);
 		i++;
 		if (cos_cpuid() == 0 && i >= ITERATION) {
 			done = 1;
+			printc("SUCCESS:\n");
 			print_res();
 		}
 	}
@@ -71,8 +73,6 @@ void
 parallel_main(coreid_t cid, int init_core, int ncores)
 {
 	contention_lock();
-
-	if (cos_cpuid() == 0) printc("Running benchmark, exiting main thread...\n");
 
 	return;
 }

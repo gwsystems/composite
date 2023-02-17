@@ -589,10 +589,11 @@ slm_ipi_process(void *d)
 			thd = slm_thd_static_cm_lookup(event.tid);
 			slm_cs_enter(current, SLM_CS_NONE);
 			ret = slm_thd_wakeup(thd, 0);
-			if (ret < 0) {
-				slm_cs_exit(NULL, SLM_CS_NONE);
-				return;
-			}
+			/*
+			 * Return "0" means the thread is woken up in this call.
+			 * Return "1" means the thread is already `RUNNABLE`.
+			 */
+			assert(ret == 0 || ret == 1);
 			slm_cs_exit(current, SLM_CS_NONE);
 		}
 	}

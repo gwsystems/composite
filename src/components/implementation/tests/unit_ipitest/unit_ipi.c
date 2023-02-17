@@ -16,9 +16,10 @@
 #define HIGH_PRIORITY (LOWEST_PRIORITY - 10)
 
 #define TEST_WAKEUP_CORE 0
+#define TEST_RCV_CORE 1
 
 static volatile int test_done = 0;
-static volatile thdid_t thd[NUM_CPU] = { 0 };
+static volatile thdid_t thd[2] = { 0 };
 
 static void
 ipi_wakeup()
@@ -44,13 +45,14 @@ void
 test_ipi_switch(void)
 {
 	if (cos_cpuid() == TEST_WAKEUP_CORE) {
-		printc("test ipi xcore wakeup\n");
+		printc("Testing ipi xcore wakeup\n");
 
 		thd[0] = sched_thd_create(ipi_wakeup, NULL);
 		sched_thd_param_set(thd[0], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
 		sched_thd_yield_to(thd[0]);
-	} else {
+	}
+	if (cos_cpuid() == TEST_RCV_CORE){
 		thd[1] = sched_thd_create(ipi_blocked, NULL);
 		sched_thd_param_set(thd[1], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 		
@@ -64,7 +66,10 @@ parallel_main(coreid_t cid, int init_core, int ncores)
 {
 	int i = 0;
 
-	if (NUM_CPU < 2) return;
+	if (NUM_CPU < 2) {
+		printc("ERROR: This test requires more than 2 cores.\n");
+		return;
+	}
 	test_ipi_switch();
 	SPIN();
 	return;

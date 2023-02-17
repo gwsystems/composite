@@ -352,7 +352,8 @@ slm_thd_wakeup(struct slm_thd *t, int redundant)
 		struct slm_ipi_event    event    = { 0 };
 		event.tid = t->tid;
 		int ret = slm_ipi_event_enqueue(&event, t->cpuid);
-		assert(!slm_ipi_event_empty(t->cpuid));
+		/* Check if the enqueuing of the event is successful. */
+		assert(ret);
 		cos_asnd(ipi_data->ipi_thd.asnd, 1);
 		return 0;
 	}
