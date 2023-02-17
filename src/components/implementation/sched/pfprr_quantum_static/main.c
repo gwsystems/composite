@@ -1,8 +1,6 @@
 #include <cos_component.h>
 #include <llprint.h>
 #include <capmgr.h>
-#include <memmgr.h>
-#include <ck_ring.h>
 #include <static_slab.h>
 #include <ps_list.h>
 #include <ps.h>
