@@ -2,13 +2,13 @@
 # for many of these to be empty.
 #
 # The library names associated with .a files output that are linked
-# (via, for example, -lcrt) into dependents. This list should be
-# "crt" for output files such as libcrt.a.
-LIBRARY_OUTPUT = crt
+# (via, for example, -lshm_bm) into dependents. This list should be
+# "shm_bm" for output files such as libshm_bm.a.
+LIBRARY_OUTPUT = protdom
 # The .o files that are mandatorily linked into dependents. This is
 # rarely used, and only when normal .a linking rules will avoid
 # linking some necessary objects. This list is of names (for example,
-# crt) which will generate crt.lib.o. Do NOT include the list of .o
+# shm_bm) which will generate shm_bm.lib.o. Do NOT include the list of .o
 # files here. Please note that using this list is *very rare* and
 # should only be used when the .a support above is not appropriate.
 OBJECT_OUTPUT =
@@ -18,10 +18,10 @@ OBJECT_OUTPUT =
 INCLUDE_PATHS = .
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES = sched memmgr
+INTERFACE_DEPENDENCIES =
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = component kernel initargs mpk_jit protdom
+LIBRARY_DEPENDENCIES = component crt
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this
@@ -46,13 +46,13 @@ include Makefile.lib
 ## for an external library, you can add the external code as a
 ## subdirectory, and drive its compilation, and integration with the
 ## system using a specialized Makefile. The Makefile must generate
-## liblibrary_output.a and object_output.lib.o, and have all of
-## the necessary include paths in include_paths.
+## lib$(LIBRARY_OUTPUT).a and $(OBJECT_OUTPUT).lib.o, and have all of
+## the necessary include paths in $(INCLUDE_PATHS).
 ##
 ## To access the Composite Makefile definitions, use the following. An
 ## example of a Makefile written in this way is in `ps/`.
 #
-# include Makefile.src Makefile.comp Makefile.minlib
+# include Makefile.src Makefile.comp Makefile.dependencies
 # .PHONY: all clean init distclean
 ## Fill these out with your implementation
 # all:

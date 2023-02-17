@@ -1217,8 +1217,8 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		case CAPTBL_OP_COMPACTIVATE: {
 			capid_t       captbl_cap = __userregs_get2(regs) >> 16;
 			capid_t       pgtbl_cap  = __userregs_get2(regs) & 0xFFFF;
-			prot_domain_t protdom    = __userregs_get3(regs) >> 16;
-			livenessid_t  lid        = __userregs_get3(regs) & 0xFFFF;
+			prot_domain_t protdom    = __userregs_get3(regs) & 0xFFFFFFFF;
+			livenessid_t  lid        = __userregs_get3(regs) >> 32; /* Need more registers!!! */
 			vaddr_t       entry_addr = __userregs_get4(regs);
 
 			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr, protdom);
@@ -1532,6 +1532,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			if (unlikely(!CAP_TYPECHK(asnd, CAP_ASND))) cos_throw(err, -EINVAL);
 
 			arcv = __cap_asnd_to_arcv(asnd);
+
 			if (unlikely(!arcv)) cos_throw(err, -EINVAL);
 
 			rthd    = arcv->thd;

@@ -1,5 +1,5 @@
-#include "cos_types.h"
-#include "cos_debug.h"
+#include <cos_types.h>
+#include <cos_debug.h>
 
 static int
 mpk_jit_search(u8_t *src, u8_t *pat, size_t len, size_t max)
@@ -43,12 +43,15 @@ mpk_jit_replace(u8_t *src, u8_t *orig, u8_t *replace, size_t len, size_t src_len
 #define JIT_CALLGATE_LEN_BYTES 550
 
 static void
-mpk_jit_jitcallgate(vaddr_t callgate, vaddr_t server_fn, u32_t cli_pkey, u32_t srv_pkey, u64_t cli_tok, u64_t srv_tok, invtoken_t inv_tok, sinvcap_t cap_no)
+mpk_jit_jitcallgate(vaddr_t callgate, vaddr_t server_fn, prot_domain_t client_protdom, prot_domain_t server_protdom, u64_t cli_tok, u64_t srv_tok, invtoken_t inv_tok, sinvcap_t cap_no)
 {
 	u64_t tok_placeholder = JIT_TOK_PLACEHOLDER;
 	u64_t inv_placeholder = JIT_INV_PLACEHOLDER;
 	u32_t mpk_placeholder = JIT_MPK_PLACEHOLDER;
 	u64_t srvfn_placeholder = JIT_SRVFN_PLACEHOLDER;
+
+	u32_t cli_pkey = (u32_t)PROTDOM_MPK_KEY(client_protdom);
+	u32_t srv_pkey = (u32_t)PROTDOM_MPK_KEY(server_protdom);
 
 	/* 
 	 * FIXME: 

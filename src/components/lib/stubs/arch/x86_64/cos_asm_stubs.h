@@ -216,8 +216,8 @@ __cosrt_fast_callgate_##name:					\
 	/* thread ID and cpu ID */				\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffe0000, %rdx;			\
+	rdpid   %rax;						\
 	movzwq  COS_SIMPLE_STACK_THDID_OFF(%rdx), %r13;		\
-	movzwq  COS_SIMPLE_STACK_CPUID_OFF(%rdx), %rax;		\
 	shl	$16, %rax;					\
 	or	%rax, %r13;					\
 	COS_ULINV_GET_INVSTK					\
@@ -299,8 +299,8 @@ __cosrt_fast_callgate_##name:					\
 	/* thread ID and cpu ID */				\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffe0000, %rdx;			\
+	rdpid   %rax;						\
 	movzwq  COS_SIMPLE_STACK_THDID_OFF(%rdx), %r13;		\
-	movzwq  COS_SIMPLE_STACK_CPUID_OFF(%rdx), %rax;		\
 	shl	$16, %rax;					\
 	or	%rax, %r13;					\
 	COS_ULINV_GET_INVSTK					\

@@ -17,7 +17,6 @@ struct comp_info {
 	struct liveness_data liveness;
 	struct pgtbl_info    pgtblinfo;
 	struct captbl *      captbl;
-	prot_domain_t        protdom;
 } __attribute__((packed));
 
 struct cap_comp {
@@ -58,7 +57,7 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	if (!compc) cos_throw(undo_ctc, ret);
 	compc->entry_addr             = entry_addr;
 	compc->info.pgtblinfo.pgtbl   = ptc->pgtbl;
-	compc->info.protdom           = protdom;
+	compc->info.pgtblinfo.protdom = protdom;
 	compc->info.captbl            = ctc->captbl;
 	compc->pgd                    = ptc;
 	compc->ct_top                 = ctc;
