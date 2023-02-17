@@ -11,6 +11,16 @@ capmgr_thd_create(cos_thd_fn_t fn, void *data, thdid_t *tid)
 	return capmgr_thd_create_thunk(idx, tid);
 }
 
+arcvcap_t
+capmgr_rcv_alloc(cos_thd_fn_t fn, void *data, int flags, asndcap_t *asnd, thdcap_t *thdcap, thdid_t *tid)
+{
+	thdclosure_index_t idx = cos_thd_init_alloc(fn, data);
+
+	if (idx < 1) return 0;
+
+	return capmgr_rcv_create(idx, flags, asnd, thdcap, tid);
+}
+
 thdcap_t
 capmgr_aep_create(struct cos_aep_info *a, cos_aepthd_fn_t fn, void *data, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
 {

@@ -3,13 +3,16 @@
 
 COS_SERVER_3RET_STUB(arcvcap_t, capmgr_rcv_create)
 {
-	spdid_t child = p0 >> 16;
-	thdid_t tid   = (p0 << 16) >> 16;
-	cos_channelkey_t key = p1 >> 16;
-	microsec_t ipiwin = (p1 << 16) >> 16;
-	u32_t ipimax = p2;
+	asndcap_t retasnd = 0;
+	arcvcap_t ret;
+	thdcap_t  thdcap;
+	thdid_t   tid;
 
-	return capmgr_rcv_create(child, tid, key, ipiwin, ipimax);
+	ret = capmgr_rcv_create(p0, p1, &retasnd, &thdcap, &tid);
+	*r1 = retasnd;
+	*r2 = (thdcap << 16) | tid;
+
+	return ret;
 }
 
 

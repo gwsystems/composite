@@ -74,7 +74,7 @@ slm_sched_fprr_yield(struct slm_thd *t, struct slm_thd *yield_to)
 	struct slm_sched_thd *p = slm_thd_sched_policy(t);
 
 	ps_list_rem_d(p);
-	ps_list_head_append_d(&threads[cos_cpuid()].prio[t->priority - 1], p);
+	ps_list_head_append_d(&threads[cos_cpuid()].prio[t->priority], p);
 }
 
 int

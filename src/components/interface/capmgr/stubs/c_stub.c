@@ -10,14 +10,18 @@
 #include <cos_defkernel_api.h>
 #include <cos_stubs.h>
 
-COS_CLIENT_STUB(arcvcap_t, capmgr_rcv_create, spdid_t child, thdid_t tid, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax)
+COS_CLIENT_STUB(arcvcap_t, capmgr_rcv_create, thdclosure_index_t idx, int flags, asndcap_t *asnd, thdcap_t *thdcap, thdid_t *tid)
 {
 	COS_CLIENT_INVCAP;
-	word_t spd_tid    = (child << 16) | tid;
-	word_t key_ipimax = (key << 16) | ipimax;
-	word_t ipiwin32b  = (u32_t)ipiwin;
+	word_t thdret, asnd_ret;
+	arcvcap_t ret;
 
-	return cos_sinv(uc, spd_tid, key_ipimax, ipiwin32b, 0);
+	ret = cos_sinv_2rets(uc, idx, flags, 0, 0, &asnd_ret, &thdret);
+	*asnd   = asnd_ret;
+	*thdcap = (thdcap_t)thdret >> 16;
+	*tid    = (thdid_t)thdret & 0xFFFF;
+
+	return ret;
 }
 
 COS_CLIENT_STUB(thdcap_t, capmgr_initthd_create, spdid_t child, thdid_t *tid)
