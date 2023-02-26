@@ -667,7 +667,6 @@ static inline struct comp_info *
 thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
 {
 	/* curr_thd should be the current thread! We are using cached invstk_top. */
-	assert(curr_thd->tid < 20);
 	struct invstk_entry *curr;
 	struct ulk_invstk   *ulk_invstk;
 	struct comp_info    *ci;
@@ -687,9 +686,7 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 	 * we must be coming from a comp on the UL stack 
 	 */
 	assert(curr);
-	//assert(curr->ulk_stkoff);
 	assert(ulk_invstk);
-	//assert(ulk_invstk->top);
 	if (ulk_invstk->top > curr->ulk_stkoff) {
 		ci = ulinvstk_current(ulk_invstk, &curr->comp_info, curr->ulk_stkoff);
 		curr->protdom = ci->protdom;

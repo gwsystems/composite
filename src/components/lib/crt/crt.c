@@ -1379,7 +1379,6 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		ps_lock_take(&_lock);
 		c->scb = cos_scb_alloc(ci);
 		target_ci->scb_uaddr = (vaddr_t)cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
-		//printc("*********cid: %d, uaddr: %x, captblcap: %d*********\n", c->id, target_ci->scb_uaddr, target_ci->captbl_cap);
 		if (cos_scb_mapping(target_ci, target_ci->comp_cap, target_ci->pgtbl_cap, c->scb, 0)) BUG();
 
 		if (crt_rcv_create_in(r, c, 0, 0, 0, c->scb, &init_dcb)) BUG();
@@ -1538,7 +1537,6 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		if (initcore) {
 			thdcap = crt_comp_thdcap_get(comp);
 			printc("Initializing component %lu (executing cos_init).\n", comp->id);
-	printc("???????????\n");
 		} else {
 			/* wait for the init core's thread to initialize */
 			while (ps_load(&comp->init_state) == CRT_COMP_INIT_COS_INIT) ;
@@ -1546,13 +1544,10 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 
 			thdcap = crt_comp_thdcap_get(comp);
 		}
-	printc("???????????\n");
 		assert(thdcap);
 
 		if (comp->flags & CRT_COMP_SCHED) {
-	printc("???????????delegate\n");
 			if (crt_comp_sched_delegate(comp, comp_get(cos_compid()), TCAP_PRIO_MAX, TCAP_RES_INF)) BUG();
-	printc("???????????delegate done\n");
 		} else {
 			if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync(ci)))) {
 				printc("Switch failure on thdcap %ld, with ret %d\n", thdcap, ret);
@@ -1600,7 +1595,6 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 			struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 
 			assert(sched_aep->rcv != 0 && child_aep->tc != 0);
-			//printc("cos_switch: %d\n", thdcap);
 			if (cos_switch(thdcap, child_aep->tc, TCAP_PRIO_MAX, TCAP_TIME_NIL, sched_aep->rcv, cos_sched_sync(ci))) BUG();
 		} else {
 			if (cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync(ci))) BUG();
@@ -1664,7 +1658,6 @@ crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type)
 	}
 
 	/* switch back to the booter's thread in execute() */
-	//printc("bugged here\n");
 	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync(ci))) BUG();
 
 	assert(c->init_state != CRT_COMP_INIT_PASSIVE);
@@ -1680,8 +1673,6 @@ crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type)
 void
 crt_compinit_exit(struct crt_comp *c, int retval)
 {
-	//struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
-	//struct cos_compinfo    *ci    = cos_compinfo_get(ci);
 	struct cos_compinfo *ci = cos_compinfo_get(c->comp_res);
 	assert(c->id != cos_compid());
 	/*
