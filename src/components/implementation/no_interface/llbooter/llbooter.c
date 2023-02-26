@@ -660,6 +660,7 @@ cos_parallel_init(coreid_t cid, int is_init_core, int ncores)
 void
 cos_init(void)
 {
+	printc("booter_init\n");
 	booter_init();
 	cos_defcompinfo_sched_init();
 	comps_init();

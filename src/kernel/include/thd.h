@@ -59,6 +59,7 @@ curr_invstk_inc(struct cos_cpu_local_info *cos_info)
 static inline int
 curr_invstk_dec(struct cos_cpu_local_info *cos_info)
 {
+	//printk("-------------dec\n");
 	return cos_info->invstk_top--;
 }
 
@@ -324,12 +325,23 @@ thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long 
 	return 1;
 }
 
+static inline void
+thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
+{
+	//printk("\t update, pre: %d, next: %d\n", prev->tid, next->tid);
+	/* commit the cached data */
+	prev->invstk_top     = cos_info->invstk_top;
+	cos_info->invstk_top = next->invstk_top;
+	cos_info->curr_thd   = next;
+}
+
 static inline struct thread *
 thd_current(struct cos_cpu_local_info *cos_info)
 {
 	struct thread       *thread = (struct thread *)cos_info->curr_thd;
 	struct thread       *sched_thd;
 	struct thread       *curr_thd;
+	struct cap_thd      *tc;
 	struct comp_info    *sched_comp;
 	struct cos_scb_info *scb_core;
 	capid_t              curr;
@@ -341,21 +353,25 @@ thd_current(struct cos_cpu_local_info *cos_info)
 
 	sched_thd  = thread->scheduler_thread;
 	/* We assume sched_thread is always created in the scheduler component. */
-	sched_comp = &(sched_thd->invstk[0].comp_info);
 	scb_core   = thread->scb_cached + get_cpuid();
 	curr       = scb_core->curr_thd;
-	curr_thd   = curr ? (struct thread *)captbl_lkup(sched_comp->captbl, curr) : thread;
+
+	if (unlikely(thread->refcnt)) {
+		sched_comp = &(sched_thd->invstk[0].comp_info);
+	} else {
+		sched_comp = &(thread->invstk[0].comp_info);
+	}
+
+	if (curr) {
+		tc = (struct cap_thd *)captbl_lkup(sched_comp->captbl, curr);
+		if (unlikely(!tc || tc->h.type != CAP_THD)) assert(0);
+		curr_thd = tc->t;
+		thd_current_update(curr_thd, thread, cos_info);
+	} else {
+		return thread;
+	}
 
 	return curr_thd;
-}
-
-static inline void
-thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
-{
-	/* commit the cached data */
-	prev->invstk_top     = cos_info->invstk_top;
-	cos_info->invstk_top = next->invstk_top;
-	cos_info->curr_thd   = next;
 }
 
 static inline struct thread *
@@ -390,7 +406,6 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 		if (dcboff > PAGE_SIZE / sizeof(struct cos_dcb_info)) return -EINVAL;
 	}
 	if (likely(scbcap)) {
-		//printk("has scb : %d\n", scbcap);
 		sc = (struct cap_scb *)captbl_lkup(t, scbcap);
 		if (unlikely(!sc || sc->h.type != CAP_SCB)) return -EINVAL;
 		thd->scb_cached = (struct cos_scb_info *)(sc->kern_addr);
@@ -407,7 +422,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->refcnt                           = 1;
 	thd->invstk_top                       = 0;
 	thd->cpuid                            = get_cpuid();
-	//printk("#########: %x, tid: %d\n", thd->scb_cached, thd->tid);
+
 	if (likely(dc)) {
 		ret = dcb_thd_ref(dc, thd);
 		if (ret) goto err; /* TODO: cleanup captbl slot */
@@ -415,6 +430,10 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 		memset(thd->dcbinfo, 0, sizeof(struct cos_dcb_info));
 	}
 	thd->ulk_invstk                       = ulinvstk;
+	/*if (ulinvstk) {
+		printk("\t****ul_invstk: %x, tid: %d, top: %x, ", thd->ulk_invstk, thd->tid, &(thd->ulk_invstk->top));
+		printk("%d\n", thd->ulk_invstk->top);
+	}*/
 	assert(thd->tid <= MAX_NUM_THREADS);
 	//printk("set schedulercurr: %x\n", thd);
 	thd_scheduler_set(thd, thd_current(cli));
@@ -660,6 +679,7 @@ static inline struct comp_info *
 thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
 {
 	/* curr_thd should be the current thread! We are using cached invstk_top. */
+	assert(curr_thd->tid < 20);
 	struct invstk_entry *curr;
 	struct ulk_invstk   *ulk_invstk;
 	struct comp_info    *ci;
@@ -678,7 +698,10 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 	 * if there are new entries on the UL stack, 
 	 * we must be coming from a comp on the UL stack 
 	 */
-	// printk("invstl: %d\n", ulk_invstk->top);
+	assert(curr);
+	//assert(curr->ulk_stkoff);
+	assert(ulk_invstk);
+	//assert(ulk_invstk->top);
 	if (ulk_invstk->top > curr->ulk_stkoff) {
 		ci = ulinvstk_current(ulk_invstk, &curr->comp_info, curr->ulk_stkoff);
 		curr->protdom = ci->protdom;

@@ -85,13 +85,7 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	if (unlikely(!thd->scb_cached)) goto done;
 	scb_core = (thd->scb_cached + get_cpuid());
 	assert(scb_core);
-	//if ((*ci_ptr)->protdom == 3) {
-	//	printk("XXXXXX: %lx\n", *ci_ptr);
-	//	assert(0);
-	//}
-	//printk("ci_ptr: %lx, %d, scb_core: %lx, curr_thd: %lx\n", *ci_ptr,(*ci_ptr)->protdom, scb_core, &scb_core->curr_thd);
 	ultc     = scb_core->curr_thd;
-	//printk("kthread: %d, curr: %d\n", thd->tid, ultc);
 
 	/* reset inconsistency from user-level thd! */
 	scb_core->curr_thd = 0;
@@ -103,6 +97,7 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 		if (unlikely(!CAP_TYPECHK_CORE(ch_ult, CAP_THD))) ch_ult = NULL;
 		else                                              ulthd = ch_ult->t;
 	}
+	//printk("\tultc: %d, %x, %x, curr: %d\n", ultc, ch_ult, ulthd, thd->tid);
 
 	if (unlikely(interrupt)) {
 		struct thread *fixthd = thd;
@@ -1178,6 +1173,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 	cap   = __userregs_getcap(regs);
 	capin = __userregs_get1(regs);
 
+	assert(thd->tid < 10);
 	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
 	ct = ci->captbl;
@@ -1297,7 +1293,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			}
 			
 			/* ret is returned by the overall function */
-			//printk("kernel init_data: %d\n", init_data);
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, scb_cap, dcb_cap, dcboff, tid, ulstk);
 			if (ret) kmem_unalloc(pte);
 

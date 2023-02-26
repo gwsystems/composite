@@ -309,6 +309,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 		__userregs_set(regs, -1, sp, ip);
 		return;
 	}
+	//printk("\t>>>>>>>sinv tid : %d push, %x, top: %d, %x\n", thd->tid, thd, curr_invstk_top(cos_info), &cos_info->invstk_top);
 	//printk("\tpush: %lx,thd: %d, top: %d\n", sp, thd->tid,thd->invstk_top);
 	//printk("\t===>pgtbl: %lx\n", thd_current_pgtbl(thd));
 
@@ -331,6 +332,8 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	prot_domain_t     protdom;
 
 	ci = thd_invstk_pop(thd, &ip, &sp, &protdom, cos_info);
+	//printk("\t<<<<<<<sret top: %d, %x", curr_invstk_top(cos_info), &cos_info->invstk_top);
+	//printk(" tid: %d, %x, ci: %x\n\n", thd->tid, thd, ci);
 	if (unlikely(!ci)) {
 		assert(0);
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);

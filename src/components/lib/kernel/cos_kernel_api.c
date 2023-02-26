@@ -892,6 +892,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	pack = (u32_t)(cap << 16) | sched_scbc;
 	/* FIXME: add 32bit support */
 #if defined (__x86_64__)
+	//printc("ulkcap: %d\n", ulkcap);
 	ret = call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, ((u64_t)init_data) << 32 | pack,
 			  __compinfo_metacap(ci)->mi.pgtbl_cap << 16 | comp, kmem, (u64_t)hi << 32 | lo);
 #endif

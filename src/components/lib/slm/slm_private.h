@@ -349,6 +349,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 		ret = cos_defswitch(t->thd, prio, timeout, tok);
 	} else {
 		//printc("ulswitch: %d\n", t->tid);
+		//printc("*****ulswitch from: %d, to: %d******\n", curr->tid, t->tid);
 		ret = cos_ulswitch(curr->thd, t->thd, cd, nd, prio, timeout, tok);
 		//printc("return from ulswitch\n");
 	}

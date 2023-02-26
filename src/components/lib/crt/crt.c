@@ -387,13 +387,11 @@ crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hd
 
 	if (cos_comp_alloc_shared(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl, c->entry_addr, cos_compinfo_get(cos_defcompinfo_curr_get()), (prot_domain_t)mpk_key) != 0) {
 		printc("allocate comp cap/cap table cap failed\n");
-		assert(0);
 	}
 
 	cons_ret = cos_cons_into_shared_pgtbl(cos_compinfo_get(c->comp_res), vas->top_lvl_pgtbl);
 	if (cons_ret != 0) {
 		printc("cons failed: %d\n", cons_ret);
-		assert(0);
 	}
 
 	vas->names[name_index].state |= CRT_NS_STATE_ALLOCATED;
@@ -1540,6 +1538,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		if (initcore) {
 			thdcap = crt_comp_thdcap_get(comp);
 			printc("Initializing component %lu (executing cos_init).\n", comp->id);
+	printc("???????????\n");
 		} else {
 			/* wait for the init core's thread to initialize */
 			while (ps_load(&comp->init_state) == CRT_COMP_INIT_COS_INIT) ;
@@ -1547,10 +1546,13 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 
 			thdcap = crt_comp_thdcap_get(comp);
 		}
+	printc("???????????\n");
 		assert(thdcap);
 
 		if (comp->flags & CRT_COMP_SCHED) {
+	printc("???????????delegate\n");
 			if (crt_comp_sched_delegate(comp, comp_get(cos_compid()), TCAP_PRIO_MAX, TCAP_RES_INF)) BUG();
+	printc("???????????delegate done\n");
 		} else {
 			if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_TIME_NIL, cos_sched_sync(ci)))) {
 				printc("Switch failure on thdcap %ld, with ret %d\n", thdcap, ret);
