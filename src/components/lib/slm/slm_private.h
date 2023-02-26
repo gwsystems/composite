@@ -146,8 +146,6 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 	volatile struct cos_scb_info *scb       = (struct cos_scb_info*)ci->scb_uaddr + cos_cpuid();
 	sched_tok_t rcv_tok;
 	unsigned long pre_tok = 0;
-	//printc("\n\tscb: %x\n", scb);
-	//printc("\ttok: %x\n\n", scb->sched_tok);
 
 	assert(curr != next);
 	assert(scb);
@@ -308,7 +306,6 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 	assert(scb);
 
 	if (pre_tok != scb->sched_tok) {
-		//printc("pre_tok: %d, schedtok: %d\n", pre_tok, scb->sched_tok);
 		//return -EAGAIN;
 	}
 	return 0;
@@ -348,10 +345,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 		scb->timer_pre = timeout;
 		ret = cos_defswitch(t->thd, prio, timeout, tok);
 	} else {
-		//printc("ulswitch: %d\n", t->tid);
-		//printc("*****ulswitch from: %d, to: %d******\n", curr->tid, t->tid);
 		ret = cos_ulswitch(curr->thd, t->thd, cd, nd, prio, timeout, tok);
-		//printc("return from ulswitch\n");
 	}
 
 	if (unlikely(ret == -EPERM && !slm_thd_normal(t))) {
@@ -418,7 +412,6 @@ try_again:
 	/* Make a policy decision! */
 	t = slm_sched_schedule();
 	if (unlikely(!t)) t = &g->idle_thd;
-	//printc("======>tid: %d\n", t->tid);
 
 	assert(slm_state_is_runnable(t->state));
 	slm_cs_exit(NULL, flags);
@@ -426,9 +419,7 @@ try_again:
 	ret = slm_thd_activate(curr, t, tok, 0);
 	/* Assuming only the single tcap with infinite budget...should not get EPERM */
 	assert(ret != -EPERM);
-	//printc("======>ret: %d\n", ret);
 	if (unlikely(ret != 0)) {
-		printc("AGAIN\n");
 		/* Assuming only the single tcap with infinite budget...should not get EPERM */
 		assert(ret != -EPERM);
 

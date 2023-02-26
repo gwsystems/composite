@@ -59,7 +59,6 @@ curr_invstk_inc(struct cos_cpu_local_info *cos_info)
 static inline int
 curr_invstk_dec(struct cos_cpu_local_info *cos_info)
 {
-	//printk("-------------dec\n");
 	return cos_info->invstk_top--;
 }
 
@@ -328,7 +327,6 @@ thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long 
 static inline void
 thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
 {
-	//printk("\t update, pre: %d, next: %d\n", prev->tid, next->tid);
 	/* commit the cached data */
 	prev->invstk_top     = cos_info->invstk_top;
 	cos_info->invstk_top = next->invstk_top;
@@ -346,9 +344,6 @@ thd_current(struct cos_cpu_local_info *cos_info)
 	struct cos_scb_info *scb_core;
 	capid_t              curr;
 
-	//printk("cos_info: %x\n", cos_info);
-	//printk("thread: %x\n", thread);
-	//printk("cached_scb: %x\n", thread->cached_scb);
 	if (!thread || !thread->scb_cached) return thread;
 
 	sched_thd  = thread->scheduler_thread;
@@ -430,12 +425,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 		memset(thd->dcbinfo, 0, sizeof(struct cos_dcb_info));
 	}
 	thd->ulk_invstk                       = ulinvstk;
-	/*if (ulinvstk) {
-		printk("\t****ul_invstk: %x, tid: %d, top: %x, ", thd->ulk_invstk, thd->tid, &(thd->ulk_invstk->top));
-		printk("%d\n", thd->ulk_invstk->top);
-	}*/
 	assert(thd->tid <= MAX_NUM_THREADS);
-	//printk("set schedulercurr: %x\n", thd);
 	thd_scheduler_set(thd, thd_current(cli));
 
 	thd_rcvcap_init(thd);
@@ -443,13 +433,11 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	list_head_init(&thd->event_head);
 	list_init(&thd->event_list, thd);
 
-	//printk("initdata: %x\n", init_data);
 	thd_upcall_setup(thd, compc->entry_addr, COS_UPCALL_THD_CREATE, init_data, 0, 0);
 	tc->t     = thd;
 	tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD);
 
-	//printk("return\n");
 	return 0;
 
 err:

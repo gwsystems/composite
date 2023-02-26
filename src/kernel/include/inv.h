@@ -204,14 +204,6 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	thdc = (struct cap_thd *)captbl_lkup(t, thd_cap);
 	if (unlikely(!CAP_TYPECHK_CORE(thdc, CAP_THD))) return -EINVAL;
 	thd = thdc->t;
-	//if (thd->tid == 6) {
-	//	int i = 0;
-	//	while (i < 10) {
-	//		i++;
-			//printk("arcv_cap: %d, cpuid: %d\n", arcv_cap, get_cpuid());
-	//	}
-	//	assert(0);
-	//}
 
 	tcapc = (struct cap_tcap *)captbl_lkup(t, tcap_cap);
 	if (unlikely(!CAP_TYPECHK_CORE(tcapc, CAP_TCAP))) return -EINVAL;
@@ -235,7 +227,6 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	arcvc->epoch = 0; /* FIXME: get the real epoch */
 	arcvc->cpuid = get_cpuid();
 	arcvc->depth = depth;
-	//printk("thdc: %d, cpuid: %d\n", thd->tid, get_cpuid());
 
 	__arcv_setup(arcvc, thd, tcapc->tcap, init ? thd : arcv_p->thd);
 
@@ -309,9 +300,6 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 		__userregs_set(regs, -1, sp, ip);
 		return;
 	}
-	//printk("\t>>>>>>>sinv tid : %d push, %x, top: %d, %x\n", thd->tid, thd, curr_invstk_top(cos_info), &cos_info->invstk_top);
-	//printk("\tpush: %lx,thd: %d, top: %d\n", sp, thd->tid,thd->invstk_top);
-	//printk("\t===>pgtbl: %lx\n", thd_current_pgtbl(thd));
 
 	pgtbl_update(&sinvc->comp_info.pgtblinfo);
 	chal_protdom_write(sinvc->comp_info.protdom);
@@ -332,14 +320,11 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	prot_domain_t     protdom;
 
 	ci = thd_invstk_pop(thd, &ip, &sp, &protdom, cos_info);
-	//printk("\t<<<<<<<sret top: %d, %x", curr_invstk_top(cos_info), &cos_info->invstk_top);
-	//printk(" tid: %d, %x, ci: %x\n\n", thd->tid, thd, ci);
 	if (unlikely(!ci)) {
 		assert(0);
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
 		return;
 	}
-	//printk("\tpop: %lx, %d\n", sp, thd->tid);
 
 	if (unlikely(!ltbl_isalive(&ci->liveness))) {
 		printk("cos: ret comp (liveness %d) doesn't exist!\n", ci->liveness.id);
