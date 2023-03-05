@@ -77,6 +77,9 @@ SS_STATIC_SLAB(asnd, struct cm_asnd, MAX_NUM_THREADS);
 SS_STATIC_SLAB(page, struct mm_page, MM_NPAGES);
 SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 
+#define CONTIG_PHY_PAGES 60000
+static void * contig_phy_pages = 0;
+
 static struct cm_comp *
 cm_self(void)
 {
@@ -247,26 +250,32 @@ mm_page_allocn(struct cm_comp *c, unsigned long num_pages, unsigned long align)
 	return initial;
 }
 
-vaddr_t
-memmgr_virt_to_phys(vaddr_t vaddr)
+static vaddr_t
+__memmgr_virt_to_phys(compid_t id, vaddr_t vaddr)
 {
 	struct cm_comp *c;
 
-	c = ss_comp_get(cos_inv_token());
+	c = ss_comp_get(id);
 	if (!c) return 0;
 
 	return call_cap_op(c->comp.comp_res->ci.pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
 }
 
+vaddr_t
+memmgr_virt_to_phys(vaddr_t vaddr)
+{
+	return __memmgr_virt_to_phys(cos_inv_token(), vaddr);
+}
+
 static void
-contigmem_check(vaddr_t vaddr, int npages)
+contigmem_check(compid_t id, vaddr_t vaddr, int npages)
 {
 	vaddr_t paddr_pre = 0, paddr_next = 0;
 
-	paddr_pre = memmgr_virt_to_phys(vaddr);
+	paddr_pre = __memmgr_virt_to_phys(id, vaddr);
 
 	for (int i = 1; i < npages; i++) {
-		paddr_next = memmgr_virt_to_phys(vaddr + i * PAGE_SIZE);
+		paddr_next = __memmgr_virt_to_phys(id, vaddr + i * PAGE_SIZE);
 		assert(paddr_next - paddr_pre == PAGE_SIZE);
 
 		paddr_pre = paddr_next;
@@ -287,8 +296,7 @@ contigmem_alloc(unsigned long npages)
 	c = ss_comp_get(cos_inv_token());
 	if (!c) return 0;
 
-	void *page = crt_page_allocn(&cm_self()->comp, npages);
-	assert(page);
+	void *page = contig_phy_pages;
 
 	if (crt_page_aliasn_aligned_in(page, PAGE_SIZE, npages, &cm_self()->comp, &c->comp, &vaddr)) BUG();
 
@@ -306,7 +314,9 @@ contigmem_alloc(unsigned long npages)
 		ss_page_activate(p);
 	}
 
-	contigmem_check((vaddr_t)vaddr, npages);
+	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
+	contig_phy_pages += npages * PAGE_SIZE;
+	assert(contig_phy_pages < CONTIG_PHY_PAGES*PAGE_SIZE);
 	return vaddr;
 }
 
@@ -327,8 +337,7 @@ contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_
 	c = ss_comp_get(cos_inv_token());
 	if (!c) return 0;
 
-	void *page = crt_page_allocn(&cm_self()->comp, npages);
-	assert(page);
+	void * page = contig_phy_pages;
 
 	if (crt_page_aliasn_aligned_in(page, align, npages, &cm_self()->comp, &c->comp, &vaddr)) BUG();
 
@@ -364,7 +373,9 @@ contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_
 
 	*pgaddr = initial->mappings[0].addr;
 
-	contigmem_check((vaddr_t)vaddr, npages);
+	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
+	contig_phy_pages += npages * PAGE_SIZE;
+	assert(contig_phy_pages < CONTIG_PHY_PAGES*PAGE_SIZE);
 	return ret;
 }
 
@@ -846,6 +857,10 @@ cos_init(void)
 	if (!cm_comp_self_alloc("capmgr")) BUG();
 	/* Initialize the other component's for which we're responsible */
 	capmgr_comp_init();
+
+	//reserve some continuous pages
+	contig_phy_pages = crt_page_allocn(&cm_self()->comp, CONTIG_PHY_PAGES);
+	contigmem_check(cos_compid(), (vaddr_t)contig_phy_pages, CONTIG_PHY_PAGES);
 
 	return;
 }
