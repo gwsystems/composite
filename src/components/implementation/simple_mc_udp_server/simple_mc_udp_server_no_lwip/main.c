@@ -4,18 +4,30 @@
 #include <mc.h>
 #include <simple_udp_stack.h>
 #include <netshmem.h>
+#include <sched.h>
 
 static int fd;
+static volatile thdid_t init_thd = 0;
 
 void
 cos_init(void)
 {
 	shm_bm_objid_t objid;
 	struct netshmem_pkt_buf *obj;
-
+	init_thd = cos_thdid();
 	/* create current component's shmem */
 	netshmem_create();
+}
+void
+cos_parallel_init(coreid_t cid, int init_core, int ncores)
+{
+	if (cid == 0) {
+		return;
+	}
 
+	if (init_thd != cos_thdid()) {
+		netshemem_move(init_thd, cos_thdid());
+	}
 	udp_stack_shmem_map(netshmem_get_shm_id());
 	mc_map_shmem(netshmem_get_shm_id());
 	fd = mc_conn_init(MC_UDP_PROTO);
@@ -27,6 +39,9 @@ cos_init(void)
 int
 parallel_main(coreid_t cid)
 {
+	if (cid == 0) {
+		return 0;
+	}
 	int ret;
 	u32_t ip;
 	compid_t compid;
@@ -50,17 +65,30 @@ parallel_main(coreid_t cid)
 	printc("tenant id:%d\n", port);
 	ret = udp_stack_udp_bind(ip, port);
 	assert(ret == 0);
-
+	remote_addr = inet_addr("10.10.1.1");
+	remote_port = 6;
+	cycles_t    before, after;
+	
 	while (1)
 	{
-		objid  = udp_stack_shmem_read(&data_offset, &data_len, &remote_addr, &remote_port);
+	
+		// rdtscll(before);
+		// objid  = udp_stack_shmem_read(&data_offset, &data_len, &remote_addr, &remote_port);
+		// rdtscll(after);
+		// printc("gap:%lu\n", after - before);
+		// printc("rx a objid:%u\n", objid);
 
 		/* application would like to own the shmem because it does not want ohters to free it. */
-		rx_obj = shm_bm_transfer_net_pkt_buf(netshmem_get_shm(), objid);
+		// rx_obj = shm_bm_transfer_net_pkt_buf(netshmem_get_shm(), objid);
 
-		data_len = mc_process_command(fd, objid, data_offset, data_len);
+		// data_len = mc_process_command(fd, objid, data_offset, data_len);
+		// printc("???\n");
+		shm_bm_alloc_net_pkt_buf(netshmem_get_shm(), &objid);
+		data_len = 100;
+		// rdtscll(before);
 		udp_stack_shmem_write(objid, netshmem_get_data_offset(), data_len, remote_addr, remote_port);
-
+		// rdtscll(after);
+		// printc("gap:%lu\n", after - before);
 		shm_bm_free_net_pkt_buf(rx_obj);
 	}
 }

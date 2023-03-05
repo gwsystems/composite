@@ -112,7 +112,7 @@ process_tx_packets(void)
 	char *tx_packets[MAX_PKT_BURST];
 	struct pkt_ring_buf *per_thd_tx_ring;
 	int i = 0, j = 0;
-
+	cycles_t    before, after;
 	for (j = 0; j < NIC_MAX_SESSION; j++) {
 		if (client_sessions[j].tx_init_done == 0) continue;
 
@@ -124,14 +124,17 @@ process_tx_packets(void)
 
 			dequeued_tx++;
 			mbuf = cos_allocate_mbuf(g_tx_mp);
+			// printc("mbuf:%p\n",mbuf);
 			assert(mbuf);
 			ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
 
 			cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
 			cos_set_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len, ENABLE_OFFLOAD);
 			tx_packets[i++] = mbuf;
-
+			rdtscll(before);
 			cos_dev_port_tx_burst(0, 0, tx_packets, i);
+			rdtscll(after);
+			printc("gap:%lu\n", after - before);
 		}
 
 	}
@@ -215,7 +218,7 @@ cos_nic_start(){
 #if USE_CK_RING_FREE_MBUF
 		cos_free_rx_buf();
 #endif
-		process_tx_packets();
+		// process_tx_packets();
 		for (i = 0; i < nic_ports; i++) {
 			for (j = 0; j < nic_queues; j++) {
 				nb_pkts = cos_dev_port_rx_burst(i, j, rx_packets, MAX_PKT_BURST);
@@ -308,9 +311,16 @@ int
 parallel_main(coreid_t cid)
 {
 	/* DPDK rx and tx will only run on core 0 */
-	if(cid != 0) return 0;
-	printc("NIC started:%ld\n", cos_thdid());
+	if(cid == 0) {
+		cos_nic_start();
+	} else {
+		while (1)
+		{
+			/* code */
+			process_tx_packets();
+		}
+		
+	}
 
-	cos_nic_start();
 	return 0;
 }

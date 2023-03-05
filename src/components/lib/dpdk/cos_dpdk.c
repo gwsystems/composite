@@ -298,6 +298,8 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 	/* set the txq to enable IP and UDP offload */
 	txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
 	txq_conf.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
+	cos_printf("txq conf:%d\n", txq_conf.tx_free_thresh);
+	txq_conf.tx_free_thresh = 32;
 
 	ret = rte_eth_tx_queue_setup(real_port_id, tx_queue_id, nb_tx_desc,
 				rte_eth_dev_socket_id(real_port_id),
