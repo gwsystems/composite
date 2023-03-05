@@ -316,7 +316,7 @@ contigmem_alloc(unsigned long npages)
 
 	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
 	contig_phy_pages += npages * PAGE_SIZE;
-	assert(contig_phy_pages < CONTIG_PHY_PAGES*PAGE_SIZE);
+	assert((word_t)contig_phy_pages < CONTIG_PHY_PAGES * PAGE_SIZE);
 	return vaddr;
 }
 
@@ -375,7 +375,7 @@ contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_
 
 	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
 	contig_phy_pages += npages * PAGE_SIZE;
-	assert(contig_phy_pages < CONTIG_PHY_PAGES*PAGE_SIZE);
+	assert((word_t)contig_phy_pages < CONTIG_PHY_PAGES * PAGE_SIZE);
 	return ret;
 }
 
