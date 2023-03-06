@@ -108,6 +108,17 @@ nic_get_a_packet(u16_t *pkt_len)
 	return objid;
 }
 
+static void
+ext_buf_free_callback_fn(void *addr, void *opaque)
+{
+	/* Shared mem uses borrow api, thus do not need to free it here */
+	if (addr == NULL) {
+		printc("External buffer address is invalid\n");
+		assert(0);
+	}
+}
+
+static int ii = 0;
 int
 nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 {
@@ -129,12 +140,37 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	
 	buf.paddr   = data_paddr;
 	buf.pkt_len = pkt_len;
-
+#if 1
 	if (!pkt_ring_buf_enqueue(&client_sessions[thd].pkt_tx_ring, &buf)) {
 		/* tx queue is full, drop the packet */
 		rte_atomic64_add(&tx_enqueued_miss, 1);
 		shm_bm_free_net_pkt_buf(obj);
 	}
+#else 
+	char *mbuf;
+	void *ext_shinfo;
+	char *tx_packets[1024];
+
+	// cycles_t    before, after;
+	// rdtscll(before);
+	mbuf = cos_allocate_mbuf(g_tx_mp);
+	// rdtscll(after);
+	// printc("gap:%lu\n", after - before);
+	assert(mbuf);
+	ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
+	cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
+	cos_set_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len, 1);
+	tx_packets[ii++] = mbuf;
+	// if (ii < 900) return 0;
+
+	// rdtscll(before);
+	cos_dev_port_tx_burst(0, 0, tx_packets, ii);
+	ii = 0;
+	// cos_free_packet(mbuf);
+	// rdtscll(after);
+	// printc("gap:%lu\n", after - before);
+
+#endif
 
 	return 0;
 }

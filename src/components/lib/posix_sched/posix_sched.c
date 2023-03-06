@@ -224,12 +224,14 @@ cos_clock_gettime(clockid_t clock_id, struct timespec *ts)
 
 /* TODO: init tls when creating components */
 #define PER_THD_TLS_MEM_SZ 8192
-char tls_space[PER_THD_TLS_MEM_SZ] = {0};
-void tls_init()
+static char tls_space[NUM_CPU][PER_THD_TLS_MEM_SZ] = {0};
+
+void
+libc_tls_init(unsigned int cpuid)
 {
 	/* NOTE: GCC uses tls space similar to a stack, memory is accessed from high address to low address */
-	vaddr_t* tls_addr	= (vaddr_t *)((char *)&tls_space + PER_THD_TLS_MEM_SZ - sizeof(vaddr_t));
-	*tls_addr		= (vaddr_t)&tls_addr;
+	vaddr_t* tls_addr	= (vaddr_t *)((char *)&tls_space[cpuid] + PER_THD_TLS_MEM_SZ - sizeof(vaddr_t));
+	*tls_addr		= (vaddr_t)tls_addr;
 
 	sched_set_tls((void*)tls_addr);
 }
@@ -247,6 +249,4 @@ libc_posixsched_initialization_handler()
 	libc_syscall_override((cos_syscall_t)(void*)cos_clone, __NR_clone);
 	libc_syscall_override((cos_syscall_t)(void*)cos_futex, __NR_futex);
 	libc_syscall_override((cos_syscall_t)(void*)cos_clock_gettime, __NR_clock_gettime);
-
-	tls_init();
 }
