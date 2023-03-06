@@ -115,6 +115,7 @@ cos_eth_ports_init(void)
 		cos_eth_info_print(ports_ids[i]);
 	}
 
+	nb_ports = 1;
 	return nb_ports;
 }
 
@@ -296,8 +297,8 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM);
 
 	/* set the txq to enable IP and UDP offload */
-	txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
-	txq_conf.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
+	//txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
+	//txq_conf.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
 
 	ret = rte_eth_tx_queue_setup(real_port_id, tx_queue_id, nb_tx_desc,
 				rte_eth_dev_socket_id(real_port_id),

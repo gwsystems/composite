@@ -113,7 +113,6 @@ thd_alloc_in(compid_t id, thdclosure_index_t idx, sched_param_t *parameters, int
 		unsigned int value;
 
 		sched_param_get(parameters[i], &type, &value);
-		printc("type: %d, value: %d, %d\n", type, value, *parameters);
 		if (slm_sched_thd_update(thd, type, value)) ERR_THROW(NULL, free);
 	}
 	slm_thd_mem_activate(t);

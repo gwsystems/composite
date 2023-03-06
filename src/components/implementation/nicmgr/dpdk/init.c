@@ -252,7 +252,7 @@ cos_nic_init(void)
 			"--no-huge",
 			"--iova-mode=pa",
 			"--log-level",
-			"*:info", /* log level can be changed to *debug* if needed, this will print lots of information */
+			"*:debug", /* log level can be changed to *debug* if needed, this will print lots of information */
 			"-m",
 			"128", /* total memory used by dpdk memory subsystem, such as mempool */
 			};
@@ -287,7 +287,9 @@ cos_nic_init(void)
 
 	/* 5. start each port, this will enable rx/tx */
 	for (i = 0; i < nic_ports; i++) {
+		printc("<<<<<<<<<<<: %d\n", i);
 		cos_dev_port_start(i);
+		printc(">>>>>>>>>>>: %d\n", i);
 		cos_dev_port_set_promiscuous_mode(i, COS_DPDK_SWITCH_ON);
 	}
 }

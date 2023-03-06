@@ -214,9 +214,11 @@ __cosrt_fast_callgate_##name:					\
 	movq    %rdx, %r9;					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	/* thread ID and cpu ID */				\
+	rdtscp ;						\
+	movq    %rcx, %rax;                 \
+	andq    $0xFFF, %rax;                \
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffe0000, %rdx;			\
-	rdpid   %rax;						\
 	movzwq  COS_SIMPLE_STACK_THDID_OFF(%rdx), %r13;		\
 	shl	$16, %rax;					\
 	or	%rax, %r13;					\
@@ -297,9 +299,11 @@ __cosrt_fast_callgate_##name:					\
 	movq    %rdx, %r9;					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	/* thread ID and cpu ID */				\
+	rdtscp ;						\
+	movq    %rcx, %rdx;                 \
+	andq    $0xFFF, %rax;                \
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffe0000, %rdx;			\
-	rdpid   %rax;						\
 	movzwq  COS_SIMPLE_STACK_THDID_OFF(%rdx), %r13;		\
 	shl	$16, %rax;					\
 	or	%rax, %r13;					\
