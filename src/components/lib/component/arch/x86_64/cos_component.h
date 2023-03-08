@@ -255,13 +255,16 @@ get_stk_data(int offset)
 #define GET_CURR_CPU cos_cpuid()
 
 static inline u64_t
-__rdpid(void)
+cos_rdtscp(coreid_t *coreid, u16_t *numaid)
 {
-	u64_t pid64;
+	unsigned long a, d, c;
 
-	__asm__("rdpid %0;" : "=r"(pid64));
+	__asm__ __volatile__("rdtscp" : "=a"(a), "=d"(d), "=c"(c) : : );
 
-	return pid64;
+	*coreid = c & 0xFFF;
+	*numaid = c >> 12;
+
+	return ((u64_t)d << 32) | (u64_t)a;
 }
 
 static inline long
@@ -270,7 +273,11 @@ cos_cpuid(void)
 #if NUM_CPU == 1
 	return 0;
 #endif
-	return (long)__rdpid();
+	coreid_t coreid;
+	u16_t    numaid;
+	cos_rdtscp(&coreid, &numaid);
+
+	return (long)coreid;
 }
 
 static inline coreid_t

@@ -14,6 +14,7 @@ img  = "capmgr.simple"
 deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
 implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}, {interface = "contigmem"}]
 constructor = "booter"
+baseaddr = "0x1400000"
 
 [[components]]
 name = "sched"
@@ -29,6 +30,7 @@ img  = "nicmgr.dpdk"
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}]
 implements = [{interface = "nic"}]
 constructor = "booter"
+baseaddr = "0x1800000"
 
 [[components]]
 name = "memcached"
@@ -36,9 +38,11 @@ img  = "memcached.memcached"
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}]
 implements = [{interface = "mc"}]
 constructor = "booter"
+baseaddr = "0x2000000"
 
 [[components]]
 name = "simple_mc_udp_server1"
 img  = "simple_mc_udp_server.simple_mc_udp_server_no_lwip"
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}, {srv = "memcached", interface = "mc"}]
 constructor = "booter"
+baseaddr = "0x2200000"

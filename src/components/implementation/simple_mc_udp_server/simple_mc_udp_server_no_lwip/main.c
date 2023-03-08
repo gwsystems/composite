@@ -55,7 +55,7 @@ parallel_main(coreid_t cid)
 	u32_t remote_addr;
 
 	ret = 0;
-	ip = inet_addr("10.10.1.2");
+	ip = inet_addr("10.10.1.1");
 	compid = cos_compid();
 
 	/* we use comp id as UDP port, representing tenant id */
@@ -65,7 +65,7 @@ parallel_main(coreid_t cid)
 	printc("tenant id:%d\n", port);
 	ret = udp_stack_udp_bind(ip, port);
 	assert(ret == 0);
-	remote_addr = inet_addr("10.10.1.1");
+	remote_addr = inet_addr("10.10.1.2");
 	remote_port = 6;
 	cycles_t    before, after;
 	

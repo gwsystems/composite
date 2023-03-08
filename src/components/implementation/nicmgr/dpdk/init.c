@@ -134,7 +134,7 @@ process_tx_packets(void)
 			rdtscll(before);
 			cos_dev_port_tx_burst(0, 0, tx_packets, i);
 			rdtscll(after);
-			printc("gap:%lu\n", after - before);
+			//printc("gap:%lu\n", after - before);
 		}
 
 	}
@@ -290,9 +290,7 @@ cos_nic_init(void)
 
 	/* 5. start each port, this will enable rx/tx */
 	for (i = 0; i < nic_ports; i++) {
-		printc("<<<<<<<<<<<: %d\n", i);
 		cos_dev_port_start(i);
-		printc(">>>>>>>>>>>: %d\n", i);
 		cos_dev_port_set_promiscuous_mode(i, COS_DPDK_SWITCH_ON);
 	}
 }
