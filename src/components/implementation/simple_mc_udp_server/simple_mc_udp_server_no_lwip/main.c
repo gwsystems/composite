@@ -55,7 +55,7 @@ parallel_main(coreid_t cid)
 	u32_t remote_addr;
 
 	ret = 0;
-	ip = inet_addr("10.10.1.1");
+	ip = inet_addr("10.10.1.2");
 	compid = cos_compid();
 
 	/* we use comp id as UDP port, representing tenant id */
@@ -65,7 +65,7 @@ parallel_main(coreid_t cid)
 	printc("tenant id:%d\n", port);
 	ret = udp_stack_udp_bind(ip, port);
 	assert(ret == 0);
-	remote_addr = inet_addr("10.10.1.2");
+	remote_addr = inet_addr("10.10.1.1");
 	remote_port = 6;
 	cycles_t    before, after;
 	
@@ -73,18 +73,18 @@ parallel_main(coreid_t cid)
 	{
 	
 		// rdtscll(before);
-		// objid  = udp_stack_shmem_read(&data_offset, &data_len, &remote_addr, &remote_port);
+		objid  = udp_stack_shmem_read(&data_offset, &data_len, &remote_addr, &remote_port);
 		// rdtscll(after);
 		// printc("gap:%lu\n", after - before);
 		// printc("rx a objid:%u\n", objid);
 
 		/* application would like to own the shmem because it does not want ohters to free it. */
-		// rx_obj = shm_bm_transfer_net_pkt_buf(netshmem_get_shm(), objid);
+	 	rx_obj = shm_bm_transfer_net_pkt_buf(netshmem_get_shm(), objid);
 
-		// data_len = mc_process_command(fd, objid, data_offset, data_len);
+		data_len = mc_process_command(fd, objid, data_offset, data_len);
 		// printc("???\n");
-		shm_bm_alloc_net_pkt_buf(netshmem_get_shm(), &objid);
-		data_len = 100;
+		// shm_bm_alloc_net_pkt_buf(netshmem_get_shm(), &objid);
+		// data_len = 100;
 		// rdtscll(before);
 		udp_stack_shmem_write(objid, netshmem_get_data_offset(), data_len, remote_addr, remote_port);
 		// rdtscll(after);

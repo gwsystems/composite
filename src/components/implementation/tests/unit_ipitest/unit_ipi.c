@@ -1,9 +1,3 @@
-/*
- * Copyright 2018, Phani Gadepalli and Gabriel Parmer, GWU, gparmer@gwu.edu.
- *
- * This uses a two clause BSD License.
- */
-
 #include <llprint.h>
 #include <res_spec.h>
 #include <sched.h>

@@ -124,17 +124,14 @@ process_tx_packets(void)
 
 			dequeued_tx++;
 			mbuf = cos_allocate_mbuf(g_tx_mp);
-			// printc("mbuf:%p\n",mbuf);
 			assert(mbuf);
 			ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
 
 			cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
 			cos_set_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len, ENABLE_OFFLOAD);
 			tx_packets[i++] = mbuf;
-			rdtscll(before);
-			cos_dev_port_tx_burst(0, 0, tx_packets, i);
-			rdtscll(after);
-			//printc("gap:%lu\n", after - before);
+
+			cos_dev_port_tx_burst(1, 0, tx_packets, i);
 		}
 
 	}
@@ -167,7 +164,8 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			}
 			port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
 
-			session = cos_hash_lookup(port->dst_port);
+			printc("port: %hx, %hx, %hx, %hx\n", port->dst_port, port->src_port, ntohs(port->dst_port), ntohs(port->src_port));
+			session = cos_hash_lookup(ntohs(port->dst_port));
 			if (unlikely(session == NULL)) {
 				cos_free_packet(rx_pkts[i]);
 				continue;

@@ -193,8 +193,8 @@ cos_curr_lcore(void) {
 	return cos_cpuid();
 }
 
-COS_DPDK_DECLARE_NIC_MODULE(net_e1000_em);
-COS_DPDK_DECLARE_NIC_MODULE(net_i40e);
+//COS_DPDK_DECLARE_NIC_MODULE(net_e1000_em);
+//COS_DPDK_DECLARE_NIC_MODULE(net_i40e);
 COS_DPDK_DECLARE_NIC_MODULE(mempool_ring);
 COS_DPDK_DECLARE_NIC_MODULE(net_ice);
 COS_DPDK_DECLARE_NIC_MODULE(net_ice_dcf);

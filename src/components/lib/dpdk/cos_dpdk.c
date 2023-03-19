@@ -115,7 +115,6 @@ cos_eth_ports_init(void)
 		cos_eth_info_print(ports_ids[i]);
 	}
 
-	nb_ports = 1;
 	return nb_ports;
 }
 
