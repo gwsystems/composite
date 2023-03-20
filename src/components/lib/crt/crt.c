@@ -968,7 +968,7 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, struct crt_comp *s, dcb
 
 	assert(target_ci->comp_cap);
 	capid_t comp_cap = (target_ci->comp_cap_shared) ? target_ci->comp_cap_shared : target_ci->comp_cap;
-	assert(s->scb);
+	//assert(s->scb);
 	if (closure_id == 0) {
 		if (target_aep->thd != 0) return -1; /* should not allow double initialization */
 

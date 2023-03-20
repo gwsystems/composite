@@ -1311,7 +1311,6 @@ cos_thd_wakeup(thdcap_t thd, tcap_t tc, tcap_prio_t prio, tcap_res_t res)
 sched_tok_t
 cos_sched_sync(struct cos_compinfo *ci)
 {
-	//printc("--->cos_sched_sync captblcap: %d, compcap: %d, %x, ci:%x\n", ci->captbl_cap, ci->comp_cap, ci->scb_uaddr, ci);
 	struct cos_scb_info *scb_info = (struct cos_scb_info *)ci->scb_uaddr;
 
 	assert(scb_info);

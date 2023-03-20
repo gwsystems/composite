@@ -116,7 +116,7 @@ test_thd_act(void)
                 if (test_thd_blkd[cos_cpuid()][i]) continue;
 
                 do {
-                        ret = cos_switch(test_rthds[cos_cpuid()][i], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync());
+                        ret = cos_switch(test_rthds[cos_cpuid()][i], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync(&booter_info));
                 } while (ret == -EAGAIN);
                 if (ret == -EBUSY) break;
         }
