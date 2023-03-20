@@ -50,26 +50,31 @@ unit_rcv(thdid_t tid)
 static void
 rcv_spiner()
 {
+	int i = 0;
 	while (!spin_thd[1]) ;
-	while (1) {
+	while (i < TEST_ITERS) {
 		printc("*************spiner1**************: %ld\n\n", spin_thd[0]);
+		i++;
 		sched_thd_yield_to(spin_thd[1]);
-		//rdtscll(global_time[0]);
 	}
-	assert(0);
+	printc("SUCCESS\n");
 	SPIN();
+	assert(0);
 	return;
 }
 
 static void
 rcv_spiner2()
 {
+	int i = 0;
 	while (!spin_thd[0]) ;
-	while (1) {
+	while (i < TEST_ITERS) {
 		printc("*************spiner2**************: %ld\n\n", spin_thd[1]);
+		i++;
 		sched_thd_yield_to(spin_thd[0]);
-		//rdtscll(global_time[0]);
 	}
+	SPIN();
+	assert(0);
 	return;
 }
 
@@ -90,30 +95,15 @@ test_snd_fn()
 {
 	int iters = 0;
 
-	thdid_t s = thd[TEST_RCV_CORE];
-	assert(s);
 	thdid_t r = thd[TEST_SND_CORE];
 	assert(r);
-	perfdata_init(&pd, "TEST IPI Switch", results, ARRAY_SIZE);
+	while (!thd[TEST_SND_CORE]) ;
+	thdid_t s = thd[TEST_RCV_CORE];
 	
 	for (iters = 0; iters < TEST_ITERS; iters ++) {
-		while (global_time[0] < global_time[1]) {};
-		printc("snd->\n");
 		unit_snd(s);
-		printc("sent, now rcv\n");
 		unit_rcv(r);
-		printc("rcvd\n");
 	}
-
-	perfdata_calc(&pd);
-	
-//	printc("Test IPI INTERRUPT W Switch:\t AVG:%llu, MAX:%llu, MIN:%llu, ITER:%d\n",
-//		    perfdata_avg(&pd), perfdata_max(&pd),
-//            perfdata_min(&pd), perfdata_sz(&pd));
-
-//	printc("\t\t\t\t\t SD:%llu, 90%%:%llu, 95%%:%llu, 99%%:%llu\n",
-//            perfdata_sd(&pd),perfdata_90ptile(&pd),
-//            perfdata_95ptile(&pd), perfdata_99ptile(&pd));
 
 	test_done = 1;
 	SPIN();
@@ -123,18 +113,13 @@ test_snd_fn()
 static void
 test_rcv_fn()
 {
-	thdid_t s = thd[TEST_SND_CORE];
-	assert(s);
 	thdid_t r = thd[TEST_RCV_CORE];
 	assert(r);
+	while (!thd[TEST_SND_CORE]) ;
+	thdid_t s = thd[TEST_SND_CORE];
 
 	while (1) {
-	printc("rcv\n");
 		unit_rcv(r);
-	printc("rcv done\n");
-		rdtscll(global_time[1]);
-		time = (global_time[1] - global_time[0]);
-		perfdata_add(&pd, time);
 		unit_snd(s);
 	};
 }
@@ -154,23 +139,15 @@ test_ipi_switch(void)
 
 		spin_thd[1] = sched_thd_create(rcv_spiner2, NULL);
 		sched_thd_param_set(spin_thd[1], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
-		SPIN();
-		printc("rcvthd: %ld, spinthd0: %ld, spinthd1: %ld\n", thd[cos_cpuid()], spin_thd[0], spin_thd[1]);
 
 		sched_thd_yield_to(spin_thd[0]);
+		//sched_thd_yield_to(thd[cos_cpuid()]);
 	} else {
-		//thd[cos_cpuid()] = sched_thd_create(test_snd_fn, NULL);
-		//sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+		thd[cos_cpuid()] = sched_thd_create(test_snd_fn, NULL);
+		sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 	}
 	SPIN();
-}
-
-int
-main(void)
-{
 	assert(0);
-
-	return 0;
 }
 
 void
@@ -179,15 +156,6 @@ parallel_main(coreid_t cid, int init_core, int ncores)
 	int i = 0;
 
 	test_ipi_switch();
-	//test_done[cos_cpuid()] = 1;
-
-	//for (i = 0; i < NUM_CPU; i++) {
-	//	while (!test_done[i]);
-	//}
 	SPIN();
-
-	if (cos_cpuid() == 0) printc("slite IPI test done.\n");
-
-	assert(0);
 	return;
 }
