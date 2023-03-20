@@ -12,6 +12,7 @@ constructor = "kernel"
 [[components]]
 name = "capmgr"
 img  = "capmgr.simple"
+baseaddr = "0x1800000"
 deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
 implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
 constructor = "booter"
@@ -19,6 +20,7 @@ constructor = "booter"
 [[components]]
 name = "sched"
 img  = "sched.pfprr_quantum_static"
+baseaddr = "0x2000000"
 deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
 implements = [{interface = "sched"}, {interface = "init"}]
 constructor = "booter"
@@ -26,5 +28,6 @@ constructor = "booter"
 [[components]]
 name = "schedtest"
 img  = "tests.unit_slitetest"
+baseaddr = "0x2200000"
 deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}]
 constructor = "booter"

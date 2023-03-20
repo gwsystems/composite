@@ -20,7 +20,7 @@
 #define TEST_RCV_CORE 0
 #define TEST_SND_CORE 1
 
-#define TEST_ITERS 20
+#define TEST_ITERS 1000
 
 static volatile int test_done = 0;
 static volatile thdid_t thd[NUM_CPU] = { 0 };
@@ -53,7 +53,7 @@ rcv_spiner()
 	int i = 0;
 	while (!spin_thd[1]) ;
 	while (i < TEST_ITERS) {
-		printc("*************spiner1**************: %ld\n\n", spin_thd[0]);
+		//printc("*************spiner1**************: %ld\n\n", spin_thd[0]);
 		i++;
 		sched_thd_yield_to(spin_thd[1]);
 	}
@@ -68,9 +68,8 @@ rcv_spiner2()
 {
 	int i = 0;
 	while (!spin_thd[0]) ;
-	while (i < TEST_ITERS) {
-		printc("*************spiner2**************: %ld\n\n", spin_thd[1]);
-		i++;
+	while (1) {
+		//printc("*************spiner2**************: %ld\n\n", spin_thd[1]);
 		sched_thd_yield_to(spin_thd[0]);
 	}
 	SPIN();

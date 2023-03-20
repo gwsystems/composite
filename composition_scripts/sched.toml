@@ -18,7 +18,7 @@ constructor = "kernel"
 [[components]]
 name = "capmgr"
 img  = "capmgr.simple"
-deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}, {srv = "print", interface = "print"}, {srv = "booter", interface = "scb_mapping"}]
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}, {srv = "print", interface = "print"}]
 implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
 constructor = "booter"
 
