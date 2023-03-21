@@ -14,6 +14,7 @@ img  = "capmgr.simple"
 deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
 implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}, {interface = "contigmem"}]
 constructor = "booter"
+baseaddr = "0x1400000"
 
 [[components]]
 name = "sched"

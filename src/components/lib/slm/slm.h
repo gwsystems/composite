@@ -246,7 +246,6 @@ slm_cs_enter(struct slm_thd *current, slm_cs_flags_t flags)
 			/* does the caller want to be notified of pending scheduler events? */
 			if (flags & SLM_CS_SCHEDEVT && ret == -EBUSY) return ret;
 			assert(ret != -EBUSY); /* no scheduler thread should not see these events */
-
 			if (flags & SLM_CS_NOSPIN) return ret;
 
 			continue;

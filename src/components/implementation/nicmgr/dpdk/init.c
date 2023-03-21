@@ -128,7 +128,6 @@ process_tx_packets(void)
 
 			dequeued_tx++;
 			mbuf = cos_allocate_mbuf(g_tx_mp);
-			// printc("mbuf:%p\n",mbuf);
 			assert(mbuf);
 			ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
 
@@ -280,7 +279,7 @@ cos_nic_init(void)
 			"--no-huge",
 			"--iova-mode=pa",
 			"--log-level",
-			"*:info", /* log level can be changed to *debug* if needed, this will print lots of information */
+			"*:debug", /* log level can be changed to *debug* if needed, this will print lots of information */
 			"-m",
 			"128", /* total memory used by dpdk memory subsystem, such as mempool */
 			};

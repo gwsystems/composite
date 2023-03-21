@@ -198,7 +198,13 @@ try_again:
 	if (unlikely(ret != 0)) {
 		/* Assuming only the single tcap with infinite budget...should not get EPERM */
 		assert(ret != -EPERM);
+		assert(ret != -EINVAL);
 
+		/*
+		 * If the slm_thd_activate returns -EBUSY, this means we are trying to switch to the scheduler thread,
+		 * and scheduler thread still has pending events. Directly return to process pending events.
+		 */
+		if (ret == -EBUSY) return ret;
 		/* If the slm_thd_activate returns -EAGAIN, this means this scheduling token is outdated, try again */
 		slm_cs_enter(curr, SLM_CS_NONE);
 		goto try_again;

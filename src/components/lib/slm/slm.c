@@ -564,7 +564,7 @@ pending_events:
 		if (slm_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
 		ret = slm_cs_exit_reschedule(us, SLM_CS_CHECK_TIMEOUT);
-		if (ret && ret != -EAGAIN) BUG();
+		if (ret && ret != -EAGAIN && ret != -EBUSY) BUG();
 	}
 }
 

@@ -190,7 +190,7 @@ cos_get_tsc_freq(void)
 
 unsigned
 cos_curr_lcore(void) {
-	return cos_coreid();
+	return cos_cpuid();
 }
 
 COS_DPDK_DECLARE_NIC_MODULE(net_e1000_em);
