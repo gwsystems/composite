@@ -208,6 +208,13 @@ sched_thd_wakeup(thdid_t tid)
 	return thd_wakeup(t);
 }
 
+int
+sched_debug_thd_state(thdid_t tid)
+{
+	struct slm_thd *t = slm_thd_lookup(tid);
+	return t->state;
+}
+
 static int
 thd_block_until(cycles_t timeout)
 {
@@ -582,10 +589,12 @@ slm_ipi_process(void *d)
 
 	while (1) {
 		cos_rcv(r->rcv, RCV_ALL_PENDING, &rcvd);
-		assert(!slm_ipi_event_empty(cos_cpuid()));
+		// assert(!slm_ipi_event_empty(cos_cpuid()));
 
+		// printc("$\n");
 		while (!slm_ipi_event_empty(cos_cpuid())) {
 			slm_ipi_event_dequeue(&event, cos_cpuid());
+			// printc("dequeued a thd:%u\n",event.tid);
 			thd = slm_thd_static_cm_lookup(event.tid);
 			slm_cs_enter(current, SLM_CS_NONE);
 			ret = slm_thd_wakeup(thd, 0);

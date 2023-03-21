@@ -7,7 +7,7 @@
 #include <ck_ring.h>
 #include <sync_sem.h>
 
-#define NIC_MAX_SESSION 32
+#define NIC_MAX_SESSION 64
 #define NIC_MAX_SHEMEM_REGION 3
 
 #define NIC_SHMEM_RX 0
@@ -27,6 +27,8 @@ struct pkt_buf {
 	char   *pkt;
 	u64_t   paddr;
 	int     pkt_len;
+	// int     tent_id;
+	// int     srcid;
 };
 
 struct pkt_ring_buf {
@@ -61,17 +63,17 @@ extern struct pkt_ring_buf g_free_ring;
 
 extern struct client_session client_sessions[NIC_MAX_SESSION];
 
-#define RX_PKT_RBUF_NUM 8192
+#define RX_PKT_RBUF_NUM 4096
 #define RX_PKT_RBUF_SZ (RX_PKT_RBUF_NUM * sizeof(struct pkt_buf))
 #define RX_PKT_RING_SZ   (sizeof(struct ck_ring) + RX_PKT_RBUF_SZ)
 #define RX_PKT_RING_PAGES (round_up_to_page(RX_PKT_RING_SZ)/PAGE_SIZE)
 
-#define TX_PKT_RBUF_NUM 8192
+#define TX_PKT_RBUF_NUM 4096
 #define TX_PKT_RBUF_SZ (TX_PKT_RBUF_NUM * sizeof(struct pkt_buf))
 #define TX_PKT_RING_SZ   (sizeof(struct ck_ring) + TX_PKT_RBUF_SZ)
 #define TX_PKT_RING_PAGES (round_up_to_page(TX_PKT_RING_SZ)/PAGE_SIZE)
 
-#define FREE_PKT_RBUF_NUM 8192
+#define FREE_PKT_RBUF_NUM 4096
 #define FREE_PKT_RBUF_SZ (FREE_PKT_RBUF_NUM * sizeof(struct pkt_buf))
 #define FREE_PKT_RING_SZ   (sizeof(struct ck_ring) + FREE_PKT_RBUF_SZ)
 #define FREE_PKT_RING_PAGES (round_up_to_page(FREE_PKT_RING_SZ)/PAGE_SIZE)
@@ -85,5 +87,5 @@ int pkt_ring_buf_empty(struct pkt_ring_buf *pkt_ring_buf);
 void cos_hash_add(uint16_t tenant_id, struct client_session *session);
 struct client_session *cos_hash_lookup(uint16_t tenant_id);
 
-#define USE_CK_RING_FREE_MBUF 1
+#define USE_CK_RING_FREE_MBUF 0
 #endif /* NICMGR_H */

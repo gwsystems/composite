@@ -25,6 +25,13 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 		return;
 	}
 
+	if (cos_compid() == 6 && cid == 2) {
+		return;
+	}
+	if (cos_compid() == 7 && cid == 1) {
+		return;
+	}
+
 	if (init_thd != cos_thdid()) {
 		netshemem_move(init_thd, cos_thdid());
 	}
@@ -41,6 +48,12 @@ parallel_main(coreid_t cid)
 {
 	if (cid == 0) {
 		return 0;
+	}
+	if (cos_compid() == 6 && cid == 2) {
+		return;
+	}
+	if (cos_compid() == 7 && cid == 1) {
+		return;
 	}
 	int ret;
 	u32_t ip;
@@ -65,6 +78,7 @@ parallel_main(coreid_t cid)
 	printc("tenant id:%d\n", port);
 	ret = udp_stack_udp_bind(ip, port);
 	assert(ret == 0);
+	objid = 0;
 	remote_addr = inet_addr("10.10.1.1");
 	remote_port = 6;
 	cycles_t    before, after;
@@ -73,18 +87,22 @@ parallel_main(coreid_t cid)
 	{
 	
 		// rdtscll(before);
-		// objid  = udp_stack_shmem_read(&data_offset, &data_len, &remote_addr, &remote_port);
+		objid  = udp_stack_shmem_read(&data_offset, &data_len, &remote_addr, &remote_port);
 		// rdtscll(after);
 		// printc("gap:%lu\n", after - before);
 		// printc("rx a objid:%u\n", objid);
 
 		/* application would like to own the shmem because it does not want ohters to free it. */
-		// rx_obj = shm_bm_transfer_net_pkt_buf(netshmem_get_shm(), objid);
-
-		// data_len = mc_process_command(fd, objid, data_offset, data_len);
+		rx_obj = shm_bm_transfer_net_pkt_buf(netshmem_get_shm(), objid);
+		// rdtscll(before);
+		data_len = mc_process_command(fd, objid, data_offset, data_len);
+		// rdtscll(after);
+		// if (cos_compid() == 6) {
+			// printc("gap:%lu\n", after - before);
+		// }
 		// printc("???\n");
-		shm_bm_alloc_net_pkt_buf(netshmem_get_shm(), &objid);
-		data_len = 100;
+		// rx_obj = shm_bm_alloc_net_pkt_buf(netshmem_get_shm(), &objid);
+		// data_len = 100 + cos_compid();
 		// rdtscll(before);
 		udp_stack_shmem_write(objid, netshmem_get_data_offset(), data_len, remote_addr, remote_port);
 		// rdtscll(after);

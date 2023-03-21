@@ -42,8 +42,8 @@ cos_init(void)
 		"--udp-port=11211",
 		"--threads=32",
 		"--protocol=auto",
-		"--memory-limit=64",
-		"--extended=no_lru_crawler,no_lru_maintainer,no_hashexpand,no_slab_reassign",
+		"--memory-limit=16",
+		"--extended=no_lru_crawler,no_lru_maintainer,no_hashexpand,no_slab_reassign,no_slab_automove",
 	};
 
 	argc = ARRAY_SIZE(argv);

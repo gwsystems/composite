@@ -59,7 +59,7 @@ netshmem_map_shmem(cbuf_t shm_id)
 
 void
 netshemem_move(thdid_t old, thdid_t new) {
-	assert(old != new);
+	assert(old != new && old < NETSHMEM_REGION_SZ);
 	netshmems[new].shm	= netshmems[old].shm;
 	netshmems[new].shm_id	= netshmems[old].shm_id;
 	netshmems[new].shmsz	= netshmems[old].shmsz;

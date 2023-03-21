@@ -114,6 +114,8 @@ cos_eth_ports_init(void)
 	for (i = 0; i < nb_ports; i++) {
 		cos_eth_info_print(ports_ids[i]);
 	}
+	// port_id[0] = 5;
+	// nb_ports = 1;
 
 	return nb_ports;
 }
@@ -252,7 +254,7 @@ cos_dev_port_rx_queue_setup(cos_portid_t port_id, uint16_t rx_queue_id,
 	ret = rte_eth_dev_info_get(real_port_id, &dev_info);
 	rxq_conf = dev_info.default_rxconf;
 
-	ret = rte_eth_rx_queue_setup(real_port_id, 0, nb_rx_desc,
+	ret = rte_eth_rx_queue_setup(real_port_id, rx_queue_id, nb_rx_desc,
 					rte_eth_dev_socket_id(real_port_id),
 					&rxq_conf,
 					(struct rte_mempool *)mp);
@@ -296,10 +298,10 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM);
 
 	/* set the txq to enable IP and UDP offload */
-	txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
-	txq_conf.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
-	cos_printf("txq conf:%d\n", txq_conf.tx_free_thresh);
-	txq_conf.tx_free_thresh = 32;
+	if (ENABLE_OFFLOAD) {
+		txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
+		txq_conf.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
+	}
 
 	ret = rte_eth_tx_queue_setup(real_port_id, tx_queue_id, nb_tx_desc,
 				rte_eth_dev_socket_id(real_port_id),
@@ -436,6 +438,8 @@ uint16_t
 cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
 		 char**tx_pkts, const uint16_t nb_pkts)
 {
+	struct rte_mbuf * mbuf = tx_pkts[0];
+
 	return rte_eth_tx_burst(ports_ids[port_id], queue_id, (struct rte_mbuf **)tx_pkts, nb_pkts);
 }
 
@@ -510,6 +514,88 @@ cos_dpdk_init(int argc, char **argv)
 	}
 
 	return ret;
+}
+
+void cos_test_send(int queue, char* mp) {
+	struct rte_mbuf * mbuf;
+	struct rte_ether_hdr *eth_hdr;
+	struct rte_ether_addr s_addr = {{0x66,0x66,0x66,0x66,0x66,0x66}};
+	struct rte_ether_addr d_addr = {{0x10,0x10,0x10,0x10,0x10,0x11}};
+	char *tx_packets[128];
+	#define BURST_NB 32 
+	#define PKT_SZ 200
+	struct rte_ipv4_hdr *ip_hdr;
+	struct rte_udp_hdr *udp_hdr;
+
+
+	while (1)
+	{
+		/* code */
+		for (int i = 0;i < BURST_NB; i++) {
+			mbuf = rte_pktmbuf_alloc((struct rte_mempool *)mp);
+			// printf("mbuf:%p\n",mbuf);
+			assert(mbuf);
+			tx_packets[i] = mbuf;
+			mbuf->data_off = 256;
+
+			mbuf->data_len = 1000;
+			mbuf->pkt_len = 1000;
+
+			mbuf->buf_len = 1500;
+			mbuf->tx_offload = 0;
+			// mbuf->refcnt = 1;
+
+			// eth_hdr = rte_pktmbuf_mtod(mbuf,struct rte_ether_hdr*);
+			eth_hdr = mbuf->buf_addr + mbuf->data_off;
+			// cos_printf("refcnt:%u, %p, eth_hdr:%p, mbuf_begin:%p, mbuf-end:%p\n",mbuf->refcnt, &mbuf->refcnt, eth_hdr, mbuf,(char*)mbuf + sizeof(struct rte_mbuf));
+			eth_hdr->dst_addr = d_addr;
+			eth_hdr->src_addr = s_addr;
+			eth_hdr->ether_type = 0x0008;
+			// cos_printf("refcnt2:%u\n", mbuf->refcnt);
+
+			ip_hdr = mbuf->buf_addr + mbuf->data_off + 14;
+			udp_hdr =  mbuf->buf_addr + mbuf->data_off + 14 + 20;
+
+			udp_hdr->src_port = 10000;
+			udp_hdr->dst_port = 20000;
+			udp_hdr->dgram_len = htons(200 + 8);
+			udp_hdr->dgram_cksum = 0;
+
+			ip_hdr->ihl =  5;
+			ip_hdr->version = 4;
+			ip_hdr->type_of_service = 0;
+			ip_hdr->total_length = htons(20 + 200);
+			ip_hdr->packet_id = 0;
+			ip_hdr->fragment_offset = 0;
+			ip_hdr->time_to_live = 64;
+			ip_hdr->next_proto_id = 17;
+			ip_hdr->src_addr =0x01010101;
+			ip_hdr->dst_addr = 0x02020202;
+			ip_hdr->hdr_checksum = 0;
+
+			#if 0
+
+
+			mbuf->l2_len = ETH_STD_LEN;
+
+			/* IP header length is (ihl * 4) */
+			mbuf->l3_len = ipv4_hdr->ihl * 4;
+
+			/* if the original csum field is set, don't do the offload */
+			ipv4_hdr->hdr_checksum = 0; 
+			udp_hdr->dgram_cksum = 0;
+			// mbuf->ol_flags = RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM| RTE_MBUF_F_TX_UDP_CKSUM;
+
+			/* NIC needs a pseudo-header L4 checksum before offload */
+			udp_hdr->dgram_cksum = rte_ipv4_phdr_cksum(ipv4_hdr, RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM| RTE_MBUF_F_TX_UDP_CKSUM);
+			#endif
+		}
+
+		uint16_t ret = cos_dev_port_tx_burst(0, queue, tx_packets, BURST_NB);
+		// printf("ret:%u\n",ret);
+		// cos_get_port_stats(0);
+
+	}
 }
 
 uint16_t cos_send_a_packet(char * pkt, uint32_t pkt_size, char* mp)
