@@ -114,8 +114,10 @@ cos_eth_ports_init(void)
 	for (i = 0; i < nb_ports; i++) {
 		cos_eth_info_print(ports_ids[i]);
 	}
-	// port_id[0] = 5;
-	// nb_ports = 1;
+#if E810_NIC
+	ports_ids[0] = 1;
+	nb_ports = 1;
+#endif
 
 	return nb_ports;
 }
@@ -464,7 +466,7 @@ cos_get_port_stats(cos_portid_t port_id)
 {
 	struct rte_eth_stats stats;
 
-	rte_eth_stats_get(port_id, &stats);
+	rte_eth_stats_get(ports_ids[port_id], &stats);
 
 	COS_DPDK_APP_LOG(NOTICE, 
 		"PORT STATS(%d):\n"
@@ -516,42 +518,43 @@ cos_dpdk_init(int argc, char **argv)
 	return ret;
 }
 
-void cos_test_send(int queue, char* mp) {
+/* A simple transmiting test function */
+void
+cos_test_send(int queue, char* mp) {
 	struct rte_mbuf * mbuf;
 	struct rte_ether_hdr *eth_hdr;
+#if E810_NIC
+	struct rte_ether_addr s_addr = {{0x6c,0xfe,0x54,0x40,0x41,0x01}};
+	struct rte_ether_addr d_addr = {{0x6c,0xfe,0x54,0x40,0x46,0x09}};
+#else 
 	struct rte_ether_addr s_addr = {{0x66,0x66,0x66,0x66,0x66,0x66}};
 	struct rte_ether_addr d_addr = {{0x10,0x10,0x10,0x10,0x10,0x11}};
-	char *tx_packets[128];
-	#define BURST_NB 32 
-	#define PKT_SZ 200
+#endif
+	char *tx_packets[4096];
+	#define BURST_NB 1024 
+	#define PKT_SZ 100
 	struct rte_ipv4_hdr *ip_hdr;
 	struct rte_udp_hdr *udp_hdr;
-
 
 	while (1)
 	{
 		/* code */
 		for (int i = 0;i < BURST_NB; i++) {
 			mbuf = rte_pktmbuf_alloc((struct rte_mempool *)mp);
-			// printf("mbuf:%p\n",mbuf);
 			assert(mbuf);
 			tx_packets[i] = mbuf;
-			mbuf->data_off = 256;
+			mbuf->data_off = 128;
 
-			mbuf->data_len = 1000;
-			mbuf->pkt_len = 1000;
+			mbuf->data_len = PKT_SZ;
+			mbuf->pkt_len = PKT_SZ;
 
 			mbuf->buf_len = 1500;
 			mbuf->tx_offload = 0;
-			// mbuf->refcnt = 1;
 
-			// eth_hdr = rte_pktmbuf_mtod(mbuf,struct rte_ether_hdr*);
 			eth_hdr = mbuf->buf_addr + mbuf->data_off;
-			// cos_printf("refcnt:%u, %p, eth_hdr:%p, mbuf_begin:%p, mbuf-end:%p\n",mbuf->refcnt, &mbuf->refcnt, eth_hdr, mbuf,(char*)mbuf + sizeof(struct rte_mbuf));
 			eth_hdr->dst_addr = d_addr;
 			eth_hdr->src_addr = s_addr;
 			eth_hdr->ether_type = 0x0008;
-			// cos_printf("refcnt2:%u\n", mbuf->refcnt);
 
 			ip_hdr = mbuf->buf_addr + mbuf->data_off + 14;
 			udp_hdr =  mbuf->buf_addr + mbuf->data_off + 14 + 20;
@@ -572,29 +575,12 @@ void cos_test_send(int queue, char* mp) {
 			ip_hdr->src_addr =0x01010101;
 			ip_hdr->dst_addr = 0x02020202;
 			ip_hdr->hdr_checksum = 0;
-
-			#if 0
-
-
-			mbuf->l2_len = ETH_STD_LEN;
-
-			/* IP header length is (ihl * 4) */
-			mbuf->l3_len = ipv4_hdr->ihl * 4;
-
-			/* if the original csum field is set, don't do the offload */
-			ipv4_hdr->hdr_checksum = 0; 
-			udp_hdr->dgram_cksum = 0;
-			// mbuf->ol_flags = RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM| RTE_MBUF_F_TX_UDP_CKSUM;
-
-			/* NIC needs a pseudo-header L4 checksum before offload */
-			udp_hdr->dgram_cksum = rte_ipv4_phdr_cksum(ipv4_hdr, RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM| RTE_MBUF_F_TX_UDP_CKSUM);
-			#endif
 		}
 
-		uint16_t ret = cos_dev_port_tx_burst(0, queue, tx_packets, BURST_NB);
-		// printf("ret:%u\n",ret);
-		// cos_get_port_stats(0);
-
+		uint16_t ret = 0;
+		while (ret < BURST_NB) {
+			ret += cos_dev_port_tx_burst(0, queue, &tx_packets[ret], BURST_NB - ret);
+		}
 	}
 }
 

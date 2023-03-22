@@ -50,10 +50,10 @@ parallel_main(coreid_t cid)
 		return 0;
 	}
 	if (cos_compid() == 6 && cid == 2) {
-		return;
+		return 0;
 	}
 	if (cos_compid() == 7 && cid == 1) {
-		return;
+		return 0;
 	}
 	int ret;
 	u32_t ip;

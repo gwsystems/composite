@@ -77,7 +77,7 @@ SS_STATIC_SLAB(asnd, struct cm_asnd, MAX_NUM_THREADS);
 SS_STATIC_SLAB(page, struct mm_page, MM_NPAGES);
 SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 
-#define CONTIG_PHY_PAGES 60000
+#define CONTIG_PHY_PAGES 70000
 static void * contig_phy_pages = 0;
 
 static struct cm_comp *

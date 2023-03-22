@@ -26,14 +26,15 @@ int debug_flag = 0;
 u64_t rx_enqueued_miss = 0;
 extern rte_atomic64_t tx_enqueued_miss;
 
-char *g_rx_mp = NULL;
-char* g_tx_mp[NUM_CPU];
+char *g_rx_mp[NIC_RX_QUEUE_NUM];
+char *g_tx_mp[NIC_TX_QUEUE_NUM];
+char rx_per_core_mpool_name[NIC_RX_QUEUE_NUM][32];
+char tx_per_core_mpool_name[NIC_TX_QUEUE_NUM][32];
 
 static u16_t nic_ports = 0;
-static u16_t nic_queues = 1;
 
 struct rte_hash *tenant_hash_tbl;
-struct sync_lock tx_lock[NUM_CPU];
+struct sync_lock tx_lock[NIC_TX_QUEUE_NUM];
 
 static struct rte_hash_parameters rte_hash_params = {
 	.entries = NIC_MAX_SESSION,
@@ -71,7 +72,7 @@ debug_print_stats(void)
 {
 	cos_get_port_stats(0);
 
-	printc("rx mempool in use:%u\n", cos_mempool_in_use_count(g_rx_mp));
+	printc("rx mempool in use:%u\n", cos_mempool_in_use_count(g_rx_mp[0]));
 	printc("rx enqueued miss:%llu\n", rx_enqueued_miss);
 	printc("tx enqueued miss:%lu\n", tx_enqueued_miss.cnt);
 	printc("enqueue:%lu, txqneueue:%lu\n", enqueued_rx, dequeued_tx);
@@ -127,7 +128,7 @@ process_tx_packets(void)
 			pkt_ring_buf_dequeue(per_thd_tx_ring, &buf);
 
 			dequeued_tx++;
-			mbuf = cos_allocate_mbuf(g_tx_mp);
+			mbuf = cos_allocate_mbuf(g_tx_mp[0]);
 			assert(mbuf);
 			ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
 
@@ -163,7 +164,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 		if (htons(eth->ether_type) == 0x0800) {
 			iph	= (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
 			if (unlikely(iph->proto != UDP_PROTO)) {
-				assert(0);
+				// assert(0);
 				cos_free_packet(rx_pkts[i]);
 				rx_enqueued_miss++;
 				continue;
@@ -239,17 +240,13 @@ cos_nic_start(){
 		cos_free_rx_buf();
 #endif
 		// process_tx_packets();
-		for (i = 0; i < nic_ports; i++) {
-			for (j = 0; j < nic_queues; j++) {
-				nb_pkts = cos_dev_port_rx_burst(i, j, rx_packets, MAX_PKT_BURST);
-				// if (nb_pkts!= 0) cos_dev_port_tx_burst(i, j, rx_packets, nb_pkts);
-				if (nb_pkts != 0) process_rx_packets(i, rx_packets, nb_pkts);
-			}
-		}
+
+		// only port 0, queue 0 receive packets
+		nb_pkts = cos_dev_port_rx_burst(0, 0, rx_packets, MAX_PKT_BURST);
+		// if (nb_pkts!= 0) cos_dev_port_tx_burst(i, j, rx_packets, nb_pkts);
+		if (nb_pkts != 0) process_rx_packets(0, rx_packets, nb_pkts);
 	}
 }
-
-char tx_per_core_mpool_name[NUM_CPU][32];
 
 static void
 cos_nic_init(void)
@@ -267,8 +264,9 @@ cos_nic_init(void)
 	 * set max_mbufs 2 times than nb_rx_desc, so that there is enough room
 	 * to store packets, or this will fail if nb_rx_desc <= max_mbufs.
 	 */
-	const size_t max_rx_mbufs = 8 * nb_rx_desc;
+	const size_t max_rx_mbufs = 2 * nb_rx_desc;
 	const size_t max_tx_mbufs = 2 * nb_tx_desc;
+	memset(rx_per_core_mpool_name, 0, sizeof(rx_per_core_mpool_name));
 	memset(tx_per_core_mpool_name, 0, sizeof(tx_per_core_mpool_name));
 
 	char *argv[] =	{
@@ -279,7 +277,7 @@ cos_nic_init(void)
 			"--no-huge",
 			"--iova-mode=pa",
 			"--log-level",
-			"*:debug", /* log level can be changed to *debug* if needed, this will print lots of information */
+			"*:info", /* log level can be changed to *debug* if needed, this will print lots of information */
 			"-m",
 			"128", /* total memory used by dpdk memory subsystem, such as mempool */
 			};
@@ -297,13 +295,15 @@ cos_nic_init(void)
 	assert(nic_ports > 0);
 
 	/* 3. create mbuf pool where packets will be stored, user can create multiple pools */
-	char *mp = cos_create_pkt_mbuf_pool_by_ops(rx_mpool_name, max_rx_mbufs, COS_MEMPOOL_MT_RTS_OPS);
-	assert(mp != NULL);
-	g_rx_mp = mp;
+	for (i = 0; i < NIC_RX_QUEUE_NUM; i++) {
+		rx_per_core_mpool_name[i][0] = 'r';
+		rx_per_core_mpool_name[i][1] = i;
+		g_rx_mp[i] = cos_create_pkt_mbuf_pool_by_ops(rx_per_core_mpool_name[i], max_rx_mbufs, COS_MEMPOOL_MT_RTS_OPS);
+		assert(g_rx_mp[i]);
+	}
 
-	// each worker core will have a tx buf
-	for(i = 0;i < NUM_CPU; i++) {
-		tx_per_core_mpool_name[i][0] = "p";
+	for(i = 0;i < NIC_TX_QUEUE_NUM; i++) {
+		tx_per_core_mpool_name[i][0] = 'p';
 		tx_per_core_mpool_name[i][1] = i;
 		g_tx_mp[i] = cos_create_pkt_mbuf_pool_by_ops(tx_per_core_mpool_name[i], max_tx_mbufs, COS_MEMPOOL_MT_RTS_OPS);
 		assert(g_tx_mp[i]);
@@ -312,10 +312,14 @@ cos_nic_init(void)
 
 	/* 4. config each port */
 	for (i = 0; i < nic_ports; i++) {
-		cos_config_dev_port_queue(i, 1, 1);
+		cos_config_dev_port_queue(i, NIC_RX_QUEUE_NUM, NIC_TX_QUEUE_NUM);
 		cos_dev_port_adjust_rx_tx_desc(i, &nb_rx_desc, &nb_tx_desc);
-		cos_dev_port_rx_queue_setup(i, 0, nb_rx_desc, g_rx_mp);
-		cos_dev_port_tx_queue_setup(i, 0, nb_tx_desc);
+		for (int j = 0; j < NIC_RX_QUEUE_NUM; j++) {
+			cos_dev_port_rx_queue_setup(i, j, nb_rx_desc, g_rx_mp[j]);
+		}
+		for (int j = 0; j < NIC_TX_QUEUE_NUM; j++) {
+			cos_dev_port_tx_queue_setup(i, j, nb_tx_desc);
+		}
 	}
 
 	/* 5. start each port, this will enable rx/tx */
@@ -335,30 +339,28 @@ cos_init(void)
 #ifdef USE_CK_RING_FREE_MBUF
 	pkt_ring_buf_init(&g_free_ring, FREE_PKT_RBUF_NUM, FREE_PKT_RING_SZ);
 #endif
-	for (int i = 0;i < NUM_CPU;i++) {
+	for (int i = 0;i < NIC_TX_QUEUE_NUM;i++) {
 		sync_lock_init(&tx_lock[i]);
 	}
 
 	printc("dpdk init end\n");
 }
 
-extern void cos_test_send(int queue, char *mp);
 int
 parallel_main(coreid_t cid)
 {
 	/* DPDK rx and tx will only run on core 0 */
 	if(cid == 0) {
 		cos_nic_start();
-
- 		// cos_test_send(0,g_rx_mp);
 	} else {
-		// cos_test_send(1,g_tx_mp);
 #if 0
-		while (1)
-		{
-			/* code */
-			process_tx_packets();
-		}
+#if E810_NIC == 0
+		sync_lock_take(&tx_lock[0]);
+		cos_test_send(0, g_tx_mp[0]);
+		sync_lock_release(&tx_lock[0]);
+#else
+		cos_test_send(cid - 1, g_tx_mp[cid - 1]);
+#endif
 #endif
 	}
 

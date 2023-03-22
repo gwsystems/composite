@@ -19,8 +19,7 @@ typedef unsigned long cos_paddr_t; /* physical address */
 typedef unsigned long cos_vaddr_t; /* virtual address */
 
 extern cos_paddr_t cos_map_virt_to_phys(cos_vaddr_t addr);
-extern char *g_tx_mp[NUM_CPU];
-extern char *g_rx_mp;
+extern char *g_tx_mp[NIC_TX_QUEUE_NUM];
 
 /* indexed by thread id */
 struct client_session client_sessions[NIC_MAX_SESSION];
@@ -41,7 +40,7 @@ pkt_ring_buf_init(struct pkt_ring_buf *pkt_ring_buf, size_t ringbuf_num, size_t 
 	// buf_addr = (struct ck_ring *)malloc(ringbuf_sz);
 	/* prevent multiple thread from contending memory */
 	assert(cos_thdid() < NIC_MAX_SESSION);
-	buf_addr = &ring_buffers[cos_thdid()];
+	buf_addr = (struct ck_ring *)&ring_buffers[cos_thdid()];
 
 	ck_ring_init(buf_addr, ringbuf_num);
 
@@ -180,16 +179,19 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	char *tx_packets[256];
 
 	coreid_t core_id = cos_cpuid();
-	mbuf = cos_allocate_mbuf(g_tx_mp[core_id]);
+#if E810_NIC == 0
+	core_id = 1;
+#endif
+	mbuf = cos_allocate_mbuf(g_tx_mp[core_id - 1]);
 	assert(mbuf);
 	ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
 	cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
 	cos_set_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len, 1);
 	tx_packets[0] = mbuf;
 
-	sync_lock_take(&tx_lock[core_id]);
-	cos_dev_port_tx_burst(0, 0, tx_packets, 1);
-	sync_lock_release(&tx_lock[core_id]);
+	sync_lock_take(&tx_lock[core_id - 1]);
+	cos_dev_port_tx_burst(0, core_id - 1, tx_packets, 1);
+	sync_lock_release(&tx_lock[core_id - 1]);
 #endif
 
 	return 0;

@@ -13,6 +13,7 @@ static u32_t host_ip;
 static u16_t host_port;
 
 static struct ether_addr nic_mac;
+#if 1
 static struct ether_addr gw_mac = {
 	.addr_bytes[0] = 0x10,
 	.addr_bytes[1] = 0x10,
@@ -21,7 +22,16 @@ static struct ether_addr gw_mac = {
 	.addr_bytes[4] = 0x10,
 	.addr_bytes[5] = 0x11,
 };
-
+#else 
+static struct ether_addr gw_mac = {
+	.addr_bytes[0] = 0x6c,
+	.addr_bytes[1] = 0xfe,
+	.addr_bytes[2] = 0x54,
+	.addr_bytes[3] = 0x40,
+	.addr_bytes[4] = 0x46,
+	.addr_bytes[5] = 0x09,
+};
+#endif
 static inline void
 udp_stack_packet_validate(struct ip_hdr *ip_hdr, u16_t packet_len, u32_t host_ip, u32_t host_port)
 {
