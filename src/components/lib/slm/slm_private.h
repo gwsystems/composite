@@ -206,6 +206,7 @@ try_again:
 		 */
 		if (ret == -EBUSY) return ret;
 		/* If the slm_thd_activate returns -EAGAIN, this means this scheduling token is outdated, try again */
+		assert(ret == -EAGAIN);
 		slm_cs_enter(curr, SLM_CS_NONE);
 		goto try_again;
 	}

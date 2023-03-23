@@ -165,7 +165,7 @@ int
 slm_timer_quantum_init(void)
 {
 	/* 10ms */
-	slm_policy_timer_init(50);
+	slm_policy_timer_init(3);
 
 	return 0;
 }
