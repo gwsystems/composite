@@ -82,9 +82,10 @@ slm_blkpt_trigger(sched_blkpt_id_t blkpt, struct slm_thd *current, sched_blkpt_e
 	if (!m) ERR_THROW(-1, unlock);
 
 	/* is the new epoch more recent than the existing? */
-	if (!blkpt_epoch_is_higher(m->epoch, epoch)) ERR_THROW(0, unlock);
+	if (!blkpt_epoch_is_higher(ps_load(&m->epoch), epoch)) ERR_THROW(0, unlock);
 
 	m->epoch = epoch;
+	ps_mem_fence();
 	while ((sl = stacklist_dequeue(&m->blocked)) != NULL) {
 		t = sl->data;
 		slm_thd_wakeup(t, 0); /* ignore retval: process next thread */
@@ -107,19 +108,42 @@ slm_blkpt_block(sched_blkpt_id_t blkpt, struct slm_thd *current, sched_blkpt_epo
 	struct blkpt_mem *m;
 	struct stacklist sl; 	/* The stack-based structure we'll use to track ourself */
 	int ret = 0;
+	struct stacklist *_sl;
+	struct slm_thd *t;
 
 	slm_cs_enter(current, SLM_CS_NONE);
 
 	m = blkpt_get(blkpt);
-	if (!m) ERR_THROW(-1, unlock);
+	if (!m) {
+		ERR_THROW(-1, unlock);
+	}
 
 	/* Outdated event? don't block! */
-	if (!blkpt_epoch_is_higher(m->epoch, epoch)) ERR_THROW(0, unlock);
+	if (!blkpt_epoch_is_higher(ps_load(&m->epoch), epoch)) ERR_THROW(0, unlock);
 
 	/* Block! */
 	stacklist_add(&m->blocked, &sl, current);
 
-	if (slm_thd_block(current)) ERR_THROW(-1, unlock);
+	if (!blkpt_epoch_is_higher(ps_load(&m->epoch), epoch)) {
+		// assert(0);
+		printc("#");
+		// if (stacklist_is_removed(&sl)) {
+		// 	ERR_THROW(0, unlock);
+		// }
+		// if ((_sl = stacklist_dequeue(&m->blocked)) != NULL) {
+		// 	assert(_sl == &sl);
+		// 	// printc("#\n");
+		// 	// assert(0);
+		// 	// slm_cs_exit_reschedule(current, SLM_CS_NONE);
+		// 	// return 0;
+		// }
+		_sl = stacklist_dequeue(&m->blocked);
+		
+		ERR_THROW(0, unlock);
+	}
+	if (slm_thd_block(current)) {
+		ERR_THROW(0, unlock);
+	}
 
 	slm_cs_exit_reschedule(current, SLM_CS_NONE);
 	assert(stacklist_is_removed(&sl));

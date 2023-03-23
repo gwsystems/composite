@@ -90,7 +90,7 @@ parallel_main(coreid_t cid)
 		objid  = udp_stack_shmem_read(&data_offset, &data_len, &remote_addr, &remote_port);
 		// rdtscll(after);
 		// printc("gap:%lu\n", after - before);
-		// printc("rx a objid:%u\n", objid);
+		printc("rx a objid:%u\n", objid);
 
 		/* application would like to own the shmem because it does not want ohters to free it. */
 		rx_obj = shm_bm_transfer_net_pkt_buf(netshmem_get_shm(), objid);
