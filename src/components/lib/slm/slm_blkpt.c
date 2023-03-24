@@ -84,14 +84,12 @@ slm_blkpt_trigger(sched_blkpt_id_t blkpt, struct slm_thd *current, sched_blkpt_e
 	/* is the new epoch more recent than the existing? */
 	if (!blkpt_epoch_is_higher(ps_load(&m->epoch), epoch)) ERR_THROW(0, unlock);
 
-	m->epoch = epoch;
-	ps_mem_fence();
+	/* FIXME: If we want parallel triggers, this store should be a CAS, that should only allow increases in epoch. */
+	ps_store(&m->epoch, epoch);
 
 	while ((sl = stacklist_dequeue(&m->blocked)) != NULL) {
 		t = sl->data;
-		printc("@");
 		slm_thd_wakeup(t, 0); /* ignore retval: process next thread */
-
 		if (single) break;
 	}
 	/* most likely we switch to a woken thread here */
@@ -109,6 +107,7 @@ slm_blkpt_block(sched_blkpt_id_t blkpt, struct slm_thd *current, sched_blkpt_epo
 {
 	struct blkpt_mem *m;
 	struct stacklist sl; 	/* The stack-based structure we'll use to track ourself */
+	struct stacklist *_sl;
 	int ret = 0;
 	sched_blkpt_epoch_t pre;
 
@@ -119,20 +118,25 @@ slm_blkpt_block(sched_blkpt_id_t blkpt, struct slm_thd *current, sched_blkpt_epo
 
 	/* Outdated event? don't block! */
 	pre = ps_load(&m->epoch);
-	if (!blkpt_epoch_is_higher(ps_load(&m->epoch), epoch)) ERR_THROW(0, unlock);
+	if (!blkpt_epoch_is_higher(pre, epoch)) ERR_THROW(0, unlock);
 
 	/* Block! */
 	stacklist_add(&m->blocked, &sl, current);
+
+	/* To solve a risk condition when a stacklist_dequeue happens before the stacklist_add. */
 	if (!blkpt_epoch_is_higher(ps_load(&m->epoch), pre)) {
-		if (!stacklist_is_removed(&sl)) {
-			stacklist_dequeue(&m->blocked);
+		if ((_sl = stacklist_dequeue(&m->blocked)) != NULL) {
+			/*
+			 * FIXME: should dequeue everything from the stacklist and wakeup those are not added by this call.
+			 * Then inform slm_blkpt_trigger by using CAS to update the epoch.
+			 */
+			assert(_sl == &sl);
 		}
 		assert(stacklist_is_removed(&sl));
 		ERR_THROW(0, unlock);
 	}
 
-printc("#");
-	if (slm_thd_block(current)) ERR_THROW(-1, unlock);
+	if (slm_thd_block(current)) ERR_THROW(0, unlock);
 
 	slm_cs_exit_reschedule(current, SLM_CS_NONE);
 	assert(stacklist_is_removed(&sl));

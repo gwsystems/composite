@@ -159,7 +159,6 @@ sync_sem_give(struct sync_sem *s)
 			 */
 			if (!ps_cas(&s->rescnt, rescnt, SYNC_SEM_ZERO + 1)) continue; /* retry */
 			/* if there are blocked threads, wake 'em up! */
-			printc("$\n");
 			sync_blkpt_wake(&s->blkpt, 0);
 		}
 

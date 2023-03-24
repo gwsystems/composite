@@ -645,7 +645,6 @@ cap_ipi_process(struct pt_regs *regs)
 	int                         i, scan_base;
 	unsigned long               ip, sp;
 
-	printk("*");
 	thd_curr       = thd_next = thd_current(cos_info);
 	receiver_rings = &IPI_cap_dest[get_cpuid()];
 	tcap_curr      = tcap_next = tcap_current(cos_info);
