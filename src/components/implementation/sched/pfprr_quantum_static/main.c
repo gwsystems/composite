@@ -589,7 +589,6 @@ slm_ipi_process(void *d)
 
 	while (1) {
 		cos_rcv(r->rcv, RCV_ALL_PENDING, &rcvd);
-		// assert(!slm_ipi_event_empty(cos_cpuid()));
 
 		// printc("$\n");
 		while (!slm_ipi_event_empty(cos_cpuid())) {

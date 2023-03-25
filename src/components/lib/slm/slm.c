@@ -440,7 +440,7 @@ slm_cs_enter_sched(void)
 {
 	int ret;
 
-	while ((ret = slm_cs_enter(&slm_global()->sched_thd, SLM_CS_NOSPIN))) {
+	while ((ret = slm_cs_enter(&slm_global()->sched_thd, SLM_CS_SCHEDEVT))) {
 		/* We don't want to retry if we have pending events to handle */
 		if (ret == -EBUSY) break;
 	}
