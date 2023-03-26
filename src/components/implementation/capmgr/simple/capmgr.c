@@ -20,13 +20,14 @@
 #include <capmgr.h>
 
 struct cm_rcv {
-	struct crt_rcv rcv;
+	struct crt_rcv  rcv;
 	struct cm_comp *sched;
+	arcvcap_t       aliased_cap;
 };
 
 struct cm_comp {
 	struct crt_comp comp;
-	struct cm_rcv *sched_rcv;    /* rcv cap for this scheduler or NULL if not a scheduler */
+	struct cm_rcv *sched_rcv[NUM_CPU];    /* rcv cap for this scheduler or NULL if not a scheduler */
 	struct cm_rcv *sched_parent; /* rcv cap for this scheduler's scheduler, or NULL */
 	vaddr_t dcb_init_ptr;
 };
@@ -41,6 +42,7 @@ struct cm_thd {
 
 struct cm_asnd {
 	struct crt_asnd asnd;
+	asndcap_t       aliased_cap;
 };
 
 struct cm_dcb {
@@ -134,10 +136,14 @@ cm_comp_alloc_with(char *name, compid_t id, struct crt_comp_resources *resources
 }
 
 struct cm_rcv *
-cm_rcv_alloc_in(struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t closure_id, crt_rcv_flags_t flags)
+cm_rcv_alloc_in(struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t closure_id, crt_rcv_flags_t flags, thdcap_t *thdcap, thdid_t *tid)
 {
 	struct cm_rcv *r = ss_rcv_alloc();
 	vaddr_t        dcbaddr;
+	struct cm_thd *t = ss_thd_alloc();
+	struct crt_rcv_resources res = (struct crt_rcv_resources) { 0 };
+	struct cos_compinfo *target_ci = cos_compinfo_get(c->comp_res);
+	struct cos_aep_info *sched_aep = cos_sched_aep_get(c->comp_res);
 
 	if (!r) return NULL;
 	if (crt_rcv_create_in(&r->rcv, c, sched, closure_id, flags, c->scb, &dcbaddr)) {
@@ -146,7 +152,39 @@ cm_rcv_alloc_in(struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t cl
 	}
 	ss_rcv_activate(r);
 
+	if (crt_rcv_alias_in(&r->rcv, c, &res, CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_RCV | CRT_RCV_ALIAS_TCAP)) {
+		ss_rcv_free(r);
+		assert(0);
+		return NULL;
+	}
+	r->aliased_cap = res.rcv;
+
+	*tid = cos_introspect(target_ci, res.thd, THD_GET_TID);
+	*thdcap = res.thd;
+
 	return r;
+}
+
+struct cm_asnd *
+cm_asnd_alloc_in(struct crt_comp *c, struct crt_rcv *rcv)
+{
+	struct cm_asnd *s = ss_asnd_alloc();
+	struct crt_asnd_resources res = { 0 };
+
+	if (!s) return NULL;
+	if (crt_asnd_create(&s->asnd, rcv)) {
+		ss_asnd_free(s);
+		return NULL;
+	}
+
+	if (crt_asnd_alias_in(&s->asnd, c, &res)) {
+		ss_asnd_free(s);
+		return NULL;
+	}
+	s->aliased_cap = res.asnd;
+	ss_asnd_activate(s);
+
+	return s;
 }
 
 struct cm_thd *
@@ -175,7 +213,7 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, struct cm_dcb *dcb, th
 	}
 	ss_thd_activate(t);
 
-	sched_aep = cos_sched_aep_get(sched->comp.comp_res);
+	/*sched_aep = cos_sched_aep_get(sched->comp.comp_res);
 	assert(sched_ci->comp_cap);
 
 	rcvcap = cos_arcv_alloc(ci, t->thd.cap, sched_aep->tc, sched_ci->comp_cap, sched_aep->rcv);
@@ -194,7 +232,12 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, struct cm_dcb *dcb, th
 
 	if (crt_asnd_create(&s->asnd, &r->rcv)) BUG();
 	ss_asnd_activate(s);
-	if (crt_asnd_alias_in(&s->asnd, &sched->comp, &_asnd)) BUG();
+	if (crt_asnd_alias_in(&s->asnd, &sched->comp, &_asnd)) BUG();*/
+	if (crt_thd_alias_in(&t->thd, &sched->comp, &res)) {
+		printc("capmgr: couldn't alias correctly.\n");
+		/* FIXME: reclaim the thread */
+		return NULL;
+	}
 
 	t->sched       = sched;
 	t->aliased_cap = _rcv.thd;
@@ -666,7 +709,7 @@ capmgr_execution_init(int is_init_core)
 			capmgr_dcb_info_init(cmc);
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, &r->rcv))) BUG();
 			ss_rcv_activate(r);
-			cmc->sched_rcv = r;
+			cmc->sched_rcv[cos_cpuid()] = r;
 			if (is_init_core) printc("\tCreated scheduling execution for %ld\n", id);
 		} else if (!strcmp(exec_type, "init")) {
 			struct cm_thd *t = ss_thd_alloc();
@@ -925,9 +968,29 @@ capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_inf
 	return t->aliased_cap;
 }
 
+arcvcap_t
+capmgr_rcv_create(thdclosure_index_t idx, crt_rcv_flags_t flags, asndcap_t *asnd, thdcap_t *thdcap, thdid_t *tid)
+{
+	compid_t sched = (compid_t)cos_inv_token();
+	struct cm_comp   *c;
+	struct cm_rcv    *r;
+	struct cm_asnd   *s;
+	arcvcap_t  child_rcv;
+
+	/* TODO: Should replace this static check with one that uses the initargs to validate that the call is coming from the scheduler. */
+	c = ss_comp_get(sched);
+
+	r = cm_rcv_alloc_in(&c->comp, &c->sched_rcv[cos_cpuid()]->rcv, idx, flags, thdcap, tid);
+
+	s = cm_asnd_alloc_in(&c->comp, &r->rcv);
+	*asnd = s->aliased_cap;
+
+	return r->aliased_cap;
+}
+
+
 thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }
 thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv) { BUG(); return 0; }
-
 asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t) { BUG(); return 0; }
 arcvcap_t capmgr_rcv_create(spdid_t child, thdcap_t thdcap) { BUG(); return 0; }
 asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv) { BUG(); return 0; }
@@ -974,7 +1037,6 @@ cos_init(void)
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
 	ci->scb_uaddr = addr_get(cos_compid(), ADDR_SCB);
-	//printc(">>>>>>>>>%d, ci_uaddr: %x\n", cos_compid(), ci->scb_uaddr);
 
 	/*
 	 * FIXME: this is a hack. The captbl_end variable does *not*
@@ -985,9 +1047,6 @@ cos_init(void)
 	 */
 	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER), 0);
 	if (!cm_comp_self_alloc("capmgr")) BUG();
-
-	//vaddr_t	scb_uaddr = (vaddr_t)cos_scb_info_get();
-	//scb_mapping(0, scb_uaddr);
 
 	/* Initialize the other component's for which we're responsible */
 	capmgr_comp_init();

@@ -43,6 +43,9 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0, LLBOOT_CAPTBL_SCB, 0, 0, tid++, NULL);
 	assert(!ret);
 
+	/* on x86 we store coreid in MSR_TSC_AUX for user-level access */
+	chal_cpu_coreid_set(cpu_id);
+
 	tcap_active_init(cos_info);
 	ret = tcap_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpu_id), tcap_mem);
 	assert(!ret);

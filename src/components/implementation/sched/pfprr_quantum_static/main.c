@@ -1,7 +1,6 @@
 #include <cos_component.h>
 #include <llprint.h>
 #include <capmgr.h>
-
 #include <static_slab.h>
 #include <ps_list.h>
 #include <ps.h>
@@ -141,6 +140,7 @@ sched_thd_yield_to(thdid_t t)
 	struct slm_thd *to = slm_thd_lookup(t);
 	int ret;
 
+	assert(to);
 	if (!to) return -1;
 	assert(current != to);
 	slm_cs_enter(current, SLM_CS_NONE);
@@ -565,16 +565,72 @@ sched_get_cpu_freq(void)
 	return slm_get_cycs_per_usec();
 }
 
-/*int
-sched_scb_mapping(void)
+struct slm_thd *
+slm_ipithd_create(thd_fn_t fn, void * data, crt_rcv_flags_t flags, thdcap_t *thdcap, thdid_t *tid)
 {
-	assert(0);
-	compid_t id = (compid_t)cos_inv_token();
+	struct slm_ipi_percore   *ipi_data = slm_ipi_percore_get(cos_cpuid());
+	struct slm_ipi_thd       *r        = &ipi_data->ipi_thd;
+	struct slm_thd_container *t;
+	struct slm_global        *g = slm_global();
+	struct slm_thd           *current = &g->sched_thd;
+	struct slm_thd           *thd;
+	struct slm_thd           *ret;
+	thdcap_t                  _thd;
+	thdid_t                   _tid;
+	
+	r->rcv = capmgr_rcv_alloc(fn, data, flags, &r->asnd, &_thd, &_tid);
+	r->cpuid = cos_cpuid();
+	r->tid = _tid;
 
-	return capmgr_scb_mapping(id);
-}*/
+	t = slm_thd_mem_alloc(_thd, _tid, thdcap, tid);
+	if (!t) ERR_THROW(NULL, done);
+	thd = slm_thd_from_container(t);
 
-thdcap_t idlecap;
+	slm_cs_enter(current, SLM_CS_NONE);
+	if (slm_thd_init(thd, _thd, _tid)) ERR_THROW(NULL, free);
+
+	slm_thd_mem_activate(t);
+
+	slm_cs_exit(NULL, SLM_CS_NONE);
+
+	ret = thd;
+done:
+	return ret;
+free:
+	slm_thd_mem_free(t);
+	ret = NULL;
+	goto done;
+}
+
+void
+slm_ipi_process(void *d)
+{
+	int rcvd, ret;
+	struct slm_ipi_percore *ipi_data = slm_ipi_percore_get(cos_cpuid());
+	struct slm_ipi_thd     *r        = &ipi_data->ipi_thd;
+	struct slm_ipi_event    event    = { 0 };
+	struct slm_thd         *current  = slm_thd_current();
+	struct slm_thd         *thd;
+
+	while (1) {
+		cos_rcv(r->rcv, RCV_ALL_PENDING, &rcvd);
+		assert(!slm_ipi_event_empty(cos_cpuid()));
+
+		while (!slm_ipi_event_empty(cos_cpuid())) {
+			slm_ipi_event_dequeue(&event, cos_cpuid());
+			thd = slm_thd_static_cm_lookup(event.tid);
+			slm_cs_enter(current, SLM_CS_NONE);
+			ret = slm_thd_wakeup(thd, 0);
+			/*
+			 * Return "0" means the thread is woken up in this call.
+			 * Return "1" means the thread is already `RUNNABLE`.
+			 */
+			assert(ret == 0 || ret == 1);
+			slm_cs_exit(current, SLM_CS_NONE);
+		}
+	}
+	return;
+}
 
 void
 parallel_main(coreid_t cid)
@@ -588,27 +644,26 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
 	struct slm_thd_container *t;
 	struct cos_dcb_info *dcb;
-	thdcap_t thdcap;
-	thdid_t tid;
+	struct slm_thd *r;
+	thdcap_t thdcap, ipithdcap;
+	arcvcap_t rcvcap;
+	thdid_t tid, ipitid;
+	struct slm_ipi_percore *ipi_data = slm_ipi_percore_get(cos_cpuid());
 
-	//if (!init_core) cos_defcompinfo_sched_init();
 	cos_defcompinfo_sched_init();
 
 	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid, &dcb);
-	//printc("idletid: %d, now: %d\n", tid, cos_thdid());
 
 	if (!t) BUG();
-	idlecap = thdcap;
 
 	vaddr_t init_dcb = capmgr_sched_initdcb_get();
 
 	slm_init(thdcap, tid, (struct cos_dcb_info *)init_dcb, dcb);
 
-	struct slm_global *g = slm_global();
-	struct slm_thd    *i = &g->idle_thd;
-	//printc("force switch\n");
-	//cos_defswitch(i->thd, 0, g->timeout_next, 0);
-	//printc("force switch back\n");
+	r = slm_ipithd_create(slm_ipi_process, NULL, 0, &ipithdcap, &ipitid);
+	if (!r) BUG();
+	sched_thd_param_set(ipitid, sched_param_pack(SCHEDP_PRIO, SLM_IPI_THD_PRIO));
+	ck_ring_init(&ipi_data->ring, PAGE_SIZE / sizeof(struct slm_ipi_event));
 }
 
 void

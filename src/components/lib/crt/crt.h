@@ -8,6 +8,7 @@
 #include <init.h>
 #include <barrier.h>
 #include <dcb.h>
+#include <protdom.h>
 
 typedef unsigned long crt_refcnt_t;
 
@@ -89,12 +90,12 @@ struct crt_comp {
 	struct crt_sinv sinvs[CRT_COMP_SINVS_LEN];
 	u32_t  n_sinvs;
 
-	prot_domain_t protdom; /* The meaning of this value is left to architecture specific implementations */
+	prot_domain_t protdom;
 	capid_t second_lvl_pgtbl_cap;
-	struct crt_ns_vas *ns_vas;
 	struct cos_dcbinfo_data dcb_data[NUM_CPU];
 	vaddr_t init_dcb_addr[NUM_CPU];
 	scbcap_t scb;
+	struct protdom_ns_vas *ns_vas;
 };
 
 struct crt_comp_resources {
@@ -226,93 +227,6 @@ int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
 
 dcbcap_t crt_dcb_create_in(struct crt_comp *c, vaddr_t *dcb_addr);
 
-/*
- * - The VAS structure will be an array of pointers to `struct
- *   crt_comp`s, and "reserved" bits. The reserved bits are used to
- *   notate which names to *split* off, and the `crt_comp` is which
- *   component has been `alloc_in`ed at that name. Each NS maintains a
- *   pointer to its parent (it split off from).
- *
- * - We also need a similar structure like this to track the MPK
- *   namespace and the ASID namespace.
- */
-
-/* for 32 bit:
- * name sz = 2^22
- * 2^32 / 2^22 = 2^10 = 1024 names
- * 2^10 / 2 to ensure the array fits into a page = 512 names
- * #define CRT_VAS_NAME_SZ (1 << 22)
- * #define CRT_VAS_NUM_NAMES 512
- * #define CRT_MPK_NUM_NAMES 16
- * #define CRT_ASID_NUM_NAMES 1024
- *
- * for 64 bit:
- * name sz = 2^39
- * 2^48 / 2^39 = 2^9 = 512 names
- * 2^9 / 2 to ensure the array fits into a page = 256 names
- * also: more ASIDs available in 64 bit
- */
-
-#define CRT_VAS_NAME_SZ 	(1ULL << 39)
-#define CRT_VAS_NUM_NAMES 	256
-#define CRT_MPK_NUM_NAMES 	14
-#define CRT_ASID_NUM_NAMES 	4096
-
-#define CRT_NS_STATE_RESERVED 	1
-#define CRT_NS_STATE_ALLOCATED 1 << 1
-#define CRT_NS_STATE_ALIASED 	1 << 2
-
-struct crt_vas_name {
-	u32_t state : 3;
-	struct crt_comp *comp;
-};
-
-struct crt_asid_mpk_name {
-	u32_t state : 3;
-};
-
-struct crt_ns_vas {
-	pgtblcap_t top_lvl_pgtbl;
-	struct crt_vas_name names[CRT_VAS_NUM_NAMES];
-	struct crt_ns_vas *parent;
-	u32_t asid_name;
-	struct crt_asid_mpk_name mpk_names[CRT_MPK_NUM_NAMES];
-};
-
-
-struct crt_ns_asid {
-	struct crt_asid_mpk_name names[CRT_ASID_NUM_NAMES];
-	struct crt_ns_asid *parent;
-};
-
-/**
- * NS creation:
- *
- * - create functions that simply create a new ns with all of the
- *   names available, and
- * - split functions that simply make a new ns from the unallocated
- *   names left over in an existing namespace.
- */
-
-/* Create a new asids namespace */
-int crt_ns_asids_init(struct crt_ns_asid *asids);
-/*
- * Create a asid namespace from the names "left over" in `existing`,
- * i.e. those that have not been `crt_ns_vas_alloc_in`ed.
- */
-int crt_ns_asids_split(struct crt_ns_asid *new, struct crt_ns_asid *existing);
-/*
- * Initialize a new vas namespace, pulling a name from the `asids`
- */
-int crt_ns_vas_init(struct crt_ns_vas *new, struct crt_ns_asid *asids);
-/*
- * Create a new vas namespace from the names "left over" in
- * `existing`, i.e. those that have not been `crt_ns_vas_alloc_in`ed
- */
-int crt_ns_vas_split(struct crt_ns_vas *new, struct crt_ns_vas *existing, struct crt_ns_asid *asids);
-
-int crt_ns_vas_shared(struct crt_comp *c1, struct crt_comp *c2);
-
 int crt_ulk_init(void);
 int crt_ulk_map_in(struct crt_comp *c);
 
@@ -322,16 +236,8 @@ int crt_ulk_map_in(struct crt_comp *c);
  * in a vas directly. Note that, the
  * `crt_comp_create` likely needs to take the asid namespace as well.
  */
-int crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct crt_ns_vas *vas);
+int crt_comp_create_in_vas(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, struct protdom_ns_vas *vas);
 
-
-/*
- * VAS name mapping/allocation.
- * This function became no longer necessary due to the above, but an implementation of it is here:
- * https://github.com/ldierksheide/composite/blob/shared_pgtbl/src/components/lib/crt/crt.c#L322-L364
- *
- * int crt_ns_vas_alloc_in(struct crt_ns_vas *vas, struct crt_comp *c);
- */
 
 /**
  * `crt_delay` is a simple function to delay for a number of cycles.

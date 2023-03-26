@@ -1741,6 +1741,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			if (unlikely(!CAP_TYPECHK(asnd, CAP_ASND))) cos_throw(err, -EINVAL);
 
 			arcv = __cap_asnd_to_arcv(asnd);
+
 			if (unlikely(!arcv)) cos_throw(err, -EINVAL);
 
 			rthd    = arcv->thd;

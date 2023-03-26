@@ -14,6 +14,7 @@
 #include <cos_defkernel_api.h>
 #include <crt.h>
 #include <static_slab.h>
+#include <protdom.h>
 
 #include <init.h>
 #include <addr.h>
@@ -57,8 +58,8 @@ SS_STATIC_SLAB(sinv,   struct crt_sinv,         BOOTER_MAX_SINV);
 SS_STATIC_SLAB(thd,    struct crt_thd,          BOOTER_MAX_INITTHD);
 SS_STATIC_SLAB(rcv,    struct crt_rcv,          BOOTER_MAX_SCHED * NUM_CPU);
 SS_STATIC_SLAB(chkpt,  struct crt_chkpt,        BOOTER_MAX_CHKPT);
-SS_STATIC_SLAB_GLOBAL_ID(ns_asid, struct crt_ns_asid, BOOTER_MAX_NS_ASID, 0);
-SS_STATIC_SLAB_GLOBAL_ID(ns_vas, struct crt_ns_vas, BOOTER_MAX_NS_VAS, 0);
+SS_STATIC_SLAB_GLOBAL_ID(ns_asid, struct protdom_ns_asid, BOOTER_MAX_NS_ASID, 0);
+SS_STATIC_SLAB_GLOBAL_ID(ns_vas, struct protdom_ns_vas, BOOTER_MAX_NS_VAS, 0);
 
 /*
  * Assumptions: the component with the lowest id *must* be the one
@@ -155,7 +156,7 @@ comps_init(void)
 	struct initargs_iter i;
 	int cont, ret, j;
 	int comp_idx = 0;
-	struct crt_ns_asid *ns_asid;
+	struct protdom_ns_asid *ns_asid;
 
 	/*
 	 * Assume: our component id is the lowest of the ids for all
@@ -177,7 +178,7 @@ comps_init(void)
 	 */
 	ns_asid = ss_ns_asid_alloc();
 	assert(ns_asid);
-	if (crt_ns_asids_init(ns_asid) != 0) BUG();
+	if (protdom_ns_asids_init(ns_asid) != 0) BUG();
 	ss_ns_asid_activate(ns_asid);
 
 	ret = args_get_entry("addrspc_shared", &ases);
@@ -193,14 +194,14 @@ comps_init(void)
 		char *parent = args_get_from("parent", &curr);
 
 		/* allocate, initialize initial namespaces */
-		struct crt_ns_vas *ns_vas = ss_ns_vas_alloc_at_id(as_id);
+		struct protdom_ns_vas *ns_vas = ss_ns_vas_alloc_at_id(as_id);
 		assert(ns_vas);
 		if (!parent) {
 			printc("Creating virtual address space %s (%d):\n", args_get_from("name", &curr), as_id);
-			if (crt_ns_vas_init(ns_vas, ns_asid) != 0) BUG();
+			if (protdom_ns_vas_init(ns_vas, ns_asid) != 0) BUG();
 		} else {
 			int parent_id = atoi(parent);
-			struct crt_ns_vas *parent_vas = ss_ns_vas_get(parent_id);
+			struct protdom_ns_vas *parent_vas = ss_ns_vas_get(parent_id);
 			/*
 			 * This must be true as the order of VASes
 			 * places parents before children
@@ -208,7 +209,7 @@ comps_init(void)
 			assert(parent_vas);
 
 			printc("Creating virtual address space %s (%d) split from VAS %d:\n", args_get_from("name", &curr), as_id, parent_id);
-			if (crt_ns_vas_split(ns_vas, parent_vas, ns_asid) != 0) BUG();
+			if (protdom_ns_vas_split(ns_vas, parent_vas, ns_asid) != 0) BUG();
 		}
 		ss_ns_vas_activate(ns_vas);
 
@@ -282,6 +283,8 @@ comps_init(void)
 		assert(comp);
 		elf_hdr = (void *)args_get(imgpath);
 
+		prot_domain_t pd = protdom_ns_asid_alloc(ns_asid);
+
 		/*
 		 * We assume, for now, that the composer is
 		 * *not* part of a shared VAS.
@@ -297,7 +300,7 @@ comps_init(void)
 			assert(ret == 0);
 		} else {
 			assert(elf_hdr);
-			if (crt_comp_create(comp, name, id, elf_hdr, info, 0)) {
+			if (crt_comp_create(comp, name, id, elf_hdr, info, pd)) {
 				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
 				BUG();
 			}	

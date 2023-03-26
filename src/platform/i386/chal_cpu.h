@@ -29,6 +29,7 @@ typedef enum {
 	CR4_OSFXSR     = 1 << 9,  /* if set, enable SSE instructions and fast FPU save & restore, or using SSE instructions will cause #UD */
 	CR4_OSXMMEXCPT = 1 << 10, /* Operating System Support for Unmasked SIMD Floating-Point Exceptions */
 	CR4_FSGSBASE   = 1 << 16, /* user level fs/gs access permission bit */
+	CR4_PCIDE      = 1 << 17, /* Process Context Identifiers Enable*/
 	CR4_OSXSAVE    = 1 << 18, /* XSAVE and Processor Extended States Enable */
 	CR4_SMEP       = 1 << 20, /* Supervisor Mode Execution Protection Enable */
 	CR4_SMAP       = 1 << 21, /* Supervisor Mode Access Protection Enable */
@@ -176,6 +177,12 @@ chal_cpuid(u32_t *a, u32_t *b, u32_t *c, u32_t *d)
 	asm volatile("cpuid" : "+a"(*a), "+b"(*b), "+c"(*c), "+d"(*d));
 }
 
+static inline void
+chal_cpu_coreid_set(u32_t coreid)
+{
+	writemsr(MSR_TSC_AUX, coreid, 0x0u);
+}
+
 static void
 chal_cpu_init(void)
 {
@@ -189,7 +196,7 @@ chal_cpu_init(void)
 	word_t cr0;
 
 	/* CR4_OSXSAVE has to be set to enable xgetbv/xsetbv */
-	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE | CR4_PKE);
+	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE | CR4_PKE | CR4_PCIDE);
 
 	/* I'm not sure this is the best spot for this */
 	assert(sizeof(struct ulk_invstk) == ULK_INVSTK_SZ);

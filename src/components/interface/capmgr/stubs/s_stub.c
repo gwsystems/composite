@@ -3,10 +3,16 @@
 
 COS_SERVER_3RET_STUB(arcvcap_t, capmgr_rcv_create)
 {
-	spdid_t child   = p0;
-	thdcap_t thdcap = p1;
+	asndcap_t retasnd = 0;
+	arcvcap_t ret;
+	thdcap_t  thdcap;
+	thdid_t   tid;
 
-	return capmgr_rcv_create(child, thdcap);
+	ret = capmgr_rcv_create(p0, p1, &retasnd, &thdcap, &tid);
+	*r1 = retasnd;
+	*r2 = (thdcap << 16) | tid;
+
+	return ret;
 }
 
 

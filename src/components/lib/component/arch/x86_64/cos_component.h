@@ -254,16 +254,23 @@ get_stk_data(int offset)
 
 #define GET_CURR_CPU cos_cpuid()
 
+static inline u64_t
+__rdpid(void)
+{
+	u64_t pid64;
+
+	__asm__("rdpid %0;" : "=r"(pid64));
+
+	return pid64;
+}
+
 static inline long
 cos_cpuid(void)
 {
 #if NUM_CPU == 1
 	return 0;
 #endif
-	/*
-	 * see comments in the get_stk_data above.
-	 */
-	return get_stk_data(CPUID_OFFSET);
+	return (long)__rdpid();
 }
 
 static inline coreid_t

@@ -1,4 +1,4 @@
-use pipers::Pipe;
+use crate::pipe::Pipe;
 use std::fs;
 
 // FIXME: progs should be a more general iteration type
@@ -8,12 +8,10 @@ pub fn exec_pipeline(progs: Vec<String>) -> (String, String) {
         .fold(None,
               |upstream: Option<Pipe>, cmd| match upstream {
                   None => Some(Pipe::new(cmd)),  // initial command
-                  Some(up) => Some(up.then(cmd)) // piped commands
+                  Some(up) => Some(up.next(cmd)) // piped commands
               })
         .unwrap_or_else(|| Pipe::new("cat /dev/null"))
-        .finally()
-        .expect("Failure in constructing pipe.")
-        .wait_with_output()
+        .output()
         .expect("Failure in executing pipe.");
     (String::from_utf8(output.stdout).unwrap(), String::from_utf8(output.stderr).unwrap())
 }

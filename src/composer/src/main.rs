@@ -1,4 +1,3 @@
-extern crate pipers;
 extern crate toml;
 #[macro_use]
 extern crate serde_derive;
@@ -18,6 +17,7 @@ mod syshelpers;
 mod tot_order;
 mod properties;
 mod address_assignment;
+mod pipe;
 
 use build::DefaultBuilder;
 use compobject::{Constructor, ElfObject};
