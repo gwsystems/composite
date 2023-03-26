@@ -93,7 +93,7 @@ cos_hash_lookup(uint16_t tenant_id)
 	}
 
 	ret = rte_hash_lookup_data(tenant_hash_tbl, &tenant_id, (void *)&session);
-	assert(ret >= 0);
+	if (ret < 0) return NULL;
 
 	return session;
 }
@@ -202,9 +202,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			sync_sem_give(&session->sem);
 
 			if (unlikely(debug_flag)) {
-				// debug_print_stats();
-				printc("wakeup thd:%d\n", sched_debug_thd_state(18));
-				// sched_thd_wakeup(18);
+				debug_print_stats();
 				debug_flag = 0;
 			}
 		} else if (htons(eth->ether_type) == 0x0806) {

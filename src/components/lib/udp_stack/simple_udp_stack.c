@@ -32,7 +32,7 @@ static struct ether_addr gw_mac = {
 	.addr_bytes[5] = 0x09,
 };
 #endif
-static inline void
+static inline int 
 udp_stack_packet_validate(struct ip_hdr *ip_hdr, u16_t packet_len, u32_t host_ip, u32_t host_port)
 {
 	struct udp_hdr *udp_hdr;
@@ -40,7 +40,7 @@ udp_stack_packet_validate(struct ip_hdr *ip_hdr, u16_t packet_len, u32_t host_ip
 	assert(ip_hdr->version == IPv4);
 	/* we don't support IP options, thus the ihl has to be 5 */
 	assert(ip_hdr->ihl == 5);
-	assert(ntohs(ip_hdr->total_len) == packet_len - ETH_STD_LEN);
+	if(ntohs(ip_hdr->total_len) != packet_len - ETH_STD_LEN) return 1;
 	/* we don't support IP fragments */
 	assert(ip_hdr->frag_off & 0x0040);
 	assert(ip_hdr->ttl > 0);
@@ -60,6 +60,8 @@ udp_stack_packet_validate(struct ip_hdr *ip_hdr, u16_t packet_len, u32_t host_ip
 	if (unlikely(!ENABLE_OFFLOAD)) {
 		assert(udp_stack_udp_cksum_verify(ip_hdr) == 0);
 	}
+
+	return 0;
 }
 
 static inline void
@@ -176,7 +178,10 @@ udp_stack_shmem_read(u16_t *data_offset, u16_t *data_len, u32_t *remote_addr, u1
 	ip_hdr = (struct ip_hdr *)(obj->data + ETH_STD_LEN);
 
 	/* try to pass the validation */
-	udp_stack_packet_validate(ip_hdr, pkt_len, host_ip, host_port);
+	if (unlikely(udp_stack_packet_validate(ip_hdr, pkt_len, host_ip, host_port))) {
+		data_len = 0;
+		return objid;
+	}
 
 	ip_len = ip_hdr->ihl * 4;
 	udp_hdr = (struct udp_hdr *)((char *)ip_hdr + ip_len);
