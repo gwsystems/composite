@@ -318,9 +318,11 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	struct comp_info *ci;
 	unsigned long     ip, sp;
 	prot_domain_t     protdom;
+	struct cos_scb_info *scb_core = (thd->scb_cached + get_cpuid());
 
 	ci = thd_invstk_pop(thd, &ip, &sp, &protdom, cos_info);
 	if (unlikely(!ci)) {
+		//printk("sret: %d, %d\n", thd->tid, scb_core->curr_thd);
 		assert(0);
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
 		return;

@@ -552,8 +552,10 @@ slm_init(thdcap_t thd, thdid_t tid, struct cos_dcb_info *initdcb, struct cos_dcb
 	struct slm_thd *i    = &g->idle_thd;
 	struct cos_defcompinfo *defci;
 	struct cos_aep_info    *sched_aep;
+	struct cos_compinfo    *ci;
 
 	defci = cos_defcompinfo_curr_get();
+	ci = cos_compinfo_get(defci);
 	sched_aep = cos_sched_aep_get(defci);
 
 	*s = (struct slm_thd) {
@@ -590,7 +592,7 @@ slm_init(thdcap_t thd, thdid_t tid, struct cos_dcb_info *initdcb, struct cos_dcb
 	g->lock.owner_contention = 0;
 
 	assert(sizeof(struct cos_scb_info) * NUM_CPU <= COS_SCB_SIZE && COS_SCB_SIZE == PAGE_SIZE);
-	g->scb = (struct cos_scb_info *)cos_scb_info_get_core();
+	g->scb = (struct cos_scb_info *)ci->scb_uaddr;
 
 	slm_sched_init();
 	slm_timer_init();

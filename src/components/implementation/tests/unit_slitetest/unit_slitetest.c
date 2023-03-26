@@ -20,7 +20,7 @@
 #define TEST_RCV_CORE 0
 #define TEST_SND_CORE 1
 
-#define TEST_ITERS 1000
+#define TEST_ITERS 1000000
 
 static volatile int test_done = 0;
 static volatile thdid_t thd[NUM_CPU] = { 0 };
@@ -53,7 +53,7 @@ rcv_spiner()
 	int i = 0;
 	while (!spin_thd[1]) ;
 	while (i < TEST_ITERS) {
-		//printc("*************spiner1**************: %ld\n\n", spin_thd[0]);
+		printc("*************spiner1**************: %ld\n\n", spin_thd[0]);
 		i++;
 		sched_thd_yield_to(spin_thd[1]);
 	}
@@ -69,7 +69,7 @@ rcv_spiner2()
 	int i = 0;
 	while (!spin_thd[0]) ;
 	while (1) {
-		//printc("*************spiner2**************: %ld\n\n", spin_thd[1]);
+		printc("*************spiner2**************: %ld\n\n", spin_thd[1]);
 		sched_thd_yield_to(spin_thd[0]);
 	}
 	SPIN();
@@ -114,12 +114,14 @@ test_rcv_fn()
 {
 	thdid_t r = thd[TEST_RCV_CORE];
 	assert(r);
-	while (!thd[TEST_SND_CORE]) ;
-	thdid_t s = thd[TEST_SND_CORE];
+	//while (!thd[TEST_SND_CORE]) ;
+	//thdid_t s = thd[TEST_SND_CORE];
 
 	while (1) {
+		printc("rcv\n");
 		unit_rcv(r);
-		unit_snd(s);
+		printc("rcvd\n");
+		//unit_snd(s);
 	};
 }
 
@@ -142,8 +144,8 @@ test_ipi_switch(void)
 		sched_thd_yield_to(spin_thd[0]);
 		//sched_thd_yield_to(thd[cos_cpuid()]);
 	} else {
-		thd[cos_cpuid()] = sched_thd_create(test_snd_fn, NULL);
-		sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
+		//thd[cos_cpuid()] = sched_thd_create(test_snd_fn, NULL);
+		//sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 	}
 	SPIN();
 	assert(0);

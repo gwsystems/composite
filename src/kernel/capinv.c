@@ -324,6 +324,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 
 		/* don't allow cap copy on SCB/DCB */
 		if (type == CAP_SCB || type == CAP_DCB) return -EINVAL;
+		struct cap_captbl *ct = (struct cap_captbl *)captbl_lkup(t, cap_to);
 		ctto = __cap_capactivate_pre(t, cap_to, capin_to, type, &ret);
 		if (!ctto) return -EINVAL;
 
@@ -331,6 +332,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, ca
 
 		if (type == CAP_THD) {
 			/* thd is per-core. refcnt in thd struct. */
+			//printk("~~~~~~~alias: %d, captbl: %x\n", capin_to, ct->captbl);
 			struct thread *thd = ((struct cap_thd *)ctfrom)->t;
 
 			thd->refcnt++;
@@ -490,7 +492,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	if (nti->thd && nti->thd == next) thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
 
 	copy_all_regs(&next->regs, regs);
-
+	printk("finish\n");
 	return preempt;
 }
 
@@ -632,6 +634,7 @@ static int
 cap_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struct tcap *next_tcap, tcap_time_t timeout,
            struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
+	if (get_cpuid() == 0) printk("kernel switch : %d => %d\n", curr->tid, next->tid);
 	return cap_update(regs, curr, next, tcap_current(cos_info), next_tcap, timeout, ci, cos_info, 0);
 }
 
@@ -660,6 +663,7 @@ static int
 cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, struct comp_info *ci,
            struct cos_cpu_local_info *cos_info)
 {
+	//printk("kernel switch\n");
 	struct thread *next        = thd_cap->t;
 #if defined(__WORD_SIZE_64__)
 	capid_t        arcv        = __userregs_get3(regs);
@@ -680,6 +684,9 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	int          ret;
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) assert(0);//return -EINVAL;
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
+		if (__userregs_getip(regs) != thd->dcbinfo->ip + DCB_IP_KERN_OFF) {
+			//printk("tid: %d, %d, %x, %x\n", get_cpuid(), thd->tid, __userregs_getip(regs), thd->dcbinfo->ip);
+		}
 		assert(__userregs_getip(regs) == thd->dcbinfo->ip + DCB_IP_KERN_OFF);
 		assert(__userregs_getsp(regs) == thd->dcbinfo->sp);
 	}
@@ -935,6 +942,7 @@ timer_process(struct pt_regs *regs)
 	thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &comp);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	assert(comp);
+	if (get_cpuid() == 0) printk("^^^^: %d\n", thd_curr->tid);
 	int ret = expended_process(regs, thd_curr, comp, cos_info, 1);
 	return ret;
 }
@@ -1007,6 +1015,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 		thd->timeout = timeout;
 	}
 
+	//printk("=>event: %d\n", next->tid);
 	return cap_switch(regs, thd, next, tc_next, swtimeout, ci, cos_info);
 }
 
@@ -1094,6 +1103,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	case CAP_THD:
 		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
+		printk("now return\n");
 		return ret;
 	case CAP_ASND:
 		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, ci, cos_info);
@@ -1276,6 +1286,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			
 			/* ret is returned by the overall function */
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, scb_cap, dcb_cap, dcboff, tid, ulstk);
+			//printk("########activate: %d, ct: %x, cap: %d\n", tid, ct, thd_cap);
 			if (ret) kmem_unalloc(pte);
 
 			break;

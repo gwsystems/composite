@@ -65,6 +65,7 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 
 	compc = (struct cap_comp *)__cap_capactivate_pre(t, cap, capin, CAP_COMP, &ret);
 	//printk("comp_info: %lx, protdom: %d\n", &compc->info, protdom);
+	printk("$$$$$$$$$$$$$$: %x\n", ctc->captbl);
 	if (!compc) cos_throw(undo_ctc, ret);
 
 	if (likely(scbc)) {

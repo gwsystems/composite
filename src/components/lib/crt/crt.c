@@ -1453,6 +1453,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 
 		c->exec_ctxt.memsz = ctxt->memsz;
 		c->flags |= CRT_COMP_CAPMGR;
+		assert(!target_ci->scb_uaddr);
 	}
 
 	return 0;

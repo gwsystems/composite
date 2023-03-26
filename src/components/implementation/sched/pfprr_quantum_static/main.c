@@ -142,7 +142,6 @@ sched_thd_yield_to(thdid_t t)
 	int ret;
 
 	if (!to) return -1;
-
 	assert(current != to);
 	slm_cs_enter(current, SLM_CS_NONE);
         slm_sched_yield(current, to);
