@@ -47,14 +47,8 @@ COS_SERVER_3RET_STUB(int, capmgr_retrieve_dcbinfo)
 	asndcap_t asnd = 0;
 	struct cos_dcb_info *retdcb;
 
-	ret = capmgr_retrieve_dcbinfo(p0, &arcv, &asnd, &retdcb);
-#if defined(__x86_64__)
-	*r1 = (word_t)arcv << 32 | asnd;
-#else
-	assert(arcv < ((1 << 16) - 1));
-	*r1 = arcv << 16 | asnd;
-#endif
-	*r2 = (word_t)retdcb;
+	ret = capmgr_retrieve_dcbinfo(p0, &retdcb);
+	*r1 = (word_t)retdcb;
 
 	return ret;
 }

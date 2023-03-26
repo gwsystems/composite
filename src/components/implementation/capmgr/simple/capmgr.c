@@ -53,8 +53,6 @@ struct cm_dcb {
 
 struct cm_dcbinfo {
 	struct cm_dcb *dcb;
-	arcvcap_t      arcv;
-	asndcap_t      asnd;
 	thdid_t        tid;
 };
 
@@ -188,24 +186,15 @@ cm_asnd_alloc_in(struct crt_comp *c, struct crt_rcv *rcv)
 }
 
 struct cm_thd *
-cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, struct cm_dcb *dcb, thdclosure_index_t closure_id, arcvcap_t *arcv, asndcap_t *asnd)
+cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, struct cm_dcb *dcb, thdclosure_index_t closure_id)
 {
-	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci        = cos_compinfo_get(defci);
-	struct cos_compinfo    *sched_ci  = cos_compinfo_get(sched->comp.comp_res);
-	struct cos_aep_info    *sched_aep;
-
 	struct cm_thd  *t = ss_thd_alloc();
-	struct cm_rcv  *r = ss_rcv_alloc();
-	struct cm_asnd *s = ss_asnd_alloc();
-
-	struct crt_rcv_resources _rcv   = (struct crt_rcv_resources) { 0 };
-	struct crt_asnd_resources _asnd = (struct crt_asnd_resources) { 0 };
+	struct crt_thd_resources res = { 0 };
 
 	tcap_t    tcap;
 	arcvcap_t rcvcap;
 
-	if (!t || !r || !s) return NULL;
+	if (!t) return NULL;
 	if (crt_thd_create_in(&t->thd, &c->comp, &sched->comp, dcb->dcb_cap, dcb->dcb_off, closure_id)) {
 		ss_thd_free(t);
 		printc("capmgr: couldn't create new thread correctly.\n");
@@ -213,26 +202,6 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, struct cm_dcb *dcb, th
 	}
 	ss_thd_activate(t);
 
-	/*sched_aep = cos_sched_aep_get(sched->comp.comp_res);
-	assert(sched_ci->comp_cap);
-
-	rcvcap = cos_arcv_alloc(ci, t->thd.cap, sched_aep->tc, sched_ci->comp_cap, sched_aep->rcv);
-	assert(rcvcap);
-
-	struct crt_rcv_resources resrcv = (struct crt_rcv_resources) {
-		.tc = sched_aep->tc,
-		.thd = t->thd.cap,
-		.tid = 0,
-		.rcv = rcvcap,
-	};
-	if (crt_rcv_create_with(&r->rcv, &sched->comp, &resrcv)) BUG();
-	ss_rcv_activate(r);
-
-	if (crt_rcv_alias_in(&r->rcv, &sched->comp, &_rcv, CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_RCV | CRT_RCV_ALIAS_TCAP)) BUG();
-
-	if (crt_asnd_create(&s->asnd, &r->rcv)) BUG();
-	ss_asnd_activate(s);
-	if (crt_asnd_alias_in(&s->asnd, &sched->comp, &_asnd)) BUG();*/
 	if (crt_thd_alias_in(&t->thd, &sched->comp, &res)) {
 		printc("capmgr: couldn't alias correctly.\n");
 		/* FIXME: reclaim the thread */
@@ -240,10 +209,8 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, struct cm_dcb *dcb, th
 	}
 
 	t->sched       = sched;
-	t->aliased_cap = _rcv.thd;
+	t->aliased_cap = res.cap;
 	t->client      = c;
-	*arcv          = _rcv.rcv;
-	*asnd          = _asnd.asnd;
 	/* FIXME: should take a reference to the scheduler */
 
 	return t;
@@ -870,13 +837,11 @@ capmgr_sched_initdcb_get()
 }
 
 thdid_t
-capmgr_retrieve_dcbinfo(thdid_t tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb)
+capmgr_retrieve_dcbinfo(thdid_t tid, struct cos_dcb_info **dcb)
 {
 	struct cm_dcbinfo *info;
 
 	info = ss_dcbinfo_get(tid);
-	*arcv = info->arcv;
-	*asnd = info->asnd;
 	*dcb  = (struct cos_dcb_info *)info->dcb->dcb_addr;
 
 	return info->tid;
@@ -890,8 +855,6 @@ capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 	struct cm_comp *s, *c;
 	struct cm_dcb *d;
 	struct cm_dcbinfo *info;
-	asndcap_t _asnd;
-	arcvcap_t _arcv;
 
 	if (schedid != capmgr_comp_sched_get(client)) {
 		/* don't have permission to create execution in that component. */
@@ -908,15 +871,13 @@ capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 	d = cm_dcb_alloc_in(s);
 	assert(d);
 
-	t = cm_thd_alloc_in(c, s, d, idx, &_arcv, &_asnd);
+	t = cm_thd_alloc_in(c, s, d, idx);
 	if (!t) {
 		/* TODO: release resources */
 		return 0;
 	}
 
 	info = ss_dcbinfo_alloc_at_id(t->thd.tid);
-	info->arcv    = _arcv;
-	info->asnd    = _asnd;
 	info->dcb     = d;
 	info->tid     = t->thd.tid;
 	ss_dcbinfo_activate(info);
@@ -942,25 +903,18 @@ capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_inf
 	struct cm_thd  *t;
 	struct cm_comp *c;
 	struct cm_dcb  *d;
-	struct cm_dcbinfo *info;
-	asndcap_t       asnd;
-	arcvcap_t       arcv;
 
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = ss_comp_get(client);
 	d = cm_dcb_alloc_in(c);
 	assert(d);
-	t = cm_thd_alloc_in(c, c, d, idx, &arcv, &asnd);
+	t = cm_thd_alloc_in(c, c, d, idx);
 
 	if (!t) {
 		/* TODO: release resources */
 		assert(0);
 		return 0;
 	}
-
-	info = ss_dcbinfo_alloc_at_id(t->thd.tid);
-	info->arcv = arcv;
-	info->asnd = asnd;
 
 	*tid = t->thd.tid;
 	*dcb = (struct cos_dcb_info *)d->dcb_addr;
@@ -969,7 +923,7 @@ capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_inf
 }
 
 arcvcap_t
-capmgr_rcv_create(thdclosure_index_t idx, crt_rcv_flags_t flags, asndcap_t *asnd, thdcap_t *thdcap, thdid_t *tid)
+capmgr_rcv_create(thdclosure_index_t idx, int flags, asndcap_t *asnd, thdcap_t *thdcap, thdid_t *tid)
 {
 	compid_t sched = (compid_t)cos_inv_token();
 	struct cm_comp   *c;
@@ -980,7 +934,7 @@ capmgr_rcv_create(thdclosure_index_t idx, crt_rcv_flags_t flags, asndcap_t *asnd
 	/* TODO: Should replace this static check with one that uses the initargs to validate that the call is coming from the scheduler. */
 	c = ss_comp_get(sched);
 
-	r = cm_rcv_alloc_in(&c->comp, &c->sched_rcv[cos_cpuid()]->rcv, idx, flags, thdcap, tid);
+	r = cm_rcv_alloc_in(&c->comp, &c->sched_rcv[cos_cpuid()]->rcv, idx, (crt_rcv_flags_t)flags, thdcap, tid);
 
 	s = cm_asnd_alloc_in(&c->comp, &r->rcv);
 	*asnd = s->aliased_cap;
@@ -992,7 +946,6 @@ capmgr_rcv_create(thdclosure_index_t idx, crt_rcv_flags_t flags, asndcap_t *asnd
 thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }
 thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv) { BUG(); return 0; }
 asndcap_t capmgr_asnd_create(spdid_t child, thdid_t t) { BUG(); return 0; }
-arcvcap_t capmgr_rcv_create(spdid_t child, thdcap_t thdcap) { BUG(); return 0; }
 asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv) { BUG(); return 0; }
 asndcap_t capmgr_asnd_key_create(cos_channelkey_t key) { BUG(); return 0; }
 

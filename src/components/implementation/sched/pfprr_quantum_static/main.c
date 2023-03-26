@@ -587,7 +587,7 @@ slm_ipithd_create(thd_fn_t fn, void * data, crt_rcv_flags_t flags, thdcap_t *thd
 	thd = slm_thd_from_container(t);
 
 	slm_cs_enter(current, SLM_CS_NONE);
-	if (slm_thd_init(thd, _thd, _tid)) ERR_THROW(NULL, free);
+	if (slm_thd_init(thd, _thd, _tid, NULL)) ERR_THROW(NULL, free);
 
 	slm_thd_mem_activate(t);
 

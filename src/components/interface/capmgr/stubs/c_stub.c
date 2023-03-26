@@ -64,18 +64,11 @@ COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext, spdid_t child, thdclosure_index
 COS_CLIENT_STUB(thdid_t, capmgr_retrieve_dcbinfo, thdid_t tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb)
 {
 	COS_CLIENT_INVCAP;
-	word_t retrs, retdcb;
+	word_t retdcb, unused;
 	thdid_t ret;
 
-	ret = cos_sinv_2rets(uc, tid, 0, 0, 0, &retrs, &retdcb);
+	ret = cos_sinv_2rets(uc, tid, 0, 0, 0, &retdcb, &unused);
 	*dcb  = (struct cos_dcb_info *)retdcb;
-#if defined(__x86_64__)
-	*arcv = (retrs >> 32);
-	*asnd = (retrs << 32) >> 32;
-#else
-	*arcv = (retrs >> 16);
-	*asnd = (retrs << 16) >> 16;
-#endif
 
 	return ret;
 }

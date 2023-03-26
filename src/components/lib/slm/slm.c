@@ -51,7 +51,7 @@ slm_thd_special(void)
 }
 
 static int
-slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid, arcvcap_t arcv, asndcap_t asnd, struct cos_dcb_info *dcb)
+slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid, struct cos_dcb_info *dcb)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
@@ -66,8 +66,6 @@ slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid, arcvcap_t ar
 		.priority = TCAP_PRIO_MIN,
 		.properties = 0,
 		.dcb = dcb,
-		.rcv = arcv,
-		.asnd = asnd,
 		.cpuid = cos_cpuid(),
 	};
 	ps_list_init(t, thd_list);
@@ -85,11 +83,11 @@ slm_thd_deinit_internal(struct slm_thd *t)
 }
 
 int
-slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid, arcvcap_t arcv, asndcap_t asnd, struct cos_dcb_info *dcb)
+slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid, struct cos_dcb_info *dcb)
 {
 	int ret;
 
-	if ((ret = slm_thd_init_internal(t, thd, tid, arcv, asnd, dcb))) return ret;
+	if ((ret = slm_thd_init_internal(t, thd, tid, dcb))) return ret;
 	if ((ret = slm_timer_thd_init(t))) return ret;
 	if ((ret = slm_sched_thd_init(t))) return ret;
 
