@@ -361,12 +361,10 @@ thd_current(struct cos_cpu_local_info *cos_info)
 	//}
 
 	if (curr) {
-		//if(get_cpuid() == 0) printk("curr: %d, scheduler thread: %d, captbl: %x\n", curr, sched_thd->tid, test_comp->captbl);
 		tc = (struct cap_thd *)captbl_lkup(test_comp->captbl, curr);
 		if (unlikely(!tc || tc->h.type != CAP_THD)) assert(0);
 		curr_thd = tc->t;
 		thd_current_update(curr_thd, thread, cos_info);
-		//printk("update: %d, thread: %d, curr: %d\n", curr_thd->tid, thread->tid, curr);
 	} else {
 		return thread;
 	}
@@ -793,7 +791,6 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		 */
 	}
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
-		printk("\t->special: %d, %x, %x\n", thd->tid, thd->dcbinfo->ip, thd->dcbinfo->ip + DCB_IP_KERN_OFF);
 		assert(preempt == 0);
 #if defined(__x86_64__)
 		regs->cx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
@@ -806,7 +803,6 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 	if (issame && preempt == 0) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 	}
-	printk("done: %d\n", preempt);
 
 	return preempt;
 }

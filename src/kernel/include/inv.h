@@ -322,8 +322,6 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 
 	ci = thd_invstk_pop(thd, &ip, &sp, &protdom, cos_info);
 	if (unlikely(!ci)) {
-		//printk("sret: %d, %d\n", thd->tid, scb_core->curr_thd);
-		assert(0);
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
 		return;
 	}

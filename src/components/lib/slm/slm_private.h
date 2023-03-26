@@ -146,7 +146,6 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 	volatile struct cos_scb_info *scb       = (struct cos_scb_info*)ci->scb_uaddr + cos_cpuid();
 	volatile struct cos_scb_info *test       = slm_scb_info_core();
 	
-//printc("scb: %x, test: %x\n", scb, test);
 assert(scb == test);
 
 	sched_tok_t rcv_tok;
@@ -154,8 +153,6 @@ assert(scb == test);
 
 	//assert(curr != next);
 	if (curr == next) {
-		printc("\n!!!!!!!!!!!!!!curr: %d, next: %d\n", curr, next);
-		//assert(0);
 		return 0; 
 	}
 	assert(scb);
@@ -166,11 +163,8 @@ assert(scb == test);
 
 	if (scb->timer_pre < timeout) {
 		scb->timer_pre = timeout;
-		//printc("timer: %x\n", cd->ip);
 		return cos_defswitch(next, prio, timeout, tok);
 	}
-	if (cos_cpuid() == 0 && nd->sp)
-		printc("ul switch : %d => %d\n", curr, next);
 
 	/*
 	 * jump labels in the asm routine:
@@ -318,9 +312,7 @@ assert(scb == test);
 	scb = slm_scb_info_core();
 	assert(scb);
 
-	//printc("switch done: %d\n", scb->curr_thd);
 	if (pre_tok != scb->sched_tok) {
-		printc("AGAIN?\n");
 		return -EAGAIN;
 	}
 	return 0;
@@ -360,7 +352,6 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 		scb->timer_pre = timeout;
 		ret = cos_defswitch(t->thd, prio, timeout, tok);
 	} else {
-		//if (cos_cpuid() == 0) printc("from: %d, to: %d\n", curr->tid, t->tid);
 		ret = cos_ulswitch(curr->thd, t->thd, cd, nd, prio, timeout, tok);
 	}
 

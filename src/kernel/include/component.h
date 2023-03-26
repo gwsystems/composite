@@ -64,8 +64,6 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	}
 
 	compc = (struct cap_comp *)__cap_capactivate_pre(t, cap, capin, CAP_COMP, &ret);
-	//printk("comp_info: %lx, protdom: %d\n", &compc->info, protdom);
-	printk("$$$$$$$$$$$$$$: %x\n", ctc->captbl);
 	if (!compc) cos_throw(undo_ctc, ret);
 
 	if (likely(scbc)) {
@@ -126,7 +124,6 @@ comp_deactivate(struct cap_captbl *ct, capid_t capin, livenessid_t lid)
 static void
 comp_init(void)
 {
-	printk("cap_comp: %d, szie: %d, size: %d\n", sizeof(struct cap_comp), __captbl_cap2bytes(CAP_COMP), sizeof(struct cap_header));
 	assert(sizeof(struct cap_comp) <= __captbl_cap2bytes(CAP_COMP));
 }
 
