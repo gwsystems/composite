@@ -12,3 +12,4 @@ struct protdom_ns_vas {
 struct protdom_ns_asid {
 	char empty;
 };
+

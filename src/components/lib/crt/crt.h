@@ -91,6 +91,8 @@ struct crt_comp {
 
 	prot_domain_t protdom;
 	capid_t second_lvl_pgtbl_cap;
+
+	u32_t                  vas_id;
 	struct protdom_ns_vas *ns_vas;
 
 };

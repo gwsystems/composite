@@ -584,7 +584,7 @@ capmgr_execution_init(int is_init_core)
 static void
 capmgr_comp_init(void)
 {
-	struct initargs cap_entries, exec_entries, shared_comps, curr;
+	struct initargs cap_entries, exec_entries, exclusive_comps, curr, ases;
 	struct initargs_iter i;
 	vaddr_t vasfr = 0;
 	capid_t capfr = 0;
@@ -650,14 +650,41 @@ capmgr_comp_init(void)
 	/* Create ULK memory region for UL sinvs and map it into comps that need it */
 	ret = crt_ulk_init();
 	assert(!ret);
-	ret = args_get_entry("addrspc_shared", &shared_comps);
+    
+	u32_t vas_id = 0;
+	ret = args_get_entry("addrspc_shared", &ases);
 	assert(!ret);
-	for (cont = args_iter(&shared_comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		compid_t        id  = atoi(args_value(&curr));
-		struct cm_comp *cmc = ss_comp_get(id);
+	for (cont = args_iter(&ases, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		/* Component-centric inner iteration */
+		struct initargs comps, curr_comp;
+		int comp_cont;
+		struct initargs_iter j;
+		int keylen;
+		vas_id = atoi(args_key(&curr, &keylen));
 
-		/* if this fails, we already aliased the ICB memory into this shared pt */
-		crt_ulk_map_in(&cmc->comp);
+		/* Sequence of component ids within an address space... */
+		ret = args_get_entry_from("components", &curr, &comps);
+		assert(!ret);
+		for (comp_cont = args_iter(&comps, &j, &curr_comp) ; comp_cont ; comp_cont = args_iter_next(&j, &curr_comp)) {
+			compid_t id         = atoi(args_value(&curr_comp));
+			struct cm_comp *cmc = ss_comp_get(id);
+			if (cmc) {
+				/* map ulk memory into this component; if this fails it was aleady mapped into shared pt */
+				crt_ulk_map_in(&cmc->comp);
+				cmc->comp.vas_id = vas_id;
+			}
+		}
+	}
+
+	vas_id += 1;
+	ret = args_get_entry("addrspc_exclusive", &exclusive_comps);
+	assert(!ret);
+	for (cont = args_iter(&exclusive_comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
+		compid_t id = atoi(args_value(&curr));
+		struct cm_comp *cmc = ss_comp_get(id);
+		if (cmc) {
+			cmc->comp.vas_id = vas_id++;
+		}
 	}
 
 	return;
@@ -815,21 +842,6 @@ cos_init(void)
 
 	printc("Starting the capability manager.\n");
 	assert(atol(args_get("captbl_end")) >= BOOT_CAPTBL_FREE);
-
-	/* Example code to walk through the components in shared address spaces */
-	printc("Components in shared address spaces: ");
-	ret = args_get_entry("addrspc_shared", &comps);
-	assert(!ret);
-	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
-		compid_t id = atoi(args_value(&curr));
-
-		found_shared = 1;
-		printc("%ld ", id);
-	}
-	if (!found_shared) {
-		printc("none");
-	}
-	printc("\n");
 
 	/* Get our house in order. Initialize ourself and our data-structures */
 	cos_meminfo_init(&(ci->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
