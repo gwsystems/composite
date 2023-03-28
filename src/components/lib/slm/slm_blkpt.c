@@ -82,10 +82,12 @@ slm_blkpt_trigger(sched_blkpt_id_t blkpt, struct slm_thd *current, sched_blkpt_e
 	if (!m) ERR_THROW(-1, unlock);
 
 	/* is the new epoch more recent than the existing? */
-	if (!blkpt_epoch_is_higher(ps_load(&m->epoch), epoch)) ERR_THROW(0, unlock);
+	while (1) {
+		sched_blkpt_epoch_t pre = ps_load(&m->epoch);
 
-	/* FIXME: If we want parallel triggers, this store should be a CAS, that should only allow increases in epoch. */
-	ps_store(&m->epoch, epoch);
+		if (!blkpt_epoch_is_higher(pre, epoch)) ERR_THROW(0, unlock);
+		if (ps_cas(&m->epoch, pre, epoch)) break;
+	}
 
 	while ((sl = stacklist_dequeue(&m->blocked)) != NULL) {
 		t = sl->data;
