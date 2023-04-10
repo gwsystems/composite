@@ -145,6 +145,7 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 	struct cos_aep_info          *sched_aep = cos_sched_aep_get(defci);
 	volatile struct cos_scb_info *scb       = (struct cos_scb_info*)ci->scb_uaddr + cos_cpuid();
 	volatile struct cos_scb_info *test       = slm_scb_info_core();
+	unsigned long testnd = 1111;
 	
 assert(scb == test);
 
@@ -163,6 +164,7 @@ assert(scb == test);
 
 	if (scb->timer_pre < timeout) {
 		scb->timer_pre = timeout;
+		//printc("update timer\n");
 		return cos_defswitch(next, prio, timeout, tok);
 	}
 
@@ -241,6 +243,7 @@ assert(scb == test);
 #if defined(__x86_64__)
 	__asm__ __volatile__ (
 		"pushq %%r10\n\t"               \
+		"pushq %%rbx\n\t"               \
 		"pushq %%rbp\n\t"               \
 		"mov %%rsp, %%rbp\n\t"          \
 		"movabs $2f, %%r8\n\t"          \
@@ -251,7 +254,7 @@ assert(scb == test);
 		"mov %%rdx, (%%rcx)\n\t"        \
 		"mov 8(%%rsi), %%rsp\n\t"       \
 		"jmp *(%%rsi)\n\t"              \
-		".align 4\n\t"                  \
+		".align 8\n\t"                  \
 		"1:\n\t"                        \
 		"movabs $3f, %%r8\n\t"          \
 		"mov %%rdx, %%rax\n\t"          \
@@ -262,14 +265,16 @@ assert(scb == test);
 		"mov $0, %%rdi\n\t"             \
 		"syscall\n\t"                   \
 		"jmp 3f\n\t"                    \
-		".align 4\n\t"                  \
+		".align 8\n\t"                  \
 		"2:\n\t"                        \
 		"movq $0, 8(%%rsi)\n\t"         \
-		".align 4\n\t"                  \
+		".align 8\n\t"                  \
 		"3:\n\t"                        \
+		"mov $0x0, %%rax\n\t"                \
 		"popq %%rbp\n\t"                \
+		"popq %%rbx\n\t"                \
 		"popq %%r10\n\t"                \
-		: "=b" (pre_tok)
+		: "=b" (pre_tok), "=S" (testnd)
 		: "a" (cd), "S" (nd),
 		  "b" (tok), "D" (timeout),
 		  "c" (&(scb->curr_thd)), "d" (next)
@@ -313,6 +318,8 @@ assert(scb == test);
 	assert(scb);
 
 	if (pre_tok != scb->sched_tok) {
+		//printc("AGAIN:%d, %d\n", pre_tok, scb->sched_tok);
+		if (scb->sched_tok - pre_tok > 10) 	assert(0);
 		return -EAGAIN;
 	}
 	return 0;
@@ -347,11 +354,18 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 			return ret;
 		}
 	}
+	//if (cos_cpuid() == 0) printc("\tfrom %d => %d\n", curr->tid, t->tid);
 	if (!cd || !nd) {
-		assert(scb->timer_pre == timeout);
-		scb->timer_pre = timeout;
+		//if (scb->timer_pre != timeout) printc("pre: %llu, timeout: %llu\n", scb->timer_pre, timeout);
+		assert(scb->timer_pre == timeout || !scb->timer_pre);
+		if (scb->timer_pre < timeout) {
+			scb->timer_pre = timeout;
+		}
 		ret = cos_defswitch(t->thd, prio, timeout, tok);
 	} else {
+		//scb->timer_pre = timeout;
+		//ret = cos_defswitch(t->thd, prio, timeout, tok);
+		//if (curr->tid == 4) printc("--------------\n");
 		ret = cos_ulswitch(curr->thd, t->thd, cd, nd, prio, timeout, tok);
 	}
 

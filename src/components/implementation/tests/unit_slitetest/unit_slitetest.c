@@ -47,6 +47,14 @@ unit_rcv(thdid_t tid)
 	return;
 }
 
+volatile unsigned long aaa = 0;
+void
+spin(void)
+{
+	aaa = 0;
+	while (aaa < 1000000) aaa++;
+}
+
 static void
 rcv_spiner()
 {
@@ -54,6 +62,7 @@ rcv_spiner()
 	while (!spin_thd[1]) ;
 	while (i < TEST_ITERS) {
 		printc("*************spiner1**************: %ld\n\n", spin_thd[0]);
+		//spin();
 		i++;
 		sched_thd_yield_to(spin_thd[1]);
 	}
@@ -69,6 +78,7 @@ rcv_spiner2()
 	int i = 0;
 	while (!spin_thd[0]) ;
 	while (1) {
+		//spin();
 		printc("*************spiner2**************: %ld\n\n", spin_thd[1]);
 		sched_thd_yield_to(spin_thd[0]);
 	}
@@ -141,8 +151,8 @@ test_ipi_switch(void)
 		spin_thd[1] = sched_thd_create(rcv_spiner2, NULL);
 		sched_thd_param_set(spin_thd[1], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
-		//sched_thd_yield_to(spin_thd[0]);
-		sched_thd_yield_to(thd[cos_cpuid()]);
+		sched_thd_yield_to(spin_thd[0]);
+		//sched_thd_yield_to(thd[cos_cpuid()]);
 	} else {
 		//thd[cos_cpuid()] = sched_thd_create(test_snd_fn, NULL);
 		//sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));

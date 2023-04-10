@@ -28,6 +28,6 @@ constructor = "booter"
 [[components]]
 name = "schedtest"
 img  = "tests.unit_slitetest"
-baseaddr = "0x2200000"
+baseaddr = "0x2000000"
 deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}]
 constructor = "booter"

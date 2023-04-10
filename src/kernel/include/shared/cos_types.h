@@ -522,7 +522,7 @@ struct cos_dcb_info {
  * "ip" and "sp", everything else is either clobbered or saved/loaded at user-level.
  */
 
-#define DCB_IP_KERN_OFF 8
+//#define DCB_IP_KERN_OFF 8
 
 struct ulk_invstk_entry {
 	capid_t sinv_cap;

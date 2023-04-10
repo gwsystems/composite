@@ -61,7 +61,7 @@ COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext, spdid_t child, thdclosure_index
 	return ret;
 }
 
-COS_CLIENT_STUB(thdid_t, capmgr_retrieve_dcbinfo, thdid_t tid, arcvcap_t *arcv, asndcap_t *asnd, struct cos_dcb_info **dcb)
+COS_CLIENT_STUB(thdid_t, capmgr_retrieve_dcbinfo, thdid_t tid, struct cos_dcb_info **dcb)
 {
 	COS_CLIENT_INVCAP;
 	word_t retdcb, unused;

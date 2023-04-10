@@ -39,7 +39,7 @@ cos_init(void)
 void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
-        termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL, 0, 0, 0);
+        termthd[cos_cpuid()] = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL, 0, 0, 0, 0);
         assert(termthd[cos_cpuid()]);
 	    return;
 }

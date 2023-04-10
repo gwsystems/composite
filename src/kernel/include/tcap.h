@@ -246,6 +246,7 @@ tcap_timer_update(struct cos_cpu_local_info *cos_info, struct tcap *next, tcap_t
 	left = tcap_left(next);
 	if (timeout == TCAP_TIME_NIL && TCAP_RES_IS_INF(left)) {
 		//printk("====>disable: %lu, %d, %lld\n\n", timeout, TCAP_RES_IS_INF(left), cos_info->next_timer);
+		printk(".");
 		cos_info->next_timer = 0;
 		chal_timer_disable();
 		return;

@@ -354,22 +354,21 @@ thd_current(struct cos_cpu_local_info *cos_info)
 	scb_core   = thread->scb_cached + get_cpuid();
 	curr       = scb_core->curr_thd;
 
-	//if (unlikely(thread->refcnt)) {
-		test_comp = &(sched_thd->invstk[0].comp_info);
-	//} else {
-		sched_comp = &(thread->invstk[0].comp_info);
-	//}
+	test_comp = &(sched_thd->invstk[0].comp_info);
+	sched_comp = &(thread->invstk[0].comp_info);
 
 	if (curr) {
+		//printk("capcurr: %d, tid: %d, %d, %x\n", curr, thread->tid, sched_thd->tid, test_comp->captbl);
 		tc = (struct cap_thd *)captbl_lkup(test_comp->captbl, curr);
 		if (unlikely(!tc || tc->h.type != CAP_THD)) assert(0);
 		curr_thd = tc->t;
 		thd_current_update(curr_thd, thread, cos_info);
-	} else {
-		return thread;
+
+		return curr_thd;
 	}
 
-	return curr_thd;
+	return thread;
+
 }
 
 static inline struct thread *
@@ -386,13 +385,14 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 
 static int
 thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data,
-             capid_t scbcap, capid_t dcbcap, unsigned short dcboff, thdid_t tid, struct ulk_invstk *ulinvstk)
+             capid_t scbcap, capid_t dcbcap, unsigned short dcboff, thdid_t tid, struct ulk_invstk *ulinvstk, capid_t sched_cap)
 {
 	struct cos_cpu_local_info *cli = cos_cpu_local_info();
 	struct cap_thd            *tc = NULL;
 	struct cap_comp           *compc = NULL;
 	struct cap_dcb            *dc = NULL;
 	struct cap_scb            *sc = NULL;
+	struct cap_thd            *stc = NULL;
 	int                        ret;
 
 	memset(thd, 0, sizeof(struct thread));
@@ -408,12 +408,17 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 		if (unlikely(!sc || sc->h.type != CAP_SCB)) return -EINVAL;
 		thd->scb_cached = (struct cos_scb_info *)(sc->kern_addr);
 	}
+	if (likely(sched_cap)) {
+		stc = (struct cap_thd *)captbl_lkup(t, sched_cap);
+		if (unlikely(!stc || stc->h.type != CAP_THD)) return -EINVAL;
+	}
 
 	tc = (struct cap_thd *)__cap_capactivate_pre(t, cap, capin, CAP_THD, &ret);
 	if (!tc) return ret;
 
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
+	//printk("[%d]invstk: %x\n", tid, thd->invstk[0].comp_info.captbl);
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
 	thd->invstk[0].protdom                = compc->info.pgtblinfo.protdom;
 	thd->tid                              = tid;
@@ -429,7 +434,12 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	}
 	thd->ulk_invstk                       = ulinvstk;
 	assert(thd->tid <= MAX_NUM_THREADS);
-	thd_scheduler_set(thd, thd_current(cli));
+	if (likely(stc)) {
+		//printk("????????tid: %d, sched: %d, %d\n", tid, stc->t->tid, sched_cap);
+		thd_scheduler_set(thd, stc->t);
+	} else {
+		thd_scheduler_set(thd, thd_current(cli));
+	}
 
 	thd_rcvcap_init(thd);
 	fpu_thread_init(thd); 
@@ -791,6 +801,7 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		 */
 	}
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
+		//printk("special: %d, %x, %x, si: %lx, flags: %x\n", thd->tid, thd->dcbinfo->sp, thd->dcbinfo->ip, regs->si, regs->flags);
 		assert(preempt == 0);
 #if defined(__x86_64__)
 		regs->cx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
@@ -799,6 +810,10 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		regs->dx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
 		regs->cx = regs->sp = thd->dcbinfo->sp;
 #endif
+		//printk("special: %d, %x, %x\n", thd->tid, regs->ip, regs->sp);
+		assert(preempt == 0);
+		thd->dcbinfo->sp = 0;
+		print_pt_regs(regs);
 	}
 	if (issame && preempt == 0) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));

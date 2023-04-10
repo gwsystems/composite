@@ -49,7 +49,7 @@ test_rcv_crt(void)
                 asndcap_t snd = 0;
 
                 if ((word_t)cos_cpuid() == i) continue;
-                thd = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_ipi_fn, (void *)i, 0, 0, 0);
+                thd = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_ipi_fn, (void *)i, 0, 0, 0, 0);
                 assert(thd);
 
                 rcv = cos_arcv_alloc(&booter_info, thd, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);

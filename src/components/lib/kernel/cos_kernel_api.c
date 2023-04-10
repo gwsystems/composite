@@ -861,13 +861,13 @@ __cos_thd_ulk_page_alloc(struct cos_compinfo *ci, thdid_t tid)
 }
 
 static thdcap_t
-__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init_data, scbcap_t sched_scbc, dcbcap_t dc, dcboff_t off, thdid_t tid)
+__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init_data, scbcap_t sched_scbc, dcbcap_t dc, dcboff_t off, thdid_t tid, thdcap_t sched_thdc)
 {
 	ulkcap_t ulkcap;
 	vaddr_t  kmem;
 	capid_t  cap;
 	int      ret;
-	u32_t    hi, lo, pack;
+	u32_t    hi, lo, spack, cpack;
 
 	printd("cos_thd_alloc\n");
 
@@ -886,14 +886,16 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	assert(!(off & ~((1 << 16) - 1)));
 	assert(!(ulkcap & ~((1 << 16) - 1)));
 	assert(!(sched_scbc & ~((1 << 16) - 1)));
+	assert(!(sched_thdc & ~((1 << 16) - 1)));
 
 	hi = (u32_t)(dc << 16) | off;
 	lo = (u32_t)(ulkcap << 16) | tid;
-	pack = (u32_t)(cap << 16) | sched_scbc;
+	spack = (u32_t)(cap << 16) | sched_scbc;
+	cpack = (u32_t)(comp << 16) | sched_thdc;
 	/* FIXME: add 32bit support */
 #if defined (__x86_64__)
-	ret = call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, ((u64_t)init_data) << 32 | pack,
-			  __compinfo_metacap(ci)->mi.pgtbl_cap << 16 | comp, kmem, (u64_t)hi << 32 | lo);
+	ret = call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, ((u64_t)init_data) << 32 | spack,
+			  __compinfo_metacap(ci)->mi.pgtbl_cap << 32 | cpack, kmem, (u64_t)hi << 32 | lo);
 #endif
 	if (ret) BUG();
 
@@ -903,35 +905,35 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 #include <cos_thd_init.h>
 
 thdcap_t
-cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx, scbcap_t sched_scbc, dcbcap_t dc, dcboff_t off)
+cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx, scbcap_t sched_scbc, thdcap_t sched, dcbcap_t dc, dcboff_t off)
 {
 	thdid_t tid = cos_thd_id_alloc();
 
 	if (idx < 1) return 0;
 
-	return __cos_thd_alloc(ci, comp, idx, sched_scbc, dc, off, tid);
+	return __cos_thd_alloc(ci, comp, idx, sched_scbc, dc, off, tid, sched);
 }
 
 thdcap_t
-cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data, scbcap_t sched_scbc, dcbcap_t dc, dcboff_t off)
+cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data, scbcap_t sched_scbc, thdcap_t sched, dcbcap_t dc, dcboff_t off)
 {
 	thdid_t  tid = cos_thd_id_alloc();
 	int      idx = cos_thd_init_alloc(fn, data);
 	thdcap_t ret;
 
 	if (idx < 1) return 0;
-	ret = __cos_thd_alloc(ci, comp, idx, sched_scbc, dc, off, tid);
+	ret = __cos_thd_alloc(ci, comp, idx, sched_scbc, dc, off, tid, sched);
 	if (!ret) cos_thd_init_free(idx);
 
 	return ret;
 }
 
 thdcap_t
-cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp, scbcap_t sched_scbc, dcbcap_t dc, dcboff_t off)
+cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp, scbcap_t sched_scbc, thdcap_t sched, dcbcap_t dc, dcboff_t off)
 {
 	thdid_t tid = cos_thd_id_alloc();
 
-	return __cos_thd_alloc(ci, comp, 0, sched_scbc, dc, off, tid);
+	return __cos_thd_alloc(ci, comp, 0, sched_scbc, dc, off, tid, sched);
 }
 
 /*
@@ -1040,6 +1042,7 @@ cos_comp_alloc_with(struct cos_compinfo *ci, compcap_t comp, u32_t lid, captblca
 	assert(!(ctc & ~((1 << 16) - 1)));
 	assert(!(ptc & ~((1 << 16) - 1)));
 	assert(!(scbc & ~((1 << 16) - 1)));
+	assert(!(protdom & ~((1 << 48) - 1)));
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_COMPACTIVATE, (comp << 16) | scbc, (ctc << 16) | ptc, ((u64_t)protdom << 16) | lid, entry)) return 1;
 
 	return 0;

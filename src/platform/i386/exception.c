@@ -130,10 +130,10 @@ page_fault_handler(struct pt_regs *regs)
 	errcode    = chal_cpu_fault_errcode(regs);
 	ip        = chal_cpu_fault_ip(regs);
 
-	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%p, ip 0x%p, tls 0x%p\n", 0,
+	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%p, ip 0x%p, tls 0x%p\n", thdid,
 	    errcode & PGTBL_PRESENT ? "present" : "not-present",
 	    errcode & PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & PGTBL_USER ? "user-mode" : "system",
-	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, ip, 0);
+	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, ip, curr->tls);
 
 	return 1;
 }

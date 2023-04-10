@@ -476,11 +476,13 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	thd_invstk_protdom_update(curr, cos_info, chal_protdom_read());
 	next_protdom = thd_invstk_protdom_curr(next);
 
+	//printk("thread: %d, %d\n", curr->tid, curr->invstk_top);
 	thd_current_update(next, curr, cos_info);
 	if (likely(pgtbl_current() != next_pt->pgtbl)) {
 		pgtbl_update(next_pt);
 	}
 	
+	//printk("now: %d, next: %d, nowasid: %d\n", chal_protdom_read(), next_protdom, PROTDOM_ASID(chal_protdom_read()));
 	chal_protdom_write(next_protdom);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
@@ -661,6 +663,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
            struct cos_cpu_local_info *cos_info)
 {
 	struct thread *next        = thd_cap->t;
+	//if (get_cpuid() == 0)printk("kernel switch: %d => %d\n", thd->tid, next->tid);
 #if defined(__WORD_SIZE_64__)
 	capid_t        arcv        = __userregs_get3(regs);
 	capid_t        tc          = __userregs_getop(regs);
@@ -680,6 +683,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	int          ret;
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) assert(0);//return -EINVAL;
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
+		//printk("ip: %x, dcbinfo->ip: %x, tid: %d, %d, %d\n", __userregs_getip(regs), thd->dcbinfo->ip, thd->tid, DCB_IP_KERN_OFF, __userregs_getip(regs)-thd->dcbinfo->ip);
 		assert(__userregs_getip(regs) == thd->dcbinfo->ip + DCB_IP_KERN_OFF);
 		assert(__userregs_getsp(regs) == thd->dcbinfo->sp);
 	}
@@ -691,6 +695,10 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		arcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv);
 		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) assert(0);//return -EINVAL;
 		rcvt = arcv_cap->thd;
+		//assert(rcvt->tid == thd->scheduler_thread->tid);
+		//rcvt = thd->scheduler_thread;
+	//if (rcvt) {
+	//	printk("rcvt: %d\n", rcvt->tid);
 
 		ret  = cap_sched_tok_validate(rcvt, thd, usr_counter);
 		if (ret) return ret;
@@ -722,6 +730,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	}
 	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
 	if (tc && tcap_current(cos_info) == tcap) tcap_setprio(tcap, prio);
+	//printk("%x, %x\n", regs->flags, regs->ip);
 	return ret;
 }
 
@@ -923,6 +932,7 @@ expended_process(struct pt_regs *regs, struct thread *thd_curr, struct comp_info
  * 4. notifies the scheduler of the thread's execution
  * 5. switch tcap and thread context
  */
+int aaa =0;
 int
 timer_process(struct pt_regs *regs)
 {
@@ -935,7 +945,12 @@ timer_process(struct pt_regs *regs)
 	thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &comp);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	assert(comp);
+	aaa++;
+	//printk(">>>>>>: %d: ip: %x\n", thd_curr->tid, regs->ip);
+	//print_pt_regs(regs);
+	printk("\n<<<<<<: %d\n", thd_curr->tid);
 	int ret = expended_process(regs, thd_curr, comp, cos_info, 1);
+	//printk(">>>>>>\n");
 	return ret;
 }
 
@@ -1094,6 +1109,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	case CAP_THD:
 		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
+		//printk("ret to ul: %x, rax: %x\n", regs->ip, regs->ax);
 		return ret;
 	case CAP_ASND:
 		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, ci, cos_info);
@@ -1245,14 +1261,16 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		}
 		case CAPTBL_OP_THDACTIVATE: {
 			thdclosure_index_t init_data  = __userregs_get1(regs) >> 32;
-			capid_t pgtbl_cap             = __userregs_get2(regs) >> 16;
-			capid_t compcap               = __userregs_get2(regs) & 0xFFFF;
+			capid_t pgtbl_cap             = __userregs_get2(regs) >> 32;
 			capid_t pgtbl_addr            = __userregs_get3(regs);
 			word_t  hi                    = __userregs_get4(regs) >> 32;
 			word_t  lo                    = __userregs_get4(regs) & 0xFFFFFFFF;
-			word_t  pack                  = __userregs_get1(regs) & 0xFFFFFFFF;
-			capid_t thd_cap               = pack >>16;
-			capid_t scb_cap               = pack & 0xFFFF;
+			word_t  spack                 = __userregs_get1(regs) & 0xFFFFFFFF;
+			word_t  cpack                 = __userregs_get2(regs) & 0xFFFFFFFF;
+			capid_t thd_cap               = spack >> 16;
+			capid_t scb_cap               = spack & 0xFFFF;
+			capid_t compcap               = cpack >> 16;
+			capid_t sched_cap             = cpack & 0xFFFF;
 			capid_t ulk_cap               = lo >> 16;
 			thdid_t tid                   = lo & 0xFFFF;
 			capid_t dcb_cap               = hi >> 16;
@@ -1275,7 +1293,8 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			}
 			
 			/* ret is returned by the overall function */
-			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, scb_cap, dcb_cap, dcboff, tid, ulstk);
+			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, scb_cap, dcb_cap, dcboff, tid, ulstk, sched_cap);
+			//printk("ret: %d, %d\n", ret, scb_cap);
 			if (ret) kmem_unalloc(pte);
 
 			break;

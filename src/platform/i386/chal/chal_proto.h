@@ -142,6 +142,7 @@ chal_pgtbl_update(struct pgtbl_info *pt)
 	u16_t asid = PROTDOM_ASID(pt->protdom);
 
 	/* lowest 12 bits is the context identifier */
+	//printk("\t---->asid: %d\n", asid);
 	unsigned long cr3 = (unsigned long)pt->pgtbl | asid;
 	
 	/* fastpath: don't need to invalidate tlb entries; otherwise flush tlb on switch */

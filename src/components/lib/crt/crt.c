@@ -722,12 +722,15 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, struct crt_comp *s, dcb
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 	struct cos_compinfo    *target_ci;
 	struct cos_aep_info    *target_aep;
+	struct cos_aep_info    *sched_aep;
 	thdcap_t thdcap;
 	struct crt_thd_resources rs;
 	assert(t && c);
 
 	target_ci = cos_compinfo_get(c->comp_res);
 	target_aep = cos_sched_aep_get(c->comp_res);
+	sched_aep = cos_sched_aep_get(s->comp_res);
+	printc("\n\ttarget_aep: %d, %d\n\n\n", target_aep->tid, target_aep->thd);
 
 	assert(target_ci->comp_cap);
 	capid_t comp_cap = (target_ci->comp_cap_shared) ? target_ci->comp_cap_shared : target_ci->comp_cap;
@@ -737,11 +740,12 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, struct crt_comp *s, dcb
 
 		crt_refcnt_take(&c->refcnt);
 		assert(target_ci->comp_cap);
-		thdcap = target_aep->thd = cos_initthd_alloc(ci, comp_cap, s->scb, dcbcap, dcboff);
+		thdcap = target_aep->thd = cos_initthd_alloc(ci, comp_cap, s->scb, 0, dcbcap, dcboff);
 		assert(target_aep->thd);
 	} else {
 		crt_refcnt_take(&c->refcnt);
-		thdcap = cos_thd_alloc_ext(ci, comp_cap, closure_id, s->scb, dcbcap, dcboff);
+		assert(target_aep->thd);
+		thdcap = cos_thd_alloc_ext(ci, comp_cap, closure_id, s->scb, sched_aep->thd, dcbcap, dcboff);
 		assert(thdcap);
 	}
 
@@ -862,9 +866,9 @@ crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, 
 	capid_t comp_cap = (target_ci->comp_cap_shared) ? target_ci->comp_cap_shared : target_ci->comp_cap;
 
 	if (closure_id == 0) {
-		thdcap = cos_initthd_alloc(cos_compinfo_get(defci), comp_cap, scbcap, dcbcap, dcboff);
+		thdcap = cos_initthd_alloc(cos_compinfo_get(defci), comp_cap, scbcap, sched_aep->thd, dcbcap, dcboff);
 	} else {
-		thdcap = cos_thd_alloc_ext(cos_compinfo_get(defci), comp_cap, scbcap, closure_id, dcbcap, dcboff);
+		thdcap = cos_thd_alloc_ext(cos_compinfo_get(defci), comp_cap, closure_id, scbcap, sched_aep->thd, dcbcap, dcboff);
 	}
 	assert(thdcap);
 

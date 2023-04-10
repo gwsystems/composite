@@ -43,8 +43,6 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_create_ext)
 COS_SERVER_3RET_STUB(int, capmgr_retrieve_dcbinfo)
 {
 	thdid_t ret;
-	arcvcap_t arcv = 0;
-	asndcap_t asnd = 0;
 	struct cos_dcb_info *retdcb;
 
 	ret = capmgr_retrieve_dcbinfo(p0, &retdcb);

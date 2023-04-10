@@ -101,9 +101,9 @@ cos_aep_alloc_intern(struct cos_aep_info *aep, struct cos_defcompinfo *dst_dci, 
 	assert(curr_defci_init_status == INITIALIZED);
 	memset(aep, 0, sizeof(struct cos_aep_info));
 
-	if (is_init)      aep->thd = cos_initthd_alloc(ci, dst_ci->comp_cap, 0, dcbcap, dcboff);
-	else if (idx > 0) aep->thd = cos_thd_alloc_ext(ci, dst_ci->comp_cap, 0, idx, dcbcap, dcboff);
-	else              aep->thd = cos_thd_alloc(ci, dst_ci->comp_cap, cos_aepthd_fn, (void *)aep, 0, dcbcap, dcboff);
+	if (is_init)      aep->thd = cos_initthd_alloc(ci, dst_ci->comp_cap, 0, 0, dcbcap, dcboff);
+	else if (idx > 0) aep->thd = cos_thd_alloc_ext(ci, dst_ci->comp_cap, idx, 0, 0, dcbcap, dcboff);
+	else              aep->thd = cos_thd_alloc(ci, dst_ci->comp_cap, cos_aepthd_fn, (void *)aep, 0, 0, dcbcap, dcboff);
 	assert(aep->thd);
 	aep->tid  = cos_introspect(ci, aep->thd, THD_GET_TID);
 	assert(0);

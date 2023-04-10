@@ -138,10 +138,10 @@ int        cos_ulk_map_in(pgtblcap_t ptc);
 void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, int try_expand);
 
 typedef void (*cos_thd_fn_t)(void *);
-thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data, scbcap_t sched_scbc, dcbcap_t dc, dcboff_t dcboff);
-thdcap_t cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx, scbcap_t sched_scbc, dcbcap_t dc, dcboff_t dcboff);
+thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data, scbcap_t sched_scbc, thdcap_t sched, dcbcap_t dc, dcboff_t dcboff);
+thdcap_t cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx, scbcap_t sched_scbc, thdcap_t sched, dcbcap_t dc, dcboff_t dcboff);
 /* Create the initial (cos_init) thread */
-thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp, scbcap_t sched_scbc, dcbcap_t dc, dcboff_t off);
+thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp, scbcap_t sched_scbc, thdcap_t sched, dcbcap_t dc, dcboff_t off);
 int cos_thd_migrate(struct cos_compinfo *ci, thdcap_t thdc, cpuid_t core);
 /* update the thdcap to migrated core */
 int cos_thdcap_migrate(struct cos_compinfo *ci, thdcap_t thdc);
