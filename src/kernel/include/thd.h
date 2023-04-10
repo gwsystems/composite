@@ -813,7 +813,7 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		//printk("special: %d, %x, %x\n", thd->tid, regs->ip, regs->sp);
 		assert(preempt == 0);
 		thd->dcbinfo->sp = 0;
-		print_pt_regs(regs);
+		//print_pt_regs(regs);
 	}
 	if (issame && preempt == 0) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
