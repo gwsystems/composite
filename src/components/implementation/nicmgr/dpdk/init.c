@@ -227,6 +227,38 @@ cos_free_rx_buf()
 }
 
 static void
+swap_mac(struct eth_hdr *eth) {
+	char tmp[6];
+	memcpy(tmp, &eth->dst_addr.addr_bytes[0], 6);
+	memcpy(&eth->dst_addr.addr_bytes[0], &eth->src_addr.addr_bytes[0], 6);
+	memcpy(&eth->src_addr.addr_bytes[0], tmp, 6);
+}
+
+static void
+transmit_back(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
+{
+	int i, ret;
+	int len = 0;
+
+	struct eth_hdr		*eth;
+	struct ip_hdr		*iph;
+	struct arp_hdr		*arp_hdr;
+	struct tcp_udp_port	*port;
+	struct client_session	*session;
+	char                    *pkt;
+	struct pkt_buf           buf;
+
+	for (i = 0; i < nb_pkts; i++) {
+		pkt = cos_get_packet(rx_pkts[i], &len);
+		eth = (struct eth_hdr *)pkt;
+		swap_mac(eth);
+	}
+	// printc("tx :%d\n", nb_pkts);
+	ret = cos_dev_port_tx_burst(0, 0, rx_pkts, nb_pkts);
+	assert(ret == nb_pkts);
+}
+
+static void
 cos_nic_start(){
 	int i, j, recv_round;
 	uint16_t nb_pkts = 0;
@@ -241,7 +273,11 @@ cos_nic_start(){
 
 		// only port 0, queue 0 receive packets
 		nb_pkts = cos_dev_port_rx_burst(0, 0, rx_packets, MAX_PKT_BURST);
-		// if (nb_pkts!= 0) cos_dev_port_tx_burst(i, j, rx_packets, nb_pkts);
+		/* These are the two test options */
+		// if (nb_pkts!= 0) transmit_back(0, rx_packets, nb_pkts);
+		// if (nb_pkts!= 0) cos_dev_port_tx_burst(0, 0, rx_packets, nb_pkts);
+
+		/* This is the real processing logic for applications */
 		if (nb_pkts != 0) process_rx_packets(0, rx_packets, nb_pkts);
 	}
 }
@@ -262,7 +298,7 @@ cos_nic_init(void)
 	 * set max_mbufs 2 times than nb_rx_desc, so that there is enough room
 	 * to store packets, or this will fail if nb_rx_desc <= max_mbufs.
 	 */
-	const size_t max_rx_mbufs = 2 * nb_rx_desc;
+	const size_t max_rx_mbufs = 8 * nb_rx_desc;
 	const size_t max_tx_mbufs = 2 * nb_tx_desc;
 	memset(rx_per_core_mpool_name, 0, sizeof(rx_per_core_mpool_name));
 	memset(tx_per_core_mpool_name, 0, sizeof(tx_per_core_mpool_name));

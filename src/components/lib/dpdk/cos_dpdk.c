@@ -440,8 +440,6 @@ uint16_t
 cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
 		 char**tx_pkts, const uint16_t nb_pkts)
 {
-	struct rte_mbuf * mbuf = tx_pkts[0];
-
 	return rte_eth_tx_burst(ports_ids[port_id], queue_id, (struct rte_mbuf **)tx_pkts, nb_pkts);
 }
 
