@@ -144,11 +144,7 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 	struct cos_compinfo          *ci        = cos_compinfo_get(defci);
 	struct cos_aep_info          *sched_aep = cos_sched_aep_get(defci);
 	volatile struct cos_scb_info *scb       = (struct cos_scb_info*)ci->scb_uaddr + cos_cpuid();
-	volatile struct cos_scb_info *test       = slm_scb_info_core();
-	unsigned long testnd = 1111;
 	
-assert(scb == test);
-
 	sched_tok_t rcv_tok;
 	unsigned long pre_tok = 0;
 
@@ -164,7 +160,6 @@ assert(scb == test);
 
 	if (scb->timer_pre < timeout) {
 		scb->timer_pre = timeout;
-		//printc("update timer\n");
 		return cos_defswitch(next, prio, timeout, tok);
 	}
 
@@ -270,11 +265,10 @@ assert(scb == test);
 		"movq $0, 8(%%rsi)\n\t"         \
 		".align 8\n\t"                  \
 		"3:\n\t"                        \
-		"mov $0x0, %%rax\n\t"                \
 		"popq %%rbp\n\t"                \
 		"popq %%rbx\n\t"                \
 		"popq %%r10\n\t"                \
-		: "=b" (pre_tok), "=S" (testnd)
+		: "=b" (pre_tok)
 		: "a" (cd), "S" (nd),
 		  "b" (tok), "D" (timeout),
 		  "c" (&(scb->curr_thd)), "d" (next)

@@ -661,7 +661,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
            struct cos_cpu_local_info *cos_info)
 {
 	struct thread *next        = thd_cap->t;
-	if (get_cpuid() == 0)printk("[%d]->r11: %lx, [%d]->r11: %lx\n", thd->tid, regs->r11, next->tid, next->regs.r11);
 #if defined(__WORD_SIZE_64__)
 	capid_t        arcv        = __userregs_get3(regs);
 	capid_t        tc          = __userregs_getop(regs);
@@ -679,9 +678,8 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	tcap_time_t  timeout = (tcap_time_t)__userregs_get4(regs);
 	struct tcap *tcap    = tcap_current(cos_info);
 	int          ret;
-	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) assert(0);//return -EINVAL;
+	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
-		//printk("ip: %x, dcbinfo->ip: %x, tid: %d, %d, %d\n", __userregs_getip(regs), thd->dcbinfo->ip, thd->tid, DCB_IP_KERN_OFF, __userregs_getip(regs)-thd->dcbinfo->ip);
 		assert(__userregs_getip(regs) == thd->dcbinfo->ip + DCB_IP_KERN_OFF);
 		assert(__userregs_getsp(regs) == thd->dcbinfo->sp);
 	}
@@ -691,7 +689,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		struct thread *  rcvt;
 
 		arcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv);
-		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) assert(0);//return -EINVAL;
+		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
 		rcvt = arcv_cap->thd;
 		//assert(rcvt->tid == thd->scheduler_thread->tid);
 		//rcvt = thd->scheduler_thread;
@@ -702,7 +700,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		if (ret) return ret;
 
 		if (thd_rcvcap_pending(rcvt) > 0) {
-			if (thd == rcvt) assert(0);//return -EBUSY;
+			if (thd == rcvt) return -EBUSY;
 
 			next = rcvt;
 			/* tcap inheritance here...use the current tcap to process events */
@@ -721,10 +719,10 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		struct cap_tcap *tcap_cap;
 
 		tcap_cap = (struct cap_tcap *)captbl_lkup(ci->captbl, tc);
-		if (!CAP_TYPECHK_CORE(tcap_cap, CAP_TCAP)) assert(0);//return -EINVAL;
+		if (!CAP_TYPECHK_CORE(tcap_cap, CAP_TCAP)) return -EINVAL;
 		tcap = tcap_cap->tcap;
-		if (!tcap_rcvcap_thd(tcap)) assert(0);//return -EINVAL;
-		if (unlikely(!tcap_is_active(tcap))) assert(0);//return -EPERM;
+		if (!tcap_rcvcap_thd(tcap)) return -EINVAL;
+		if (unlikely(!tcap_is_active(tcap))) return -EPERM;
 	}
 	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
 	if (tc && tcap_current(cos_info) == tcap) tcap_setprio(tcap, prio);
@@ -943,12 +941,7 @@ timer_process(struct pt_regs *regs)
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	assert(comp);
 	aaa++;
-	//printk(">>>>>>: %d: ip: %x\n", thd_curr->tid, regs->ip);
-	//print_pt_regs(regs);
-	printk("\n<<<<<<: %d, %lx, sp: %lx, %lx, r11L %lx\n", thd_curr->tid, regs->ip, regs->sp, regs->flags, regs->r11);
 	int ret = expended_process(regs, thd_curr, comp, cos_info, 1);
-	printk("\t%lx, r11: %lx\n", regs->flags, regs->r11);
-	//printk(">>>>>>\n");
 	return ret;
 }
 
@@ -1105,11 +1098,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	 */
 	switch (ch->type) {
 	case CAP_THD:
-		//printk("ip: %lx, es: %lx, ds: %lx, fs: %lx, gs: %lx\n", regs->ip, regs->es, regs->ds, regs->fs, regs->gs);
 		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, ci, cos_info);
-		//regs->es = regs->ds = regs->gs = regs->fs = 0;
-		printk("ip: %lx, es: %lx, ds: %lx, fs: %lx, gs: %lx, ax: %lx, sp: %lx, flags: %lx, r11: %lx\n", 
-			regs->ip, regs->es, regs->ds, regs->fs, regs->gs, regs->ax, regs->sp, regs->flags, regs->r11);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	case CAP_ASND:
@@ -1295,7 +1284,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			
 			/* ret is returned by the overall function */
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, scb_cap, dcb_cap, dcboff, tid, ulstk, sched_cap);
-			//printk("ret: %d, %d\n", ret, scb_cap);
 			if (ret) kmem_unalloc(pte);
 
 			break;
@@ -1489,7 +1477,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			ret = scb_activate(ct, cap, scbcap, (vaddr_t)scb, lid);
 
 			scbc = (struct cap_scb *)captbl_lkup(ct, scbcap);
-			if (unlikely(!scbc || scbc->h.type != CAP_SCB)) assert(0);//return -EINVAL;
+			if (unlikely(!scbc || scbc->h.type != CAP_SCB)) return -EINVAL;
 
 			break;
 		}

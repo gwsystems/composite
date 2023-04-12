@@ -358,7 +358,6 @@ thd_current(struct cos_cpu_local_info *cos_info)
 	sched_comp = &(thread->invstk[0].comp_info);
 
 	if (curr) {
-		//printk("capcurr: %d, tid: %d, %d, %x\n", curr, thread->tid, sched_thd->tid, test_comp->captbl);
 		tc = (struct cap_thd *)captbl_lkup(test_comp->captbl, curr);
 		if (unlikely(!tc || tc->h.type != CAP_THD)) assert(0);
 		curr_thd = tc->t;
@@ -418,7 +417,6 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
-	//printk("[%d]invstk: %x\n", tid, thd->invstk[0].comp_info.captbl);
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
 	thd->invstk[0].protdom                = compc->info.pgtblinfo.protdom;
 	thd->tid                              = tid;
@@ -435,7 +433,6 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->ulk_invstk                       = ulinvstk;
 	assert(thd->tid <= MAX_NUM_THREADS);
 	if (likely(stc)) {
-		//printk("????????tid: %d, sched: %d, %d\n", tid, stc->t->tid, sched_cap);
 		thd_scheduler_set(thd, stc->t);
 	} else {
 		thd_scheduler_set(thd, thd_current(cli));

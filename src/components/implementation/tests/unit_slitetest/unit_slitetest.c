@@ -38,37 +38,18 @@ static struct perfdata pd;
 static cycles_t results[ARRAY_SIZE];
 
 static void
-unit_rcv(thdid_t tid)
-{
-	int rcvd;
-
-	rcvd = sched_arcv(tid);
-	total_rcvd[cos_cpuid()] += rcvd;
-	return;
-}
-
-volatile unsigned long aaa = 0;
-void
-spin(void)
-{
-	aaa = 0;
-	while (aaa < 1000000) aaa++;
-}
-
-static void
 rcv_spiner()
 {
 	int i = 0;
 	while (!spin_thd[1]) ;
-	//while (i < TEST_ITERS) {
-	while (1) {
+	while (i < TEST_ITERS) {
 		//printc("*************spiner1**************: %ld\n\n", spin_thd[0]);
 		printc("%ld\n", spin_thd[0]);
-		//spin();
 		i++;
 		sched_thd_yield_to(spin_thd[1]);
 	}
 	printc("SUCCESS\n");
+	test_done = 1;
 	SPIN();
 	assert(0);
 	return;
@@ -79,8 +60,7 @@ rcv_spiner2()
 {
 	int i = 0;
 	while (!spin_thd[0]) ;
-	while (1) {
-		//spin();
+	while (!test_done) {
 		//printc("*************spiner2**************: %ld\n\n", spin_thd[1]);
 		printc("%ld", spin_thd[1]);
 		sched_thd_yield_to(spin_thd[0]);
@@ -90,64 +70,12 @@ rcv_spiner2()
 	return;
 }
 
-static void
-unit_snd(thdid_t tid)
-{
-	int ret = 0;
-
-	ret = sched_asnd(tid);
-	assert(ret == 0 || ret == -EBUSY);
-
-	if (!ret) total_sent[cos_cpuid()]++;
-	return;
-}
-
-static void
-test_snd_fn()
-{
-	int iters = 0;
-
-	thdid_t r = thd[TEST_SND_CORE];
-	assert(r);
-	while (!thd[TEST_RCV_CORE]) ;
-	thdid_t s = thd[TEST_RCV_CORE];
-	
-	for (iters = 0; iters < TEST_ITERS; iters ++) {
-		unit_snd(s);
-		unit_rcv(r);
-	}
-
-	test_done = 1;
-	SPIN();
-	assert(0);
-}
-
-static void
-test_rcv_fn()
-{
-	thdid_t r = thd[TEST_RCV_CORE];
-	assert(r);
-	while (!thd[TEST_SND_CORE]) ;
-	thdid_t s = thd[TEST_SND_CORE];
-
-	while (1) {
-		printc("rcv\n");
-		unit_rcv(r);
-		printc("rcvd\n");
-		unit_snd(s);
-	};
-}
-
 void
 test_ipi_switch(void)
 {
-	asndcap_t snd = 0;
 
 	if (cos_cpuid() == TEST_RCV_CORE) {
 		printc("test ipi switch\n");
-		//thd[cos_cpuid()] = sched_thd_create(test_rcv_fn, NULL);
-		//sched_thd_param_set(thd[cos_cpuid()], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
-
 		spin_thd[0] = sched_thd_create(rcv_spiner, NULL);
 		sched_thd_param_set(spin_thd[0], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
