@@ -318,8 +318,6 @@ assert(scb == test);
 	assert(scb);
 
 	if (pre_tok != scb->sched_tok) {
-		//printc("AGAIN:%d, %d\n", pre_tok, scb->sched_tok);
-		if (scb->sched_tok - pre_tok > 10) 	assert(0);
 		return -EAGAIN;
 	}
 	return 0;
@@ -354,18 +352,12 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 			return ret;
 		}
 	}
-	//if (cos_cpuid() == 0) printc("\tfrom %d => %d\n", curr->tid, t->tid);
 	if (!cd || !nd) {
-		//if (scb->timer_pre != timeout) printc("pre: %llu, timeout: %llu\n", scb->timer_pre, timeout);
-		assert(scb->timer_pre == timeout || !scb->timer_pre);
 		if (scb->timer_pre < timeout) {
 			scb->timer_pre = timeout;
 		}
 		ret = cos_defswitch(t->thd, prio, timeout, tok);
 	} else {
-		//scb->timer_pre = timeout;
-		//ret = cos_defswitch(t->thd, prio, timeout, tok);
-		//if (curr->tid == 4) printc("--------------\n");
 		ret = cos_ulswitch(curr->thd, t->thd, cd, nd, prio, timeout, tok);
 	}
 

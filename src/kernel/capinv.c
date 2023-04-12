@@ -476,13 +476,11 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	thd_invstk_protdom_update(curr, cos_info, chal_protdom_read());
 	next_protdom = thd_invstk_protdom_curr(next);
 
-	//printk("thread: %d, %d\n", curr->tid, curr->invstk_top);
 	thd_current_update(next, curr, cos_info);
 	if (likely(pgtbl_current() != next_pt->pgtbl)) {
 		pgtbl_update(next_pt);
 	}
 	
-	//printk("now: %d, next: %d, nowasid: %d\n", chal_protdom_read(), next_protdom, PROTDOM_ASID(chal_protdom_read()));
 	chal_protdom_write(next_protdom);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
@@ -663,7 +661,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
            struct cos_cpu_local_info *cos_info)
 {
 	struct thread *next        = thd_cap->t;
-	//if (get_cpuid() == 0)printk("kernel switch: %d => %d\n", thd->tid, next->tid);
+	if (get_cpuid() == 0)printk("[%d]->r11: %lx, [%d]->r11: %lx\n", thd->tid, regs->r11, next->tid, next->regs.r11);
 #if defined(__WORD_SIZE_64__)
 	capid_t        arcv        = __userregs_get3(regs);
 	capid_t        tc          = __userregs_getop(regs);
@@ -730,7 +728,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	}
 	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
 	if (tc && tcap_current(cos_info) == tcap) tcap_setprio(tcap, prio);
-	//printk("%x, %x\n", regs->flags, regs->ip);
 	return ret;
 }
 
@@ -948,8 +945,9 @@ timer_process(struct pt_regs *regs)
 	aaa++;
 	//printk(">>>>>>: %d: ip: %x\n", thd_curr->tid, regs->ip);
 	//print_pt_regs(regs);
-	printk("\n<<<<<<: %d\n", thd_curr->tid);
+	printk("\n<<<<<<: %d, %lx, sp: %lx, %lx, r11L %lx\n", thd_curr->tid, regs->ip, regs->sp, regs->flags, regs->r11);
 	int ret = expended_process(regs, thd_curr, comp, cos_info, 1);
+	printk("\t%lx, r11: %lx\n", regs->flags, regs->r11);
 	//printk(">>>>>>\n");
 	return ret;
 }
@@ -1107,9 +1105,12 @@ composite_syscall_handler(struct pt_regs *regs)
 	 */
 	switch (ch->type) {
 	case CAP_THD:
+		//printk("ip: %lx, es: %lx, ds: %lx, fs: %lx, gs: %lx\n", regs->ip, regs->es, regs->ds, regs->fs, regs->gs);
 		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, ci, cos_info);
+		//regs->es = regs->ds = regs->gs = regs->fs = 0;
+		printk("ip: %lx, es: %lx, ds: %lx, fs: %lx, gs: %lx, ax: %lx, sp: %lx, flags: %lx, r11: %lx\n", 
+			regs->ip, regs->es, regs->ds, regs->fs, regs->gs, regs->ax, regs->sp, regs->flags, regs->r11);
 		if (ret < 0) cos_throw(done, ret);
-		//printk("ret to ul: %x, rax: %x\n", regs->ip, regs->ax);
 		return ret;
 	case CAP_ASND:
 		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, ci, cos_info);

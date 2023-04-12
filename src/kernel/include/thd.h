@@ -801,19 +801,15 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		 */
 	}
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
-		//printk("special: %d, %x, %x, si: %lx, flags: %x\n", thd->tid, thd->dcbinfo->sp, thd->dcbinfo->ip, regs->si, regs->flags);
 		assert(preempt == 0);
+		unsigned long flags = regs->flags;
+		memset(regs, 0, sizeof(struct pt_regs));
+		__userregs_set(regs, 0, thd->dcbinfo->sp, thd->dcbinfo->ip + DCB_IP_KERN_OFF);
 #if defined(__x86_64__)
-		regs->cx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
-		regs->sp = regs->bp = thd->dcbinfo->sp;
-#else
-		regs->dx = regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
-		regs->cx = regs->sp = thd->dcbinfo->sp;
+		regs->r11 = regs->flags;
 #endif
-		//printk("special: %d, %x, %x\n", thd->tid, regs->ip, regs->sp);
 		assert(preempt == 0);
 		thd->dcbinfo->sp = 0;
-		//print_pt_regs(regs);
 	}
 	if (issame && preempt == 0) {
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
