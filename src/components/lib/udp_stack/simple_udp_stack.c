@@ -75,12 +75,13 @@ udp_stack_eth_hdr_set(struct eth_hdr *eth_hdr, struct ether_addr* src_mac, struc
 static inline void
 udp_stack_ip_hdr_set(struct ip_hdr *ip_hdr, u16_t data_len, u32_t src_host, u32_t dst_host)
 {
+	static u16_t ip_id = 0;
 	/* We don't support complex IP options */
 	ip_hdr->ihl = IP_STD_LEN / 4;
 	ip_hdr->version = IPv4;
 	ip_hdr->tos = 0;
 	ip_hdr->total_len = htons(IP_STD_LEN + data_len);
-	ip_hdr->id = 0;
+	ip_hdr->id = ++ip_id;
 	ip_hdr->frag_off = 0;
 	ip_hdr->ttl = 64;
 	ip_hdr->proto = UDP_PROTO;

@@ -100,7 +100,7 @@ parallel_main(coreid_t cid)
 			continue;
 		}
 		// rdtscll(before);
-		// data_len = mc_process_command(fd, objid, data_offset, data_len);
+		data_len = mc_process_command(fd, objid, data_offset, data_len);
 		// rdtscll(after);
 		// if (cos_compid() == 6) {
 			// printc("gap:%lu\n", after - before);
