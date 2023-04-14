@@ -15,7 +15,7 @@ enum CapRes {
     Comp(ComponentId),
 }
 
-const BOOT_CAPTBL_FREE: u32 = 56;
+const BOOT_CAPTBL_FREE: u32 = 52;
 
 // The equivalent of the C __captbl_cap2sz(c)
 fn cap_sz(cap: &CapRes) -> u32 {
@@ -224,15 +224,43 @@ fn capmgr_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
     // Lets provide information to the capability manager about which
     // components are in shared, and which are in exclusive address
     // spaces.
-    let mut shared_vas = Vec::new();
-    let vas: &dyn OrderedSpecPass = s.get_named();
-    for (_, addrspc) in vas.addrspc_components_shared() {
-        for c in &addrspc.components {
-            // unwrap as every name should be represented (see OrderedSpecpass).
-            let id = vas.rmap().get(&c).unwrap();
-            shared_vas.push(ArgsKV::new_key("_".to_string(), format!("{}", id)));
-        }
-    }
+    let ases = s
+        .get_named()
+        .addrspc_components_shared()
+        .iter()
+        .map(|(id, a)| {
+            ArgsKV::new_arr(id.to_string(), {
+                let mut v = vec![
+                    ArgsKV::new_key("name".to_string(), a.name.clone()),
+                    ArgsKV::new_arr(
+                        "components".to_string(),
+                        a.components
+                            .iter()
+                            .map(|c| {
+                                ArgsKV::new_key(
+                                    "_".to_string(),
+                                    s.get_named().rmap().get(c).unwrap().to_string(),
+                                )
+                            })
+                            .collect(),
+                    ),
+                ];
+                v
+            })
+        })
+        .rev()
+        .collect();
+    let excl_ases = s
+        .get_named()
+        .addrspc_components_exclusive()
+        .iter()
+        .map(|c| {
+            ArgsKV::new_key(
+                "_".to_string(),
+                s.get_named().rmap().get(c).unwrap().to_string(),
+            )
+        })
+        .collect();
 
     cfg.args.push(ArgsKV::new_arr(
         "scheduler_hierarchy".to_string(),
@@ -248,7 +276,13 @@ fn capmgr_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
         .push(ArgsKV::new_arr("captbl".to_string(), ct_args));
     cfg.args
         .push(ArgsKV::new_arr("names".to_string(), names_args));
-    cfg.args.push(ArgsKV::new_arr("addrspc_shared".to_string(), shared_vas));
+    cfg.args
+        .push(ArgsKV::new_arr(String::from("addrspc_shared"), ases));
+    cfg.args.
+        push(ArgsKV::new_arr(
+        String::from("addrspc_exclusive"),
+        excl_ases,
+    ));
 }
 
 fn constructor_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {

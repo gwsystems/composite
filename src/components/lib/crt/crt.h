@@ -95,6 +95,8 @@ struct crt_comp {
 	struct cos_dcbinfo_data dcb_data[NUM_CPU];
 	vaddr_t init_dcb_addr[NUM_CPU];
 	scbcap_t scb;
+
+	u32_t                  vas_id;
 	struct protdom_ns_vas *ns_vas;
 };
 
