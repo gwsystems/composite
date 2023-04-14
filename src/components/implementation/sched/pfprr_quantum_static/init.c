@@ -261,7 +261,6 @@ slm_comp_init_loop(void)
 		 * thread, so the spin isn't really wasting many
 		 * resources.
 		 */
-		 //assert(0);
 		while (ps_load(&n->initialization_thds[cos_coreid()]) == NULL) {
 			cos_defswitch(t->thd, t->priority, slm_global()->timeout_next, cos_sched_sync(ci));
 		}

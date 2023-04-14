@@ -363,7 +363,7 @@ chal_pgtbl_mapping_add(pgtbl_t pt, vaddr_t addr, paddr_t page, word_t flags, u32
 
 	if (!pte) return -ENOENT;
 	orig_v = (unsigned long)(pte->next);
-	if (orig_v & X86_PGTBL_PRESENT) assert(0);//return -EEXIST;
+	if (orig_v & X86_PGTBL_PRESENT) return -EEXIST;
 	if (orig_v & X86_PGTBL_COSFRAME) return -EPERM;
 
 	/* Quiescence check */

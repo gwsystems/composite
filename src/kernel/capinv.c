@@ -691,10 +691,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		arcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv);
 		if (!CAP_TYPECHK_CORE(arcv_cap, CAP_ARCV)) return -EINVAL;
 		rcvt = arcv_cap->thd;
-		//assert(rcvt->tid == thd->scheduler_thread->tid);
-		//rcvt = thd->scheduler_thread;
-	//if (rcvt) {
-	//	printk("rcvt: %d\n", rcvt->tid);
 
 		ret  = cap_sched_tok_validate(rcvt, thd, usr_counter);
 		if (ret) return ret;
