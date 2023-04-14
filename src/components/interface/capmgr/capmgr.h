@@ -22,6 +22,11 @@
 #include <cos_defkernel_api.h>
 #include <cos_stubs.h>
 
+typedef enum {
+	CB_ADDR_SCB,
+	CB_ADDR_DCB,
+} ctrlblk_t;
+
 void capmgr_set_tls(thdcap_t cap, void* tls_addr);
 
 thdcap_t  capmgr_initthd_create(spdid_t child, thdid_t *tid);
@@ -30,12 +35,12 @@ thdcap_t  COS_STUB_DECL(capmgr_initthd_create)(spdid_t child, thdid_t *tid);
 thdcap_t  capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret);
 thdcap_t  COS_STUB_DECL(capmgr_initaep_create)(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret);
 
-thdcap_t  capmgr_thd_create(cos_thd_fn_t fn, void *data, thdid_t *tid);
+thdcap_t  capmgr_thd_create(cos_thd_fn_t fn, void *data, thdid_t *tid, struct cos_dcb_info **dcb);
 thdcap_t  capmgr_aep_create(struct cos_aep_info *a, cos_aepthd_fn_t fn, void *data, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax);
 arcvcap_t capmgr_rcv_alloc(cos_thd_fn_t fn, void *data, int flags, asndcap_t *asnd, thdcap_t *thdcap, thdid_t *tid);
 
-thdcap_t capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid);
-thdcap_t  COS_STUB_DECL(capmgr_thd_create_thunk)(thdclosure_index_t idx, thdid_t *tid);
+thdcap_t capmgr_thd_create_thunk(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info **dcb);
+thdcap_t  COS_STUB_DECL(capmgr_thd_create_thunk)(thdclosure_index_t idx, thdid_t *tid, struct cos_dcb_info **dcb);
 
 thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax);
 thdcap_t  COS_STUB_DECL(capmgr_aep_create_thunk)(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax);
@@ -55,7 +60,16 @@ asndcap_t COS_STUB_DECL(capmgr_asnd_create)(spdid_t child, thdid_t t);
 asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv);
 asndcap_t COS_STUB_DECL(capmgr_asnd_rcv_create)(arcvcap_t rcv);
 
+unsigned long capmgr_ctrlblk_get(ctrlblk_t type);
+unsigned long COS_STUB_DECL(capmgr_ctrlblk_get)(ctrlblk_t type);
+
 asndcap_t capmgr_asnd_key_create(cos_channelkey_t key);
 asndcap_t COS_STUB_DECL(capmgr_asnd_key_create)(cos_channelkey_t key);
+
+vaddr_t capmgr_sched_initdcb_get(void);
+vaddr_t COS_STUB_DECL(capmgr_sched_initdcb_get)(void);
+
+thdid_t capmgr_retrieve_dcbinfo(thdid_t tid, struct cos_dcb_info **dcb);
+thdid_t COS_STUB_DECL(capmgr_retrieve_dcbinfo)(thdid_t tid, struct cos_dcb_info **dcb);
 
 #endif /* CAPMGR_H */

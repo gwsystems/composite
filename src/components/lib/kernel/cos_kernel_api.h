@@ -54,6 +54,9 @@ typedef capid_t compcap_t;
 typedef capid_t captblcap_t;
 typedef capid_t pgtblcap_t;
 typedef capid_t hwcap_t;
+typedef capid_t scbcap_t;
+typedef capid_t dcbcap_t;
+typedef unsigned short dcboff_t;
 typedef capid_t ulkcap_t;
 
 /* Memory source information */
@@ -86,10 +89,12 @@ struct cos_compinfo {
 	/* shared comp cap */
 	capid_t comp_cap_shared;
 	capid_t pgtbl_cap_shared;
+
+	vaddr_t scb_uaddr;
 };
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
-                       vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);/*
+                       scbcap_t scb_cap, vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);/*
  * This only needs be called on compinfos that are managing resources
  * (i.e. likely only one).  All of the capabilities will be relative
  * to this component's captbls.
@@ -121,6 +126,9 @@ int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
 compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, prot_domain_t protdom);
+scbcap_t    cos_scb_alloc(struct cos_compinfo *ci);
+int         cos_scb_mapping(struct cos_compinfo *ci, compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr);
+dcbcap_t    cos_dcb_alloc(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t dcb_uaddr);
 
 void       cos_ulk_info_init(struct cos_compinfo *ci);
 pgtblcap_t cos_ulk_pgtbl_create(struct cos_compinfo *ci, pgtblcap_t *secondlvl);
@@ -130,10 +138,13 @@ int        cos_ulk_map_in(pgtblcap_t ptc);
 void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, int try_expand);
 
 typedef void (*cos_thd_fn_t)(void *);
-thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
-thdcap_t cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx);
+thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data, scbcap_t sched_scbc, thdcap_t sched, dcbcap_t dc, dcboff_t dcboff);
+thdcap_t cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx, scbcap_t sched_scbc, thdcap_t sched, dcbcap_t dc, dcboff_t dcboff);
 /* Create the initial (cos_init) thread */
-thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp);
+thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp, scbcap_t sched_scbc, thdcap_t sched, dcbcap_t dc, dcboff_t off);
+int cos_thd_migrate(struct cos_compinfo *ci, thdcap_t thdc, cpuid_t core);
+/* update the thdcap to migrated core */
+int cos_thdcap_migrate(struct cos_compinfo *ci, thdcap_t thdc);
 
 sinvcap_t cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, invtoken_t token);
 arcvcap_t cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap, arcvcap_t enotif);
@@ -143,13 +154,16 @@ void *cos_page_bump_alloc(struct cos_compinfo *ci);
 void *cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz);
 void *cos_page_bump_allocn_aligned(struct cos_compinfo *ci, size_t sz, size_t align);
 
+void *cos_dcbpg_bump_allocn(struct cos_compinfo *ci, size_t sz);
+void *cos_scbpg_bump_allocn(struct cos_compinfo *ci, size_t sz);
+
 capid_t cos_cap_cpy(struct cos_compinfo *dstci, struct cos_compinfo *srcci, cap_t srcctype, capid_t srccap);
 int     cos_cap_cpy_at(struct cos_compinfo *dstci, capid_t dstcap, struct cos_compinfo *srcci, capid_t srccap);
 
 int cos_thd_switch(thdcap_t c);
 int cos_thd_wakeup(thdcap_t thd, tcap_t tc, tcap_prio_t prio, tcap_res_t res);
 #define CAP_NULL 0
-sched_tok_t cos_sched_sync(void);
+sched_tok_t cos_sched_sync(struct cos_compinfo *ci);
 /*
  * returns 0 on success and errno on failure:
  * -EBUSY: if rcv has pending notifications and if current thread is the thread associated with rcv.
@@ -218,6 +232,7 @@ void    cos_hw_shutdown(hwcap_t hwc);
 
 
 capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
+vaddr_t cos_page_bump_intern_valloc(struct cos_compinfo *ci, size_t sz);
 
 pgtblcap_t cos_shared_pgtbl_alloc(void);
 u32_t cos_cons_into_shared_pgtbl(struct cos_compinfo *ci, pgtblcap_t top_lvl);

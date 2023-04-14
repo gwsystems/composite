@@ -112,7 +112,7 @@ execution_init(int is_init_core)
 	 */
 	ret = args_get_entry("execute", &comps);
 	assert(!ret);
-	if (is_init_core) printc("Execution schedule:\n");
+	if (is_init_core) printc("Execution schedule: %d\n", args_len(&comps));
 	for (cont = args_iter(&comps, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct crt_comp     *comp;
 		int      keylen;
@@ -295,6 +295,8 @@ comps_init(void)
 			/* booter should not have an elf object */
 			assert(!elf_hdr);
 			ret = crt_booter_create(comp, name, id, info);
+			/* composer doesn't need dcb, initiate dcb to 0 */
+			cos_dcb_info_init_ext(&comp->dcb_data[cos_cpuid()], 0, 0, 0, 0);
 			assert(ret == 0);
 		} else {
 			assert(elf_hdr);
@@ -531,10 +533,27 @@ addr_get(compid_t id, addr_t type)
 		return ci->cap_frontier;
 	case ADDR_HEAP_FRONTIER:
 		return ci->vas_frontier;
+	case ADDR_SCB:
+		return ci->scb_uaddr;
 	default:
 		return 0;
 	}
 }
+
+/*int
+scb_mapping(compid_t id, vaddr_t scb_uaddr)
+{
+	assert(0);
+	struct cos_compinfo *ci;
+	struct crt_comp     *target;
+
+	if (!id) id = (compid_t)cos_inv_token();
+	target = boot_comp_get(id);
+
+	ci = cos_compinfo_get(target->comp_res);
+	//if (cos_scb_mapping(ci, ci->comp_cap, ci->pgtbl_cap, ci->scb_cap, scb_uaddr)) BUG();
+	return 0;
+}*/
 
 static void
 booter_init(void)
@@ -543,13 +562,17 @@ booter_init(void)
 
 	cos_meminfo_init(&(boot_info->mi), BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ, BOOT_CAPTBL_SELF_UNTYPED_PT);
 	cos_defcompinfo_init();
-
+	//scbcap_t scbcap = cos_scb_alloc(boot_info);
+	boot_info->scb_uaddr = (vaddr_t)cos_page_bump_intern_valloc(boot_info, PAGE_SIZE);
+	if (cos_scb_mapping(boot_info, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_PT, LLBOOT_CAPTBL_SCB, boot_info->scb_uaddr)) BUG();
 	cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 }
 
 void
 init_done_chkpt(struct crt_comp *c)
 {
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 	struct crt_comp  *new_comp = boot_comp_get(crt_ncomp() + 1);
 	struct crt_chkpt *chkpt;
 	thdcap_t          thdcap;
@@ -583,7 +606,7 @@ init_done_chkpt(struct crt_comp *c)
 		chkpt_comp_init(new_comp, chkpt, name);
 		thdcap = crt_comp_thdcap_get(new_comp);
 		assert(thdcap);
-		if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync()))) {
+		if ((ret = cos_defswitch(thdcap, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync(ci)))) {
 			printc("Switch failure on thdcap %ld, with ret %d\n", thdcap, ret);
 			BUG();
 		}
@@ -601,6 +624,7 @@ init_done(int parallel_init, init_main_t main_type)
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = boot_comp_get(client);
 
+	//printc("[llbooter init done]\n");
 	crt_compinit_done(c, parallel_init, main_type);
 
 #ifdef ENABLE_CHKPT
@@ -639,6 +663,7 @@ cos_parallel_init(coreid_t cid, int is_init_core, int ncores)
 void
 cos_init(void)
 {
+	printc("booter_init\n");
 	booter_init();
 	cos_defcompinfo_sched_init();
 	comps_init();

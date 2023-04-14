@@ -11,6 +11,7 @@
 typedef enum {
 	ADDR_HEAP_FRONTIER,
 	ADDR_CAPTBL_FRONTIER,
+	ADDR_SCB,
 } addr_t;
 
 unsigned long addr_get(compid_t id, addr_t type);

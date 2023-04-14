@@ -28,7 +28,6 @@ printc(char *fmt, ...)
 	char    s[180];
 	va_list arg_ptr;
 	size_t  ret;
-
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, 180, fmt, arg_ptr);
 	va_end(arg_ptr);

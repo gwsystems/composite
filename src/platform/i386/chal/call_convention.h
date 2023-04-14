@@ -172,10 +172,10 @@ copy_all_regs(struct pt_regs *from, struct pt_regs *to)
  * because user space cannot modified them, and the kernel
  * also doesn't need to change its value.
  */
-	// COPY_REG(ds);
-	// COPY_REG(es);
-	// COPY_REG(fs);
-	// COPY_REG(gs);
+	//COPY_REG(ds);
+	//COPY_REG(es);
+	//COPY_REG(fs);
+	//COPY_REG(gs);
 
 	COPY_REG(orig_ax);
 	COPY_REG(ip);

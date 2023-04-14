@@ -56,7 +56,7 @@ test_aeps(void)
 		asndcap_t snd;
 
 		printc("\tCreating AEP [%lu]\n", i);
-		ret = cos_aep_tcap_alloc(&(test_aep[i]), BOOT_CAPTBL_SELF_INITTCAP_BASE, aep_thd_fn, (void *)i);
+		ret = cos_aep_tcap_alloc(&(test_aep[i]), BOOT_CAPTBL_SELF_INITTCAP_BASE, aep_thd_fn, (void *)i, 0, 0);
 		assert(ret == 0);
 
 		snd = cos_asnd_alloc(ci, test_aep[i].rcv, ci->captbl_cap);
@@ -76,6 +76,8 @@ test_aeps(void)
 static void
 test_childcomps(void)
 {
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 	int id, ret;
 
 	printc("Test switching to new components\n");
@@ -90,7 +92,7 @@ test_childcomps(void)
 		printc("\tSwitching to [%d] component\n", id);
 		if (id == CHILD_SCHED_ID) {
 			ret = cos_switch(cos_sched_aep_get(&child_defci[id])->thd, cos_sched_aep_get(&child_defci[id])->tc, CHILD_SCHED_PRIO,
-			                 TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync());
+			                 TCAP_TIME_NIL, BOOT_CAPTBL_SELF_INITRCV_BASE, cos_sched_sync(ci));
 			assert(ret == 0);
 		} else {
 			cycles_t    now;
@@ -99,7 +101,7 @@ test_childcomps(void)
 			rdtscll(now);
 			timer = tcap_cyc2time(now + 100 * cycs_per_usec);
 
-			ret = cos_defswitch(cos_sched_aep_get(&child_defci[id])->thd, timer, CHILD_SCHED_PRIO, cos_sched_sync());
+			ret = cos_defswitch(cos_sched_aep_get(&child_defci[id])->thd, timer, CHILD_SCHED_PRIO, cos_sched_sync(ci));
 			assert(ret == 0);
 		}
 	}
@@ -136,7 +138,7 @@ cos_init(void)
 
 			cos_meminfo_init(&(child_ci->mi), BOOT_MEM_KM_BASE, CHILD_UNTYPED_SIZE, child_utpt);
 			cos_defcompinfo_child_alloc(&child_defci[id], (vaddr_t)&__cosrt_upcall_entry,
-			                            (vaddr_t)BOOT_MEM_VM_BASE, BOOT_CAPTBL_FREE, is_sched);
+			                            (vaddr_t)BOOT_MEM_VM_BASE, BOOT_CAPTBL_FREE, is_sched, NULL);
 
 			printc("\t\tCopying new capabilities\n");
 			ret = cos_cap_cpy_at(child_ci, BOOT_CAPTBL_SELF_CT, ci, child_ci->captbl_cap);

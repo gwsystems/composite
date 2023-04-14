@@ -7,6 +7,7 @@
 #include <cos_types.h>
 #include <init.h>
 #include <barrier.h>
+#include <dcb.h>
 #include <protdom.h>
 
 typedef unsigned long crt_refcnt_t;
@@ -91,10 +92,12 @@ struct crt_comp {
 
 	prot_domain_t protdom;
 	capid_t second_lvl_pgtbl_cap;
+	struct cos_dcbinfo_data dcb_data[NUM_CPU];
+	vaddr_t init_dcb_addr[NUM_CPU];
+	scbcap_t scb;
 
 	u32_t                  vas_id;
 	struct protdom_ns_vas *ns_vas;
-
 };
 
 struct crt_comp_resources {
@@ -104,6 +107,7 @@ struct crt_comp_resources {
 	cap_t       captbl_frontier;
 	vaddr_t     heap_ptr;
 	vaddr_t     info;
+	vaddr_t     scb_uaddr;
 };
 
 struct crt_chkpt {
@@ -152,6 +156,7 @@ struct crt_rcv_resources {
 	thdcap_t        thd;
 	arcvcap_t       rcv;
 	thdid_t         tid;
+	vaddr_t         dcb;
 };
 
 typedef enum {
@@ -195,13 +200,13 @@ int crt_asnd_create(struct crt_asnd *s, struct crt_rcv *r);
 int crt_asnd_alias_in(struct crt_asnd *s, struct crt_comp *c, struct crt_asnd_resources *res);
 
 typedef cos_thd_fn_t crt_thd_fn_t;
-int crt_rcv_create(struct crt_rcv *r, struct crt_comp *self, crt_thd_fn_t fn, void *data);
-int crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t closure_id, crt_rcv_flags_t flags);
+int crt_rcv_create(struct crt_rcv *r, struct crt_comp *self, crt_thd_fn_t fn, scbcap_t scb, void *data);
+int crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t closure_id, crt_rcv_flags_t flags, scbcap_t scb, vaddr_t *dcbaddr);
 int crt_rcv_create_with(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resources *rs);
 int crt_rcv_alias_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv_resources *res, crt_rcv_alias_t flags);
 
-int crt_thd_create(struct crt_thd *t, struct crt_comp *self, crt_thd_fn_t fn, void *data);
-int crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, thdclosure_index_t closure_id);
+int crt_thd_create(struct crt_thd *t, struct crt_comp *self, struct crt_comp *sched, crt_thd_fn_t fn, void *data);
+int crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, struct crt_comp *sched, dcbcap_t dcbcap, dcboff_t dcboff, thdclosure_index_t closure_id);
 int crt_thd_create_with(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resources *rs);
 int crt_thd_alias_in(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resources *res);
 
@@ -221,6 +226,8 @@ void crt_compinit_exit(struct crt_comp *c, int retval);
 
 int crt_chkpt_create(struct crt_chkpt *chkpt, struct crt_comp *c);
 int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
+
+dcbcap_t crt_dcb_create_in(struct crt_comp *c, vaddr_t *dcb_addr);
 
 int crt_ulk_init(void);
 int crt_ulk_map_in(struct crt_comp *c);

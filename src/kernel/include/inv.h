@@ -290,10 +290,10 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	 * optimize the static branch prediction.
 	 */
 	if (unlikely(!ltbl_isalive(&(sinvc->comp_info.liveness)))) {
-		printk("cos: sinv comp (liveness %d) doesn't exist!\n", sinvc->comp_info.liveness.id);
-		// FIXME: add fault handling here.
-		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
-		return;
+	 	printk("cos: sinv comp (liveness %d) doesn't exist!\n", sinvc->comp_info.liveness.id);
+	 	// FIXME: add fault handling here.
+	 	__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
+	 	return;
 	}
 
 	if (unlikely(thd_invstk_push(thd, &sinvc->comp_info, ip, sp, cos_info))) {
@@ -301,6 +301,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 		return;
 	}
 
+	//printk("[[[[[[[[[[ ");
 	pgtbl_update(&sinvc->comp_info.pgtblinfo);
 	chal_protdom_write(sinvc->comp_info.pgtblinfo.protdom);
 
@@ -318,6 +319,7 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	struct comp_info *ci;
 	unsigned long     ip, sp;
 	prot_domain_t     protdom;
+	struct cos_scb_info *scb_core = (thd->scb_cached + get_cpuid());
 
 	ci = thd_invstk_pop(thd, &ip, &sp, &protdom, cos_info);
 	if (unlikely(!ci)) {
@@ -332,6 +334,7 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 		return;
 	}
 
+	//printk("]]]]]]]]]] ");
 	pgtbl_update(&ci->pgtblinfo);
 	chal_protdom_write(protdom);
 

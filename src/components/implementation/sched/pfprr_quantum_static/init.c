@@ -120,6 +120,8 @@ struct slm_thd *slm_thd_current_extern(void);
 static __attribute__((noreturn)) void
 exit_init_thd(void)
 {
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 	struct slm_thd *current = slm_thd_current_extern();
 
 	if (cos_coreid() == 0) printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), (compid_t)cos_inv_token());
@@ -129,7 +131,7 @@ exit_init_thd(void)
 	slm_cs_exit(NULL, SLM_CS_NONE);
 
 	/* Switch to the scheduler thread */
-	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync())) BUG();
+	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync(ci))) BUG();
 
 	BUG();
 	while (1) ;
@@ -224,6 +226,8 @@ slm_comp_init_loop(void)
 {
 	unsigned long init_schedule_current = 0, i;
 	struct slm_thd *current;
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
 	if (cos_coreid() == 0) printc("Scheduler %ld: Running initialization thread.\n", cos_compid());
 	/* If there are more components to initialize */
@@ -257,7 +261,9 @@ slm_comp_init_loop(void)
 		 * thread, so the spin isn't really wasting many
 		 * resources.
 		 */
-		while (ps_load(&n->initialization_thds[cos_coreid()]) == NULL) ;
+		while (ps_load(&n->initialization_thds[cos_coreid()]) == NULL) {
+			cos_defswitch(t->thd, t->priority, slm_global()->timeout_next, cos_sched_sync(ci));
+		}
  	}
 
 	if (cos_coreid() == 0) printc("Scheduler %ld, initialization completed.\n", cos_compid());

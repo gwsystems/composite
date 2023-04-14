@@ -10,6 +10,7 @@
 
 #include <consts.h>
 #include <cos_types.h>
+#include <cos_sched.h>
 #include <util.h>
 #include <string.h>
 #include <bitmap.h>
@@ -151,7 +152,6 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 		word_t bp;
 		word_t sp;
 	} frame_ctx;
-
 
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
@@ -335,7 +335,29 @@ cos_compid_set(compid_t cid)
 static inline void *
 cos_get_heap_ptr(void)
 {
-	return (void *)__cosrt_comp_info.cos_heap_ptr;
+	unsigned int off = COS_SCB_SIZE; 
+	return (void *)(__cosrt_comp_info.cos_heap_ptr + off);
+}
+
+static inline struct cos_scb_info *
+cos_scb_info_get(void)
+{
+    return (struct cos_scb_info *)(__cosrt_comp_info.cos_heap_ptr);
+}
+
+static inline struct cos_scb_info *
+cos_scb_info_get_core(void)
+{
+    return cos_scb_info_get() + cos_cpuid();
+}
+
+static inline struct cos_dcb_info *
+cos_init_dcb_get(void)
+{
+    /* created at boot-time for the first component in the system! */
+    if (cos_spd_id() == 0) return (struct cos_dcb_info *)(__cosrt_comp_info.cos_heap_ptr + COS_SCB_SIZE);
+
+    return NULL;
 }
 
 static inline void

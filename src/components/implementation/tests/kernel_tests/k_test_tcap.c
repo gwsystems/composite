@@ -48,7 +48,7 @@ test_timer(void)
         long long   time, mask;
         tcap_time_t timer, thd_timeout;
 
-        tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
+        tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL, 0, 0, 0, 0);
 
         perfdata_init(&result, "COS THD => COS_THD_SWITCH", test_results, ARRAY_SIZE);
 
@@ -56,7 +56,7 @@ test_timer(void)
                 rdtscll(now);
                 timer = tcap_cyc2time(now + GRANULARITY * cyc_per_usec);
                 cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
-                           cos_sched_sync());
+                           cos_sched_sync(&booter_info));
                 p = c;
                 rdtscll(c);
                 time = (c - now - (cycles_t)(GRANULARITY * cyc_per_usec));
@@ -85,7 +85,7 @@ test_timer(void)
         rdtscll(c);
         timer = tcap_cyc2time(c - GRANULARITY * cyc_per_usec);
         cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
-                    cos_sched_sync());
+                    cos_sched_sync(&booter_info));
         p = c;
         rdtscll(c);
 
@@ -101,7 +101,7 @@ test_timer(void)
         rdtscll(c);
         timer = tcap_cyc2time(c);
         cos_switch(tc, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
-                    cos_sched_sync());
+                    cos_sched_sync(&booter_info));
         p = c;
         rdtscll(c);
 
@@ -139,7 +139,7 @@ exec_cluster_alloc(struct exec_cluster *e, cos_thd_fn_t fn, void *d, arcvcap_t p
 {
         e->tcc = cos_tcap_alloc(&booter_info);
         if (EXPECT_LL_LT(1, e->tcc, "Cluster Allocation: TCAP ALLOC")) return -1;
-        e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d);
+        e->tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, fn, d, 0, 0, 0, 0);
         if (EXPECT_LL_LT(1, e->tc, "Cluster Allocation: THD ALLOC")) return -1;
         e->rc = cos_arcv_alloc(&booter_info, e->tc, e->tcc, booter_info.comp_cap, parentc);
         if (EXPECT_LL_LT(1, e->rc, "Cluster Allocation: ARCV ALLOC")) return -1;
@@ -193,7 +193,7 @@ test_2timers(void)
         rdtscll(s);
         timer = tcap_cyc2time(s + GRANULARITY * cyc_per_usec);
         if (cos_switch(bt[cos_cpuid()].c.tc, bt[cos_cpuid()].c.tcc, TCAP_PRIO_MAX + 2,
-                       timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync())) {
+                       timer, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync(&booter_info))) {
                 EXPECT_LL_NEQ(0, 1, "TCAP v. Timer: COS Switch");
                 return;
         }
@@ -219,7 +219,7 @@ test_2timers(void)
         rdtscll(s);
         timer = tcap_cyc2time(s + GRANULARITY * TIMER_TIME);
         if (EXPECT_LL_NEQ(0, cos_switch(bt[cos_cpuid()].c.tc, bt[cos_cpuid()].c.tcc, TCAP_PRIO_MAX + 2, timer,
-                                        BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync()), "TCAP v. TImer: COS Switch")) {
+                                        BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync(&booter_info)), "TCAP v. TImer: COS Switch")) {
                 return;
         }
 
@@ -264,7 +264,7 @@ test_tcap_budgets_single(void)
 
                 rdtscll(s);
                 if (cos_switch(bt[cos_cpuid()].c.tc, bt[cos_cpuid()].c.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL,
-                               BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync())){
+                               BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync(&booter_info))){
                         EXPECT_LL_NEQ(0, 1, "Single Budget: COS Switch");
                         return;
                 }
@@ -337,7 +337,7 @@ test_tcap_budgets_multi(void)
                 mbt[cos_cpuid()].p.cyc = mbt[cos_cpuid()].c.cyc = mbt[cos_cpuid()].g.cyc = 0;
                 rdtscll(s);
                 if (cos_switch(mbt[cos_cpuid()].g.tc, mbt[cos_cpuid()].g.tcc, TCAP_PRIO_MAX + 2, TCAP_TIME_NIL,
-                               BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync())) {
+                               BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync(&booter_info))) {
                         EXPECT_LL_NEQ(0, 1, "Multi Budget: COS Switch");
                         return;
                 }

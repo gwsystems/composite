@@ -19,10 +19,12 @@ COS_SERVER_3RET_STUB(arcvcap_t, capmgr_rcv_create)
 COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_create_thunk)
 {
 	thdid_t retthd = 0;
+	struct cos_dcb_info *retdcb;
 	thdcap_t ret;
 
-	ret = capmgr_thd_create_thunk(p0, &retthd);
+	ret = capmgr_thd_create_thunk(p0, &retthd, &retdcb);
 	*r1 = retthd;
+	*r2 = (word_t)retdcb;
 
 	return ret;
 }
@@ -34,6 +36,17 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_create_ext)
 
 	ret = capmgr_thd_create_ext(p0, p1, &retthd);
 	*r1 = retthd;
+
+	return ret;
+}
+
+COS_SERVER_3RET_STUB(int, capmgr_retrieve_dcbinfo)
+{
+	thdid_t ret;
+	struct cos_dcb_info *retdcb;
+
+	ret = capmgr_retrieve_dcbinfo(p0, &retdcb);
+	*r1 = (word_t)retdcb;
 
 	return ret;
 }
@@ -55,7 +68,7 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_initaep_create)
 	int                     owntc  = (p0 << 16) >> 16;
 	cos_channelkey_t        key    =  p1 >> 16;
 	u32_t                   ipimax = (p1 << 16) >> 16;
-	u32_t                ipiwin32b = (u32_t)p2;
+	u32_t                   ipiwin32b = (u32_t)p2;
 	struct cos_aep_info     aep;
 	asndcap_t               snd = 0;
 	thdcap_t                thd;
@@ -73,16 +86,16 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_aep_create_thunk)
 	int                     owntc  =  p0 >> 16;
 	cos_channelkey_t        key    =  p1 >> 16;
 	u32_t                   ipimax = (p1 << 16) >> 16;
-	u32_t                ipiwin32b = (u32_t)p2;
+	u32_t                   ipiwin32b = (u32_t)p2;
 	struct cos_aep_info     aep;
 	asndcap_t               snd;
-	thdcap_t                thd;
+	thdcap_t                thdtidret;
 
-	thd = capmgr_aep_create_thunk(&aep, thunk, owntc, key, ipimax, ipiwin32b);
+	thdtidret = capmgr_aep_create_thunk(&aep, thunk, owntc, key, ipimax, ipiwin32b);
 	*r1 = aep.tid;
 	*r2 = (aep.rcv << 16) | aep.tc;
 
-	return thd;
+	return thdtidret;
 }
 
 COS_SERVER_3RET_STUB(thdcap_t, capmgr_aep_create_ext)

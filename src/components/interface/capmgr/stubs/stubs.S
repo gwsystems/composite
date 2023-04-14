@@ -10,6 +10,7 @@
 cos_asm_stub_indirect(capmgr_initthd_create)
 cos_asm_stub_indirect(capmgr_thd_create_thunk)
 cos_asm_stub_indirect(capmgr_thd_create_ext)
+cos_asm_stub_indirect(capmgr_retrieve_dcbinfo)
 
 cos_asm_stub_indirect(capmgr_initaep_create)
 cos_asm_stub_indirect(capmgr_aep_create_thunk)
@@ -18,6 +19,8 @@ cos_asm_stub_indirect(capmgr_aep_create_ext)
 cos_asm_stub_indirect(capmgr_rcv_create)
 
 cos_asm_stub(capmgr_set_tls)
+cos_asm_stub(capmgr_ctrlblk_get)
+cos_asm_stub(capmgr_sched_initdcb_get)
 cos_asm_stub(capmgr_asnd_create)
 cos_asm_stub(capmgr_asnd_rcv_create)
 cos_asm_stub(capmgr_asnd_key_create)

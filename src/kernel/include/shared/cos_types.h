@@ -117,6 +117,7 @@ typedef enum {
 	CAPTBL_OP_THDACTIVATE,
 	CAPTBL_OP_THDDEACTIVATE,
 	CAPTBL_OP_THDTLSSET,
+	CAPTBL_OP_THDMIGRATE,
 	CAPTBL_OP_COMPACTIVATE,
 	CAPTBL_OP_COMPDEACTIVATE,
 	CAPTBL_OP_SINVACTIVATE,
@@ -165,6 +166,12 @@ typedef enum {
 	CAPTBL_OP_HW_TLBSTALL,
 	CAPTBL_OP_HW_TLBSTALL_RECOUNT,
 
+	CAPTBL_OP_SCB_ACTIVATE,
+	CAPTBL_OP_SCB_MAPPING,
+	CAPTBL_OP_SCB_DEACTIVATE,
+
+	CAPTBL_OP_DCB_ACTIVATE,
+	CAPTBL_OP_DCB_DEACTIVATE,
 	CAPTBL_OP_ULK_MEMACTIVATE,
 
 } syscall_op_t;
@@ -184,6 +191,8 @@ typedef enum {
 	CAP_QUIESCENCE, /* when deactivating, set to track quiescence state */
 	CAP_TCAP,       /* tcap captable entry */
 	CAP_HW,         /* hardware (interrupt) */
+	CAP_SCB,        /* Scheduler control block (SCB) */
+	CAP_DCB,        /* Dispatch control block (DCB) */
 	CAP_ULK,        /* a page of ULK memory */
 } cap_t;
 
@@ -244,6 +253,8 @@ __captbl_cap2sz(cap_t c)
 	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 	case CAP_ULK:
 		return CAP_SZ_32B;
+	case CAP_SCB:
+	case CAP_DCB:
 	case CAP_SINV:
 	case CAP_COMP:
 	case CAP_ASND:
@@ -307,7 +318,7 @@ enum
 
 	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
 	/* round up to next entry */
-	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
+	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP+CAPMAX_ENTRY_SZ, CAPMAX_ENTRY_SZ)
 };
 
 #define BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE + cpuid * CAP16B_IDSZ)
@@ -317,6 +328,16 @@ enum
 #define BOOT_CAPTBL_SELF_INITTHD_CPU_BASE (BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cos_cpuid()))
 #define BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE (BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cos_cpuid()))
 #define BOOT_CAPTBL_SELF_INITRCV_CPU_BASE (BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cos_cpuid()))
+
+enum llboot_scb_dcb_caps
+{
+	LLBOOT_CAPTBL_SCB     = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ),
+	LLBOOT_CAPTBL_INITDCB = LLBOOT_CAPTBL_SCB + CAP64B_IDSZ,
+	LLBOOT_CAPTBL_FREE    = round_up_to_pow2(LLBOOT_CAPTBL_INITDCB + (CAP64B_IDSZ * NUM_CPU), CAPMAX_ENTRY_SZ),
+};
+
+#define LLBOOT_CAPTBL_INITDCB_CPU(cpuid) (LLBOOT_CAPTBL_INITDCB + (CAP64B_IDSZ * cpuid))
+#define LLBOOT_CAPTBL_CPU_INITDCB        LLBOOT_CAPTBL_INITDCB_CPU(cos_cpuid())
 
 /*
  * The half of the first page of init captbl is devoted to root node. So, the
@@ -332,6 +353,8 @@ enum
 {
 	/* thread id */
 	THD_GET_TID,
+	THD_GET_DCB_IP,
+	THD_GET_DCB_SP,
 };
 
 enum
@@ -346,6 +369,12 @@ enum
 	ARCV_GET_CPUID,
 	/* TID of the thread arcv is associated with */
 	ARCV_GET_THDID,
+};
+
+enum
+{
+	/* get current thread info from scb */
+	COMP_GET_SCB_CURTHD,
 };
 
 /* Macro used to define per core variables */
@@ -468,6 +497,32 @@ struct cos_stack_freelists {
 /* #error "Assembly in <fill in file name here> requires that COMP_INFO_STACK_FREELISTS != 1 ||
  * COMP_INFO_TMEM_STK_RELINQ != 0.  Change the defines, or change the assembly" */
 /* #endif */
+/*struct cos_scb_info {
+	capid_t     curr_thd;
+	cycles_t    timer_next;
+	sched_tok_t sched_tok;
+} CACHE_ALIGNED;
+
+struct cos_dcb_info {
+	unsigned long ip;
+	unsigned long sp;
+} __attribute__((packed));*/
+
+/*
+ * This is the "ip" the kernel uses to update the thread when it sees that the
+ * thread is still in user-level dispatch routine.
+ * This is the offset of instruction after resetting the "next" thread's "sp" to zero
+ * in a purely user-level dispatch.
+ *
+ * Whenever kernel is switching to a thread which has "sp" non-zero, it would switch
+ * to the "ip" saved in the dcb_info and reset the "sp" of the thread that the kernel
+ * is dispatching to!
+ * This is necessary because, if the kernel is dispatching to a thread that was in the
+ * user-level dispatch routine before, then the only registers that it can restore are
+ * "ip" and "sp", everything else is either clobbered or saved/loaded at user-level.
+ */
+
+//#define DCB_IP_KERN_OFF 8
 
 struct ulk_invstk_entry {
 	capid_t sinv_cap;

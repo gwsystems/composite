@@ -142,7 +142,7 @@ sched_thd_yield_to(thdid_t t)
 
 	assert(to);
 	if (!to) return -1;
-
+	assert(current != to);
 	slm_cs_enter(current, SLM_CS_NONE);
         slm_sched_yield(current, to);
 	ret = slm_cs_exit_reschedule(current, SLM_CS_NONE);
@@ -158,6 +158,34 @@ sched_set_tls(void* tls_addr)
 	thdcap_t thdcap = current->thd;
 
 	capmgr_set_tls(thdcap, tls_addr);
+}
+
+arcvcap_t sched_arcv_create(thdid_t tid) { BUG(); return 0; }
+
+asndcap_t sched_asnd_create(thdid_t tid) { BUG(); return 0; }
+
+int
+sched_asnd(thdid_t tid)
+{
+	struct slm_thd *thd = slm_thd_lookup(tid);
+
+	assert(thd->asnd);
+	int ret = cos_asnd(thd->asnd, 1);
+
+	return ret;
+}
+
+int
+sched_arcv(thdid_t tid)
+{
+	int rcvd = 0, pending = 0;
+	struct slm_thd *thd = slm_thd_lookup(tid);
+
+	assert(thd->rcv);
+	pending = cos_rcv(thd->rcv, RCV_ALL_PENDING, &rcvd);
+	assert(pending == 0);
+
+	return rcvd;
 }
 
 int
@@ -373,6 +401,8 @@ trace_add(int reading)
 int
 syncipc_call(int ipc_ep, word_t arg0, word_t arg1, word_t *ret0, word_t *ret1)
 {
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 	struct slm_thd *t = slm_thd_current(), *switchto, *client;
 	/* avoid the conditional for bounds checking, ala Nova */
 	struct ipc_ep *ep = &eps[ipc_ep % IPC_EP_NUM];
@@ -384,7 +414,7 @@ syncipc_call(int ipc_ep, word_t arg0, word_t arg1, word_t *ret0, word_t *ret1)
 	/* No server thread yet? Nothing to do here. */
 	if (ep->server == NULL) return -EAGAIN;
 	while (1) {
-		tok      = cos_sched_sync();
+		tok      = cos_sched_sync(ci);
 		switchto = ps_load(&ep->server);
 
 
@@ -438,6 +468,8 @@ syncipc_call(int ipc_ep, word_t arg0, word_t arg1, word_t *ret0, word_t *ret1)
 int
 syncipc_reply_wait(int ipc_ep, word_t arg0, word_t arg1, word_t *ret0, word_t *ret1)
 {
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 	struct slm_thd *t = slm_thd_current(), *client;
 	/* avoid the conditional for bounds checking, ala Nova */
 	struct ipc_ep *ep = &eps[ipc_ep % IPC_EP_NUM];
@@ -493,7 +525,7 @@ syncipc_reply_wait(int ipc_ep, word_t arg0, word_t arg1, word_t *ret0, word_t *r
 		 * instead run the highest-priority client.
 		 */
 		trace_add(2);
-		ret = slm_switch_to(t, client, cos_sched_sync(), 1);
+		ret = slm_switch_to(t, client, cos_sched_sync(ci), 1);
 		trace_add(1);
 		if (unlikely(ret) && ret != -EAGAIN) return ret;
 		count_inc(CNT_S_LOOP);
@@ -555,7 +587,7 @@ slm_ipithd_create(thd_fn_t fn, void * data, crt_rcv_flags_t flags, thdcap_t *thd
 	thd = slm_thd_from_container(t);
 
 	slm_cs_enter(current, SLM_CS_NONE);
-	if (slm_thd_init(thd, _thd, _tid)) ERR_THROW(NULL, free);
+	if (slm_thd_init(thd, _thd, _tid, NULL)) ERR_THROW(NULL, free);
 
 	slm_thd_mem_activate(t);
 
@@ -603,7 +635,7 @@ slm_ipi_process(void *d)
 void
 parallel_main(coreid_t cid)
 {
-	if (cid == 0) printc("Starting scheduler loop...\n");
+	if (cid == 0) printc("Starting scheduler loop: %ld...\n", cos_thdid());
 	slm_sched_loop_nonblock();
 }
 
@@ -611,6 +643,7 @@ void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
 	struct slm_thd_container *t;
+	struct cos_dcb_info *dcb;
 	struct slm_thd *r;
 	thdcap_t thdcap, ipithdcap;
 	arcvcap_t rcvcap;
@@ -619,10 +652,13 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 
 	cos_defcompinfo_sched_init();
 
-	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid);
+	t = slm_thd_alloc(slm_idle, NULL, &thdcap, &tid, &dcb);
+
 	if (!t) BUG();
 
-	slm_init(thdcap, tid);
+	vaddr_t init_dcb = capmgr_sched_initdcb_get();
+
+	slm_init(thdcap, tid, (struct cos_dcb_info *)init_dcb, dcb);
 
 	r = slm_ipithd_create(slm_ipi_process, NULL, 0, &ipithdcap, &ipitid);
 	if (!r) BUG();
@@ -639,4 +675,7 @@ cos_init(void)
 	extern void calculate_initialization_schedule(void);
 	calculate_initialization_schedule();
 	cos_defcompinfo_init();
+
+	boot_info->scb_uaddr = capmgr_ctrlblk_get(CB_ADDR_SCB);
+	//if (capmgr_scb_mapping(0)) BUG();
 }

@@ -100,7 +100,7 @@ test_async_endpoints(void)
 
         /* parent rcv capabilities */
         tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent,
-                            (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE);
+                            (void *)BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, 0, 0, 0, 0);
         if (EXPECT_LL_LT(1, tcp, "Test Async Endpoints")) {
                 return;
         }
@@ -118,7 +118,7 @@ test_async_endpoints(void)
         }
 
         /* child rcv capabilities */
-        tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void *)tcp);
+        tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void *)tcp, 0, 0, 0, 0);
         if (EXPECT_LL_LT(1, tcc, "Test Async Endpoints")) {
                 return;
         }

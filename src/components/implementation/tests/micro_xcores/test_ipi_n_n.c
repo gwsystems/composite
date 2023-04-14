@@ -49,7 +49,7 @@ test_rcv_crt(void)
                 asndcap_t snd = 0;
 
                 if ((word_t)cos_cpuid() == i) continue;
-                thd = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_ipi_fn, (void *)i);
+                thd = cos_thd_alloc(&booter_info, booter_info.comp_cap, test_ipi_fn, (void *)i, 0, 0, 0, 0);
                 assert(thd);
 
                 rcv = cos_arcv_alloc(&booter_info, thd, BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE);
@@ -116,7 +116,7 @@ test_thd_act(void)
                 if (test_thd_blkd[cos_cpuid()][i]) continue;
 
                 do {
-                        ret = cos_switch(test_rthds[cos_cpuid()][i], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync());
+                        ret = cos_switch(test_rthds[cos_cpuid()][i], BOOT_CAPTBL_SELF_INITTCAP_CPU_BASE, 0, 0, BOOT_CAPTBL_SELF_INITRCV_CPU_BASE, cos_sched_sync(&booter_info));
                 } while (ret == -EAGAIN);
                 if (ret == -EBUSY) break;
         }

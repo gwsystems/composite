@@ -51,7 +51,7 @@ slm_thd_special(void)
 }
 
 static int
-slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid)
+slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid, struct cos_dcb_info *dcb)
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
@@ -64,8 +64,9 @@ slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid)
 		.tid = tid,
 		.state = SLM_THD_RUNNABLE,
 		.priority = TCAP_PRIO_MIN,
+		.properties = 0,
+		.dcb = dcb,
 		.cpuid = cos_cpuid(),
-		.properties = 0
 	};
 	ps_list_init(t, thd_list);
 	ps_list_init(t, graveyard_list);
@@ -82,11 +83,11 @@ slm_thd_deinit_internal(struct slm_thd *t)
 }
 
 int
-slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid)
+slm_thd_init(struct slm_thd *t, thdcap_t thd, thdid_t tid, struct cos_dcb_info *dcb)
 {
 	int ret;
 
-	if ((ret = slm_thd_init_internal(t, thd, tid))) return ret;
+	if ((ret = slm_thd_init_internal(t, thd, tid, dcb))) return ret;
 	if ((ret = slm_timer_thd_init(t))) return ret;
 	if ((ret = slm_sched_thd_init(t))) return ret;
 
@@ -489,7 +490,9 @@ slm_sched_loop_intern(int non_block)
 			 * to the potential blocking.
 			 */
 			pending = cos_sched_rcv(us->rcv, rfl, g->timeout_next, &rcvd, &tid, &blocked, &cycles, &thd_timeout);
+
 			if (!tid) goto pending_events;
+			assert(pending >= 0);
 			/*
 			 * FIXME: kernel should pass an untyped
 			 * pointer back here that we can use instead
@@ -527,7 +530,9 @@ slm_sched_loop_intern(int non_block)
 
 pending_events:
 			/* No events? make a scheduling decision */
-			if (ps_list_head_empty(&g->event_head)) break;
+			if (ps_list_head_empty(&g->event_head)) {
+				break;
+			}
 
 			/*
 			 * Receiving scheduler notifications is not in critical section mainly for
@@ -564,7 +569,9 @@ pending_events:
 		if (slm_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
 		ret = slm_cs_exit_reschedule(us, SLM_CS_CHECK_TIMEOUT);
-		if (ret && ret != -EAGAIN) BUG();
+		if (ret && ret != -EAGAIN) {
+			BUG();
+		}
 	}
 }
 
@@ -581,15 +588,17 @@ slm_sched_loop_nonblock(void)
 }
 
 void
-slm_init(thdcap_t thd, thdid_t tid)
+slm_init(thdcap_t thd, thdid_t tid, struct cos_dcb_info *initdcb, struct cos_dcb_info *dcb)
 {
 	struct slm_global *g = slm_global();
 	struct slm_thd *s    = &g->sched_thd;
 	struct slm_thd *i    = &g->idle_thd;
 	struct cos_defcompinfo *defci;
 	struct cos_aep_info    *sched_aep;
+	struct cos_compinfo    *ci;
 
 	defci = cos_defcompinfo_curr_get();
+	ci = cos_compinfo_get(defci);
 	sched_aep = cos_sched_aep_get(defci);
 
 	*s = (struct slm_thd) {
@@ -599,6 +608,7 @@ slm_init(thdcap_t thd, thdid_t tid)
 		.thd = sched_aep->thd,
 		.tid = sched_aep->tid,
 		.rcv = sched_aep->rcv,
+		.dcb = initdcb,
 		.cpuid = cos_cpuid(),
 		.priority = TCAP_PRIO_MAX
 	};
@@ -613,6 +623,7 @@ slm_init(thdcap_t thd, thdid_t tid)
 		.thd = thd,
 		.tid = tid,
 		.rcv = 0,
+		.dcb = (struct cos_dcb_info *)dcb,
 		.cpuid = cos_cpuid(),
 		.priority = TCAP_PRIO_MIN
 	};
@@ -624,6 +635,9 @@ slm_init(thdcap_t thd, thdid_t tid)
 
 	g->cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 	g->lock.owner_contention = 0;
+
+	assert(sizeof(struct cos_scb_info) * NUM_CPU <= COS_SCB_SIZE && COS_SCB_SIZE == PAGE_SIZE);
+	g->scb = (struct cos_scb_info *)ci->scb_uaddr;
 
 	slm_sched_init();
 	slm_timer_init();
