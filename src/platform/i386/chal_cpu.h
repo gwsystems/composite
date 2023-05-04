@@ -46,7 +46,7 @@ typedef enum {
 	XCR0_AVX      = 1 << 2,  /* AVX enable */
 } xcr0_flags_t;
 
-static inline word_t 
+static inline word_t
 chal_cpu_cr0_get(void)
 {
 	word_t config;
@@ -89,7 +89,7 @@ chal_cpu_cr4_set(cr4_flags_t flags)
 static inline u64_t
 chal_cpu_xgetbv(u32_t xcr_n)
 {
-	u32_t low, high; 
+	u32_t low, high;
 	u64_t ret;
 
 	asm volatile(
@@ -148,7 +148,7 @@ chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 
 #if defined(__x86_64__)
 #define MSR_IA32_EFER		0xC0000080
-#define MSR_STAR 		0xC0000081 
+#define MSR_STAR 		0xC0000081
 #define MSR_LSTAR 		0xC0000082
 #define MSR_SFMASK 		0xC0000084
 
@@ -195,8 +195,26 @@ chal_cpu_init(void)
 	u32_t a = 0, b = 0, c = 0, d = 0;
 	word_t cr0;
 
+	a = 0x07;
+	c = 0;
+	chal_cpuid(&a, &b, &c, &d);
+	if (c & (1 << 3)) {
+		cr4 |= CR4_PKE;
+		printk("CPU supports MPK: enabling.\n");
+#ifndef MPK_ENABLE
+		printk("ERROR: CPU supports MPK, but not enabled in build system. Please set MPK_ENABLE.\n");
+		assert(0);
+#endif
+	} else {
+		printk("CPU does NOT support MPK: not enabling.\n");
+#ifdef MPK_ENABLE
+		printk("ERROR: MPK not supported by hardware, but enabled in build system. Please unset MPK_ENABLE.");
+		assert(0);
+#endif
+	}
+
 	/* CR4_OSXSAVE has to be set to enable xgetbv/xsetbv */
-	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE | CR4_PKE | CR4_PCIDE);
+	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE | CR4_PCIDE);
 
 	/* I'm not sure this is the best spot for this */
 	assert(sizeof(struct ulk_invstk) == ULK_INVSTK_SZ);
