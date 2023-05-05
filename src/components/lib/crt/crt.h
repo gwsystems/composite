@@ -231,6 +231,7 @@ dcbcap_t crt_dcb_create_in(struct crt_comp *c, vaddr_t *dcb_addr);
 
 int crt_ulk_init(void);
 int crt_ulk_map_in(struct crt_comp *c);
+int crt_ulk_map_scb(struct crt_comp *comp);
 
 
 /*

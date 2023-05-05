@@ -675,6 +675,7 @@ capmgr_execution_init(int is_init_core)
 
 			capmgr_dcb_info_init(cmc);
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, &r->rcv))) BUG();
+			crt_ulk_map_scb(comp);
 			ss_rcv_activate(r);
 			cmc->sched_rcv[cos_cpuid()] = r;
 			if (is_init_core) printc("\tCreated scheduling execution for %ld\n", id);
