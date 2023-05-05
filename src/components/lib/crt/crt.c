@@ -40,6 +40,7 @@
  *   the destination capabilities in `crt_*_resources`.
  */
 
+#include "cos_kernel_api.h"
 #include <stdlib.h>
 
 #include <cos_defkernel_api.h>
@@ -108,12 +109,18 @@ crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c)
 }
 
 int
-crt_ulk_init(void)
+crt_ulk_init()
 {
 	cos_ulk_info_init(cos_compinfo_get(cos_defcompinfo_curr_get()));
 	cos_ulk_map_in(cos_compinfo_get(cos_defcompinfo_curr_get())->pgtbl_cap);
 
 	return 0;
+}
+
+int 
+crt_ulk_map_scb(struct crt_comp *comp)
+{
+	return cos_ulk_map_scb(cos_compinfo_get(cos_defcompinfo_curr_get()), comp->scb);
 }
 
 int
@@ -1145,7 +1152,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		ps_lock_take(&_lock);
 		c->scb = cos_scb_alloc(ci);
 		target_ci->scb_uaddr = (vaddr_t)cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
-		if (cos_scb_mapping(target_ci, target_ci->comp_cap, target_ci->pgtbl_cap, c->scb, 0)) BUG();
+		if (cos_scb_mapping(target_ci, target_ci->comp_cap, target_ci->pgtbl_cap, c->scb, target_ci->scb_uaddr)) BUG();
 
 		if (crt_rcv_create_in(r, c, 0, 0, 0, c->scb, &init_dcb)) BUG();
 		c->init_dcb_addr[cos_cpuid()] = init_dcb;

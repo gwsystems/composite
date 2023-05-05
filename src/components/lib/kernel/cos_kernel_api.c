@@ -782,8 +782,14 @@ void
 cos_ulk_info_init(struct cos_compinfo *ci)
 {
 	__cos_ulk_info.toplvl = cos_ulk_pgtbl_create(ci, &__cos_ulk_info.secondlvl);
-	__cos_ulk_info.pg_frontier = ULK_BASE_ADDR + __thdid_alloc * sizeof(struct ulk_invstk);
+	__cos_ulk_info.pg_frontier = round_to_page(ULK_INVSTK_ADDR + __thdid_alloc * sizeof(struct ulk_invstk));
 	assert(__cos_ulk_info.toplvl);
+}
+
+int
+cos_ulk_map_scb(struct cos_compinfo *ci, scbcap_t scbcap)
+{
+	return cos_scb_mapping(ci, ci->comp_cap, __cos_ulk_info.toplvl, scbcap, ULK_SCB_ADDR); 
 }
 
 pgtblcap_t
@@ -1029,7 +1035,7 @@ int
 cos_scb_mapping(struct cos_compinfo *ci,  compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr)
 {
 	assert(ci->scb_uaddr);
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_SCB_MAPPING, comp, ptc, scbc, ci->scb_uaddr)) return 1;
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_SCB_MAPPING, comp, ptc, scbc, scb_uaddr)) return 1;
 
 	return 0;
 }
