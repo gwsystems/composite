@@ -2,17 +2,11 @@
 
 #include <cos_consts.h>
 #include <cos_error.h>
-#include <cos_kern_types.h>
+#include <types.h>
+#include <capabilities.h>
+#include <captbl.h>
 
 #define COS_CAPTBL_0_ENT_NULL 0
-
-struct captbl_internal {
-	captbl_t next[COS_CAPTBL_INTERNAL_NENT];
-};
-
-struct captbl_leaf {
-	struct capability_generic capabilities[COS_PAGE_SIZE / sizeof(struct capability_generic)];
-};
 
 void
 captbl_leaf_initialize(struct captbl_leaf *ct)
@@ -39,12 +33,11 @@ captbl_intern_initialize(struct captbl_internal *ct)
 	}
 }
 
-
-static inline int
+int
 page_is_captbl(page_kerntype_t type)
 { return !(type < COS_PAGE_KERNTYPE_CAPTBL_0 || type >= (COS_PAGE_KERNTYPE_CAPTBL_0 + COS_CAPTBL_MAX_DEPTH)); }
 
-static cos_retval_t
+cos_retval_t
 captbl_construct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset)
 {
 	struct captbl_internal *top_node;
@@ -67,7 +60,7 @@ captbl_construct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset)
 }
 
 /* TODO: should we even need to pass in the second level node? */
-static cos_retval_t
+cos_retval_t
 captbl_deconstruct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset)
 {
 	struct captbl_internal *top_node, *leaf_node;
@@ -87,29 +80,6 @@ captbl_deconstruct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset)
 	faa(&leaf_type->refcnt, -1);
 
 	return COS_RET_SUCCESS;
-}
-
-/**
- * `captbl_lookup` finds the capability in a captbl (`ct`) at
- * capability id `cap`. This function *cannot fail*, and the `cap` is
- * treated as wrapping in the capability namespace.
- */
-COS_FORCE_INLINE static inline struct capability_generic *
-captbl_lookup(captbl_t ct, cos_cap_t cap)
-{
-	/*
-	 * NOTE: we're avoiding a bounds check on the `cap` here, and
-	 * are instead wrapping around the captbl if `cap` is larger
-	 * than the namespace. This is on the fastpath, so we want to
-	 * avoid conditionals.
-	 */
-	int top_off  = (cap / (COS_CAPTBL_LEAF_NENT)) & (COS_CAPTBL_INTERNAL_NENT - 1);
-	int leaf_off = cap & (COS_CAPTBL_LEAF_NENT - 1);
-
-	struct captbl_internal *top  = (struct captbl_internal *)ct;
-	struct captbl_leaf     *leaf = (struct captbl_leaf *)top->next[top_off];
-
-	return &leaf->capabilities[leaf_off];
 }
 
 /**

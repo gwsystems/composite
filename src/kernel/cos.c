@@ -159,8 +159,9 @@
 #include <chal_types.h>
 #include <consts.h>
 
-#include <cos_resources.h>
-#include <cos_capabilities.h>
+#include <resources.h>
+#include <capabilities.h>
+#include <component.h>
 
 #include <cos_error.h>
 
@@ -760,7 +761,7 @@ capability_activation(struct regs *rs)
 	captbl_t captbl = g->active_captbl;
 	struct thread *t = g->active_thread;
 	struct capability_generic *cap_slot;
-	cos_cap_t cap = regs_arg(rs, 0);
+	cos_cap_t cap = regs_arg(rs, REGS_ARG_CAP);
 	cos_op_bitmap_t ops;
 
         /*
@@ -784,7 +785,7 @@ capability_activation(struct regs *rs)
 		return sinv_invoke(t, &g->invstk_head, rs, sinv_cap);
 	}
 
-	ops = regs_arg(rs, 1);
+	ops = regs_arg(rs, REGS_ARG_OPS);
         /*
 	 * Validate that all of the requested operations are allowed.
          * We didn't need to do this before the synchronous invocation

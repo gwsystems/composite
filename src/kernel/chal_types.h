@@ -13,6 +13,9 @@ typedef uword_t        reg_state_t;       /* the state of a register set: preemp
 #define REGS_NUM_ARGS_RETS  13
 #define REGS_RETVAL_BASE    0
 
+#define REGS_ARG_CAP        0
+#define REGS_ARG_OPS        1
+
 /*
  * The trap frame added onto the stack by interrupts/exceptions. This
  * is only valid/used for traps (interrupts or exceptions), where

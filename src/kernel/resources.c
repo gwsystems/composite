@@ -1,4 +1,5 @@
-#include <cos_resources.h>
+#include <resources.h>
+#include <atomics.h>
 
 struct page_type       page_types[COS_NUM_RETYPEABLE_PAGES] __attribute__((aligned(COS_PAGE_SIZE)));
 struct page            pages[COS_NUM_RETYPEABLE_PAGES];

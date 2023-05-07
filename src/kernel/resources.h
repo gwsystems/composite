@@ -2,7 +2,7 @@
 
 #include <cos_error.h>
 #include <cos_consts.h>
-#include <cos_kern_types.h>
+#include <types.h>
 #include <compiler.h>
 
 struct page_type {

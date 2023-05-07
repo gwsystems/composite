@@ -25,10 +25,3 @@ typedef uword_t        thdid_t;	          /* A thread's id. */
 typedef uword_t        inv_token_t;       /* the token passed to a server when synchronously invoked */
 typedef uword_t        id_token_t;        /* a token that holds an id, either for a thread, or an endpoint */
 typedef uword_t        sync_token_t;      /* the token used to count, thus detect stale, dispatches */
-
-/* Functions marked as fastpaths should generate code without function calls */
-#define COS_FASTPATH     __attribute__((always_inline, flatten))
-/* Simple forced inlining. Can replace the *inline* keyword */
-#define COS_FORCE_INLINE __attribute__((always_inline))
-/* Prevent inlining. Forces error paths to be in separate functions */
-#define COS_NEVER_INLINE __attribute__((noinline))

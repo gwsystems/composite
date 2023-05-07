@@ -28,6 +28,7 @@
 #include <cos_types.h>
 #include <thread.h>
 #include <captbl.h>
+#include <capabilities.h>
 
 COS_FASTPATH static inline struct regs *
 sinv_invoke(struct thread *t, uword_t *head, struct regs *rs, struct capability_sync_inv *cap)

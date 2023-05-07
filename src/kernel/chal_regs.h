@@ -4,6 +4,7 @@
 /* Direct assembly requires single % */
 #define PREFIX(r) %r
 #else
+
 /* Inline assembly requires double % */
 #define PREFIX(r) %%r
 
