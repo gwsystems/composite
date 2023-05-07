@@ -1,0 +1,6 @@
+-I
+./
+-I
+include/
+-I
+../platform/x86_64/

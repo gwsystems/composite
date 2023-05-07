@@ -13,7 +13,7 @@
 #define PGTBL_FLAG_MASK 0xf800000000000fff
 #define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
 #define NUM_ASID_BITS (12)
-#define NUM_ASID_MAX ((1<<NUM_ASID_BITS)-1)
+#define NUM_ASID_MAX ((1 << NUM_ASID_BITS) - 1)
 #define PGTBL_ASID_MASK (0xfff)
 #define CR3_NO_FLUSH (1ul << 63)
 #elif defined(__i386__)
@@ -30,8 +30,6 @@
 #define PGTBL_ENTRY (1 << PGTBL_ENTRY_ORDER)
 #define SUPER_PAGE_FLAG_MASK  (0x3FFFFF)
 #define SUPER_PAGE_PTE_MASK   (0x3FF000)
-
-// #define MPK_ENABLE 1
 
 /* FIXME:find a better way to do this */
 #define EXTRACT_SUB_PAGE(super) ((super) & SUPER_PAGE_PTE_MASK)
@@ -54,6 +52,8 @@ struct cap_pgtbl {
 	struct cap_pgtbl *parent;    /* if !null, points to parent cap */
 	u64_t             frozen_ts; /* timestamp when frozen is set. */
 } __attribute__((packed));
+
+// #define MPK_ENABLE 1
 
 #ifdef MPK_ENABLE
 static inline void
