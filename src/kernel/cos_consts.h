@@ -1,7 +1,7 @@
 #pragma once
 
-#include <cos_arch_consts.h>
-#include <cos_arch_types.h>
+#include <chal_consts.h>
+#include <chal_types.h>
 
 /*
  * Shared Kernel/User Constants and Types
@@ -34,8 +34,6 @@
 #define COS_CAP_TYPE_VMCB         17 /* Virtual Machine context control block shared with user-level */
 #define COS_CAP_TYPE_NIL          18 /* Empty slot that cannot be modified */
 #define COS_CAP_TYPE_NUM          19
-
-typedef u16_t cos_cap_t;
 
 /*
  * The operations that can be performed on capabilities of different
@@ -79,9 +77,6 @@ typedef u16_t cos_cap_t;
 #define COS_NUM_RETYPEABLE_PAGES  4
 #define COS_NUM_VM_PAGES          0
 
-typedef u16_t          cos_cap_type_t;        /* tag for each capability's type */
-typedef u16_t          cos_op_bitmap_t;       /* bitmap where each bit designates an allowed operation on a resource */
-
 /*
  * Page types, including separate types for different levels in the
  * resource tables. The first eight bits are the high-level type. The
@@ -114,9 +109,6 @@ typedef u16_t          cos_op_bitmap_t;       /* bitmap where each bit designate
 #define COS_PAGE_KERNTYPE_COMP        14
 #define COS_PAGE_KERNTYPE_HW          15  /* Hardware/platform specific resources */
 #define COS_PAGE_KERNTYPE_NUM         16  /* The number of page types */
-
-typedef u8_t          page_type_t;       /* tag for each page's type+kerntype used for retyping */
-typedef u8_t          page_kerntype_t;
 
 #define COS_EPOCH_BIT_LIMIT       63
 #define COS_REFCNT_BIT_LIMIT      63

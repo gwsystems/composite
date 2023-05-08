@@ -20,3 +20,19 @@
 #define COS_FORCE_INLINE  __attribute__((always_inline))
 /* Prevent inlining. Forces error paths to be in separate functions */
 #define COS_NEVER_INLINE  __attribute__((noinline))
+
+#ifndef __cplusplus
+#define COS_STATIC_ASSERT(cond, err_msg) _Static_assert(cond, err_msg)
+#else
+/* g++ doesnt allow _Static_assert; compiling the c++ code will throw an error */
+#define COS_STATIC_ASSERT(cond, err_msg) static_assert(cond, err_msg)
+#endif
+
+#ifndef offsetof
+#define offsetof(type, member) __builtin_offsetof(type, member)
+#endif
+
+#ifndef STRINGIFY
+#define STRINGIFY(...) #__VA_ARGS__
+#define EXPAND(X) STRINGIFY(X)
+#endif
