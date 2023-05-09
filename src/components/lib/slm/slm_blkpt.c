@@ -70,7 +70,6 @@ slm_blkpt_free(sched_blkpt_id_t id)
 int
 slm_blkpt_trigger(sched_blkpt_id_t blkpt, struct slm_thd *current, sched_blkpt_epoch_t epoch, int single)
 {
-	thdid_t tid;
 	struct blkpt_mem *m;
 	int ret = 0;
 	struct stacklist *sl;

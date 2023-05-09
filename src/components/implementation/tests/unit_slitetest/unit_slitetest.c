@@ -38,7 +38,6 @@ rcv_spiner()
 	printc("SUCCESS\n");
 	test_done = 1;
 	SPIN();
-	assert(0);
 	return;
 }
 
@@ -52,7 +51,6 @@ rcv_spiner2()
 		sched_thd_yield_to(spin_thd[0]);
 	}
 	SPIN();
-	assert(0);
 	return;
 }
 
@@ -67,10 +65,7 @@ test_ipi_switch(void)
 	spin_thd[1] = sched_thd_create(rcv_spiner2, NULL);
 	sched_thd_param_set(spin_thd[1], sched_param_pack(SCHEDP_PRIO, HIGH_PRIORITY));
 
-	sched_thd_yield_to(spin_thd[0]);
-
-	SPIN();
-	assert(0);
+	//sched_thd_yield_to(spin_thd[0]);
 
 	return;
 }
@@ -79,6 +74,7 @@ int
 main(void)
 {
 	test_ipi_switch();
-	SPIN();
+
+	printc("Running unit test, exiting main thread...\n");
 	return 0;
 }

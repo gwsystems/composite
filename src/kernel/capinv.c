@@ -70,10 +70,7 @@ static inline struct thread *
 cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, int interrupt, struct comp_info **ci_ptr)
 {
 	struct thread       *thd = thd_current(cos_info);
-	struct cap_thd      *ch_ult = NULL;
-	struct thread       *ulthd = NULL;
 	capid_t              ultc = 0;
-	int                  invstk_top = 0;
 	struct cos_scb_info *scb_core = NULL; /* per-core scb_info */
 	unsigned long sp, ip;
 
@@ -86,41 +83,24 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	assert(scb_core);
 	ultc     = scb_core->curr_thd;
 
-	/* reset inconsistency from user-level thd! */
 	scb_core->curr_thd = 0;
 	if (!ultc && !interrupt) {
 		goto done;
 	}
-	if (likely(ultc)) {
-		ch_ult = (struct cap_thd *)captbl_lkup((*ci_ptr)->captbl, ultc);
-		if (unlikely(!CAP_TYPECHK_CORE(ch_ult, CAP_THD))) ch_ult = NULL;
-		else                                              ulthd = ch_ult->t;
-	}
 
 	if (unlikely(interrupt)) {
-		struct thread *fixthd = thd;
 
 		assert(scb_core->sched_tok < ~0U);
 		cos_faa((int *)&(scb_core->sched_tok), 1);
 
-		if (ulthd) fixthd = ulthd;
-
-		if (unlikely(fixthd->dcbinfo && fixthd->dcbinfo->sp)) {
-			regs->ip = fixthd->dcbinfo->ip + DCB_IP_KERN_OFF;
-			regs->sp = fixthd->dcbinfo->sp;
+		if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
+			regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
+			regs->sp = thd->dcbinfo->sp;
 			regs->dx = 0; /* sched token is in edx! */
 
-			fixthd->dcbinfo->sp = 0;
+			thd->dcbinfo->sp = 0;
 		}
 	}
-	if (unlikely(!ultc || !ulthd || ulthd->dcbinfo == NULL)) goto done;
-	if (ulthd == thd) goto done;
-	/* check if kcurr and ucurr threads are both in the same page-table(component) */
-	thd_current_update(ulthd, thd, cos_info);
-	if (thd_current_pgtbl(ulthd) != thd_current_pgtbl(thd)) {
-		goto done;
-	}
-	thd = ulthd;
 
 done:
 	return thd;
@@ -451,6 +431,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	struct pgtbl_info *  next_pt;
 	int                  preempt = 0;
 	prot_domain_t        next_protdom;
+	struct cos_scb_info *scb_core = NULL;
 
 	next_ci = thd_invstk_curr_comp(next, &next_pt, cos_info);
 
@@ -491,6 +472,13 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	if (nti->thd && nti->thd == next) thd_next_thdinfo_update(cos_info, 0, 0, 0, 0);
 
 	copy_all_regs(&next->regs, regs);
+
+	/* if there is cached scb, update tid in the cached scb. */
+	if (next->scb_cached) scb_core = next->scb_cached + get_cpuid();
+	assert(scb_core);
+	assert(scb_core->curr_thd == 0);
+	scb_core->tid = next->tid;
+
 	return preempt;
 }
 

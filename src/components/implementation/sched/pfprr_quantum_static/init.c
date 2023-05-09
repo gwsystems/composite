@@ -225,7 +225,6 @@ static void
 slm_comp_init_loop(void)
 {
 	unsigned long init_schedule_current = 0, i;
-	struct slm_thd *current;
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 

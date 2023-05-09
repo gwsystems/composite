@@ -473,7 +473,6 @@ syncipc_reply_wait(int ipc_ep, word_t arg0, word_t arg1, word_t *ret0, word_t *r
 	struct slm_thd *t = slm_thd_current(), *client;
 	/* avoid the conditional for bounds checking, ala Nova */
 	struct ipc_ep *ep = &eps[ipc_ep % IPC_EP_NUM];
-	sched_tok_t   tok;
 	int           ret;
 
 	/*
@@ -646,7 +645,6 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	struct cos_dcb_info *dcb;
 	struct slm_thd *r;
 	thdcap_t thdcap, ipithdcap;
-	arcvcap_t rcvcap;
 	thdid_t tid, ipitid;
 	struct slm_ipi_percore *ipi_data = slm_ipi_percore_get(cos_cpuid());
 

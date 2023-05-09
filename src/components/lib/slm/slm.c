@@ -10,6 +10,7 @@ CK_RING_PROTOTYPE(slm_ipi_ringbuf, slm_ipi_event);
 inline int
 slm_ipi_event_enqueue(struct slm_ipi_event *event, cpuid_t id)
 {
+	assert(id >= 0 && id < NUM_CPU);
     struct slm_ipi_percore *ipi_data = &slm_ipi_percore_data[id];
 	assert(&ipi_data->ring && ipi_data->ringbuf);
 
@@ -55,7 +56,6 @@ slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid, struct cos_d
 {
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
-	int ret;
 
 	memset(t, 0, sizeof(struct slm_thd));
 	*t = (struct slm_thd) {
@@ -122,7 +122,6 @@ slm_thd_deinit(struct slm_thd *t)
 int
 slm_cs_enter_contention(struct slm_cs *cs, slm_cs_cached_t cached, struct slm_thd *curr, struct slm_thd *owner, int contended, sched_tok_t tok)
 {
-	struct slm_global *g = slm_global();
 	int ret;
 
 	/* Set contention if it isn't yet set */

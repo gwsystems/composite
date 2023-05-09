@@ -141,7 +141,6 @@ cm_rcv_alloc_in(struct crt_comp *c, struct crt_rcv *sched, thdclosure_index_t cl
 	struct cm_thd *t = ss_thd_alloc();
 	struct crt_rcv_resources res = (struct crt_rcv_resources) { 0 };
 	struct cos_compinfo *target_ci = cos_compinfo_get(c->comp_res);
-	struct cos_aep_info *sched_aep = cos_sched_aep_get(c->comp_res);
 
 	if (!r) return NULL;
 	if (crt_rcv_create_in(&r->rcv, c, sched, closure_id, flags, c->scb, &dcbaddr)) {
@@ -191,9 +190,6 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, struct cm_dcb *dcb, th
 	struct cm_thd  *t = ss_thd_alloc();
 	struct crt_thd_resources res = { 0 };
 
-	tcap_t    tcap;
-	arcvcap_t rcvcap;
-
 	if (!t) return NULL;
 	if (crt_thd_create_in(&t->thd, &c->comp, &sched->comp, dcb->dcb_cap, dcb->dcb_off, closure_id)) {
 		ss_thd_free(t);
@@ -219,7 +215,6 @@ cm_thd_alloc_in(struct cm_comp *c, struct cm_comp *sched, struct cm_dcb *dcb, th
 struct cm_dcb *
 cm_dcb_alloc_in(struct cm_comp *sched)
 {
-	compid_t       id = (compid_t)cos_inv_token();
 	struct cm_dcb *d  = ss_dcb_alloc();
 	dcbcap_t       dcbcap = 0;
 	vaddr_t        dcbaddr = 0;
@@ -247,7 +242,6 @@ mm_page_alloc(struct cm_comp *c, unsigned long align)
 {
 	struct mm_mapping *m;
 	struct mm_page    *ret = NULL, *p;
-	int    i;
 
 	p = ss_page_alloc();
 	if (!p) return NULL;
@@ -786,6 +780,7 @@ capmgr_comp_init(void)
 				/* map ulk memory into this component; if this fails it was aleady mapped into shared pt */
 				crt_ulk_map_in(&cmc->comp);
 				cmc->comp.vas_id = vas_id;
+				//printc("compid: %d, vas_id: %d\n", cmc->comp.id, vas_id);
 			}
 		}
 	}

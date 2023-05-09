@@ -337,13 +337,12 @@ static inline struct thread *
 thd_current(struct cos_cpu_local_info *cos_info)
 {
 	struct thread       *thread = (struct thread *)cos_info->curr_thd;
-	struct thread       *sched_thd;
-	struct thread       *curr_thd;
-	struct cap_thd      *tc;
-	struct comp_info    *sched_comp;
-	struct comp_info    *test_comp;
-	struct cos_scb_info *scb_core;
-	capid_t              curr;
+	struct thread       *sched_thd = NULL;
+	struct thread       *curr_thd = NULL;
+	struct cap_thd      *tc = NULL;
+	struct comp_info    *sched_comp = NULL;
+	struct cos_scb_info *scb_core = NULL;
+	capid_t              curr = 0;
 
 	if (!thread || !thread->scb_cached) {
 		return thread;
@@ -354,17 +353,17 @@ thd_current(struct cos_cpu_local_info *cos_info)
 	scb_core   = thread->scb_cached + get_cpuid();
 	curr       = scb_core->curr_thd;
 
-	test_comp = &(sched_thd->invstk[0].comp_info);
-	sched_comp = &(thread->invstk[0].comp_info);
-
 	if (curr) {
-		tc = (struct cap_thd *)captbl_lkup(test_comp->captbl, curr);
+		sched_comp = &(sched_thd->invstk[0].comp_info);
+		tc = (struct cap_thd *)captbl_lkup(sched_comp->captbl, curr);
 		if (unlikely(!tc || tc->h.type != CAP_THD)) assert(0);
 		curr_thd = tc->t;
+		assert(scb_core->tid == curr_thd->tid);
 		thd_current_update(curr_thd, thread, cos_info);
 
 		return curr_thd;
 	}
+	scb_core->tid = thread->tid;
 
 	return thread;
 

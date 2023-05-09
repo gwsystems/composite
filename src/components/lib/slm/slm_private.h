@@ -138,15 +138,14 @@ slm_thd_normal(struct slm_thd *t)
 struct slm_thd *slm_thd_special(void);
 
 static inline int
-cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_dcb_info *nd, tcap_prio_t prio, tcap_time_t timeout, sched_tok_t tok)
+cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd, struct cos_dcb_info *nd, tcap_prio_t prio, tcap_time_t timeout, sched_tok_t tok)
 {
 	struct cos_defcompinfo       *defci     = cos_defcompinfo_curr_get();
 	struct cos_compinfo          *ci        = cos_compinfo_get(defci);
-	struct cos_aep_info          *sched_aep = cos_sched_aep_get(defci);
 	volatile struct cos_scb_info *scb       = (struct cos_scb_info*)ci->scb_uaddr + cos_cpuid();
 	
-	sched_tok_t rcv_tok;
 	unsigned long pre_tok = 0;
+	u64_t thdpack = (next->thd << 16) | next->tid;
 
 	//assert(curr != next);
 	if (curr == next) {
@@ -160,7 +159,7 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 
 	if (scb->timer_pre < timeout) {
 		scb->timer_pre = timeout;
-		return cos_defswitch(next, prio, timeout, tok);
+		return cos_defswitch(next->thd, prio, timeout, tok);
 	}
 
 	/*
@@ -246,12 +245,17 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		"mov %%rsp, 8(%%rax)\n\t"       \
 		"cmp $0, 8(%%rsi)\n\t"          \
 		"je 1f\n\t"                     \
+		"mov %%rdx, %%rax\n\t"          \
+		"and $0xFFFF, %%rax\n\t"        \
+		"mov %%rax, -8(%%rcx)\n\t"      \
+		"shr $16, %%rdx\n\t"            \
 		"mov %%rdx, (%%rcx)\n\t"        \
 		"mov 8(%%rsi), %%rsp\n\t"       \
 		"jmp *(%%rsi)\n\t"              \
 		".align 8\n\t"                  \
 		"1:\n\t"                        \
 		"movabs $3f, %%r8\n\t"          \
+		"shr $16, %%rdx\n\t"            \
 		"mov %%rdx, %%rax\n\t"          \
 		"inc %%rax\n\t"                 \
 		"shl $16, %%rax\n\t"            \
@@ -271,10 +275,10 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		: "=b" (pre_tok)
 		: "a" (cd), "S" (nd),
 		  "b" (tok), "D" (timeout),
-		  "c" (&(scb->curr_thd)), "d" (next)
+		  "c" (&(scb->curr_thd)), "d" (thdpack)
 		: "memory", "cc", "r8", "r9", "r11", "r12", "r13", "r14", "r15");
 #else
-	__asm__ __volatile__ (              \
+	/*__asm__ __volatile__ (              \
 		"pushl %%ebp\n\t"               \
 		"movl %%esp, %%ebp\n\t"         \
 		"movl $2f, (%%eax)\n\t"         \
@@ -305,8 +309,10 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 		: "=S" (pre_tok)
 		: "a" (cd), "b" (nd),
 		  "S" (tok), "D" (timeout),
-		  "c" (&(scb->curr_thd)), "d" (next)
-		: "memory", "cc");
+		  "c" (&(scb->curr_thd)), "d" (next->thd)
+		: "memory", "cc");*/
+	printc("User-level thread dispatch is not supported in 32bit.\n");
+	assert(0);
 #endif
 	scb = slm_scb_info_core();
 	assert(scb);
@@ -320,8 +326,6 @@ cos_ulswitch(thdcap_t curr, thdcap_t next, struct cos_dcb_info *cd, struct cos_d
 static inline int
 slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int inherit_prio)
 {
-	struct cos_defcompinfo *dci = cos_defcompinfo_curr_get();
-	struct cos_compinfo    *ci  = &dci->ci;
 	struct slm_global      *g   = slm_global();
 	struct cos_dcb_info    *cd  = slm_thd_dcbinfo(curr), *nd = slm_thd_dcbinfo(t);
 	tcap_prio_t             prio;
@@ -352,7 +356,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 		}
 		ret = cos_defswitch(t->thd, prio, timeout, tok);
 	} else {
-		ret = cos_ulswitch(curr->thd, t->thd, cd, nd, prio, timeout, tok);
+		ret = cos_ulswitch(curr, t, cd, nd, prio, timeout, tok);
 	}
 
 	if (unlikely(ret == -EPERM && !slm_thd_normal(t))) {
@@ -395,13 +399,11 @@ static inline int slm_cs_enter(struct slm_thd *current, slm_cs_flags_t flags);
 static inline int
 slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 {
-	volatile struct cos_scb_info *scb = slm_scb_info_core();
 	struct cos_compinfo    *ci  = &cos_defcompinfo_curr_get()->ci;
 	struct slm_global      *g   = slm_global();
 	struct slm_thd         *t;
 	sched_tok_t             tok;
 	int                     ret;
-	s64_t    diff;
 
 try_again:
 	tok  = cos_sched_sync(ci);
