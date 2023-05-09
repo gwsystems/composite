@@ -1,8 +1,9 @@
 #pragma once
 
 #include <cos_consts.h>
-#include <cos_kern_types.h>
-#include <cos_resources.h>
+#include <types.h>
+#include <resources.h>
+#include <component.h>
 
 /*
  * A generic version of the shared structure of all capabilities. The

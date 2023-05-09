@@ -3,7 +3,9 @@
 #include <cos_consts.h>
 #include <cos_error.h>
 #include <types.h>
+
 #include <capabilities.h>
+#include <resources.h>
 #include <captbl.h>
 
 #define COS_CAPTBL_0_ENT_NULL 0
@@ -104,11 +106,6 @@ captbl_cap_typecheck(struct capability_generic* c, cos_cap_type_t type, cos_op_b
 	return COS_RET_SUCCESS;
 }
 
-/* Simple helper to do the cast to the super-type for us */
-#define CAPTBL_LOOKUP_TYPE(ct, cap, type, required, cap_ret)                   \
-  captbl_lookup_type(ct, cap, type, required,                                  \
-                     (struct capability_generic **)&cap_ret)
-
 /**
  * `captbl_lookup_type` does a capability lookup (looking up `cap` in
  * `ct`), and checks liveness, `type`, and if the capability provides
@@ -117,7 +114,7 @@ captbl_cap_typecheck(struct capability_generic* c, cos_cap_type_t type, cos_op_b
  * pointer might be populated even in the case of an error, in which
  * case you should ignore the value.
  */
-static inline cos_retval_t
+cos_retval_t
 captbl_lookup_type(captbl_t ct, cos_cap_t cap, cos_cap_type_t type, cos_op_bitmap_t required, struct capability_generic **cap_ret)
 {
 	*cap_ret = captbl_lookup(ct, cap);
@@ -125,7 +122,7 @@ captbl_lookup_type(captbl_t ct, cos_cap_t cap, cos_cap_type_t type, cos_op_bitma
 	return captbl_cap_typecheck(*cap_ret, type, required);
 }
 
-static inline struct capability_generic *
+struct capability_generic *
 captbl_leaf_lookup(struct captbl_leaf *captbl, uword_t leaf_off)
 {
 	return &captbl->capabilities[COS_WRAP(leaf_off, COS_CAPTBL_LEAF_NENT)];

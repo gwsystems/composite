@@ -1,7 +1,10 @@
 #pragma once
 
-#include <cos_arch_types.h>
-#include <cos_kern_types.h>
+#include <chal_types.h>
+#include <types.h>
+#include <compiler.h>
+#include <resources.h>
+#include <cos_consts.h>
 
 struct component_ref {
 	pgtbl_t                    pgtbl;
@@ -19,3 +22,13 @@ struct component {
 
 	struct thread       *fault_handler[COS_NUM_CPU];
 };
+
+COS_FASTPATH static inline int
+component_is_alive(struct component_ref *comp)
+{
+	struct page_type *t;
+
+	ref2page(comp->compref, NULL, &t);
+
+	return t->epoch == comp->epoch;
+}

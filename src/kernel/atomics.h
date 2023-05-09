@@ -41,3 +41,9 @@ faa(u64_t *val, long mod)
 
 	return ret;
 }
+
+static inline void
+mem_barrier(void)
+{
+	return;
+}

@@ -18,10 +18,13 @@
  *   corresponds to a system call.
  * - `@return` - the registers to activate on return
  */
-#include <cos_kern_types.h>
 #include <cos_types.h>
 #include <cos_error.h>
+#include <chal_regs.h>
+
+#include <types.h>
 #include <component.h>
+#include <state.h>
 
 struct invstk_entry {
 	struct component_ref component;
@@ -43,7 +46,7 @@ struct thread {
 
 COS_FORCE_INLINE struct regs *
 thread_switch(struct thread *t, struct regs *rs, uword_t success_retval) {
-	struct globals_percore *g = state();
+	struct state_percore *g = state();
 	struct thread *curr = g->active_thread;
 	struct component_ref *comp;
 	cos_retval_t r;

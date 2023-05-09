@@ -23,12 +23,14 @@
  * path in the `thread` files.
  */
 
-
-
+#include <compiler.h>
+#include <cos_error.h>
 #include <cos_types.h>
 #include <thread.h>
 #include <captbl.h>
 #include <capabilities.h>
+#include <state.h>
+#include <component.h>
 
 COS_FASTPATH static inline struct regs *
 sinv_invoke(struct thread *t, uword_t *head, struct regs *rs, struct capability_sync_inv *cap)

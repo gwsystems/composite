@@ -1,4 +1,5 @@
-#include "thread.h"
+#include <thread.h>
+#include <state.h>
 
 /**
  * `thread_slowpath` is the aggregate logic for all of the thread
@@ -21,7 +22,7 @@
 COS_NEVER_INLINE struct regs *
 thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs)
 {
-	struct globals_percore *g = state();
+	struct state_percore *g = state();
 	struct thread *curr = g->active_thread;
 
 	if (rs->state == REG_STATE_SYSCALL) {

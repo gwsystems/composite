@@ -1,5 +1,9 @@
-#include <resources.h>
 #include <atomics.h>
+#include <chal_regs.h>
+
+#include <resources.h>
+#include <thread.h>
+#include <captbl.h>
 
 struct page_type       page_types[COS_NUM_RETYPEABLE_PAGES] __attribute__((aligned(COS_PAGE_SIZE)));
 struct page            pages[COS_NUM_RETYPEABLE_PAGES];
@@ -51,7 +55,7 @@ page_type_valid_active(page_type_t t, page_kerntype_t kt)
  * Is the page reference out of bounds? Returns `0` if it is in
  * bounds, and `1` if out of bounds.
  */
-static inline int
+int
 page_bounds_check(pageref_t ref)
 { return ref >= COS_NUM_RETYPEABLE_PAGES; }
 
@@ -68,7 +72,7 @@ page_bounds_check(pageref_t ref)
  * - `@p` - the returned page structure
  * - `@t` - the returned page_type structure
  */
-static inline void
+void
 ref2page(pageref_t ref, struct page **p, struct page_type **t)
 {
 	/*
@@ -83,7 +87,7 @@ ref2page(pageref_t ref, struct page **p, struct page_type **t)
 	return;
 }
 
-static inline struct page *
+struct page *
 ref2page_ptr(pageref_t ref)
 {
 	return &pages[ref];
@@ -110,7 +114,7 @@ ref2page_ptr(pageref_t ref)
  * - `@ptype` - the returned page type on success
  * - `@return` - the error or `COS_RET_SUCCESS`
  */
-static inline cos_retval_t
+cos_retval_t
 page_resolve(pageref_t offset, page_type_t type, page_kerntype_t kerntype, epoch_t *version, struct page **page, struct page_type **ptype)
 {
 	struct page_type *pt;
@@ -257,6 +261,7 @@ page_retype_from_untyped_commit(struct page_type *t, struct page *p, page_type_t
 	 * initialized, make it accessible as the desired type.
 	 */
 	t->type = type;
+	mem_barrier();
 }
 
 /**
@@ -340,7 +345,7 @@ page_retype_to_untyped(pageref_t idx)
  * - `@pgref` - a return value reference to the resource
  * - `@return` - the normal return value
  */
-static inline cos_retval_t
+cos_retval_t
 destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_type_t t, page_kerntype_t kt, pageref_t *pgref)
 {
 	struct capability_resource *pgtbl;
@@ -574,7 +579,7 @@ resource_create_restbl(page_kerntype_t kt, pageref_t untyped_src_ref)
 	}
 
 	/* Make the kernel resource accessible as a thread */
-	page_retype_from_untyped_commit(ptype, thd_page, COS_PAGE_TYPE_KERNEL);
+	page_retype_from_untyped_commit(ptype, p, COS_PAGE_TYPE_KERNEL);
 
 	return COS_RET_SUCCESS;
 }
