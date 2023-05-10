@@ -9,9 +9,8 @@
 struct component_ref {
 	pgtbl_t                    pgtbl;
 	captbl_t                   captbl;
-	epoch_t                    epoch;
 	prot_domain_tag_t          pd_tag;
-	pageref_t                  compref;
+	struct weak_ref            compref;
 };
 
 struct component {
@@ -28,7 +27,7 @@ component_is_alive(struct component_ref *comp)
 {
 	struct page_type *t;
 
-	ref2page(comp->compref, NULL, &t);
+	ref2page(comp->compref.ref, NULL, &t);
 
-	return t->epoch == comp->epoch;
+	return t->epoch == comp->compref.epoch;
 }

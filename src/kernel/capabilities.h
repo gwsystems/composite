@@ -21,8 +21,7 @@ struct capability_generic {
 };
 
 struct capability_component_intern {
-	pageref_t            comp;
-	epoch_t              epoch;
+	struct component_ref component;
 };
 
 struct capability_component {
@@ -48,7 +47,7 @@ struct capability_sync_inv {
 };
 
 struct capability_resource_intern {
-	pageref_t            ref;
+	struct weak_ref      ref;
 };
 
 /* Threads, resource tables, and control blocks */

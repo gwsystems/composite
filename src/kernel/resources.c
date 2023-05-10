@@ -1,19 +1,23 @@
+#include "compiler.h"
+#include "component.h"
+#include "cos_error.h"
 #include <atomics.h>
 #include <chal_regs.h>
 
 #include <resources.h>
 #include <thread.h>
 #include <captbl.h>
+#include <pgtbl.h>
+#include <compiler.h>
 
-struct page_type       page_types[COS_NUM_RETYPEABLE_PAGES] __attribute__((aligned(COS_PAGE_SIZE)));
-struct page            pages[COS_NUM_RETYPEABLE_PAGES];
-
+struct page_type page_types[COS_NUM_RETYPEABLE_PAGES] COS_PAGE_ALIGNED;
+struct page      pages[COS_NUM_RETYPEABLE_PAGES];
 
 /* Get the page's epoch. */
 static inline epoch_t
 epoch_copy(struct page_type *pt)
 {
-	return pt->epoch;
+	return load64(&pt->epoch);
 }
 
 /* Update the page's epoch, and return the previous value. */
@@ -59,99 +63,6 @@ int
 page_bounds_check(pageref_t ref)
 { return ref >= COS_NUM_RETYPEABLE_PAGES; }
 
-/**
- * `ref2page` finds a pointer to a page from its reference. Returns
- * the generic type to enable call-site typing.
- *
- * Assumes: `ref` is a in-bound reference to a page. No bounds
- * checking is done here. This is only reasonable given verification
- * that can assert that all refs are in-bound. Additionally, return
- * the type and metadata information for the page.
- *
- * - `@ref` - the resource reference
- * - `@p` - the returned page structure
- * - `@t` - the returned page_type structure
- */
-void
-ref2page(pageref_t ref, struct page **p, struct page_type **t)
-{
-	/*
-	 * Page references should be implementation-internal. Use
-	 * verification invariants to guarantee they are valid
-	 * values.
-	 */
-//	if (unlikely(ref_bounds_check(ref))) return NULL;
-	if (t) *t = &page_types[ref];
-	if (p) *p = &pages[ref];
-
-	return;
-}
-
-struct page *
-ref2page_ptr(pageref_t ref)
-{
-	return &pages[ref];
-}
-
-/*
- * `page_resolve` finds the page corresponding to `offset`, validate
- * that it has the expected type, and that it is live. Returns either
- * `COS_ERR_WRONG_INPUT_TYPE` or `COS_ERR_WRONG_NOT_LIVE` in either
- * event, and `COS_RET_SUCCESS` on success. On success, the `page` and
- * `page_type` structures are returned in the corresponding
- * parameters.
- *
- * Assumes: the `offset` is a valid offset. This means that either it
- * is derived from a kernel-internal reference. As user-level only has
- * access capability namespaces that are component-local, user-level
- * should never use or know about these references.
- *
- * - `@offset` - which of the retypable pages; must be in bounds
- * - `@type` - expected type of the page
- * - `@kerntype` - expected kernel type of the page
- * - `@version` - `NULL`, or the expected version of the page
- * - `@page` - the returned page on success
- * - `@ptype` - the returned page type on success
- * - `@return` - the error or `COS_RET_SUCCESS`
- */
-cos_retval_t
-page_resolve(pageref_t offset, page_type_t type, page_kerntype_t kerntype, epoch_t *version, struct page **page, struct page_type **ptype)
-{
-	struct page_type *pt;
-	struct page      *p;
-
-	ref2page(offset, &p, &pt);
-
-	//if (unlikely(epoch != pt->epoch)) return -COS_ERR_NOT_LIVE;
-	if (unlikely(pt->type != type || pt->kerntype != kerntype)) return -COS_ERR_WRONG_INPUT_TYPE;
-
-	/*
-	 * Lets test if the target resource is live. This involves 1.
-	 * checking if it has sufficient references, and 2. that the
-	 * versioned pointer (should it be passed in) that is used to
-	 * get to the page has not been made outdated. The former is
-	 * relevant for resources for which each reference is tracked
-	 * with a reference count, while the latter have a single
-	 * reference while live, and can be made inaccessible
-	 * (deallocated) by simply changing the version. The former
-	 * are most resource-table resources, while the latter are
-	 * components and component references.
-	 *
-	 * Note that we do *not* explicitly check that the reference
-	 * count is non-zero here. Either, the capability used to
-	 * derive `offset` exists, which means that the reference
-	 * count is non-zero for resources that don't use the `epoch`,
-	 * OR a resource uses the `epoch`, which is the ground truth
-	 * for liveness (i.e. refcnt == 0 only if the version is
-	 * incremented past all current reference's epochs).
-	 */
-	if (version != NULL && unlikely(*version != pt->epoch)) return -COS_ERR_NOT_LIVE;
-
-	if (page)  *page  = p;
-	if (ptype) *ptype = pt;
-
-	return COS_RET_SUCCESS;
-}
 
 /***
  * The kernel's *resources* are each sized to a page, and they each
@@ -256,12 +167,12 @@ page_retype_from_untyped_reserve(struct page_type *t, struct page *p, page_type_
 void
 page_retype_from_untyped_commit(struct page_type *t, struct page *p, page_type_t type)
 {
+	mem_barrier();
 	/*
 	 * Commit the updates. Now that the page's memory is
 	 * initialized, make it accessible as the desired type.
 	 */
 	t->type = type;
-	mem_barrier();
 }
 
 /**
@@ -309,7 +220,7 @@ page_retype_to_untyped(pageref_t idx)
 	 * move a page to untyped: we hold the last reference, and the
 	 * type can be moved to untyped.
 	 */
-	if (t->refcnt != 1) return -COS_ERR_STILL_REFERENCED;
+	if (t->refcnt != 0) return -COS_ERR_STILL_REFERENCED;
 	type = t->type;
 	/* If we have a valid type, convert it to "retyping" so that we "own" it. */
 	if (type == COS_PAGE_TYPE_RETYPING || type == COS_PAGE_TYPE_UNTYPED) return -COS_ERR_WRONG_PAGE_TYPE;
@@ -349,10 +260,12 @@ cos_retval_t
 destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_type_t t, page_kerntype_t kt, pageref_t *pgref)
 {
 	struct capability_resource *pgtbl;
+	pageref_t pgtbl_ref;
 
 	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, pgtbl_cap, COS_CAP_TYPE_PGTBL_LEAF, COS_OP_DEALLOCATE, pgtbl));
+	COS_CHECK(resource_weakref_deref(&pgtbl->intern.ref, &pgtbl_ref));
 	/* TODO: pay attention to the permissions */
-	COS_CHECK(pgtbl_leaf_lookup(pgtbl->intern.ref, pgtbl_off, t, kt, COS_PGTBL_PERM_KERNEL, pgref));
+	COS_CHECK(pgtbl_leaf_lookup(pgtbl_ref, pgtbl_off, t, kt, COS_PGTBL_PERM_KERNEL, pgref));
 	/* Note that this retype can only proceed after it checks the reference count */
 	COS_CHECK(page_retype_to_untyped(*pgref));
 
@@ -360,7 +273,83 @@ destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_
 }
 
 /**
- * `resource_create_comp`: An example of resource creation for a
+ * `resource_weak_ref` returns `COS_RET_SUCCESS` if the resource is a
+ * the expected type, and populates the reference, `wr`. Otherwise
+ * return a type error.
+ *
+ * The idea here is that we need to retrieve the epoch
+ * *before* doing the type check. Given that, the type of the page can
+ * immediately be changed, and the (now) updated epoch will make this
+ * clear. We wish to avoid the race:
+ *
+ * 1. check that the page is a component = success,
+ * 2. another core retypes to the page to something else which
+ *    includes updating its epoch,
+ * 3. get its epoch, and place it into a reference.
+ *
+ * This creates a problem: the page has been updated to not be a
+ * component, yet the epoch doesn't inform us (as it should) that the
+ * component is no longer active.
+ *
+ * - `@resource_ref` - resource to which we want to create the reference
+ * - `@expected_kerntype` - its expected type (assumes a kernel type)
+ * - `@wr` - the weak reference to populate
+ * - `@return` - normal return, can fail if the type doesn't match
+ */
+
+cos_retval_t
+resource_weakref_create(pageref_t resource_ref, page_kerntype_t expected_kerntype, struct weak_ref *wr)
+{
+	struct page_type *t;
+	struct page *p;
+	epoch_t epoch;
+
+	/* First take a snapshot of the epoch... */
+	ref2page(resource_ref, NULL, &t);
+	epoch = epoch_copy(t);
+	mem_barrier();
+	/* ...then typecheck the resource. */
+	COS_CHECK(page_resolve(resource_ref, COS_PAGE_TYPE_KERNEL, expected_kerntype, NULL, NULL, NULL));
+
+	*wr = (struct weak_ref) {
+		.epoch = epoch,
+		.ref = resource_ref,
+	};
+
+	return COS_RET_SUCCESS;
+}
+
+/**
+ * `resource_comp_epoch` returns `COS_RET_SUCCESS` if the resource is
+ * a component, and populates the component reference, `r`. Otherwise
+ * return a type error.
+ *
+ * - `@compref` - a reference to the component page.
+ * - `@r` - a component reference to be filled out.
+ * - `@return` - normal return value (success, or type failure)
+ */
+cos_retval_t
+resource_compref_create(pageref_t compref, struct component_ref *r)
+{
+	struct page_type *t;
+	struct component *comp;
+	struct weak_ref wr;
+
+	COS_CHECK(resource_weakref_create(compref, COS_PAGE_KERNTYPE_COMP, &wr));
+	COS_CHECK(page_resolve(compref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_COMP, NULL, (struct page **)&comp, &t));
+
+	*r = (struct component_ref) {
+		.pgtbl = comp->pgtbl,
+		.captbl = comp->captbl,
+		.pd_tag = comp->pd_tag,
+		.compref = wr,
+	};
+
+	return COS_RET_SUCCESS;
+}
+
+/**
+ * `resource_comp_create`: An example of resource creation for a
  * component resource. This requires 1. addressing the capability
  * table entry to add, and 2. the page-table entry that points to your
  * untyped memory to use for the resource. Additionally, it takes
@@ -378,7 +367,7 @@ destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_
  * - `@return` - normal return value denoting error (negative values), or success (zero)
  */
 cos_retval_t
-resource_create_comp(captbl_ref_t captbl_ref, pgtbl_ref_t pgtbl_ref, prot_domain_tag_t pd, vaddr_t entry_ip, pageref_t untyped_src_ref)
+resource_comp_create(captbl_ref_t captbl_ref, pgtbl_ref_t pgtbl_ref, prot_domain_tag_t pd, vaddr_t entry_ip, pageref_t untyped_src_ref)
 {
 	struct page_type *ptype, *pt_ptype, *ct_ptype;
 	struct page *c_page;
@@ -446,7 +435,7 @@ resource_comp_destroy(pageref_t compref)
 }
 
 /**
- * `resource_create_thd`: An example of resource creation for a
+ * `resource_thd_create`: An example of resource creation for a
  * component resource. This requires 1. addressing the capability
  * table entry to add, and 2. the page-table entry that points to your
  * untyped memory to use for the resource. Additionally, it takes
@@ -467,17 +456,17 @@ resource_comp_destroy(pageref_t compref)
  * - `@return` - normal return value denoting error (negative values), or success (zero)
  */
 cos_retval_t
-resource_create_thd(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t comp_ref, epoch_t epoch, thdid_t id, vaddr_t entry_ip, id_token_t sched_token, pageref_t untyped_src_ref)
+resource_thd_create(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t comp_ref, epoch_t epoch, thdid_t id, vaddr_t entry_ip, id_token_t sched_token, pageref_t untyped_src_ref)
 {
 	struct page_type *ptype, *sched_ptype, *tcap_ptype, *comp_ptype;
 	struct page *thd_page, *tcap_page;
-	struct component *comp;
+	struct component_ref ref;
 	struct thread *thd;
 	int tcap_self = untyped_src_ref == tcap_thd_ref;
 
 	COS_CHECK(page_resolve(sched_thd_ref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, NULL, NULL, &sched_ptype));
 	if (!tcap_self) COS_CHECK(page_resolve(tcap_thd_ref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, NULL, NULL, &tcap_ptype));
-	COS_CHECK(page_resolve(comp_ref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_COMP, &epoch, (struct page **)&comp, &comp_ptype));
+	COS_CHECK(resource_comp_ref_create(comp_ref, &ref));
 
 	ref2page(untyped_src_ref, &thd_page, &ptype);
         /*
@@ -502,13 +491,7 @@ resource_create_thd(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t c
 			.head = 0, /* We're in the top entry */
 			.entries = {
 				(struct invstk_entry) { /* Top entry is the current component */
-					.component = (struct component_ref) {
-						.pgtbl = comp->pgtbl,
-						.captbl = comp->captbl,
-						.pd_tag = comp->pd_tag,
-						.epoch = epoch,
-						.compref = comp_ref,
-					},
+					.component = ref,
 					.ip = 0,
 					.sp = 0,
 				},
@@ -546,7 +529,7 @@ resource_thd_destroy(pageref_t thdref)
 }
 
 /**
- * `resource_create_restbl`: Create and initialize the page for a
+ * `resource_restbl_create`: Create and initialize the page for a
  * resource table node. This includes all levels of capability-tables,
  * and page-tables.
  *
@@ -555,7 +538,7 @@ resource_thd_destroy(pageref_t thdref)
  * - `@return` - normal return value denoting error (negative values), or success (zero)
  */
 cos_retval_t
-resource_create_restbl(page_kerntype_t kt, pageref_t untyped_src_ref)
+resource_restbl_create(page_kerntype_t kt, pageref_t untyped_src_ref)
 {
 	struct page_type *ptype;
 	struct page *p;

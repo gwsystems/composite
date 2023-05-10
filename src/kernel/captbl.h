@@ -50,16 +50,10 @@ captbl_lookup(captbl_t ct, cos_cap_t cap)
   captbl_lookup_type(ct, cap, type, required,                                  \
                      (struct capability_generic **)&cap_ret)
 
-cos_retval_t cap_create_comp(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off,
-                             cos_op_bitmap_t operations, captbl_ref_t captbl_ref, pgtbl_ref_t pgtbl_ref,
-                             prot_domain_tag_t pd, vaddr_t entry_ip, pgtbl_ref_t untyped_src_ref);
-cos_retval_t cap_create_sinv(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, pageref_t comp_ref,
-                             vaddr_t entry_ip, inv_token_t token);
-cos_retval_t cap_create_thd(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations,
-                            pageref_t sched_ref, pageref_t tcap_ref, pageref_t comp_ref, epoch_t epoch, thdid_t id,
-                            id_token_t token, pgtbl_ref_t untyped_src_ref);
-cos_retval_t cap_create_restbl(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, page_kerntype_t kt,
-                               cos_op_bitmap_t operations, pgtbl_ref_t untyped_src_ref);
+cos_retval_t cap_comp_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations, pageref_t comp_ref);
+cos_retval_t cap_sinv_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, pageref_t comp_ref, vaddr_t entry_ip, inv_token_t token);
+cos_retval_t cap_thd_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations, pageref_t thd_ref);
+cos_retval_t cap_restbl_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, page_kerntype_t kt, cos_op_bitmap_t operations, pageref_t restbl_ref);
 
 int capability_is_captbl(struct capability_generic *c);
 int capability_is_pgtbl(struct capability_generic *c);

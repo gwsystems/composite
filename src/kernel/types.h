@@ -22,3 +22,25 @@ typedef u8_t           page_type_t;       /* tag for each page's type+kerntype u
 typedef u8_t           page_kerntype_t;
 
 typedef u16_t          cos_cap_type_t;    /* tag for each capability's type */
+
+/*
+ * A versioned reference to a resource. Needs to be checked for
+ * validity before dereference (i.e. checking that the epoch here
+ * matches that of the resource). These weak references are used
+ * throughout the capability-tables, this enabling the removal of
+ * resources without needing to remove them from the resource table.
+ * This is a strong form of atomic revocation that is necessary for
+ * components (i.e. to deallocate and/or signal failure), and enables
+ * management components to reuse resources easily without bookkeeping
+ * as they can elide capability-table management. This also is quite
+ * significant for the parallelism properties of the system as it
+ * enables us to avoid reference counts for capability-table slot
+ * references. This makes it much more safe for any component to be
+ * able to manage its own capability tables.
+ *
+ * The core APIs for managing these references are in `resource.h`.
+ */
+struct weak_ref {
+	pageref_t ref;
+	epoch_t   epoch;
+};

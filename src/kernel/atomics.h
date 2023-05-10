@@ -42,6 +42,12 @@ faa(u64_t *val, long mod)
 	return ret;
 }
 
+static inline u64_t
+load64(u64_t *addr)
+{
+	return *addr;
+}
+
 static inline void
 mem_barrier(void)
 {

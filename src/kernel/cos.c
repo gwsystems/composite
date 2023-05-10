@@ -174,20 +174,6 @@
  */
 struct state_percore core_state[COS_NUM_CPU];
 
-static inline liveness_t
-liveness_now()
-{
-	/* TODO: actual liveness. */
-	return 0;
-}
-
-static inline int
-liveness_quiesced(liveness_t past)
-{
-	/* TODO: actual liveness. */
-	return liveness_now() > past;
-}
-
 /**
  * Address-space conversions. The address spaces include:
  *
@@ -260,20 +246,20 @@ phys2page(paddr_t pa)
  * - `@return` - `COS_RET_SUCCESS` or a negative error value.
  */
 cos_retval_t
-comp_create(captbl_t ct, cos_cap_t captbl_comp_cap, uword_t captbl_comp_off, cos_cap_t captbl_cap, cos_cap_t pgtbl_cap,
-	    cos_op_bitmap_t ops, prot_domain_tag_t pd, vaddr_t entry_ip, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
+comp_create(captbl_t ct, cos_cap_t captbl_cap, cos_cap_t pgtbl_cap, prot_domain_tag_t pd, vaddr_t entry_ip, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
 {
-	struct capability_resource *comp_captbl, *captbl, *pgtbl, *untyped_pgtbl;
-	pageref_t untyped_src_ref;
+	struct capability_resource *captbl, *pgtbl, *untyped_pgtbl;
+	pageref_t untyped_src_ref, untyped_pgtbl_ref, captbl_ref, pgtbl_ref;
 
-
-	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, captbl_comp_cap, COS_CAP_TYPE_CAPTBL_LEAF, COS_OP_MODIFY_ADD, comp_captbl));
 	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, pgtbl_cap,       COS_CAP_TYPE_PGTBL_0,     COS_OP_CONSTRUCT,  pgtbl));
 	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, captbl_cap,      COS_CAP_TYPE_CAPTBL_0,    COS_OP_CONSTRUCT,  captbl));
 	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, pgtbl_src_cap,   COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, untyped_pgtbl));
-	COS_CHECK(pgtbl_leaf_lookup(untyped_pgtbl->intern.ref, pgtbl_src_off, COS_PAGE_TYPE_UNTYPED, 0, 0, &untyped_src_ref));
+	COS_CHECK(resource_weakref_deref(&untyped_pgtbl->intern.ref, &untyped_pgtbl_ref));
+	COS_CHECK(pgtbl_leaf_lookup(untyped_pgtbl_ref, pgtbl_src_off, COS_PAGE_TYPE_UNTYPED, 0, 0, &untyped_src_ref));
+	COS_CHECK(resource_weakref_deref(&captbl->intern.ref, &captbl_ref));
+	COS_CHECK(resource_weakref_deref(&pgtbl->intern.ref, &pgtbl_ref));
 
-	return cap_create_comp(comp_captbl->intern.ref, captbl_comp_off, ops, captbl->intern.ref, pgtbl->intern.ref, pd, entry_ip, untyped_src_ref);
+	return resource_comp_create(captbl_ref, pgtbl_ref, pd, entry_ip, untyped_src_ref);
 }
 
 /**
@@ -308,6 +294,20 @@ comp_destroy(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off)
 	return COS_RET_SUCCESS;
 }
 
+cos_retval_t
+comp_cap_create(captbl_t ct, cos_cap_t captbl_comp_cap, uword_t captbl_comp_off, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
+{
+	struct capability_resource *comp_captbl, *untyped_pgtbl;
+	pageref_t resource_src_ref, untyped_pgtbl_ref, captbl_ref;
+
+	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, captbl_comp_cap, COS_CAP_TYPE_CAPTBL_LEAF, COS_OP_MODIFY_ADD, comp_captbl));
+	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, pgtbl_src_cap,   COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, untyped_pgtbl));
+	COS_CHECK(resource_weakref_deref(&untyped_pgtbl->intern.ref, &untyped_pgtbl_ref));
+	COS_CHECK(pgtbl_leaf_lookup(untyped_pgtbl_ref, pgtbl_src_off, COS_PAGE_TYPE_UNTYPED, 0, 0, &resource_src_ref));
+	COS_CHECK(resource_weakref_deref(&comp_captbl->intern.ref, &captbl_ref));
+
+	return cap_comp_create(captbl_ref, captbl_comp_off, ops, resource_src_ref);
+}
 
 /**
  * `sinv_create` creates a synchronous invocation to a given
@@ -322,7 +322,7 @@ comp_destroy(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off)
  * - `@return` - Normal return value.
  */
 cos_retval_t
-sinv_create(captbl_t ct, cos_cap_t captbl_sinv_cap, uword_t captbl_sinv_off, cos_cap_t comp_cap, vaddr_t entry_ip, inv_token_t token)
+sinv_cap_create(captbl_t ct, cos_cap_t captbl_sinv_cap, uword_t captbl_sinv_off, cos_cap_t comp_cap, vaddr_t entry_ip, inv_token_t token)
 {
 	struct capability_resource *sinv_captbl, *comp;
 
@@ -374,7 +374,21 @@ thd_create(captbl_t ct, cos_cap_t captbl_comp_cap, uword_t captbl_comp_off, cos_
 	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, pgtbl_src_cap,   COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, untyped_pgtbl));
 	COS_CHECK(pgtbl_leaf_lookup(untyped_pgtbl->intern.ref, pgtbl_src_off, COS_PAGE_TYPE_UNTYPED, 0, 0, &untyped_src_ref));
 
-	return cap_create_thd(comp_captbl->intern.ref, captbl_comp_off, ops, sched_thd->intern.ref, tcap_thd->intern.ref, comp->intern.comp, comp->intern.epoch, id, token, untyped_src_ref);
+	return resource_thd_create(sched_thd->intern.ref, tcap_thd->intern.ref, comp->intern.comp, comp->intern.epoch, id, token, untyped_src_ref);
+}
+
+cos_retval_t
+thd_cap_create(captbl_t ct, cos_cap_t captbl_comp_cap, uword_t captbl_comp_off, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
+{
+	struct capability_resource *comp_captbl, *thd_pgtbl;
+	struct component *c;
+	pageref_t thd_src_ref;
+
+	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, captbl_comp_cap, COS_CAP_TYPE_CAPTBL_LEAF, COS_OP_MODIFY_ADD, comp_captbl));
+	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, pgtbl_src_cap,   COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, thd_pgtbl));
+	COS_CHECK(pgtbl_leaf_lookup(thd_pgtbl->intern.ref, pgtbl_src_off, COS_PAGE_TYPE_UNTYPED, 0, 0, &thd_src_ref));
+
+	return cap_create_thd(comp_captbl->intern.ref, captbl_comp_off, ops, thd_src_ref);
 }
 
 /**

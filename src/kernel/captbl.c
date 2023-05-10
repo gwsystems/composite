@@ -1,8 +1,8 @@
-
-
 #include <cos_consts.h>
 #include <cos_error.h>
 #include <types.h>
+#include <atomics.h>
+#include <state.h>
 
 #include <capabilities.h>
 #include <resources.h>
@@ -155,13 +155,13 @@ captbl_cap_reserve(struct capability_generic *cap)
 	return COS_RET_SUCCESS;
 }
 
-static inline int
+int
 capability_is_captbl(struct capability_generic *c)
 {
 	return c->type <= COS_CAP_TYPE_CAPTBL_0 && c->type >= COS_CAP_TYPE_CAPTBL_LEAF;
 }
 
-static inline int
+int
 capability_is_pgtbl(struct capability_generic *c)
 {
 	return c->type <= COS_CAP_TYPE_PGTBL_0 && c->type >= COS_CAP_TYPE_PGTBL_LEAF;
@@ -296,28 +296,30 @@ captbl_cap_copy(struct captbl_leaf *captbl_to, uword_t leaf_off_to, cos_op_bitma
  * 3. an untyped page we're using for the component (`untyped_src_ref`).
  */
 cos_retval_t
-cap_create_comp(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations, captbl_ref_t captbl_ref,
-		pgtbl_ref_t pgtbl_ref, prot_domain_tag_t pd, vaddr_t entry_ip, pgtbl_ref_t untyped_src_ref)
+cap_comp_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations, pageref_t comp_src_ref)
 {
 	struct capability_component_intern i;
-	cos_retval_t ret;
 	struct page_type *ptype;
 	struct captbl_leaf *captbl_entry;
 	struct capability_generic *cap;
+	struct component_ref ref;
+	epoch_t epoch;
+
+	/*
+	 * Build the reference to the component. Note that this makes
+	 * no memory modifications, so we don't have undo any
+	 * modifications if we error out later.
+	 */
+	COS_CHECK(resource_compref_create(comp_src_ref, &ref));
 
 	captbl_entry = (struct captbl_leaf *)ref2page_ptr(captbl_add_entry_ref);
 	cap = captbl_leaf_lookup(captbl_entry, COS_WRAP(captbl_add_entry_off, COS_CAPTBL_LEAF_NENT));
 	/* Reserve the capability that we'll later populate */
 	COS_CHECK(captbl_cap_reserve(cap));
 
-	/* Set up the resource's memory... */
-	COS_CHECK_THROW(resource_create_comp(captbl_ref, pgtbl_ref, pd, entry_ip, untyped_src_ref), ret, err);
-
-	ref2page(untyped_src_ref, NULL, &ptype);
 	/* Update the capability to properly reference the resource */
 	i = (struct capability_component_intern) {
-		.comp  = untyped_src_ref,
-		.epoch = ptype->epoch,
+		.component = ref,
 	};
 
 	/* Finish updating the capability to refer to the component structure. */
@@ -330,10 +332,6 @@ cap_create_comp(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off,
 	 */
 
 	return COS_RET_SUCCESS;
-err:
-	captbl_cap_unreserve(cap);
-
-	return ret;
 }
 
 /**
@@ -351,17 +349,17 @@ err:
  * - `@return` - typical success or error
  */
 cos_retval_t
-cap_create_sinv(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, pageref_t comp_ref, vaddr_t entry_ip, inv_token_t token)
+cap_sinv_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, pageref_t comp_ref, vaddr_t entry_ip, inv_token_t token)
 {
 	cos_retval_t ret = COS_RET_SUCCESS;
 	struct captbl_leaf *captbl_entry;
 	struct capability_generic *cap;
-	struct component *comp;
+	struct component_ref ref;
 	struct page_type *ptype;
 	struct capability_sync_inv_intern i;
 
-	/* get the component we're creating the sinv into */
-	ref2page(comp_ref, (struct page **)&comp, &ptype);
+	/* Build the reference to the server component */
+	COS_CHECK(resource_compref_create(comp_ref, &ref));
 
 	/* Get the slot we're adding the sinv into */
 	captbl_entry = (struct captbl_leaf *)ref2page_ptr(captbl_add_entry_ref);
@@ -373,13 +371,7 @@ cap_create_sinv(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off,
 	i = (struct capability_sync_inv_intern) {
 		.token = token,
 		.entry_ip = entry_ip,
-		.component = (struct component_ref) {
-			.pgtbl = comp->pgtbl,
-			.captbl = comp->captbl,
-			.epoch = epoch_copy(ptype),
-			.pd_tag = comp->pd_tag,
-			.compref = comp_ref,
-		}
+		.component = ref,
 	};
 
 	/* Finish updating the capability to the sinv type. */
@@ -406,38 +398,33 @@ cap_create_sinv(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off,
  * 5. the assorted pieces of state that the thread wants.
  */
 cos_retval_t
-cap_create_thd(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations, pageref_t sched_ref, pageref_t tcap_ref, pageref_t comp_ref, epoch_t epoch, thdid_t id, id_token_t token, pgtbl_ref_t untyped_src_ref)
+cap_thd_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations, pageref_t thd_ref)
 {
 	struct capability_resource_intern r;
 	cos_retval_t ret;
 	struct page_type *ptype;
 	struct captbl_leaf *captbl_entry;
 	struct capability_generic *cap;
+	struct weak_ref weak_ref;
 	prot_domain_tag_t pd;
 	vaddr_t entry_ip;
+
+	COS_CHECK(resource_weakref_create(thd_ref, COS_PAGE_KERNTYPE_THD, &weak_ref));
 
 	captbl_entry = (struct captbl_leaf *)ref2page_ptr(captbl_add_entry_ref);
 	cap = captbl_leaf_lookup(captbl_entry, COS_WRAP(captbl_add_entry_off, COS_CAPTBL_LEAF_NENT));
 	/* Reserve the capability that we'll later populate */
 	COS_CHECK(captbl_cap_reserve(cap));
 
-	/* Set up the resource's memory... */
-	COS_CHECK_THROW(resource_create_thd(sched_ref, tcap_ref, comp_ref, epoch, id, entry_ip, token, untyped_src_ref), ret, err);
-
-	ref2page(untyped_src_ref, NULL, &ptype);
 	/* Update the capability to properly reference the resource */
 	r = (struct capability_resource_intern) {
-		.ref  = untyped_src_ref,
+		.ref  = weak_ref,
 	};
 
 	/* Finish updating the capability to refer to the component structure. */
 	captbl_cap_activate(cap, COS_CAP_TYPE_THD, operations, &r);
 
 	return COS_RET_SUCCESS;
-err:
-	captbl_cap_unreserve(cap);
-
-	return ret;
 }
 
 /**
@@ -454,38 +441,33 @@ err:
  * - `@return` - `COS_RET_SUCCESS` or a negative error value.
  */
 cos_retval_t
-cap_create_restbl(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, page_kerntype_t kt, cos_op_bitmap_t operations, pgtbl_ref_t untyped_src_ref)
+cap_restbl_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, page_kerntype_t kt, cos_op_bitmap_t operations, pageref_t restbl_ref)
 {
 	struct capability_resource_intern r;
 	cos_retval_t ret;
 	struct page_type *ptype;
 	struct captbl_leaf *captbl_entry;
 	struct capability_generic *cap;
+	struct weak_ref weak_ref;
 	prot_domain_tag_t pd;
 	vaddr_t entry_ip;
+
+	COS_CHECK(resource_weakref_create(restbl_ref, kt, &weak_ref));
 
 	captbl_entry = (struct captbl_leaf *)ref2page_ptr(captbl_add_entry_ref);
 	cap = captbl_leaf_lookup(captbl_entry, COS_WRAP(captbl_add_entry_off, COS_CAPTBL_LEAF_NENT));
 	/* Reserve the capability that we'll later populate */
 	COS_CHECK(captbl_cap_reserve(cap));
 
-	/* Set up the resource's memory... */
-	COS_CHECK_THROW(resource_create_restbl(kt, untyped_src_ref), ret, err);
-
-	ref2page(untyped_src_ref, NULL, &ptype);
 	/* Update the capability to properly reference the resource */
 	r = (struct capability_resource_intern) {
-		.ref  = untyped_src_ref,
+		.ref  = weak_ref,
 	};
 
 	/* Finish updating the capability to refer to the component structure. */
 	captbl_cap_activate(cap, kt, operations, &r);
 
 	return COS_RET_SUCCESS;
-err:
-	captbl_cap_unreserve(cap);
-
-	return ret;
 }
 
 static cos_retval_t
@@ -493,40 +475,19 @@ cap_deactivate(struct captbl_leaf *captbl, uword_t leaf_off, cos_cap_type_t type
 {
 	struct capability_generic *cap;
 	cos_cap_type_t t;
-	pageref_t resource;
-	int has_refcnt = 1;
-	struct page_type *pagetype;
 
 	cap = captbl_leaf_lookup(captbl, leaf_off);
 	t   = cap->type;
 	if (t != type) return -COS_ERR_WRONG_CAP_TYPE;
 	if (t == COS_CAP_TYPE_FREE || t == COS_CAP_TYPE_RESERVED) return -COS_ERR_RESOURCE_NOT_FOUND;
 
-	switch (t) {
-	case COS_CAP_TYPE_SINV:
-	case COS_CAP_TYPE_HW:
-		/* No refcnts */
-		has_refcnt = 0;
-		break;
-	case COS_CAP_TYPE_COMP:
-		resource = ((struct capability_component *)cap)->intern.comp;
-		break;
-	CAP_FALLTHROUGH(COS_CAP_TYPE_PGTBL_0, COS_CAP_TYPE_PGTBL_1, COS_CAP_TYPE_PGTBL_2, COS_CAP_TYPE_PGTBL_3)
-	CAP_FALLTHROUGH(COS_CAP_TYPE_CAPTBL_0, COS_CAP_TYPE_CAPTBL_1, COS_CAP_TYPE_VMCB, COS_CAP_TYPE_HWVM)
-	CAP_FALLTHROUGH(COS_CAP_TYPE_SCB, COS_CAP_TYPE_DCB, COS_CAP_TYPE_ICB, COS_CAP_TYPE_RTCB)
-	case COS_CAP_TYPE_THD:
-		resource = ((struct capability_resource *)cap)->intern.ref;
-		break;
-	}
-
-	if (has_refcnt) {
-		ref2page(resource, NULL, &pagetype);
-		faa(&pagetype->refcnt, -1);
-	}
 	/* parallel quiescence must be calculated from this point */
 	cap->liveness = liveness_now();
 
-	/* Can't destructively update the capability aside from liveness and type due to parallel accesses. */
+	/*
+	 * Can't destructively update the capability's fields aside
+	 * from liveness and type due to parallel accesses.
+	 */
 
 	/* Update! */
 	if (!cas16(&cap->type, t, COS_CAP_TYPE_FREE)) return -COS_ERR_ALREADY_EXISTS;

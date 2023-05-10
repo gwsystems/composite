@@ -35,3 +35,17 @@ state(void)
 
 	return &core_state[0];
 }
+
+static inline liveness_t
+liveness_now()
+{
+	/* TODO: actual liveness. */
+	return 0;
+}
+
+static inline int
+liveness_quiesced(liveness_t past)
+{
+	/* TODO: actual liveness. */
+	return liveness_now() > past;
+}
