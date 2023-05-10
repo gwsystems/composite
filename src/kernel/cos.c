@@ -325,11 +325,15 @@ cos_retval_t
 sinv_cap_create(captbl_t ct, cos_cap_t captbl_sinv_cap, uword_t captbl_sinv_off, cos_cap_t comp_cap, vaddr_t entry_ip, inv_token_t token)
 {
 	struct capability_resource *sinv_captbl, *comp;
+	pageref_t sinv_ref, comp_ref;
 
 	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, captbl_sinv_cap, COS_CAP_TYPE_CAPTBL_LEAF, COS_OP_MODIFY_ADD, sinv_captbl));
+	COS_CHECK(resource_weakref_deref(&sinv_captbl->intern.ref, &sinv_ref));
 	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, comp_cap,        COS_CAP_TYPE_COMP,        COS_OP_CONSTRUCT,  comp));
+	/* TODO type types here are off */
+	COS_CHECK(resource_weakref_deref(&comp->intern.ref, &comp_ref));
 
-	return cap_create_sinv(sinv_captbl->intern.ref, captbl_sinv_off, comp->intern.ref, entry_ip, token);
+	return cap_sinv_create(comp_ref, captbl_sinv_off, comp_ref, entry_ip, token);
 }
 
 /**
