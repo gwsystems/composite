@@ -262,8 +262,7 @@ destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_
 	struct capability_resource *pgtbl;
 	pageref_t pgtbl_ref;
 
-	COS_CHECK(CAPTBL_LOOKUP_TYPE(ct, pgtbl_cap, COS_CAP_TYPE_PGTBL_LEAF, COS_OP_DEALLOCATE, pgtbl));
-	COS_CHECK(resource_weakref_deref(&pgtbl->intern.ref, &pgtbl_ref));
+	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_cap, COS_CAP_TYPE_PGTBL_LEAF, COS_OP_DEALLOCATE, &pgtbl_ref));
 	/* TODO: pay attention to the permissions */
 	COS_CHECK(pgtbl_leaf_lookup(pgtbl_ref, pgtbl_off, t, kt, COS_PGTBL_PERM_KERNEL, pgref));
 	/* Note that this retype can only proceed after it checks the reference count */
@@ -456,7 +455,7 @@ resource_comp_destroy(pageref_t compref)
  * - `@return` - normal return value denoting error (negative values), or success (zero)
  */
 cos_retval_t
-resource_thd_create(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t comp_ref, epoch_t epoch, thdid_t id, vaddr_t entry_ip, id_token_t sched_token, pageref_t untyped_src_ref)
+resource_thd_create(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t comp_ref, thdid_t id, vaddr_t entry_ip, id_token_t sched_token, pageref_t untyped_src_ref)
 {
 	struct page_type *ptype, *sched_ptype, *tcap_ptype, *comp_ptype;
 	struct page *thd_page, *tcap_page;
@@ -466,7 +465,7 @@ resource_thd_create(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t c
 
 	COS_CHECK(page_resolve(sched_thd_ref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, NULL, NULL, &sched_ptype));
 	if (!tcap_self) COS_CHECK(page_resolve(tcap_thd_ref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, NULL, NULL, &tcap_ptype));
-	COS_CHECK(resource_comp_ref_create(comp_ref, &ref));
+	COS_CHECK(resource_compref_create(comp_ref, &ref));
 
 	ref2page(untyped_src_ref, &thd_page, &ptype);
         /*
@@ -478,7 +477,7 @@ resource_thd_create(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t c
         /*
 	 * Take the references for the scheduler and tcap threads.
          * don't take a reference on the component, instead using
-         * `epoch` to determine liveness.
+         * `epoch` to determine liveness using the component_ref.
 	 */
 	faa(&sched_ptype->refcnt, 1);
 	if (!tcap_self) faa(&tcap_ptype->refcnt, 1);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cos_consts.h"
 #include <types.h>
 #include <cos_error.h>
 #include <capabilities.h>
@@ -46,9 +47,37 @@ captbl_lookup(captbl_t ct, cos_cap_t cap)
 }
 
 /* Simple helper to do the cast to the super-type for us */
-#define CAPTBL_LOOKUP_TYPE(ct, cap, type, required, cap_ret)                   \
-  captbl_lookup_type(ct, cap, type, required,                                  \
-                     (struct capability_generic **)&cap_ret)
+#define CAPTBL_LOOKUP_TYPE(ct, cap, type, required, cap_ret) \
+	captbl_lookup_type(ct, cap, type, required, (struct capability_generic **)&cap_ret)
+
+/* Forced inline here is meant to remove the switch's conditions */
+COS_FORCE_INLINE static inline cos_retval_t
+captbl_lookup_type_deref(captbl_t ct, cos_cap_t cap, cos_cap_type_t captype, cos_op_bitmap_t required, pageref_t *ref)
+{
+	struct capability_generic *capslot;
+	struct weak_ref *wref;
+
+	COS_CHECK(captbl_lookup_type(ct, cap, captype, required, &capslot));
+
+	/* pull the resource reference out of the capability if the reference is valid */
+	switch (captype) {
+	case COS_CAP_TYPE_COMP:
+		wref = &(((struct capability_component *)capslot)->intern.component.compref);
+		break;
+	case COS_CAP_TYPE_SINV:
+		wref = &(((struct capability_sync_inv *)capslot)->intern.component.compref);
+		break;
+	case COS_CAP_TYPE_HW:	/* No page associated with hardware capabilities */
+		return -COS_ERR_WRONG_CAP_TYPE;
+	default:		/* the rest of the types have a shared capability slot structure */
+		wref = &(((struct capability_resource *)capslot)->intern.ref);
+		break;
+	}
+
+	COS_CHECK(resource_weakref_deref(wref, ref));
+
+	return COS_RET_SUCCESS;
+}
 
 cos_retval_t cap_comp_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations, pageref_t comp_ref);
 cos_retval_t cap_sinv_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, pageref_t comp_ref, vaddr_t entry_ip, inv_token_t token);

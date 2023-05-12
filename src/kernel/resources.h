@@ -26,7 +26,7 @@ cos_retval_t resource_comp_create(captbl_ref_t captbl_ref, pgtbl_ref_t pgtbl_ref
 cos_retval_t resource_comp_destroy(pageref_t compref);
 cos_retval_t resource_compref_create(pageref_t compref, struct component_ref *r);
 
-cos_retval_t resource_thd_create(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t comp_ref, epoch_t epoch,
+cos_retval_t resource_thd_create(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t comp_ref,
                                  thdid_t id, vaddr_t entry_ip, id_token_t sched_token, pageref_t untyped_src_ref);
 cos_retval_t resource_thd_destroy(pageref_t thdref);
 
