@@ -1,3 +1,82 @@
+/***
+ * ## Resource/page Abstractions
+ *
+ * Resources are page-based memory that is *typed* either into a
+ * kernel-accessible data-structure, or as user-level virtual memory.
+ * Resources are an implementation of user-level typing of kernel
+ * memory pioneered by seL4, though the implementation and API are
+ * very different and include many novel decisions. With this support,
+ * the kernel has no dynamic memory allocation, instead relying on
+ * user-level to use the API to piece together the corresponding
+ * kernel data-structures. It is counter-intuitive that we can allow
+ * user-level (untrusted) to in any way manage kernel memory (must be
+ * trusted). This abstraction manages this by:
+ *
+ * 1. *Access control:* Only allowing components with capabilities to
+ *    the resources to use these APIs.
+ * 2. *Kernel integrity:* The kernel's integrity cannot be compromised
+ *    using these APIs.
+ * 3. *Liveness:* retyping is only allowed when (generally) no
+ *    existing pointers remain, which places significant restrictions
+ *    on when retyping can be performed.
+ *
+ * Lets take each of these in turn.
+ *
+ * **Access Control.** Resources are only available for
+ * allocation/deallocation via retyping through capabilities in
+ * last-level page-table nodes -- simplified here as "page-table
+ * nodes". Page-table nodes are, themselves, resources. A component
+ * must have a capability to a page-table node to perform retyping,
+ * and must have the `COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE`
+ * permissions. Most components in the system should *not* have this
+ * access, instead relying on management components to perform this
+ * retyping for them. Once a page is typed into a kernel resource, it
+ * is accessed as that resource through a capability in the
+ * capability-table. Thus, to manage memory, a component requires a
+ * page-table reference to the page, but to use the resource, a
+ * component will do so through its capability-table.
+ *
+ * **Kernel Integrity.** The kernel maintains pointers between
+ * resources, and relies on those resources having memory that is
+ * properly formatted for its given type. Put another way, resources
+ * must be well-typed in the kernel. When we're retyping a page into a
+ * specific kernel resource (for example, a thread), we must pass in
+ * all (capability-table) capabilities to the resources necessary to
+ * properly conduct the retyping. For example, to create a thread, we
+ * must pass the capability to the *scheduler thread* of the thread
+ * we're trying to create, and a capability to the *component* we're
+ * creating the thread in. Thus all of the type checks for the various
+ * resource references can be performed when resources are retyped.
+ * This ensures that the base-case of the resource introduced into the
+ * kernel is safe. A key invariant is that all future operations
+ * maintain a safe state. This is ensured by simply ensuring that
+ * while there are references from other resources to the resource, it
+ * cannot be retyped. User-level virtual memory cannot be reyped while
+ * any user-level mappings exist. This ensures that the same page
+ * cannot be treated as two separate types -- the main threat to
+ * kernel integrity. For example, we cannot have the same page act as
+ * a kernel thread (thus containing sensitive kernel state) and also
+ * as user-level virtual memory (thus enabling user-level to corrupt
+ * that state).
+ *
+ * **Liveness.** A core aspect of kernel integrity is ensuring that
+ * there are no references to a resource when we're allowed to retype
+ * it. A strict implementation of this is challenging. How can we tell
+ * if there is a reference in a core's TLB to a user-level page?
+ * Indeed how do we track if another core's using any of the
+ * resources? Reference counting doesn't have the scalability
+ * properties we require (see "Weak References" below), and cannot
+ * track TLB references. We do maintain reference counts between
+ * resources (a thread to its scheduler thread), but can't track the
+ * rest of the references. Thus, Composite allows retyping to
+ * *untyped* when all tracked references are removed, but untyped
+ * memory cannot be used in any meaningful way. An untyped page is
+ * only allowed to be retyped into user-level memory, or into a kernel
+ * structure if the system has quiesced. Quiescence occurs when no
+ * references are still possible. TLB quiescence, for example, occurs
+ * when all TLBs have been flushed.
+ */
+
 #include "compiler.h"
 #include "component.h"
 #include "cos_error.h"
@@ -12,20 +91,6 @@
 
 struct page_type page_types[COS_NUM_RETYPEABLE_PAGES] COS_PAGE_ALIGNED;
 struct page      pages[COS_NUM_RETYPEABLE_PAGES];
-
-/* Get the page's epoch. */
-static inline epoch_t
-epoch_copy(struct page_type *pt)
-{
-	return load64(&pt->epoch);
-}
-
-/* Update the page's epoch, and return the previous value. */
-static inline epoch_t
-epoch_update(struct page_type *pt)
-{
-	return (epoch_t)faa(&pt->epoch, 1);
-}
 
 /* The argument is really a page, but we want to keep it generic */
 static inline pageref_t
@@ -64,7 +129,7 @@ page_bounds_check(pageref_t ref)
 { return ref >= COS_NUM_RETYPEABLE_PAGES; }
 
 /***
- * ## Resources and Retyping
+ * ### Resources and Retyping
  *
  * The kernel's *resources* are each sized to a page, and they each
  * have a *type* that defines the allowed functionality of that
@@ -300,7 +365,7 @@ destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_
 }
 
 /***
- * ## Weak References
+ * ### Weak References
  *
  * The *weak reference* API implements versioned pointers/references.
  * Reference counts are a conventional mechanism to prevent memory
@@ -336,6 +401,20 @@ destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_
  * (i.e. from a node at level N to a node at level N + 1), and thread
  * references for schedulers and tcaps.
  */
+
+/* Get the page's epoch. */
+static inline epoch_t
+epoch_copy(struct page_type *pt)
+{
+	return load64(&pt->epoch);
+}
+
+/* Update the page's epoch, and return the previous value. */
+static inline epoch_t
+epoch_update(struct page_type *pt)
+{
+	return (epoch_t)faa(&pt->epoch, 1);
+}
 
 /**
  * `resource_weakref_create` creates a new weak reference to a
