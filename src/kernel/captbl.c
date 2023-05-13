@@ -1,3 +1,5 @@
+#include "compiler.h"
+#include "cos_types.h"
 #include <cos_consts.h>
 #include <cos_error.h>
 #include <types.h>
@@ -39,20 +41,49 @@ int
 page_is_captbl(page_kerntype_t type)
 { return !(type < COS_PAGE_KERNTYPE_CAPTBL_0 || type >= (COS_PAGE_KERNTYPE_CAPTBL_0 + COS_CAPTBL_MAX_DEPTH)); }
 
+/***
+ * ### Capability Table Construction/Destruction
+ *
+ * `captbl_construct` and `captbl_deconstruct` create a reference, or
+ * remove a reference from a node at level N in a capability table to
+ * a node at level N + 1. These functions maintain the radix tries
+ * that we use as the core of lookups. A few important properties
+ * follow.
+ *
+ * All references between captbl nodes are a single word, so they are
+ * easily updated with an atomic instruction. So no complicated
+ * protocol is required to update them.
+ *
+ * A "NULL" entry uses `COS_CAPTBL_0_ENT_NULL`. This is an
+ * optimization as it can be a pointer to a node with inaccessible
+ * capability slots (i.e. all reserved). This enables us to avoid
+ * conditionally checking references at each level (i.e. `if (ent ==
+ * NULL) ...`).
+ */
+
+/**
+ * `captbl_construct` adds a link in a capability-table node at level
+ * N to a node at level N + 1, and updates the corresponding reference
+ * counts.
+ *
+ * - `@top` - The top-level captbl node
+ * - `@leaf` - The next-level captbl node
+ * - `@offset` - The offset into `top` that should reference `leaf`
+ * - `@return` - normal return with failures on mistypes, or missing mappings
+ */
 cos_retval_t
 captbl_construct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset)
 {
 	struct captbl_internal *top_node;
+	struct captbl_leaf     *leaf_node;
 	struct page_type       *top_type, *leaf_type;
 
 	COS_CHECK(page_resolve(top, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_CAPTBL_0, NULL, (struct page **)&top_node, &top_type));
-	COS_CHECK(page_resolve(leaf, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_CAPTBL_1, NULL, NULL, &leaf_type));
-
+	COS_CHECK(page_resolve(leaf, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_CAPTBL_1, NULL, (struct page **)&leaf_node, &leaf_type));
 	offset = COS_WRAP(offset, COS_CAPTBL_INTERNAL_NENT);
-	if (top_node->next[offset] != COS_CAPTBL_0_ENT_NULL) return -COS_ERR_ALREADY_EXISTS;
 
 	/* Updates! */
-	if (!cas64(&top_node->next[offset], COS_CAPTBL_0_ENT_NULL, leaf)) return -COS_ERR_ALREADY_EXISTS;
+	if (!cas64(&top_node->next[offset], COS_CAPTBL_0_ENT_NULL, (u64_t)leaf_node)) return -COS_ERR_ALREADY_EXISTS;
 	faa(&top_type->refcnt, 1);
 	faa(&leaf_type->refcnt, 1);
 
@@ -64,9 +95,8 @@ captbl_construct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset)
  * level N to a node at level N + 1, and updates the corresponding
  * reference counts.
  *
- * - `@top` -
- * - `@leaf` -
- * - `@offset` -
+ * - `@top` - The top-level captbl node
+ * - `@offset` - The offset into that node at which we're removing a mapping
  * - `@return` - normal return with failures on mistypes, or missing mappings
  */
 cos_retval_t
@@ -91,44 +121,6 @@ captbl_deconstruct(captbl_ref_t top, uword_t offset)
 	return COS_RET_SUCCESS;
 }
 
-/**
- * `captbl_cap_typecheck` takes a capability, checks that it is live,
- * has the expected `type`, and has permissions that allow the
- * `required` operations. Note that `required` can be `0`, in which
- * the permissions are *not* checked. This is the fastpath for `sinv`
- * to avoid any checks (permissions for `sinv` are vacuous -- the
- * capability alone denotes a binary permission).
- */
-static inline cos_retval_t
-captbl_cap_typecheck(struct capability_generic* c, cos_cap_type_t type, cos_op_bitmap_t required)
-{
-	if (unlikely(c->type != type)) return -COS_ERR_WRONG_CAP_TYPE;
-        /*
-         * We first test required being zero to make it clear to the
-         * compiler to omit this test in that case (i.e. the sinv
-         * fastpath).
-	 */
-	if (unlikely(required && (c->operations & required) == required)) return -COS_ERR_INSUFFICIENT_PERMISSIONS;
-
-	return COS_RET_SUCCESS;
-}
-
-/**
- * `captbl_lookup_type` does a capability lookup (looking up `cap` in
- * `ct`), and checks liveness, `type`, and if the capability provides
- * permissions to allow the `required` operations. Returns a normal
- * error/success, and the capability in `cap_ret`. Note that the
- * pointer might be populated even in the case of an error, in which
- * case you should ignore the value.
- */
-cos_retval_t
-captbl_lookup_type(captbl_t ct, cos_cap_t cap, cos_cap_type_t type, cos_op_bitmap_t required, struct capability_generic **cap_ret)
-{
-	*cap_ret = captbl_lookup(ct, cap);
-
-	return captbl_cap_typecheck(*cap_ret, type, required);
-}
-
 struct capability_generic *
 captbl_leaf_lookup(struct captbl_leaf *captbl, uword_t leaf_off)
 {
@@ -147,21 +139,6 @@ captbl_leaf_lookup_type(struct captbl_leaf *captbl, uword_t leaf_off, cos_cap_ty
 	return captbl_cap_typecheck(*cap_ret, type, required);
 }
 
-/***
- * `captbl_cap_reserve` makes sure that we can activate the
- * capability, and reserve it for our initialization.
- */
-static inline cos_retval_t
-captbl_cap_reserve(struct capability_generic *cap)
-{
-	if (!liveness_quiesced(cap->liveness)) return -COS_ERR_NOT_QUIESCED;
-
-	/* Update! */
-	if (!cas16(&cap->type, COS_CAP_TYPE_FREE, COS_CAP_TYPE_RESERVED)) return -COS_ERR_ALREADY_EXISTS;
-
-	return COS_RET_SUCCESS;
-}
-
 int
 capability_is_captbl(struct capability_generic *c)
 {
@@ -174,25 +151,70 @@ capability_is_pgtbl(struct capability_generic *c)
 	return c->type <= COS_CAP_TYPE_PGTBL_0 && c->type >= COS_CAP_TYPE_PGTBL_LEAF;
 }
 
-/**
- * `captbl_cap_unreserve` undos a previous reservation for a
- * capability slot. The core idea is that if we have to successfully
- * access multiple resources to create a capability, we might detect a
- * failure (i.e. one of those resources has an incorrect type), thus
- * need to undo the reservation as part of cleaning up the operation.
+/***
+ * ### Capability Slot Allocation/Deallocation
+ *
+ * Capability slots follow a state-machine similar to that for
+ * resource retyping (see `resources.c` retyping information). The
+ * *conceptual* states include:
+ *
+ * - A - active
+ * - D - deactivated
+ * - Q - quiescing
+ * - R - reserved
+ *
+ * Active slots (A) can be accessed by any core's computations as the
+ * appropriate type. Once deactivated (A -> D), a slot cannot be
+ * accessed by any future capability table operations. The challenge
+ * is that a parallel access that races with deactivation could
+ * already see the active type. Thus we must await quiescence (D -> Q)
+ * -- all parallel operations must complete before the slot is reused.
+ * Once the slot has quiesced, we can use it to reference a new
+ * resource and type. However, we can neither update the slot's memory
+ * without updating the type as such updates might race with similar
+ * updates on another core, nor can we update the type as other core's
+ * computations might attempt to use the slot as that type before we
+ * finish initializing the slot. Thus, we have the reserved state
+ * which sets the type of the capability to `COS_CAP_TYPE_RESERVED`,
+ * making it inaccessible to any parallel computations (Q -> R). Only
+ * after the slot's memory is initialized do we update the slot's
+ * type, making it active (R -> A). The functions that transition
+ * through these states:
+ *
+ * - `captbl_cap_reserve`: D -> Q -> R
+ * - `captbl_cap_activate`: R -> A
+ * - `captbl_cap_deactivate`: A -> D
  */
-static inline void
-captbl_cap_unreserve(struct capability_generic *cap)
-{
-	/*
-	 * No special logic here. The slot is reserved, so we can
-	 * modify it directly.
-	 */
-	cap->type = COS_CAP_TYPE_FREE;
-}
 
-#define CAP_FALLTHROUGH(id0, id1, id2, id3)	\
-	case id0: case id1: case id2: case id3:
+/**
+ * `captbl_cap_reserve` is used to reserve a capability slot in a
+ * parallel-safe way so that no parallel operations can access the
+ * capability slot. This enables us to initialize the slot. After it
+ * is initialized, we treat its memory as read-only. At that point,
+ * `captbl_cap_activate` finalizes the initialization, and makes the
+ * slot visible to parallel and future accesses.
+ *
+ * Note that we cannot reserve a slot that since previously being
+ * deactivated has not quiesced. We need to await all potential
+ * parallel references to this slot completing before we modify the
+ * slot's memory. So, awkward as it seems, we have to have a
+ * liveness/quiescence check for slot deallocation in this allocation
+ * function.
+ *
+ * - `@cap` - The capability slot
+ * - `@return` - normal return value; errors on quiescence, or if the
+ *   slot is already in use.
+ */
+static inline cos_retval_t
+captbl_cap_reserve(struct capability_generic *cap)
+{
+	if (!liveness_quiesced(cap->liveness)) return -COS_ERR_NOT_QUIESCED;
+
+	/* Update! */
+	if (!cas16(&cap->type, COS_CAP_TYPE_FREE, COS_CAP_TYPE_RESERVED)) return -COS_ERR_ALREADY_EXISTS;
+
+	return COS_RET_SUCCESS;
+}
 
 /**
  * `captbl_cap_activate` activates a previously reserved capability
@@ -201,8 +223,19 @@ captbl_cap_unreserve(struct capability_generic *cap)
  * (`cap_data`). It is important that this is guaranteed to succeed so
  * that we don't need to roll back any additional operations (from
  * between when the slot was reserved, and when it is activated here).
+ *
+ * We force inlining here to remove the switch logic as `type` is
+ * always passed in as a constant (i.e. simple constant propagation +
+ * dead-code elimination).
+ *
+ * - `@cap` - capability slot to activate
+ * - `@type` - desired type for the slot
+ * - `@operations` - allowed/permitted  operations on the capability
+ * - `@cap_data` - the type-specific initialized data for the slot
+ *
+ * This can't fail as we've already reserved the slot.
  */
-static inline void
+COS_FORCE_INLINE static inline void
 captbl_cap_activate(struct capability_generic *cap, cos_cap_type_t type, cos_op_bitmap_t operations, void *cap_data)
 {
 	cap->operations = operations;
@@ -220,6 +253,9 @@ captbl_cap_activate(struct capability_generic *cap, cos_cap_type_t type, cos_op_
 		break;							\
 	}
 
+#define CAP_FALLTHROUGH(id0, id1, id2, id3)	\
+	case id0: case id1: case id2: case id3:
+
 	switch (type) {
 	CAP_INITIALIZE(COS_CAP_TYPE_SINV, struct capability_sync_inv)
 	CAP_INITIALIZE(COS_CAP_TYPE_COMP, struct capability_component)
@@ -231,12 +267,46 @@ captbl_cap_activate(struct capability_generic *cap, cos_cap_type_t type, cos_op_
 	CAP_INITIALIZE(COS_CAP_TYPE_THD, struct capability_resource)
 	}
 
-	/* FIXME: barrier here */
-
+	mem_barrier();
 	/* Commit the changes, and make them accessible! */
 	cap->type = type;
 
 	return;
+}
+
+/**
+ * `captbl_cap_deactivate` makes the capability slot inaccessible, and
+ * frees it for future potential use after parallel quiescence.
+ *
+ * - `@captbl` - the captbl leaf node
+ * - `@leaf_off` - the offset into that node of the slot to deactivate
+ * - `@type` - expected type of the capability
+ * - `@return` - normal return with errors on type mismatches, or races
+ */
+static cos_retval_t
+captbl_cap_deactivate(struct captbl_leaf *captbl, uword_t leaf_off, cos_cap_type_t type)
+{
+	struct capability_generic *cap;
+	cos_cap_type_t t;
+
+	cap = captbl_leaf_lookup(captbl, leaf_off);
+	t   = cap->type;
+	if (t != type) return -COS_ERR_WRONG_CAP_TYPE;
+	if (t == COS_CAP_TYPE_FREE || t == COS_CAP_TYPE_RESERVED) return -COS_ERR_RESOURCE_NOT_FOUND;
+
+	/* parallel quiescence must be calculated from this point */
+	cap->liveness = liveness_now();
+
+	/*
+	 * Can't destructively update the capability's fields aside
+	 * from liveness and type due to parallel accesses.
+	 */
+
+	mem_barrier();
+	/* Update! */
+	if (!cas16(&cap->type, t, COS_CAP_TYPE_FREE)) return -COS_ERR_CONTENTION;
+
+	return COS_RET_SUCCESS;
 }
 
 static cos_retval_t
@@ -259,39 +329,6 @@ captbl_cap_copy(struct captbl_leaf *captbl_to, uword_t leaf_off_to, cos_op_bitma
 
 	return COS_RET_SUCCESS;
 }
-
-
-
-/***
- * Operations on capability entries themselves. These focus on
- * allocating capability entries, and deallocating them. They rely on
- * the functions specific to the different resources, but only call
- * them after the capability slot has been allocated successfully.
- *
- * Capability activation follows the general algorithm:
- *
- * - Lookup the capability entry
- * - Check that the entry is not still live, or error out.
- * - Attempt to reserve the entry using an atomic instruction. At this
- *   point, we are the only core that can access the slot.
- * - Reserve the referenced resources (backed by a page) by reserving
- *   it. Similarly uses an atomic instruction, ensuring we are the
- *   only core that can access the page.
- * - Initialize the capability slot to reference the resource and
- *   "freeze" the capability representation.
- * - Activate the capability by typing it to the appropriate type,
- *   thus making it accessible.
- *
- * Capability deactivation is simpler as it is not responsible for
- * resource deallocation. Thus it does the following:
- *
- * - Lookup the capability entry.
- * - If the type holds a refcnt, decrement it!
- * - Set the liveness of the entry to now.
- * - Update the capability type to "free".
- *
- * FIXME: should first set type to RETYPING, then to free to avoid races.
- */
 
 /**
  * `cap_create_comp`: Create the capability structure for a new
@@ -473,31 +510,6 @@ cap_restbl_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_of
 
 	/* Finish updating the capability to refer to the component structure. */
 	captbl_cap_activate(cap, kt, operations, &r);
-
-	return COS_RET_SUCCESS;
-}
-
-static cos_retval_t
-cap_deactivate(struct captbl_leaf *captbl, uword_t leaf_off, cos_cap_type_t type)
-{
-	struct capability_generic *cap;
-	cos_cap_type_t t;
-
-	cap = captbl_leaf_lookup(captbl, leaf_off);
-	t   = cap->type;
-	if (t != type) return -COS_ERR_WRONG_CAP_TYPE;
-	if (t == COS_CAP_TYPE_FREE || t == COS_CAP_TYPE_RESERVED) return -COS_ERR_RESOURCE_NOT_FOUND;
-
-	/* parallel quiescence must be calculated from this point */
-	cap->liveness = liveness_now();
-
-	/*
-	 * Can't destructively update the capability's fields aside
-	 * from liveness and type due to parallel accesses.
-	 */
-
-	/* Update! */
-	if (!cas16(&cap->type, t, COS_CAP_TYPE_FREE)) return -COS_ERR_ALREADY_EXISTS;
 
 	return COS_RET_SUCCESS;
 }

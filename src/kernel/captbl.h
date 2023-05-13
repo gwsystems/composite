@@ -45,6 +45,43 @@ captbl_lookup(captbl_t ct, cos_cap_t cap)
 
 	return &leaf->capabilities[leaf_off];
 }
+/**
+ * `captbl_cap_typecheck` takes a capability, checks that it is live,
+ * has the expected `type`, and has permissions that allow the
+ * `required` operations. Note that `required` can be `0`, in which
+ * the permissions are *not* checked. This is the fastpath for `sinv`
+ * to avoid any checks (permissions for `sinv` are vacuous -- the
+ * capability alone denotes a binary permission).
+ */
+static inline cos_retval_t
+captbl_cap_typecheck(struct capability_generic* c, cos_cap_type_t type, cos_op_bitmap_t required)
+{
+	if (unlikely(c->type != type)) return -COS_ERR_WRONG_CAP_TYPE;
+        /*
+         * We first test required being zero to make it clear to the
+         * compiler to omit this test in that case (i.e. the sinv
+         * fastpath).
+	 */
+	if (unlikely(required && (c->operations & required) == required)) return -COS_ERR_INSUFFICIENT_PERMISSIONS;
+
+	return COS_RET_SUCCESS;
+}
+
+/**
+ * `captbl_lookup_type` does a capability lookup (looking up `cap` in
+ * `ct`), and checks liveness, `type`, and if the capability provides
+ * permissions to allow the `required` operations. Returns a normal
+ * error/success, and the capability in `cap_ret`. Note that the
+ * pointer might be populated even in the case of an error, in which
+ * case you should ignore the value.
+ */
+cos_retval_t
+captbl_lookup_type(captbl_t ct, cos_cap_t cap, cos_cap_type_t type, cos_op_bitmap_t required, struct capability_generic **cap_ret)
+{
+	*cap_ret = captbl_lookup(ct, cap);
+
+	return captbl_cap_typecheck(*cap_ret, type, required);
+}
 
 /* Simple helper to do the cast to the super-type for us */
 #define CAPTBL_LOOKUP_TYPE(ct, cap, type, required, cap_ret) \
