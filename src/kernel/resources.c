@@ -63,8 +63,9 @@ int
 page_bounds_check(pageref_t ref)
 { return ref >= COS_NUM_RETYPEABLE_PAGES; }
 
-
 /***
+ * ## Resources and Retyping
+ *
  * The kernel's *resources* are each sized to a page, and they each
  * have a *type* that defines the allowed functionality of that
  * resource. For example, resources typed as a "thread" can be
@@ -126,6 +127,23 @@ page_bounds_check(pageref_t ref)
  *    type.
  *
  * And the cycle continues.
+ *
+ * **Summarized**: The state machine of these retyping operations has
+ * the following states:
+ *
+ * - K - Kernel resource (i.e. component, thread, or resource table node)
+ * - U - Untyped page
+ * - V - Virtual memory
+ *
+ * Transitions include:
+ *
+ * - K -> U only if no references remain to K
+ * - U -> V only if the page has quiesced, thus no parallel references exist, and no references remain
+ * - V -> U only if no mappings/references remain to V
+ * - U -> V only if the page has quiesced, thus no parallel references exist, and no references remain
+ *
+ * As such, you can see that the `untyped` state generally exists for
+ * synchronization to enable quiescence.
  */
 
 /**
@@ -134,6 +152,12 @@ page_bounds_check(pageref_t ref)
  * (kernel resource, or virtual memory). Will fail if the resource
  * hasn't quiesced (it is still "active", and *potentially* referenced
  * by logic on another core, or if it is not untyped.
+ *
+ * - `@t` - page type structure
+ * - `@p` - corresponding page structure
+ * - `@type` - desired type
+ * - `@ktype`  - desired kernel type
+ * - `@return` - normal error
  */
 cos_retval_t
 page_retype_from_untyped_reserve(struct page_type *t, struct page *p, page_type_t type, page_kerntype_t ktype)
@@ -163,6 +187,10 @@ page_retype_from_untyped_reserve(struct page_type *t, struct page *p, page_type_
  * `page_retype_from_untyped_commit` simply "commits" (as in data-base
  * transaction commit) the type into the resource to make it
  * accessible as that type.
+ *
+ * - `@t` - page type
+ * - `@p` - corresponding page
+ * - `@type` - desired page type
  */
 void
 page_retype_from_untyped_commit(struct page_type *t, struct page *p, page_type_t type)
@@ -271,15 +299,57 @@ destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_
 	return COS_RET_SUCCESS;
 }
 
-/**
- * `resource_weak_ref` returns `COS_RET_SUCCESS` if the resource is a
- * the expected type, and populates the reference, `wr`. Otherwise
- * return a type error.
+/***
+ * ## Weak References
  *
- * The idea here is that we need to retrieve the epoch
- * *before* doing the type check. Given that, the type of the page can
- * immediately be changed, and the (now) updated epoch will make this
- * clear. We wish to avoid the race:
+ * The *weak reference* API implements versioned pointers/references.
+ * Reference counts are a conventional mechanism to prevent memory
+ * from being deallocated (or in our case, retyped) while there are
+ * pointers to that memory. This provides a restricted form of
+ * garbage-collection, simplifying system memory management.
+ * Unfortunately, reference counts can prevent scalable, parallel
+ * system execution. The cache-line modifications necessary for atomic
+ * increment/decrements prevent scalability. This is particularly a
+ * problem in the thread migration path as we'd need to take a
+ * reference of the server we're invoking, and release the reference
+ * when returning. The cache-coherence involved would massively
+ * increase the worst-case overhead of thread migration.
+ *
+ * The core idea behind weak references is that we can check if an
+ * existing reference is to the intended resource. The reference will
+ * outlive the resource, and we simply check the validity of the
+ * reference before dereferencing it. To implement this, each resource
+ * has an `epoch`, and each weak reference has a corresponding
+ * `epoch`. Deallocating a resource (retyping it), increases the
+ * epoch. Dereferencing a weak reference first checks that the epoch
+ * of the reference matches that of the resource.
+ *
+ * The Composite kernel uses both weak references and reference
+ * counters. All references from the capability table are weak
+ * references, and all references from threads to components (on the
+ * thread's invocation stack) are weak. This means that resources can
+ * be retyped even with existing capability-table references. This is
+ * important as it enables components in charge of resources to more
+ * freely retype/deallocate which revokes resource access, regardless
+ * how other components have delegated the resources. Reference counts
+ * are still used to track the internal references in resource tables
+ * (i.e. from a node at level N to a node at level N + 1), and thread
+ * references for schedulers and tcaps.
+ */
+
+/**
+ * `resource_weakref_create` creates a new weak reference to a
+ * resource. Returns `COS_RET_SUCCESS` if the resource is a the
+ * expected type, and populates the reference, `wr`. Otherwise return
+ * a type error.
+ *
+ * A core challenge of this design is handling a race between on
+ * dereference when checking both the type, and the epochs. We need to
+ * retrieve the epoch *before* doing the type check as we have to
+ * assume that the type is changed the *cycle* after we retrieve it.
+ * Given that, the type of the page can immediately be changed, and
+ * the (now) updated epoch will make this clear. We wish to avoid the
+ * race:
  *
  * 1. check that the page is a component = success,
  * 2. another core retypes to the page to something else which
@@ -295,7 +365,6 @@ destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_
  * - `@wr` - the weak reference to populate
  * - `@return` - normal return, can fail if the type doesn't match
  */
-
 cos_retval_t
 resource_weakref_create(pageref_t resource_ref, page_kerntype_t expected_kerntype, struct weak_ref *wr)
 {
@@ -319,9 +388,10 @@ resource_weakref_create(pageref_t resource_ref, page_kerntype_t expected_kerntyp
 }
 
 /**
- * `resource_comp_epoch` returns `COS_RET_SUCCESS` if the resource is
- * a component, and populates the component reference, `r`. Otherwise
- * return a type error.
+ * `resource_compref_create` creates a new component reference
+ * (including a weak reference) to the component. It returns
+ * `COS_RET_SUCCESS` if the resource is a component, and populates the
+ * component reference, `r`. Otherwise return a type error.
  *
  * - `@compref` - a reference to the component page.
  * - `@r` - a component reference to be filled out.

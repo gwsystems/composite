@@ -220,6 +220,16 @@ static inline void *
 phys2page(paddr_t pa)
 { return (struct page *)pa; }
 
+/***
+ * The resource retyping API is used to create resources of various
+ * kernel types, or of user-level virtual memory, or deallocate them.
+ * This API relies on the `resource.c` retyping operations.
+ *
+ * This level of the API focuses on simply creating specific kernel
+ * resources, and destroying them. These map to retyping to a kernel
+ * resource, or retyping away from a kernel resource (to and from
+ * untyped memory).
+
 /**
  * `comp_create`: The system call entry point for component creation
  * via retyping. A component requires 1. memory to back the component
@@ -287,56 +297,6 @@ comp_destroy(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off)
 }
 
 /**
- * `comp_cap_create` creates a capability to a component resource.
- *
- * - `@ct` - current capability table
- * - `@captbl_comp_cap` - capability to a captbl leaf
- * - `@captbl_comp_off` - offset in that leaf to the slot in which
- *   you're creating the component
- * - `@ops` - operation permissions the capability should have
- * - `@pgtbl_src_cap` - capability to the pgtbl leaf
- * - `@pgtbl_comp_off` - and offset in that leaf to the component resource
- * - `@return` - normal return value
- */
-cos_retval_t
-comp_cap_create(captbl_t ct, cos_cap_t captbl_comp_cap, uword_t captbl_comp_off, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_comp_off)
-{
-	pageref_t comp_src_ref, pgtbl_ref, captbl_ref;
-
-	COS_CHECK(captbl_lookup_type_deref(ct, captbl_comp_cap, COS_CAP_TYPE_CAPTBL_LEAF, COS_OP_MODIFY_ADD, &captbl_ref));
-	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_src_cap,   COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, &pgtbl_ref));
-	COS_CHECK(pgtbl_leaf_lookup(pgtbl_ref, pgtbl_comp_off, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_COMP, 0, &comp_src_ref));
-
-	return cap_comp_create(captbl_ref, captbl_comp_off, ops, comp_src_ref);
-}
-
-/**
- * `sinv_cap_create` creates a capability to a synchronous invocation
- * to a given component.
- *
- * - `@ct` - capability table to use for lookups
- * - `@captbl_sinv_cap` - the capability to the captbl to add the sinv
- * - `@captbl_sinv_off` - the offset into that captbl node
- * - `@comp_cap` - the component capability to which the sinv refs
- * - `@entry_ip` - entry instruction pointer into component
- * - `@token` - the token to pass to the component on invocation
- * - `@pgtbl_src_cap` - page-table leaf that holds the component
- * - `@pgtbl_comp_off` - the offset in that leaf of the component
- * - `@return` - Normal return value.
- */
-cos_retval_t
-sinv_cap_create(captbl_t ct, cos_cap_t captbl_sinv_cap, uword_t captbl_sinv_off, cos_cap_t comp_cap, vaddr_t entry_ip, inv_token_t token, cos_cap_t pgtbl_src_cap, uword_t pgtbl_comp_off)
-{
-	pageref_t comp_src_ref, pgtbl_ref, captbl_ref;
-
-	COS_CHECK(captbl_lookup_type_deref(ct, captbl_sinv_cap, COS_CAP_TYPE_CAPTBL_LEAF, COS_OP_MODIFY_ADD, &captbl_ref));
-	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_src_cap,   COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, &pgtbl_ref));
-	COS_CHECK(pgtbl_leaf_lookup(pgtbl_ref, pgtbl_comp_off, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_COMP, 0, &comp_src_ref))
-;
-	return cap_sinv_create(captbl_ref, captbl_sinv_off, comp_src_ref, entry_ip, token);
-}
-
-/**
  * `thd_create`: The system call entry point for the thread
  * creation API. A thread requires 1. memory to back the thread (via
  * `pgtbl_src_cap` and `pgtbl_src_off`), 2. the references to the
@@ -374,18 +334,6 @@ thd_create(captbl_t ct, cos_cap_t schedthd_cap, cos_cap_t tcapthd_cap, cos_cap_t
 	COS_CHECK(pgtbl_leaf_lookup(pgtbl_src_ref, pgtbl_src_off, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, 0, &thd_src_ref));
 
 	return resource_thd_create(schedthd_ref, tcap_ref, comp_ref, 0, id, token, thd_src_ref);
-}
-
-cos_retval_t
-thd_cap_create(captbl_t ct, cos_cap_t captbl_comp_cap, uword_t captbl_comp_off, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
-{
-	pageref_t captbl_ref, pgtbl_src_ref, thd_src_ref;
-
-	COS_CHECK(captbl_lookup_type_deref(ct, captbl_comp_cap, COS_CAP_TYPE_CAPTBL_LEAF, COS_OP_MODIFY_ADD, &captbl_ref));
-	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_src_cap,   COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, &pgtbl_src_ref));
-	COS_CHECK(pgtbl_leaf_lookup(pgtbl_src_ref, pgtbl_src_off, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, 0, &thd_src_ref));
-
-	return cap_thd_create(captbl_ref, captbl_comp_off, ops, thd_src_ref);
 }
 
 /**
@@ -447,19 +395,6 @@ restbl_create(captbl_t ct, page_kerntype_t kt, cos_cap_t pgtbl_src_cap, uword_t 
 	return resource_restbl_create(kt, restbl_ref);
 }
 
-cos_retval_t
-restbl_cap_create(captbl_t ct, cos_cap_t captbl_restbl_cap, uword_t captbl_restbl_off, page_kerntype_t kt, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
-{
-	pageref_t captbl_res, res_ref, res_src_ref;
-
-	if (!page_is_pgtbl(kt) && !page_is_captbl(kt)) return -COS_ERR_WRONG_INPUT_TYPE;
-	COS_CHECK(captbl_lookup_type_deref(ct, captbl_restbl_cap, COS_CAP_TYPE_CAPTBL_LEAF, COS_OP_MODIFY_ADD, &captbl_res));
-	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_src_cap,   COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, &res_src_ref));
-	COS_CHECK(pgtbl_leaf_lookup(res_src_ref, pgtbl_src_off, COS_PAGE_TYPE_KERNEL, kt, 0, &res_ref));
-
-	return cap_restbl_create(captbl_res, captbl_restbl_off, kt, ops, res_ref);
-}
-
 /**
  * `restbl_destroy` takes the capability table (`ct`), the capability
  * to a last-level page-table node that includes a thread resource
@@ -483,6 +418,153 @@ restbl_destroy(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_kerntyp
 	 */
 
 	return COS_RET_SUCCESS;
+}
+
+/***
+ * The capability creation APIs are a set of functions, one per
+ * resource:
+ *
+ * - `comp_cap_create` - create component capability
+ * - `sinv_cap_create` - create synchronous invocation capability
+ * - `thd_cap_create` - create thread capability
+ * - `restbl_cap_create` - create resource table capability (i.e. a
+ *   capability to the nodes of the various levels of page-tables, or
+ *   capability-tables)
+ *
+ * The core arguments to these functions are the capability table in
+ * which we're looking up resources, the capability to the leaf-level
+ * capability-table node in which we're going to add the new
+ * capability and the offset into that node to address the destination
+ * slot, the allowed/permitted operations that capability can perform
+ * on its resource, and the capability to the leaf-level page-table
+ * node which at a provided offset references the resource to which
+ * we're creating the capability.
+ */
+
+/**
+ * `cap_create_refs` retrieves the references to the capability table
+ * entry that we're going go add the capability into, and to the
+ * resource we're creating a capability to. These are the key
+ * ingredients to creating the capability to the resource.
+ *
+ * Returns errors in the cases where:
+ *
+ * 1. the types of the capabilities don't match expected types,
+ * 2. the resources have been retyped (i.e. deallocated),
+ * 3. the referenced slots (captbl and pgtbl) dont' exist, or
+ * 4. the required operations on the resource tables are not allowed.
+ *
+ * - `@ct` - the capability table
+ * - `@ktype` - the expected type of the resource
+ * - `@captbl_cap` - capability to leaf captbl node
+ * - `@pgtbl_cap` - capability to the leaf pgtbl node
+ * - `@pgtbl_off` - offset in that node holding the resource
+ * - `@captbl_ref` - returned captbl node reference
+ * - `@resource_ref` - returned resource reference
+ * - `@return` - Normal return value; see error sources above.
+ */
+static cos_retval_t
+cap_create_refs(captbl_t ct, page_kerntype_t ktype, cos_cap_t captbl_cap, cos_cap_t pgtbl_cap, uword_t pgtbl_off, pageref_t *captbl_ref, pageref_t *resource_ref)
+{
+	pageref_t pgtbl_ref;
+
+	COS_CHECK(captbl_lookup_type_deref(ct, captbl_cap, COS_CAP_TYPE_CAPTBL_LEAF, COS_OP_MODIFY_ADD, captbl_ref));
+	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_cap,  COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, &pgtbl_ref));
+	COS_CHECK(pgtbl_leaf_lookup(pgtbl_ref, pgtbl_off,  COS_PAGE_TYPE_KERNEL, ktype, 0, resource_ref));
+
+	return COS_RET_SUCCESS;
+}
+
+/**
+ * `comp_cap_create` creates a capability to a component resource. See
+ * `cap_create_refs` for more info.
+ *
+ * - `@ct` - current capability table
+ * - `@captbl_comp_cap` - capability to a captbl leaf
+ * - `@captbl_comp_off` - offset in that leaf to the slot in which
+ *   you're creating the component
+ * - `@ops` - operation permissions the capability should have
+ * - `@pgtbl_src_cap` - capability to the pgtbl leaf
+ * - `@pgtbl_comp_off` - and offset in that leaf to the component resource
+ * - `@return` - normal return value
+ */
+cos_retval_t
+comp_cap_create(captbl_t ct, cos_cap_t captbl_comp_cap, uword_t captbl_comp_off, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_comp_off)
+{
+	pageref_t comp_src_ref, captbl_ref;
+
+	COS_CHECK(cap_create_refs(ct, COS_PAGE_KERNTYPE_COMP, captbl_comp_cap, pgtbl_src_cap, pgtbl_comp_off, &captbl_ref, &comp_src_ref));
+
+	return cap_comp_create(captbl_ref, captbl_comp_off, ops, comp_src_ref);
+}
+
+/**
+ * `sinv_cap_create` creates a capability to a synchronous invocation
+ * to a given component. See `cap_create_refs` for more info.
+ *
+ * - `@ct` - capability table to use for lookups
+ * - `@captbl_sinv_cap` - the capability to the captbl to add the sinv
+ * - `@captbl_sinv_off` - the offset into that captbl node
+ * - `@entry_ip` - entry instruction pointer into component
+ * - `@token` - the token to pass to the component on invocation
+ * - `@pgtbl_src_cap` - page-table leaf that holds the component
+ * - `@pgtbl_comp_off` - the offset in that leaf of the component
+ * - `@return` - Normal return value.
+ */
+cos_retval_t
+sinv_cap_create(captbl_t ct, cos_cap_t captbl_sinv_cap, uword_t captbl_sinv_off, vaddr_t entry_ip, inv_token_t token, cos_cap_t pgtbl_src_cap, uword_t pgtbl_comp_off)
+{
+	pageref_t comp_src_ref, captbl_ref;
+
+	COS_CHECK(cap_create_refs(ct, COS_PAGE_KERNTYPE_COMP, captbl_sinv_cap, pgtbl_src_cap, pgtbl_comp_off, &captbl_ref, &comp_src_ref));
+
+	return cap_sinv_create(captbl_ref, captbl_sinv_off, comp_src_ref, entry_ip, token);
+}
+
+/**
+ * `thd_cap_create` creates a capability to a thread. This can be used
+ * for dispatch, rendezvous-based IPC, and asynchronous activation.
+ * See `cap_create_refs` for more info.
+ *
+ * - `@ct` - capability table to use for lookups
+ * - `@captbl_thd_cap` - the capability to the captbl to add the sinv
+ * - `@captbl_thd_off` - the offset into that captbl node
+ * - `@ops` - operation permissions the capability should have
+ * - `@pgtbl_src_cap` - page-table leaf that holds the component
+ * - `@pgtbl_comp_off` - the offset in that leaf of the component
+ * - `@return` - Normal return value.
+ */
+cos_retval_t
+thd_cap_create(captbl_t ct, cos_cap_t captbl_thd_cap, uword_t captbl_thd_off, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
+{
+	pageref_t captbl_ref, thd_ref;
+
+	COS_CHECK(cap_create_refs(ct, COS_PAGE_KERNTYPE_THD, captbl_thd_cap, pgtbl_src_cap, pgtbl_src_off, &captbl_ref, &thd_ref));
+
+	return cap_thd_create(captbl_ref, captbl_thd_off, ops, thd_ref);
+}
+
+/**
+ * `restbl_cap_create` creates a capability to a synchronous invocation
+ * to a given component. See `cap_create_refs` for more info.
+ *
+ * - `@ct` - capability table to use for lookups
+ * - `@captbl_thd_cap` - the capability to the captbl to add the sinv
+ * - `@captbl_thd_off` - the offset into that captbl node
+ * - `@ops` - operation permissions the capability should have
+ * - `@pgtbl_src_cap` - page-table leaf that holds the component
+ * - `@pgtbl_comp_off` - the offset in that leaf of the component
+ * - `@return` - Normal return value.
+ */
+cos_retval_t
+restbl_cap_create(captbl_t ct, cos_cap_t captbl_restbl_cap, uword_t captbl_restbl_off, page_kerntype_t kt, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
+{
+	pageref_t captbl_ref, res_ref;
+
+	if (!page_is_pgtbl(kt) && !page_is_captbl(kt)) return -COS_ERR_WRONG_INPUT_TYPE;
+	COS_CHECK(cap_create_refs(ct, kt, captbl_restbl_cap, pgtbl_src_cap, pgtbl_src_off, &captbl_ref, &res_ref));
+
+	return cap_restbl_create(captbl_ref, captbl_restbl_off, kt, ops, res_ref);
 }
 
 COS_NEVER_INLINE struct regs *
@@ -517,10 +599,10 @@ capability_activation(struct regs *rs)
 	cos_op_bitmap_t ops;
 
         /*
-	 * The synchronous invocation fastpath includes invoke and
-         * return. Capability #0 is hard-coded to synchronous return
-         * fastpath, while an invocation is signaled by finding a
-         * synchronous invocation capability.
+	 * Phase I: The synchronous invocation fastpath includes
+         * invoke and return. Capability #0 is hard-coded to
+         * synchronous return fastpath, while an invocation is
+         * signaled by finding a synchronous invocation capability.
 	 */
 	if (likely(cap == 0)) {
 		return sinv_return(t, &g->invstk_head, rs);
@@ -552,22 +634,35 @@ capability_activation(struct regs *rs)
 	}
 
         /*
-	 * Thread operations are both performance sensitive (IPC), and
-         * complex. These are the only operations that switch threads,
-         * thus all of the global register update logic is here.
+	 * Phase II: Thread operations are both performance sensitive
+         * (IPC), and complex. These are the only operations that
+         * switch threads, thus all of the global register update
+         * logic is here.
 	 */
 	if (likely(cap_slot->type == COS_CAP_TYPE_THD)) {
 		struct capability_resource *cap_thd = (struct capability_resource *)cap_slot;
-		struct thread *t = (struct thread *)ref2page_ptr(cap_thd->intern.ref);
+		struct thread *t;
+		pageref_t thd_ref;
+		cos_retval_t ret;
+
+		ret = resource_weakref_deref(&cap_thd->intern.ref, &thd_ref);
+		if (unlikely(ret != COS_RET_SUCCESS)) {
+			regs_retval(rs, REGS_RETVAL_BASE, -COS_ERR_NOT_LIVE);
+
+			return rs;
+		}
+		t = (struct thread *)ref2page_ptr(thd_ref);
 
 		/* Thread operations. First, the dispatch fast-path. */
 		if (likely(ops == COS_OP_THD_DISPATCH)) {
                         return thread_switch(t, rs, 0);
 		}
 
+		/* Phase III: slowpaths */
 		return thread_slowpath(t, ops, rs);
 	}
 
+	/* Phase III: slowpaths */
 	return capability_activation_slowpath(rs, cap_slot);
 }
 

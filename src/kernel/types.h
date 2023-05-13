@@ -38,7 +38,7 @@ typedef u16_t          cos_cap_type_t;    /* tag for each capability's type */
  * references. This makes it much more safe for any component to be
  * able to manage its own capability tables.
  *
- * The core APIs for managing these references are in `resource.h`.
+ * The core APIs for managing these references are in `resources.h`.
  */
 struct weak_ref {
 	pageref_t ref;
