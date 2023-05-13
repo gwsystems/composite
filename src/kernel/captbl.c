@@ -45,8 +45,6 @@ captbl_construct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset)
 	struct captbl_internal *top_node;
 	struct page_type       *top_type, *leaf_type;
 
-	/* check arguments, and page-state/type */
-	if (page_bounds_check(top) || page_bounds_check(leaf)) return -COS_ERR_OUT_OF_BOUNDS;
 	COS_CHECK(page_resolve(top, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_CAPTBL_0, NULL, (struct page **)&top_node, &top_type));
 	COS_CHECK(page_resolve(leaf, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_CAPTBL_1, NULL, NULL, &leaf_type));
 
@@ -61,23 +59,32 @@ captbl_construct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset)
 	return COS_RET_SUCCESS;
 }
 
-/* TODO: should we even need to pass in the second level node? */
+/**
+ * `captbl_deconstruct` removes a link in a capability-table node at
+ * level N to a node at level N + 1, and updates the corresponding
+ * reference counts.
+ *
+ * - `@top` -
+ * - `@leaf` -
+ * - `@offset` -
+ * - `@return` - normal return with failures on mistypes, or missing mappings
+ */
 cos_retval_t
-captbl_deconstruct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset)
+captbl_deconstruct(captbl_ref_t top, uword_t offset)
 {
+	captbl_ref_t leaf;
 	struct captbl_internal *top_node, *leaf_node;
 	struct page_type       *top_type, *leaf_type;
 
-	/* check arguments, and page-state/type */
-	if (page_bounds_check(top) || page_bounds_check(leaf)) return -COS_ERR_OUT_OF_BOUNDS;
-	COS_CHECK(page_resolve(top, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_CAPTBL_0, NULL, (struct page **)&top_node, &top_type));
-	COS_CHECK(page_resolve(leaf, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_CAPTBL_1, NULL, (struct page **)&leaf_node, &leaf_type));
 	offset = COS_WRAP(offset, COS_CAPTBL_INTERNAL_NENT);
-	/* If the leaf isn't actually at this offset! */
-	if (unlikely(top_node->next[offset] != leaf)) return -COS_ERR_NO_MATCH;
+
+	COS_CHECK(page_resolve(top, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_CAPTBL_0, NULL, (struct page **)&top_node, &top_type));
+	leaf = top_node->next[offset];
+	ref2page(leaf, (struct page **)&leaf_node, &leaf_type);
+	/* assert: leaf must be proper type */
 
 	/* Updates! */
-	if (!cas64(&top_node->next[offset], leaf, COS_CAPTBL_0_ENT_NULL)) return -COS_ERR_NO_MATCH;
+	if (!cas64(&top_node->next[offset], leaf, COS_CAPTBL_0_ENT_NULL)) return -COS_ERR_CONTENTION;
 	faa(&top_type->refcnt, -1);
 	faa(&leaf_type->refcnt, -1);
 

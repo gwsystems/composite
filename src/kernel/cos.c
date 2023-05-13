@@ -190,15 +190,15 @@ struct state_percore core_state[COS_NUM_CPU];
  *   addresses that are valid within the kernel. They are at
  *   high-addresses in each virtual address space.
  *
- * - *page references* (`pageref_t`) - The offset of the page being
- *   referenced into our typed page array. These can bit-wise be
- *   smaller than normal addresses, so they can be quite useful to
- *   compress the size of some structures. These references are also
- *   used to index into the page type metadata, thus are essential in
- *   many parts of the system. Given this, the conversion functions
- *   also (optionally) return the page type. As there are only
- *   `COS_NUM_RETYPEABLE_PAGES` pages, the page references are bounds
- *   checked.
+ * - *page references* (`pageref_t` and similar types) - The offset of
+ *   the page being referenced into our typed page array. These can
+ *   bit-wise be smaller than normal addresses, so they can be quite
+ *   useful to compress the size of some structures. These references
+ *   are also used to index into the page type metadata, thus are
+ *   essential in many parts of the system. Given this, the conversion
+ *   functions also (optionally) return the page type. As there are
+ *   only `COS_NUM_RETYPEABLE_PAGES` pages, the page references are
+ *   bounds checked.
  *
  * - *user-level virtual addresses* (`vaddr_t`) - An address usable by
  *   user-level component code. This is *not* dereference-able within
@@ -210,25 +210,17 @@ struct state_percore core_state[COS_NUM_CPU];
  *   functions below for this namespace.
  */
 
-/* The argument is really a page, but we want to keep it generic */
-static inline paddr_t
-page2phys(void *va)
-{ return (paddr_t)va; }
-
-/* return the generic type to enable call-site typing */
-static inline void *
-phys2page(paddr_t pa)
-{ return (struct page *)pa; }
-
 /***
- * The resource retyping API is used to create resources of various
- * kernel types, or of user-level virtual memory, or deallocate them.
- * This API relies on the `resource.c` retyping operations.
+ * ### Resource Retyping Operations
  *
- * This level of the API focuses on simply creating specific kernel
- * resources, and destroying them. These map to retyping to a kernel
- * resource, or retyping away from a kernel resource (to and from
- * untyped memory).
+ * The `X_create` and `X_destroy` functions (for some resource `X`
+ * such as a thread, resource table, etc...) retype a page into the
+ * resource type, or from the resource type into the *untyped* type.
+ *
+ * See `resource.c` for the implementations. The following functions
+ * are here to simply tie the capabilities together, retrieve the
+ * resource references, and pass those on to the retyping logic.
+ */
 
 /**
  * `comp_create`: The system call entry point for component creation
@@ -421,6 +413,8 @@ restbl_destroy(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_kerntyp
 }
 
 /***
+ * ### Capability-slot Creation
+ *
  * The capability creation APIs are a set of functions, one per
  * resource:
  *

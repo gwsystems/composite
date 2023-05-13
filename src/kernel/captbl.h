@@ -15,7 +15,7 @@ struct captbl_leaf {
 };
 
 cos_retval_t captbl_construct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset);
-cos_retval_t captbl_deconstruct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset);
+cos_retval_t captbl_deconstruct(captbl_ref_t top, uword_t offset);
 void         captbl_leaf_initialize(struct captbl_leaf *ct);
 void         captbl_intern_initialize(struct captbl_internal *ct);
 int          page_is_captbl(page_kerntype_t type);

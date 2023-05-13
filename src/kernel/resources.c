@@ -496,6 +496,27 @@ resource_compref_create(pageref_t compref, struct component_ref *r)
 	return COS_RET_SUCCESS;
 }
 
+/***
+ * ### Specific Resources
+ *
+ * The following includes the retyping operations for the following
+ * resources:
+ *
+ * - Components which reference a page-table and a capability-table.
+ * - Threads which reference a component into which they start
+ *   executing, and a scheduling thread.
+ * - Resource tables (page-table nodes, and capability-table nodes)
+ *   which contain references to nodes of the next level if they are
+ *   "internal" nodes, and either capability slots for last-level
+ *   capability-table nodes, or either resource references or virtual
+ *   memory mappings for last-level page-table nodes.
+ *
+ * These APIs include `resource_X_create` functions that attempt to
+ * retype an untyped resource to the type `X`, and
+ * `resource_X_destroy` which attempt to retype from a resource of
+ * type `X` to untyped.
+ */
+
 /**
  * `resource_comp_create`: An example of resource creation for a
  * component resource. This requires 1. addressing the capability
