@@ -4,7 +4,6 @@
  * This uses a two clause BSD License.
  */
 
-#include "arch/x86_64/cos_component.h"
 #include <cos_kernel_api.h>
 #include <cos_types.h>
 #include <ps_plat.h>
