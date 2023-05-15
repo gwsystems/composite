@@ -4,6 +4,7 @@
  * This uses a two clause BSD License.
  */
 
+#include "arch/x86_64/cos_component.h"
 #include <cos_kernel_api.h>
 #include <cos_types.h>
 #include <ps_plat.h>
@@ -1615,6 +1616,12 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 	}
 
 	return (void *)va;
+}
+
+int
+cos_hw_pmu_enable(hwcap_t hwc)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_PMU_ENABLE, 0, 0, 0, 0);
 }
 
 

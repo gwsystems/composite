@@ -18,6 +18,7 @@
 #include "include/chal/chal_proto.h"
 #include "include/scb.h"
 #include "include/ulk.h"
+#include "include/pmu.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -1889,6 +1890,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 		}
 		case CAPTBL_OP_HW_TLBSTALL_RECOUNT: {
 			ret = chal_tlbstall_recount(0);
+			break;
+		}
+		case CAPTBL_OP_HW_PMU_ENABLE: {
+			ret = chal_pmu_enable_cntrs();
 			break;
 		}
 		default:

@@ -229,7 +229,7 @@ int     cos_hw_tlbflush(hwcap_t hwc);
 int     cos_hw_tlbstall(hwcap_t hwc);
 int     cos_hw_tlbstall_recount(hwcap_t hwc);
 void    cos_hw_shutdown(hwcap_t hwc);
-
+int     cos_hw_pmu_enable(hwcap_t hwc);
 
 capid_t cos_capid_bump_alloc(struct cos_compinfo *ci, cap_t cap);
 vaddr_t cos_page_bump_intern_valloc(struct cos_compinfo *ci, size_t sz);
