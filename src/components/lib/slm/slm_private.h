@@ -350,7 +350,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 			return ret;
 		}
 	}
-	if (!cd || !nd) {
+	if (!cd || !nd || (cd->vas_id != nd->vas_id)) {
 		if (scb->timer_pre < timeout) {
 			scb->timer_pre = timeout;
 		}

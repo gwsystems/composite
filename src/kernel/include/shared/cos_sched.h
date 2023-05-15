@@ -36,6 +36,7 @@ struct cos_dcb_info {
 	unsigned long ip;
 	unsigned long sp;
 	unsigned long pending; /* binary value. TODO: move it to ip or sp */
+	unsigned long vas_id;
 } __attribute__((packed));
 
 /*

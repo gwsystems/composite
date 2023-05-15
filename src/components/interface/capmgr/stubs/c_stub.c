@@ -24,14 +24,15 @@ COS_CLIENT_STUB(arcvcap_t, capmgr_rcv_create, thdclosure_index_t idx, int flags,
 	return ret;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_initthd_create, spdid_t child, thdid_t *tid)
+COS_CLIENT_STUB(thdcap_t, capmgr_initthd_create, spdid_t child, thdid_t *tid, unsigned long *vas_id)
 {
 	COS_CLIENT_INVCAP;
-	word_t unused, tid_ret;
+	word_t vasid_ret, tid_ret;
 	thdcap_t ret;
 
-	ret = cos_sinv_2rets(uc, child, 0, 0, 0, &tid_ret, &unused);
+	ret = cos_sinv_2rets(uc, child, 0, 0, 0, &tid_ret, &vasid_ret);
 	*tid = tid_ret;
+	*vas_id = vasid_ret;
 
 	return ret;
 }
@@ -49,14 +50,15 @@ COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_thunk, thdclosure_index_t id, thdid_
 	return ret;
 }
 
-COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext, spdid_t child, thdclosure_index_t idx, thdid_t *tid)
+COS_CLIENT_STUB(thdcap_t, capmgr_thd_create_ext, spdid_t child, thdclosure_index_t idx, thdid_t *tid, unsigned long *vas_id)
 {
 	COS_CLIENT_INVCAP;
-	word_t unused, tid_ret;
+	word_t vasid_ret, tid_ret;
 	thdcap_t ret;
 
-	ret  = cos_sinv_2rets(uc, child, idx, 0, 0, &tid_ret, &unused);
+	ret  = cos_sinv_2rets(uc, child, idx, 0, 0, &tid_ret, &vasid_ret);
 	*tid  = tid_ret;
+	*vas_id = vasid_ret;
 
 	return ret;
 }

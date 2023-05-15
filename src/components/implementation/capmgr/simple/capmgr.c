@@ -780,7 +780,6 @@ capmgr_comp_init(void)
 				/* map ulk memory into this component; if this fails it was aleady mapped into shared pt */
 				crt_ulk_map_in(&cmc->comp);
 				cmc->comp.vas_id = vas_id;
-				//printc("compid: %d, vas_id: %d\n", cmc->comp.id, vas_id);
 			}
 		}
 	}
@@ -859,6 +858,7 @@ capmgr_sched_initdcb_get()
 	return s->comp.init_dcb_addr[cos_cpuid()];
 }
 
+/* FIXME: integrate with capmgr_ctrlblk_get() */
 thdid_t
 capmgr_retrieve_dcbinfo(thdid_t tid, struct cos_dcb_info **dcb)
 {
@@ -871,7 +871,7 @@ capmgr_retrieve_dcbinfo(thdid_t tid, struct cos_dcb_info **dcb)
 }
 
 thdcap_t
-capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
+capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid, unsigned long *vas_id)
 {
 	compid_t schedid = (compid_t)cos_inv_token();
 	struct cm_thd *t;
@@ -906,15 +906,16 @@ capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 	ss_dcbinfo_activate(info);
 
 	*tid  = t->thd.tid;
+	*vas_id = c->comp.vas_id;
 
 	return t->aliased_cap;
 }
 
 thdcap_t
-capmgr_initthd_create(spdid_t client, thdid_t *tid)
+capmgr_initthd_create(spdid_t client, thdid_t *tid, unsigned long *vas_id)
 {
 	assert(0);
-	return capmgr_thd_create_ext(client, 0, tid);
+	return capmgr_thd_create_ext(client, 0, tid, vas_id);
 }
 
 thdcap_t  capmgr_initaep_create(spdid_t child, struct cos_aep_info *aep, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, asndcap_t *sndret) { BUG(); return 0; }

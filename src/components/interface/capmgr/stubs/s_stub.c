@@ -32,10 +32,12 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_create_thunk)
 COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_create_ext)
 {
 	thdid_t retthd = 0;
+	unsigned long vas_id = 0;
 	thdcap_t ret;
 
-	ret = capmgr_thd_create_ext(p0, p1, &retthd);
+	ret = capmgr_thd_create_ext(p0, p1, &retthd, &vas_id);
 	*r1 = retthd;
+	*r2 = vas_id;
 
 	return ret;
 }
@@ -54,10 +56,12 @@ COS_SERVER_3RET_STUB(int, capmgr_retrieve_dcbinfo)
 COS_SERVER_3RET_STUB(thdcap_t, capmgr_initthd_create)
 {
 	thdid_t retthd = 0;
+	unsigned long vas_id = 0;
 	thdcap_t ret;
 
-	ret = capmgr_initthd_create(p0, &retthd);
+	ret = capmgr_initthd_create(p0, &retthd, &vas_id);
 	*r1 = retthd;
+	*r2 = vas_id;
 
 	return ret;
 }
