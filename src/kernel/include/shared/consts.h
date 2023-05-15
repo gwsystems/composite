@@ -130,7 +130,12 @@
 
 #define KERN_BASE_ADDR 0xc0000000 // should be COS_MEM_KERN_START_VA
 
-#define ULK_BASE_ADDR 0x7f8000000000
+#define ULK_BASE_ADDR 	0x7f8000000000
+#define ULK_SCB_ADDR  	ULK_BASE_ADDR
+#define ULK_INVSTK_ADDR	(ULK_BASE_ADDR + PAGE_SIZE)
+
+/* for callgate assembly... size verified at compile-time in cos_sched.h */
+#define COS_SCB_INFO_SIZE 448
 
 /* We save information on the user level stack for fast access. The
  * offsets below are used to access CPU and thread IDs. */
