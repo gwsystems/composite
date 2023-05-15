@@ -31,6 +31,8 @@ COS_STATIC_STACK
 
 COS_UPCALL_ENTRY
 
+COS_CALLGATE_VIOLATION_ENTRY
+
 /*
  * %eax = cmpval, %ebx = memaddr, %ecx = newval
  * output %edx, either cmpval: fail, or newval:	success

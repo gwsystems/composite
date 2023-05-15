@@ -45,6 +45,15 @@ __cosrt_upcall_entry:			\
 	COS_ASM_RET_STACK		\
 	sysenter;
 
+#define COS_CALLGATE_VIOLATION_ENTRY	\
+.text;					\
+.globl __cosrt_callgate_violation_entry;\
+.align 16;				\
+__cosrt_callgate_violation_entry:	\
+/* TODO: fault handling; die for now */	\
+	movq $0, %rax;			\
+	movq (%rax), %rax;		
+
 #define COS_ATOMIC_CMPXCHG 		\
 	movl %eax, %edx;		\
 	cmpl (%ebx), %eax;		\

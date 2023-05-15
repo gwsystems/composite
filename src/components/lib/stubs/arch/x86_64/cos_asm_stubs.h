@@ -213,6 +213,9 @@ __cosrt_fast_callgate_##name:					\
 	movq    %rcx, %r8;					\
 	movq    %rdx, %r9;					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
+	/* component memory attestation */			\
+	movabs  $0x9090909090909090, %rax;			\
+	movq	(%rax), %rax;					\
 	/* thread ID and cpu ID */				\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffe0000, %rdx;			\
@@ -229,7 +232,7 @@ __cosrt_fast_callgate_##name:					\
 	/* check client token */				\
 	movq    $0xdeadbeefdeadbeef, %rax;			\
 	cmp     %rax, %r15;					\
-	/* TODO: jne     bad */					\
+	jne     __cosrt_callgate_violation_entry;		\
 	movabs	$0x1212121212121212, %rax;			\
 	movabs	$srv_call_ret_##name, %rcx;			\
 	jmpq   *%rax;						\
@@ -237,6 +240,9 @@ srv_call_ret_##name:						\
 	movq	%rax, %r8;					\
 	/* save server authentication token */			\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
+	/* component memory attestation */			\
+	movabs  $0x9191919191919191, %rax;			\
+	movq	(%rax), %rax;					\
 	/* thread ID */						\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffe0000, %rdx;			\
@@ -248,7 +254,7 @@ srv_call_ret_##name:						\
 	/* check server token */				\
 	movq    $0xdeadbeefdeadbeef, %rax;			\
 	cmp     %rax, %r15;					\
-	/* TODO: jne     bad */					\
+	jne     __cosrt_callgate_violation_entry;		\
 	movq    %r8, %rax;					\
 	/* callee saved */					\
 	popq	%r15;						\
@@ -296,6 +302,9 @@ __cosrt_fast_callgate_##name:					\
 	movq    %rcx, %r8;					\
 	movq    %rdx, %r9;					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
+	/* component memory attestation */			\
+	movabs  $0x9090909090909090, %rax;			\
+	movq	(%rax), %rax;					\
 	/* thread ID and cpu ID */				\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffe0000, %rdx;			\
@@ -312,7 +321,7 @@ __cosrt_fast_callgate_##name:					\
 	/* check client token */				\
 	movq    $0xdeadbeefdeadbeef, %rax;			\
 	cmp     %rax, %r15;					\
-	/* TODO: jne     bad */					\
+	jne     __cosrt_callgate_violation_entry;		\
 	movabs	$0x1212121212121212, %rax;			\
 	movabs	$srv_call_ret_##name, %rcx;			\
 	jmpq   	*%rax;						\
@@ -320,6 +329,9 @@ srv_call_ret_##name:						\
 	movq	%rax, %r8;					\
 	/* save server authentication token */			\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
+	/* component memory attestation */			\
+	movabs  $0x9191919191919191, %rax;			\
+	movq	(%rax), %rax;					\
 	/* thread ID */						\
 	movq    %rsp, %rdx;					\
 	andq    $0xfffffffffffe0000, %rdx;			\
@@ -331,7 +343,7 @@ srv_call_ret_##name:						\
 	/* check server token */				\
 	movq    $0xdeadbeefdeadbeef, %rax;			\
 	cmp     %rax, %r15;					\
-	/* TODO: jne     bad */					\
+	jne     __cosrt_callgate_violation_entry;		\
 	movq    %r8, %rax;					\
 	movq	%rsi, (%r12);					\
 	movq	%rdi, (%rbx);					\

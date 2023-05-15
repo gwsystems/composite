@@ -38,17 +38,31 @@ mpk_jit_replace(u8_t *src, u8_t *orig, u8_t *replace, size_t len, size_t src_len
 #define JIT_INV_PLACEHOLDER   0x0123456789ABCDEFUL
 #define JIT_MPK_PLACEHOLDER   0xFFFFFFFEU
 #define JIT_SRVFN_PLACEHOLDER 0x1212121212121212UL
+#define JIT_CLI_MEMCHECK_PLACEHOLDER 0x9090909090909090UL
+#define JIT_SRV_MEMCHECK_PLACEHOLDER 0x9191919191919191UL
 
 /* FIXME: automate this value */
 #define JIT_CALLGATE_LEN_BYTES 550
 
 static void
-mpk_jit_jitcallgate(vaddr_t callgate, vaddr_t server_fn, prot_domain_t client_protdom, prot_domain_t server_protdom, u64_t cli_tok, u64_t srv_tok, invtoken_t inv_tok, sinvcap_t cap_no)
+mpk_jit_jitcallgate(
+		vaddr_t callgate, 
+		vaddr_t server_fn, 
+		prot_domain_t client_protdom, 
+		prot_domain_t server_protdom, 
+		u64_t cli_tok, 
+		u64_t srv_tok, 
+		invtoken_t inv_tok, 
+		sinvcap_t cap_no,
+		vaddr_t srv_memcheck,
+		vaddr_t cli_memcheck)
 {
 	u64_t tok_placeholder = JIT_TOK_PLACEHOLDER;
 	u64_t inv_placeholder = JIT_INV_PLACEHOLDER;
 	u32_t mpk_placeholder = JIT_MPK_PLACEHOLDER;
 	u64_t srvfn_placeholder = JIT_SRVFN_PLACEHOLDER;
+	u64_t srv_memcheck_placeholder = JIT_SRV_MEMCHECK_PLACEHOLDER;
+	u64_t cli_memcheck_placeholder = JIT_CLI_MEMCHECK_PLACEHOLDER;
 
 	u32_t cli_pkey = (u32_t)PROTDOM_MPK_KEY(client_protdom);
 	u32_t srv_pkey = (u32_t)PROTDOM_MPK_KEY(server_protdom);
@@ -62,12 +76,19 @@ mpk_jit_jitcallgate(vaddr_t callgate, vaddr_t server_fn, prot_domain_t client_pr
      */
 	if (!mpk_jit_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&cli_tok, sizeof(u64_t), JIT_CALLGATE_LEN_BYTES)) BUG();
 	if (!mpk_jit_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&cli_tok, sizeof(u64_t), JIT_CALLGATE_LEN_BYTES)) BUG();
+
 	if (!mpk_jit_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), JIT_CALLGATE_LEN_BYTES)) BUG();
 	if (!mpk_jit_replace((u8_t *)callgate, (u8_t *)&tok_placeholder, (u8_t *)&srv_tok, sizeof(u64_t), JIT_CALLGATE_LEN_BYTES)) BUG();
+
 	if (!mpk_jit_replace((u8_t *)callgate, (u8_t *)&inv_placeholder, (u8_t *)&cap_no,  sizeof(u64_t), JIT_CALLGATE_LEN_BYTES)) BUG();
 	if (!mpk_jit_replace((u8_t *)callgate, (u8_t *)&inv_placeholder, (u8_t *)&inv_tok, sizeof(u64_t), JIT_CALLGATE_LEN_BYTES)) BUG();
+
 	if (!mpk_jit_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&srv_pkey, sizeof(u32_t), JIT_CALLGATE_LEN_BYTES)) BUG();
 	if (!mpk_jit_replace((u8_t *)callgate, (u8_t *)&mpk_placeholder, (u8_t *)&cli_pkey, sizeof(u32_t), JIT_CALLGATE_LEN_BYTES)) BUG();
+
 	if (!mpk_jit_replace((u8_t *)callgate, (u8_t *)&srvfn_placeholder, (u8_t *)&server_fn, sizeof(u64_t), JIT_CALLGATE_LEN_BYTES)) BUG();
+
+	if (!mpk_jit_replace((u8_t *)callgate, (u8_t *)&srv_memcheck_placeholder, (u8_t *)&srv_memcheck, sizeof(u64_t), JIT_CALLGATE_LEN_BYTES)) BUG();
+	if (!mpk_jit_replace((u8_t *)callgate, (u8_t *)&cli_memcheck_placeholder, (u8_t *)&cli_memcheck, sizeof(u64_t), JIT_CALLGATE_LEN_BYTES)) BUG();
 
 }
