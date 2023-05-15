@@ -60,7 +60,7 @@
  * - output: r14 = pointer to stack
  */
 #define COS_ULINV_GET_INVSTK					\
-	movabs	$ULK_BASE_ADDR, %r14;				\
+	movabs	$ULK_INVSTK_ADDR, %r14;				\
 	/* get perthread invstack */				\
 	movq	%r13, %rax;					\
 	andq	$0xffff, %rax;					\

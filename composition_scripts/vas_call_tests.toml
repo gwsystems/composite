@@ -59,14 +59,14 @@ constructor = "booter"
 
 # client   --kernel-->   server_1   --userlvl-->   server_2   --kernel-->   server_3   --userlvl-->   server_4
 
-[[address_spaces]]
-name = "system"
-components = ["capmgr", "sched"]
+#[[address_spaces]]
+#name = "system"
+#components = ["capmgr", "sched"]
 
 [[address_spaces]]
 name = "server_group_B"
 components = ["server_3", "server_4"]
-parent = "system"
+#parent = "system"
 
 [[address_spaces]]
 name = "server_group_A"

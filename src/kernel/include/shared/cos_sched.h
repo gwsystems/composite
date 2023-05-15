@@ -23,11 +23,14 @@ struct cos_sched_ring {
 
 /* FIXME: priority... */
 struct cos_scb_info {
+	thdid_t               tid;
 	capid_t               curr_thd;
 	tcap_time_t           timer_pre;
 	sched_tok_t           sched_tok;
 	struct cos_sched_ring sched_events;
 } CACHE_ALIGNED;
+
+COS_STATIC_ASSERT(COS_SCB_INFO_SIZE == sizeof(struct cos_scb_info), "Update COS_SCB_INFO_SIZE with sizeof struct cos_scb_info");
 
 struct cos_dcb_info {
 	unsigned long ip;
