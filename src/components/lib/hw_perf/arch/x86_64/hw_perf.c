@@ -1,6 +1,7 @@
 
 #include <cos_types.h>
 #include <hw_perf.h>
+#include <cos_kernel_api.h>
 
 
 /* 
@@ -24,7 +25,6 @@ rdpmc (unsigned long cntr)
 
 	return low | ((unsigned long)high) << 32;
 }
-
 
 unsigned long
 hw_perf_cnt_instructions() 

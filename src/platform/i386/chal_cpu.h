@@ -196,7 +196,7 @@ chal_cpu_init(void)
 	word_t cr0;
 
 	/* CR4_OSXSAVE has to be set to enable xgetbv/xsetbv */
-	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE | CR4_PKE | CR4_PCIDE);
+	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE | CR4_PKE | CR4_PCIDE | CR4_PCE);
 
 	/* I'm not sure this is the best spot for this */
 	assert(sizeof(struct ulk_invstk) == ULK_INVSTK_SZ);

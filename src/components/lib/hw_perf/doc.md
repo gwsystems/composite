@@ -2,4 +2,5 @@
 
 ### Description
 
-This library provides abstractions for using the hardware-specific `prot_domain_t`
+This library provides an abstraction to read from user-level accessible performance monitoring counters 
+provided by the system hardware, if available.
