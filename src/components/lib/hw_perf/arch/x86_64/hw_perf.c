@@ -17,13 +17,13 @@
  *
  * */
 static inline unsigned long 
-rdpmc (unsigned long cntr)
+rdpmc(unsigned long cntr)
 {
 	unsigned int low, high;
 
 	asm volatile("rdpmc" : "=a" (low), "=d" (high) : "c" (cntr));
 
-	return low | ((unsigned long)high) << 32;
+	return low | (((unsigned long)high) << 32);
 }
 
 unsigned long

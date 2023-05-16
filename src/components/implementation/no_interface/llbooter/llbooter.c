@@ -566,8 +566,6 @@ booter_init(void)
 	boot_info->scb_uaddr = (vaddr_t)cos_page_bump_intern_valloc(boot_info, PAGE_SIZE);
 	if (cos_scb_mapping(boot_info, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_PT, LLBOOT_CAPTBL_SCB, boot_info->scb_uaddr)) BUG();
 	cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-
-	assert(cos_hw_pmu_enable(BOOT_CAPTBL_SELF_INITHW_BASE) == 0);
 }
 
 void
@@ -657,6 +655,8 @@ init_exit(int retval)
 void
 cos_parallel_init(coreid_t cid, int is_init_core, int ncores)
 {
+	assert(cos_hw_pmu_enable(BOOT_CAPTBL_SELF_INITHW_BASE) == 0);
+	
 	if (!is_init_core) cos_defcompinfo_sched_init();
 
 	execution_init(is_init_core);

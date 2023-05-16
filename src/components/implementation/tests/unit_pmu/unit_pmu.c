@@ -4,7 +4,8 @@
 
 #define NUM_PAGES 12
 
-word_t buf[NUM_PAGES*PAGE_SIZE];
+u8_t buf[NUM_PAGES * PAGE_SIZE];
+
 
 int
 main()
@@ -20,7 +21,18 @@ main()
 	dtlb_misses = hw_perf_cnt_dtlb_misses() - dtlb_misses;
 	printc("DTLB MISSES %lu\n", dtlb_misses);
 
-	/* the above should print ~roughly~ NUM_PAGES) */
+
+	/* assume our result is correct the number of tlb misses is within 25% 
+	 * of the number of pages touched. Always possibilities of architectural
+	 * weirdness. This also assumes we are not preempted. 
+	 * */
+	unsigned long diff = (dtlb_misses > NUM_PAGES) ? dtlb_misses - NUM_PAGES : NUM_PAGES - dtlb_misses;
+	
+	if (diff <= (0.25 * NUM_PAGES)) {
+		printc("SUCCESS\n");
+	} else {
+		printc("FAILURE\n");
+	}
 
 	return 0;
 }

@@ -7,7 +7,7 @@
 
 /* 
  * The code below is for the intel x86 pmu specifically; 
- * Documenntation for programming with this feature is 
+ * Documentation for programming with this feature is 
  * found primarily in the Intel 64 and I-32 Architectures
  * Software Developer's Manual, Volume 4.
  */
