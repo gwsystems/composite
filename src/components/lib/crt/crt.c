@@ -588,7 +588,18 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 		vaddr_t callgate_off  = c_fast_callgate_addr - sinv->client->ro_addr;
 		vaddr_t callgate_addr = (vaddr_t)sinv->client->mem + callgate_off;
 
-		mpk_jit_jitcallgate(callgate_addr, s_altfn_addr, sinv->client->protdom, sinv->server->protdom, client_auth_tok, server_auth_tok, client->id, sinv->sinv_cap);
+		mpk_jit_jitcallgate(
+			callgate_addr, 
+			s_altfn_addr, 
+			sinv->client->protdom, 
+			sinv->server->protdom, 
+			client_auth_tok, 
+			server_auth_tok, 
+			client->id, 
+			sinv->sinv_cap,
+			sinv->server->ro_addr,
+			sinv->client->ro_addr
+		);
 	
 		/* client should use the user-level callgate when making the sinv */
 		alt_fn = (callgate_fn_t)c_fast_callgate_addr;

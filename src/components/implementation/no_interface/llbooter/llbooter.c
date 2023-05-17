@@ -655,6 +655,8 @@ init_exit(int retval)
 void
 cos_parallel_init(coreid_t cid, int is_init_core, int ncores)
 {
+	assert(cos_hw_pmu_enable(BOOT_CAPTBL_SELF_INITHW_BASE) == 0);
+	
 	if (!is_init_core) cos_defcompinfo_sched_init();
 
 	execution_init(is_init_core);

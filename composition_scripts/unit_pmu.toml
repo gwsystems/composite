@@ -1,0 +1,31 @@
+[system]
+description = "Simple system designed to test user-level getting coreid. Run with NUM_CPU > 1 for this test to be useful."
+
+[[components]]
+name = "booter"
+img  = "no_interface.llbooter"
+implements = [{interface = "init"}, {interface = "addr"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"
+
+[[components]]
+name = "capmgr"
+img  = "capmgr.simple"
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
+implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
+constructor = "booter"
+
+[[components]]
+name = "sched"
+img  = "sched.pfprr_quantum_static"
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "sched"}, {interface = "init"}]
+constructor = "booter"
+
+[[components]]
+name = "test"
+img  = "tests.unit_pmu"
+deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}]
+constructor = "booter"
+
+

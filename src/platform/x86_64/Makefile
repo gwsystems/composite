@@ -51,6 +51,7 @@ KERNEL_CFILES += lapic.c
 KERNEL_CFILES += chal_pgtbl.c
 KERNEL_CFILES += fpu.c
 KERNEL_CFILES += ulinv.c
+KERNEL_CFILES += chal_pmu.c
 
 OBJS := $(KERNEL_CFILES:%.c=%.o)
 DEPS := $(KERNEL_CFILES:%.c=%.d)

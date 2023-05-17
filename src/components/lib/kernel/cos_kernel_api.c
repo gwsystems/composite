@@ -1623,6 +1623,12 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa, unsigned int len)
 	return (void *)va;
 }
 
+int
+cos_hw_pmu_enable(hwcap_t hwc)
+{
+	return call_cap_op(hwc, CAPTBL_OP_HW_PMU_ENABLE, 0, 0, 0, 0);
+}
+
 
 /* ----- Shared Pgtbl ------ */
 int
