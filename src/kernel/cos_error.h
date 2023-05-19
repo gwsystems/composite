@@ -33,6 +33,8 @@
 #define COS_ERR_INSUFFICIENT_PERMISSIONS 13 /* Attempted operations without corresponding permission */
 #define COS_ERR_CAP_LOOKUP               14 /* A capability lookup error: not present or incorrect type */
 #define COS_ERR_CONTENTION               15 /* Another core has contended this operation, and won the race */
+#define COS_ERR_NO_OPERATION             16 /* Another core has contended this operation, and won the race */
+
 /*
  * General return value from the kernel. Negative values indicate
  * COS_ERR_* values. Other values are either COS_RET_SUCCESS, or a

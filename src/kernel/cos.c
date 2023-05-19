@@ -210,6 +210,8 @@ struct state_percore core_state[COS_NUM_CPU];
  *   functions below for this namespace.
  */
 
+
+
 /***
  * ### Resource Retyping Operations
  *
@@ -469,115 +471,219 @@ cap_create_refs(captbl_t ct, page_kerntype_t ktype, cos_cap_t captbl_cap, cos_ca
 	return COS_RET_SUCCESS;
 }
 
-/**
- * `comp_cap_create` creates a capability to a component resource. See
- * `cap_create_refs` for more info.
- *
- * - `@ct` - current capability table
- * - `@captbl_comp_cap` - capability to a captbl leaf
- * - `@captbl_comp_off` - offset in that leaf to the slot in which
- *   you're creating the component
- * - `@ops` - operation permissions the capability should have
- * - `@pgtbl_src_cap` - capability to the pgtbl leaf
- * - `@pgtbl_comp_off` - and offset in that leaf to the component resource
- * - `@return` - normal return value
- */
-cos_retval_t
-comp_cap_create(captbl_t ct, cos_cap_t captbl_comp_cap, uword_t captbl_comp_off, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_comp_off)
+static int
+capability_is_captbl(cos_cap_type_t t)
 {
-	pageref_t comp_src_ref, captbl_ref;
+	return t >= COS_CAP_TYPE_CAPTBL_0 && t <= COS_CAP_TYPE_CAPTBL_LEAF;
+}
 
-	COS_CHECK(cap_create_refs(ct, COS_PAGE_KERNTYPE_COMP, captbl_comp_cap, pgtbl_src_cap, pgtbl_comp_off, &captbl_ref, &comp_src_ref));
+static int
+capability_is_pgtbl(cos_cap_type_t t)
+{
+	return t >= COS_CAP_TYPE_PGTBL_0 && t <= COS_CAP_TYPE_PGTBL_LEAF;
+}
 
-	return cap_comp_create(captbl_ref, captbl_comp_off, ops, comp_src_ref);
+static int
+cap_is_restbl(cos_cap_type_t t)
+{
+	return capability_is_captbl(t) || capability_is_pgtbl(t);
+}
+
+static page_kerntype_t
+captype2kerntype(cos_cap_type_t t)
+{
+	if (t == COS_CAP_TYPE_SINV) {
+		return COS_PAGE_KERNTYPE_COMP;
+	} else if (t >= COS_CAP_TYPE_THD && t <= COS_CAP_TYPE_VMCB) {
+		return COS_PAGE_KERNTYPE_THD + (t - COS_CAP_TYPE_THD);
+	} else {
+		return 0;
+	}
 }
 
 /**
- * `sinv_cap_create` creates a capability to a synchronous invocation
- * to a given component. See `cap_create_refs` for more info.
+ * `capability_create` creates a new capability (at a specified slot
+ * in a captbl) to a resource (at a specified location in a pgtbl).
+ * See `cap_create_refs` for more details.
  *
+ * - `@captype` - the capability type to create...must correspond to resource type
  * - `@ct` - capability table to use for lookups
- * - `@captbl_sinv_cap` - the capability to the captbl to add the sinv
- * - `@captbl_sinv_off` - the offset into that captbl node
- * - `@entry_ip` - entry instruction pointer into component
- * - `@token` - the token to pass to the component on invocation
+ * - `@captbl_target_cap` - the capability to the captbl to add the sinv
+ * - `@captbl_target_off` - the offset into that captbl node
+ * - `@ops` - operation permissions the capability should have (0 if sinv)
  * - `@pgtbl_src_cap` - page-table leaf that holds the component
  * - `@pgtbl_comp_off` - the offset in that leaf of the component
+ * - `@addr` - entry addr only if the capability is sinv
+ * - `@token` - the invocation token only if the capability is sinv
  * - `@return` - Normal return value.
  */
-cos_retval_t
-sinv_cap_create(captbl_t ct, cos_cap_t captbl_sinv_cap, uword_t captbl_sinv_off, vaddr_t entry_ip, inv_token_t token, cos_cap_t pgtbl_src_cap, uword_t pgtbl_comp_off)
+static cos_retval_t
+capability_create(cos_cap_type_t captype, captbl_t ct, cos_cap_t captbl_target_cap, uword_t captbl_target_off, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off, vaddr_t addr, inv_token_t token)
 {
-	pageref_t comp_src_ref, captbl_ref;
+		pageref_t captbl_ref, res_ref;
+		page_kerntype_t kt = captype2kerntype(captype);
 
-	COS_CHECK(cap_create_refs(ct, COS_PAGE_KERNTYPE_COMP, captbl_sinv_cap, pgtbl_src_cap, pgtbl_comp_off, &captbl_ref, &comp_src_ref));
+		COS_CHECK(cap_create_refs(ct, kt, captbl_target_cap, pgtbl_src_cap, pgtbl_src_off, &captbl_ref, &res_ref));
 
-	return cap_sinv_create(captbl_ref, captbl_sinv_off, comp_src_ref, entry_ip, token);
+		if (captype == COS_CAP_TYPE_THD) {
+			return cap_thd_create(captbl_ref, captbl_target_off, ops, res_ref);
+		} else if (captype == COS_CAP_TYPE_COMP) {
+			return cap_comp_create(captbl_ref, captbl_target_off, ops, res_ref);
+		} else if (captype == COS_CAP_TYPE_SINV) {
+			return cap_sinv_create(captbl_ref, captbl_target_off, res_ref, addr, token);
+		} else if (cap_is_restbl(captype)) {
+			return cap_restbl_create(captbl_ref, captbl_target_off, kt, ops, res_ref);
+		} else {
+			return -COS_ERR_WRONG_CAP_TYPE;
+		}
 }
 
-/**
- * `thd_cap_create` creates a capability to a thread. This can be used
- * for dispatch, rendezvous-based IPC, and asynchronous activation.
- * See `cap_create_refs` for more info.
- *
- * - `@ct` - capability table to use for lookups
- * - `@captbl_thd_cap` - the capability to the captbl to add the sinv
- * - `@captbl_thd_off` - the offset into that captbl node
- * - `@ops` - operation permissions the capability should have
- * - `@pgtbl_src_cap` - page-table leaf that holds the component
- * - `@pgtbl_comp_off` - the offset in that leaf of the component
- * - `@return` - Normal return value.
- */
-cos_retval_t
-thd_cap_create(captbl_t ct, cos_cap_t captbl_thd_cap, uword_t captbl_thd_off, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
+static struct regs *
+thread_activation(struct regs *rs, struct capability_resource *cap, cos_op_bitmap_t op)
 {
-	pageref_t captbl_ref, thd_ref;
+	captbl_t captbl = g->active_captbl;
+	struct thread *t = g->active_thread;
 
-	COS_CHECK(cap_create_refs(ct, COS_PAGE_KERNTYPE_THD, captbl_thd_cap, pgtbl_src_cap, pgtbl_src_off, &captbl_ref, &thd_ref));
+	switch (op) {
+	case COS_OP_THD_DISPATCH:
+	case COS_OP_THD_EVT_OR_DISPATCH:
+	case COS_OP_THD_AWAIT_ASND:
+	case COS_OP_THD_TRIGGER_ASND:
+	case COS_OP_THD_CALL:
+	case COS_OP_THD_REPLY_WAIT:
+		;
+	}
 
-	return cap_thd_create(captbl_ref, captbl_thd_off, ops, thd_ref);
+	return rs;
 }
 
-/**
- * `restbl_cap_create` creates a capability to a synchronous invocation
- * to a given component. See `cap_create_refs` for more info.
- *
- * - `@ct` - capability table to use for lookups
- * - `@captbl_thd_cap` - the capability to the captbl to add the sinv
- * - `@captbl_thd_off` - the offset into that captbl node
- * - `@ops` - operation permissions the capability should have
- * - `@pgtbl_src_cap` - page-table leaf that holds the component
- * - `@pgtbl_comp_off` - the offset in that leaf of the component
- * - `@return` - Normal return value.
- */
-cos_retval_t
-restbl_cap_create(captbl_t ct, cos_cap_t captbl_restbl_cap, uword_t captbl_restbl_off, page_kerntype_t kt, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
+static cos_retval_t
+captbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t capno, cos_op_bitmap_t ops)
 {
-	pageref_t captbl_ref, res_ref;
+	struct state_percore *g = state();
+	captbl_t captbl = g->active_captbl;
+	struct thread *t = g->active_thread;
+	cos_retval_t r;
 
-	if (!page_is_pgtbl(kt) && !page_is_captbl(kt)) return -COS_ERR_WRONG_INPUT_TYPE;
-	COS_CHECK(cap_create_refs(ct, kt, captbl_restbl_cap, pgtbl_src_cap, pgtbl_src_off, &captbl_ref, &res_ref));
+	if (cap->type == COS_CAP_TYPE_CAPTBL_LEAF &&
+	    (ops == COS_OP_CAPTBL_CAP_CREATE_THD ||
+	     ops == COS_OP_CAPTBL_CAP_CREATE_RESTBL ||
+	     ops == COS_OP_CAPTBL_CAP_CREATE_COMP ||
+	     ops == COS_OP_CAPTBL_CAP_CREATE_SINV)) {
+		cos_cap_type_t t    = regs_arg(rs, REGS_GEN_ARGS_BASE);
+		cos_cap_t ct_node   = capno;
+		uword_t ct_off      = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+		cos_op_bitmap_t ops = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
+		cos_cap_t pt_node   = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
+		cos_cap_t pt_off    = regs_arg(rs, REGS_GEN_ARGS_BASE + 4);
+		vaddr_t entry       = regs_arg(rs, REGS_GEN_ARGS_BASE + 5);
+		inv_token_t token   = regs_arg(rs, REGS_GEN_ARGS_BASE + 6);
 
-	return cap_restbl_create(captbl_ref, captbl_restbl_off, kt, ops, res_ref);
+		r = capability_create(t, g->active_captbl, ct_node, ct_off, ops, pt_node, pt_off, entry, token);
+	} else if (ops == COS_OP_CAPTBL_CAP_REMOVE && cap->type == COS_CAP_TYPE_CAPTBL_LEAF) {
+
+	} else if (ops == COS_OP_RESTBL_CAP_COPY && cap->type == COS_CAP_TYPE_CAPTBL_LEAF) {
+
+	} else if (ops == COS_OP_RESTBL_CONSTRUCT && cap->type != COS_CAP_TYPE_CAPTBL_LEAF) {
+
+	} else if (ops == COS_OP_RESTBL_DECONSTRUCT && cap->type != COS_CAP_TYPE_CAPTBL_LEAF) {
+
+	}
+
+	return rs;
 }
 
-COS_NEVER_INLINE struct regs *
-capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
+static cos_retval_t
+pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t capno, cos_op_bitmap_t ops)
 {
 	struct state_percore *g = state();
 	captbl_t captbl = g->active_captbl;
 	struct thread *t = g->active_thread;
 
-        /*  */
-	if (capability_is_captbl(cap)) {
-		printk("captbl processing\n");
-	} else if (capability_is_pgtbl(cap)) {
-		printk("pgtbl processing\n");
-	} else if (cap->type == COS_CAP_TYPE_HW) {
-		printk("hw processing\n");
-	} else {
-		printk("otherwise processing\n");
+	if (cap->type == COS_CAP_TYPE_PGTBL_LEAF) {
+		pgtbl_ref_t pgtblref;
+		pageref_t internref;
+		uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
+		page_kerntype_t t;
+
+		COS_CHECK(resource_weakref_deref(&cap->intern.ref, &pgtblref));
+		COS_CHECK(pgtbl_leaf_lookup(pgtblref, off, COS_PAGE_TYPE_UNTYPED, 0, ops, &internref));
+
+		if (ops == COS_OP_PGTBL_RETYPE_PGTBL) {
+			uword_t level = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+
+			if (level > COS_PGTBL_MAX_DEPTH - 1) return -COS_ERR_OUT_OF_BOUNDS;
+			t = COS_PAGE_KERNTYPE_PGTBL_0 + level;
+
+			return resource_restbl_create(t, internref);
+		} else if (ops == COS_OP_PGTBL_RETYPE_CAPTBL) {
+			uword_t level = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+
+			if (level > COS_CAPTBL_MAX_DEPTH - 1) return -COS_ERR_OUT_OF_BOUNDS;
+			t = COS_PAGE_KERNTYPE_CAPTBL_0 + level;
+
+			return resource_restbl_create(t, internref);
+		} else if (ops == COS_OP_PGTBL_RETYPE_THD) {
+			return resource_thd_create();
+		} else if (ops == COS_OP_PGTBL_RETYPE_COMP) {
+
+		} else if (ops == COS_OP_PGTBL_RETYPE_DEALLOCATE) {
+
+		} else if (ops == COS_OP_RESTBL_CAP_COPY) {
+			pgtbl_ref_t from_ref;
+			cos_cap_t from_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+			uword_t from_off = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
+			uword_t pgtbl_perm = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
+
+			COS_CHECK(captbl_lookup_type_deref(captbl, from_cap, COS_CAP_TYPE_CAPTBL_LEAF, ops, &from_ref));
+			COS_CHECK(pgtbl_copy(pgtblref, off, from_ref, from_off, pgtbl_perm));
+		}
+	} else if (ops == COS_OP_RESTBL_CONSTRUCT && cap->type != COS_CAP_TYPE_PGTBL_LEAF) {
+
+	} else if (ops == COS_OP_RESTBL_DECONSTRUCT && cap->type != COS_CAP_TYPE_PGTBL_LEAF) {
+
 	}
+
+	return rs;
+}
+
+COS_NEVER_INLINE static struct regs *
+capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
+{
+	struct state_percore *g = state();
+	captbl_t captbl = g->active_captbl;
+	struct thread *t = g->active_thread;
+	cos_op_bitmap_t ops = regs_arg(rs, REGS_ARG_OPS);
+	cos_cap_t capno = regs_arg(rs, REGS_ARG_CAP);
+	cos_retval_t r;
+
+	regs_retval(rs, REGS_RETVAL_BASE, COS_RET_SUCCESS);
+
+	/*
+	 * Validate that all of the requested operations are allowed.
+         * We didn't need to do this before the synchronous invocation
+         * operations, as there is only a single operation
+         * (invocation) allowed on those capabilities.
+	 */
+	if (unlikely((ops & cap->operations) != ops)) {
+		/* TODO: software exception */
+		regs_retval(rs, REGS_RETVAL_BASE, -COS_ERR_INSUFFICIENT_PERMISSIONS);
+
+                return rs;
+	}
+	r = -COS_ERR_NO_OPERATION;
+
+	if (cap->type == COS_CAP_TYPE_THD) {
+		return thread_activation(rs, (struct capability_resource *)cap, ops);
+	} else if (capability_is_captbl(cap->type)) {
+		r = captbl_activation(rs, (struct capability_resource *)cap, capno, ops);
+	} else if (capability_is_pgtbl(cap->type)) {
+		r = pgtbl_activation(rs, (struct capability_resource *)cap, capno, ops);
+	} else if (cap->type == COS_CAP_TYPE_HW) {
+		;
+	}
+
+	regs_retval(rs, REGS_RETVAL_BASE, r);
 
         return rs;
 }
@@ -591,6 +697,7 @@ capability_activation(struct regs *rs)
 	struct capability_generic *cap_slot;
 	cos_cap_t cap = regs_arg(rs, REGS_ARG_CAP);
 	cos_op_bitmap_t ops;
+	pageref_t ref;
 
         /*
 	 * Phase I: The synchronous invocation fastpath includes
@@ -615,42 +722,21 @@ capability_activation(struct regs *rs)
 
 	ops = regs_arg(rs, REGS_ARG_OPS);
         /*
-	 * Validate that all of the requested operations are allowed.
-         * We didn't need to do this before the synchronous invocation
-         * operations, as there is only a single operation
-         * (invocation) allowed on those capabilities.
-	 */
-	if (unlikely((ops & cap_slot->operations) != ops)) {
-		/* TODO: software exception */
-		regs_retval(rs, REGS_RETVAL_BASE, -COS_ERR_INSUFFICIENT_PERMISSIONS);
-
-                return rs;
-	}
-
-        /*
 	 * Phase II: Thread operations are both performance sensitive
          * (IPC), and complex. These are the only operations that
          * switch threads, thus all of the global register update
          * logic is here.
 	 */
-	if (likely(cap_slot->type == COS_CAP_TYPE_THD)) {
-		struct capability_resource *cap_thd = (struct capability_resource *)cap_slot;
+	if (likely(captbl_lookup_cap_type_deref(cap_slot, COS_CAP_TYPE_THD, ops, &ref) == COS_RET_SUCCESS)) {
 		struct thread *t;
-		pageref_t thd_ref;
 		cos_retval_t ret;
 
-		ret = resource_weakref_deref(&cap_thd->intern.ref, &thd_ref);
-		if (unlikely(ret != COS_RET_SUCCESS)) {
-			regs_retval(rs, REGS_RETVAL_BASE, -COS_ERR_NOT_LIVE);
-
-			return rs;
-		}
-		t = (struct thread *)ref2page_ptr(thd_ref);
-
+		t = (struct thread *)ref2page_ptr(ref);
 		/* Thread operations. First, the dispatch fast-path. */
 		if (likely(ops == COS_OP_THD_DISPATCH)) {
                         return thread_switch(t, rs, 0);
 		}
+		/* TODO: add call and reply-and-wait fastpaths */
 
 		/* Phase III: slowpaths */
 		return thread_slowpath(t, ops, rs);

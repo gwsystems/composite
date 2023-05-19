@@ -26,7 +26,7 @@ cos_retval_t resource_comp_create(captbl_ref_t captbl_ref, pgtbl_ref_t pgtbl_ref
 cos_retval_t resource_comp_destroy(pageref_t compref);
 cos_retval_t resource_compref_create(pageref_t compref, struct component_ref *r);
 
-cos_retval_t resource_thd_create(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t comp_ref,
+cos_retval_t resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref,
                                  thdid_t id, vaddr_t entry_ip, id_token_t sched_token, pageref_t untyped_src_ref);
 cos_retval_t resource_thd_destroy(pageref_t thdref);
 
@@ -116,7 +116,7 @@ page_resolve(pageref_t offset, page_type_t type, page_kerntype_t kerntype, epoch
 	return COS_RET_SUCCESS;
 }
 
-static inline cos_retval_t
+COS_FORCE_INLINE static inline cos_retval_t
 resource_weakref_deref(struct weak_ref *wr, pageref_t *resource)
 {
 	struct page_type *pt;
@@ -133,4 +133,10 @@ static inline pageref_t
 resource_weakref_force_deref(struct weak_ref *wr)
 {
 	return wr->ref;
+}
+
+COS_FORCE_INLINE static inline void
+resource_weakref_copy(struct weak_ref *to, struct weak_ref *from)
+{
+	*to = *from;
 }

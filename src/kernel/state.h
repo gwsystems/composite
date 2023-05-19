@@ -14,7 +14,9 @@ coreid(void)
 COS_FASTPATH static inline cos_retval_t
 component_activate(struct component_ref *comp)
 {
-	if (unlikely(!component_is_alive(comp))) return -COS_ERR_NOT_LIVE;
+	pageref_t ref;
+
+	COS_CHECK(component_ref_deref(comp, &ref));
 
 	/* Load page-table, save captbl globally. */
 

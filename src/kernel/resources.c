@@ -614,7 +614,6 @@ resource_comp_destroy(pageref_t compref)
  * the component.
  *
  * - `@sched_thd_ref` - the scheduler thread
- * - `@tcap_thd_ref` - the thread to use as a tcap (can be `untyped_src_ref`)
  * - `@comp_ref` - the component reference in which to start the thread
  * - `@epoch` - the component's epoch in the component capability (possibly outdated)
  * - `@id` - the desired thread id of the thread
@@ -625,16 +624,14 @@ resource_comp_destroy(pageref_t compref)
  * - `@return` - normal return value denoting error (negative values), or success (zero)
  */
 cos_retval_t
-resource_thd_create(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t comp_ref, thdid_t id, vaddr_t entry_ip, id_token_t sched_token, pageref_t untyped_src_ref)
+resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref, thdid_t id, vaddr_t entry_ip, id_token_t sched_token, pageref_t untyped_src_ref)
 {
-	struct page_type *ptype, *sched_ptype, *tcap_ptype, *comp_ptype;
-	struct page *thd_page, *tcap_page;
+	struct page_type *ptype, *sched_ptype, *comp_ptype;
+	struct page *thd_page;
 	struct component_ref ref;
 	struct thread *thd;
-	int tcap_self = untyped_src_ref == tcap_thd_ref;
 
 	COS_CHECK(page_resolve(sched_thd_ref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, NULL, NULL, &sched_ptype));
-	if (!tcap_self) COS_CHECK(page_resolve(tcap_thd_ref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, NULL, NULL, &tcap_ptype));
 	COS_CHECK(resource_compref_create(comp_ref, &ref));
 
 	ref2page(untyped_src_ref, &thd_page, &ptype);
@@ -650,7 +647,6 @@ resource_thd_create(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t c
          * `epoch` to determine liveness using the component_ref.
 	 */
 	faa(&sched_ptype->refcnt, 1);
-	if (!tcap_self) faa(&tcap_ptype->refcnt, 1);
 
 	thd = (struct thread *)thd_page;
 	/* Update the component structure in recently retyped page */
@@ -667,7 +663,6 @@ resource_thd_create(pageref_t sched_thd_ref, pageref_t tcap_thd_ref, pageref_t c
 			},
 		},
 		.sched_thd = sched_thd_ref,
-		.tcap_thd = tcap_thd_ref,
 		.regs = { 0 },
 	};
 	thd->regs.state = REG_STATE_SYSCALL;

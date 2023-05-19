@@ -40,7 +40,7 @@ struct invstk {
 struct thread {
 	struct invstk invstk;
 	thdid_t       id;
-	pageref_t     sched_thd, tcap_thd;
+	pageref_t     sched_thd;
 	struct regs   regs;
 };
 

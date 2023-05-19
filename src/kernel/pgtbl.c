@@ -1,3 +1,4 @@
+#include "chal_consts.h"
 #include <cos_consts.h>
 #include <cos_error.h>
 #include <compiler.h>
@@ -20,10 +21,12 @@ pgtbl_arch_entry_unpack(pgtbl_t entry, pageref_t *ref, uword_t *perm)
 	if (perm != NULL) *perm = entry & ((1 << 12) - 1);
 }
 
+#define PGTBL_ARCH_ENTRY_NULL 0
+
 static inline int
 pgtbl_arch_entry_empty(pgtbl_t entry)
 {
-	return entry == 0;
+	return entry == PGTBL_ARCH_ENTRY_NULL;
 }
 
 int
@@ -54,10 +57,10 @@ pgtbl_intern_initialize(struct pgtbl_internal *pt)
 	page_zero((struct page *)pt);
 }
 
-static cos_retval_t
+cos_retval_t
 pgtbl_construct(pgtbl_ref_t top, uword_t offset, pgtbl_ref_t bottom, uword_t perm)
 {
-	struct pgtbl_internal  *top_node, *bottom_node;
+	struct pgtbl_internal  *top_node;
 	struct page_type       *top_type, *bottom_type;
 	page_kerntype_t         ktype;
 	uword_t                 bound;
@@ -72,7 +75,7 @@ pgtbl_construct(pgtbl_ref_t top, uword_t offset, pgtbl_ref_t bottom, uword_t per
 	bound = ktype == COS_PAGE_KERNTYPE_PGTBL_0 ? COS_PGTBL_TOP_NENT : COS_PGTBL_INTERNAL_NENT;
 	offset = COS_WRAP(offset, bound);
 
-	COS_CHECK(page_resolve(bottom, COS_PAGE_TYPE_KERNEL, ktype + 1, NULL, (struct page **)&bottom_node, &bottom_type));
+	COS_CHECK(page_resolve(bottom, COS_PAGE_TYPE_KERNEL, ktype + 1, NULL, NULL, &bottom_type));
 
 	if (ktype == COS_PAGE_KERNTYPE_PGTBL_0) {
 		struct pgtbl_top *top_node;
@@ -82,7 +85,7 @@ pgtbl_construct(pgtbl_ref_t top, uword_t offset, pgtbl_ref_t bottom, uword_t per
 		if (top_node->next[offset]) return -COS_ERR_ALREADY_EXISTS;
 
 		/* Updates! */
-		if (!cas64(&top_node->next[offset], 0, page2phys(bottom_node) | (perm & COS_PGTBL_ALLOWED_INTERN_PERM))) return -COS_ERR_ALREADY_EXISTS;
+		if (!cas64(&top_node->next[offset], 0, pgtbl_arch_entry_pack(bottom, perm))) return -COS_ERR_ALREADY_EXISTS;
 	} else {
 		struct pgtbl_internal *top_node;
 
@@ -91,7 +94,7 @@ pgtbl_construct(pgtbl_ref_t top, uword_t offset, pgtbl_ref_t bottom, uword_t per
 		if (top_node->next[offset]) return -COS_ERR_ALREADY_EXISTS;
 
 		/* Updates! */
-		if (!cas64(&top_node->next[offset], 0, page2phys(bottom_node) | (perm & COS_PGTBL_ALLOWED_INTERN_PERM))) return -COS_ERR_ALREADY_EXISTS;
+		if (!cas64(&top_node->next[offset], 0, pgtbl_arch_entry_pack(bottom, perm))) return -COS_ERR_ALREADY_EXISTS;
 	}
 
 	faa(&top_type->refcnt, 1);
@@ -101,31 +104,32 @@ pgtbl_construct(pgtbl_ref_t top, uword_t offset, pgtbl_ref_t bottom, uword_t per
 }
 
 /* TODO: remove bottom argument? */
-static cos_retval_t
-pgtbl_deconstruct(pgtbl_ref_t top, pgtbl_ref_t bottom, uword_t offset)
+cos_retval_t
+pgtbl_deconstruct(pgtbl_ref_t top, uword_t offset)
 {
-	struct pgtbl_internal  *top_node, *bottom_node;
+	struct pgtbl_internal  *top_node;
 	struct page_type       *top_type, *bottom_type;
 	page_kerntype_t         ktype;
 	uword_t                 bound;
 	pgtbl_t                 entry;
+	pgtbl_ref_t             bottom;
+	uword_t                 perm;
 
-	if (page_bounds_check(top) || page_bounds_check(bottom)) return -COS_ERR_OUT_OF_BOUNDS;
 	ref2page(top, (struct page **)&top_node, &top_type);
-
 	ktype = top_type->kerntype;
 	if (!page_is_pgtbl(ktype)) return -COS_ERR_WRONG_INPUT_TYPE;
 
 	bound = ktype == COS_PAGE_KERNTYPE_PGTBL_0 ? COS_PGTBL_TOP_NENT : COS_PGTBL_INTERNAL_NENT;
 	offset = COS_WRAP(offset, bound);
 
-	COS_CHECK(page_resolve(bottom, COS_PAGE_TYPE_KERNEL, ktype + 1, NULL, (struct page **)&bottom_node, &bottom_type));
-
 	entry = top_node->next[offset];
-	if ((entry & ~COS_PGTBL_PERM_MASK) != page2phys(bottom_node)) return -COS_ERR_NO_MATCH;
+	if (pgtbl_arch_entry_empty(entry)) return -COS_ERR_RESOURCE_NOT_FOUND;
+	pgtbl_arch_entry_unpack(entry, &bottom, &perm);
+	/* Don't need to type-check this, as it is already linked into a kernel address */
+	ref2page(bottom, NULL, &bottom_type);
 
 	/* updates! */
-	if (!cas64(&top_node->next[offset], entry, 0)) return -COS_ERR_NO_MATCH;
+	if (!cas64(&top_node->next[offset], entry, PGTBL_ARCH_ENTRY_NULL)) return -COS_ERR_NO_MATCH;
 	faa(&top_type->refcnt, -1);
 	faa(&bottom_type->refcnt, -1);
 
@@ -151,8 +155,7 @@ pgtbl_map(pgtbl_ref_t pt, uword_t offset, pageref_t page, uword_t perm)
 	offset = COS_WRAP(offset, COS_PGTBL_INTERNAL_NENT);
 
         ref2page(pt, (struct page **)&pt_node, &pt_type);
-	if (pt_type->type != COS_PAGE_TYPE_KERNEL ||
-	    pt_type->kerntype != (COS_PAGE_KERNTYPE_PGTBL_0 + (COS_PGTBL_MAX_DEPTH - 1))) return -COS_ERR_WRONG_PAGE_TYPE;
+	if (pt_type->type != COS_PAGE_TYPE_KERNEL || pt_type->kerntype != COS_PAGE_KERNTYPE_PGTBL_LEAF) return -COS_ERR_WRONG_PAGE_TYPE;
 	if (!pgtbl_arch_entry_empty(pt_node->next[offset])) return -COS_ERR_ALREADY_EXISTS;
 
         COS_CHECK(page_resolve(page, COS_PAGE_TYPE_VM, 0, NULL, &mem_node, &mem_type));
@@ -189,7 +192,7 @@ pgtbl_unmap(pgtbl_ref_t pt, uword_t offset)
 	/* TODO: if the target page is untyped (or maybe a kernel type), we shouldn't unmap if this is the last ref. */
 
 	/* Updates! */
-	if (!cas64(&pt_node->next[offset], entry, 0)) return -COS_ERR_RESOURCE_NOT_FOUND;
+	if (!cas64(&pt_node->next[offset], entry, PGTBL_ARCH_ENTRY_NULL)) return -COS_ERR_RESOURCE_NOT_FOUND;
 	faa(&pt_type->refcnt, -1);
 	faa(&mem_type->refcnt, -1);
 
@@ -222,6 +225,38 @@ pgtbl_leaf_lookup(pgtbl_ref_t pgtbl_ref, uword_t pgtbl_src_off, page_type_t expe
 	pgtbl_arch_entry_unpack(pgtbl_entry->next[COS_WRAP(pgtbl_src_off, COS_PGTBL_INTERNAL_NENT)], resource_ref, &perm);
 	if (required_perm != 0 && (required_perm & perm) != required_perm) return -COS_ERR_INSUFFICIENT_PERMISSIONS;
 	COS_CHECK(page_resolve(*resource_ref, expected_type, expected_kerntype, NULL, NULL, NULL));
+
+	return COS_RET_SUCCESS;
+}
+
+cos_retval_t
+pgtbl_copy(pgtbl_ref_t pgtbl_from, uword_t pgtbl_off_from, pgtbl_ref_t pgtbl_to, uword_t pgtbl_off_to, uword_t perm)
+{
+	struct pgtbl_internal *from, *to;
+	pageref_t from_ref;
+	uword_t from_perm;
+	pgtbl_t ent_from, *ent_to_addr, ent_to;
+	struct page_type *page;
+
+	from = (struct pgtbl_internal *)ref2page_ptr(pgtbl_from);
+	to = (struct pgtbl_internal *)ref2page_ptr(pgtbl_to);
+
+	ent_from = from->next[COS_WRAP(pgtbl_off_from, COS_PGTBL_INTERNAL_NENT)];
+	ent_to_addr = &to->next[COS_WRAP(pgtbl_off_to, COS_PGTBL_INTERNAL_NENT)];
+	ent_to = *ent_to_addr;
+
+	if (pgtbl_arch_entry_empty(ent_from)) return -COS_ERR_RESOURCE_NOT_FOUND;
+	if (!pgtbl_arch_entry_empty(ent_to)) return -COS_ERR_ALREADY_EXISTS;
+
+	pgtbl_arch_entry_unpack(ent_from, &from_ref, &from_perm);
+	/* Potentially downgrade permissions. TODO: only allow manipulation of specific bits. */
+	ref2page(from_ref, NULL, &page);
+
+	ent_from = pgtbl_arch_entry_pack(from_ref, from_perm & perm);
+
+	/* Update! */
+	if (!cas64(ent_to_addr, ent_to, ent_from)) return -COS_ERR_CONTENTION;
+	faa(&page->refcnt, 1);
 
 	return COS_RET_SUCCESS;
 }

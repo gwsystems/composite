@@ -52,7 +52,7 @@ sinv_invoke(struct thread *t, uword_t *head, struct regs *rs, struct capability_
 	client->sp = sp;
 
 	server = &t->invstk.entries[client_off + 1];
-	server->component = cap->intern.component;
+	component_ref_copy(&server->component, &cap->intern.component);
 	(*head)++;
 
 	/* Prepare to upcall into the server in the current registers */

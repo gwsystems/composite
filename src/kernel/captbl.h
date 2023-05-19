@@ -1,5 +1,6 @@
 #pragma once
 
+#include "component.h"
 #include "cos_consts.h"
 #include <types.h>
 #include <cos_error.h>
@@ -89,37 +90,50 @@ captbl_lookup_type(captbl_t ct, cos_cap_t cap, cos_cap_type_t type, cos_op_bitma
 
 /* Forced inline here is meant to remove the switch's conditions */
 COS_FORCE_INLINE static inline cos_retval_t
-captbl_lookup_type_deref(captbl_t ct, cos_cap_t cap, cos_cap_type_t captype, cos_op_bitmap_t required, pageref_t *ref)
+captbl_lookup_cap_deref(struct capability_generic *capslot, cos_cap_type_t captype, cos_op_bitmap_t required, pageref_t *ref)
 {
-	struct capability_generic *capslot;
 	struct weak_ref *wref;
-
-	COS_CHECK(captbl_lookup_type(ct, cap, captype, required, &capslot));
+	struct component_ref *compref;
 
 	/* pull the resource reference out of the capability if the reference is valid */
 	switch (captype) {
 	case COS_CAP_TYPE_COMP:
-		wref = &(((struct capability_component *)capslot)->intern.component.compref);
-		break;
+		return component_ref_deref(&((struct capability_component *)capslot)->intern.component, ref);
 	case COS_CAP_TYPE_SINV:
-		wref = &(((struct capability_sync_inv *)capslot)->intern.component.compref);
-		break;
+		return component_ref_deref(&((struct capability_sync_inv *)capslot)->intern.component, ref);
 	case COS_CAP_TYPE_HW:	/* No page associated with hardware capabilities */
 		return -COS_ERR_WRONG_CAP_TYPE;
 	default:		/* the rest of the types have a shared capability slot structure */
-		wref = &(((struct capability_resource *)capslot)->intern.ref);
-		break;
+		return resource_weakref_deref(&(((struct capability_resource *)capslot)->intern.ref), ref);
 	}
-
-	COS_CHECK(resource_weakref_deref(wref, ref));
-
-	return COS_RET_SUCCESS;
 }
+
+COS_FORCE_INLINE static inline cos_retval_t
+captbl_lookup_cap_type_deref(struct capability_generic *capslot, cos_cap_type_t captype, cos_op_bitmap_t required, pageref_t *ref)
+{
+	COS_CHECK(captbl_cap_typecheck(capslot, captype, required));
+
+	return captbl_lookup_cap_deref(capslot, captype, required, ref);
+}
+
+/**
+ * `captbl_lookup_type_deref` finds a `pageref_t` associated with a
+ * capability *only if* its type matches `captype`, it includes the
+ * permissions required in `required`, and the reference to the page
+ * isn't out of date.
+ */
+COS_FORCE_INLINE static inline cos_retval_t
+captbl_lookup_type_deref(captbl_t ct, cos_cap_t cap, cos_cap_type_t captype, cos_op_bitmap_t required, pageref_t *ref)
+{
+	struct capability_generic *capslot;
+
+	COS_CHECK(captbl_lookup_type(ct, cap, captype, required, &capslot));
+
+	return captbl_lookup_cap_deref(capslot, captype, required, ref);
+}
+
 
 cos_retval_t cap_comp_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations, pageref_t comp_ref);
 cos_retval_t cap_sinv_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, pageref_t comp_ref, vaddr_t entry_ip, inv_token_t token);
 cos_retval_t cap_thd_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations, pageref_t thd_ref);
 cos_retval_t cap_restbl_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, page_kerntype_t kt, cos_op_bitmap_t operations, pageref_t restbl_ref);
-
-int capability_is_captbl(struct capability_generic *c);
-int capability_is_pgtbl(struct capability_generic *c);
