@@ -316,18 +316,16 @@ comp_destroy(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off)
  * - `@return` - `COS_RET_SUCCESS` or a negative error value.
  */
 cos_retval_t
-thd_create(captbl_t ct, cos_cap_t schedthd_cap, cos_cap_t tcapthd_cap, cos_cap_t comp_cap,
-	   cos_op_bitmap_t ops, thdid_t id, id_token_t token, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
+thd_create(captbl_t ct, cos_cap_t schedthd_cap, cos_cap_t comp_cap, cos_op_bitmap_t ops, thdid_t id, id_token_t token, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
 {
-	pageref_t schedthd_ref, tcap_ref, comp_ref, thd_src_ref, pgtbl_src_ref;
+	pageref_t schedthd_ref, comp_ref, thd_src_ref, pgtbl_src_ref;
 
 	COS_CHECK(captbl_lookup_type_deref(ct, schedthd_cap,    COS_CAP_TYPE_THD,         COS_OP_CONSTRUCT,  &schedthd_ref));
-	COS_CHECK(captbl_lookup_type_deref(ct, tcapthd_cap,     COS_CAP_TYPE_THD,         COS_OP_CONSTRUCT,  &tcap_ref));
 	COS_CHECK(captbl_lookup_type_deref(ct, comp_cap,        COS_CAP_TYPE_COMP,        COS_OP_CONSTRUCT,  &comp_ref));
 	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_src_cap,   COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, &pgtbl_src_ref));
 	COS_CHECK(pgtbl_leaf_lookup(pgtbl_src_ref, pgtbl_src_off, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, 0, &thd_src_ref));
 
-	return resource_thd_create(schedthd_ref, tcap_ref, comp_ref, 0, id, token, thd_src_ref);
+	return resource_thd_create(schedthd_ref, comp_ref, 0, id, token, thd_src_ref);
 }
 
 /**
@@ -520,22 +518,22 @@ captype2kerntype(cos_cap_type_t t)
 static cos_retval_t
 capability_create(cos_cap_type_t captype, captbl_t ct, cos_cap_t captbl_target_cap, uword_t captbl_target_off, cos_op_bitmap_t ops, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off, vaddr_t addr, inv_token_t token)
 {
-		pageref_t captbl_ref, res_ref;
-		page_kerntype_t kt = captype2kerntype(captype);
+	pageref_t captbl_ref, res_ref;
+	page_kerntype_t kt = captype2kerntype(captype);
 
-		COS_CHECK(cap_create_refs(ct, kt, captbl_target_cap, pgtbl_src_cap, pgtbl_src_off, &captbl_ref, &res_ref));
+	COS_CHECK(cap_create_refs(ct, kt, captbl_target_cap, pgtbl_src_cap, pgtbl_src_off, &captbl_ref, &res_ref));
 
-		if (captype == COS_CAP_TYPE_THD) {
-			return cap_thd_create(captbl_ref, captbl_target_off, ops, res_ref);
-		} else if (captype == COS_CAP_TYPE_COMP) {
-			return cap_comp_create(captbl_ref, captbl_target_off, ops, res_ref);
-		} else if (captype == COS_CAP_TYPE_SINV) {
-			return cap_sinv_create(captbl_ref, captbl_target_off, res_ref, addr, token);
-		} else if (cap_is_restbl(captype)) {
-			return cap_restbl_create(captbl_ref, captbl_target_off, kt, ops, res_ref);
-		} else {
-			return -COS_ERR_WRONG_CAP_TYPE;
-		}
+	if (captype == COS_CAP_TYPE_THD) {
+		return cap_thd_create(captbl_ref, captbl_target_off, ops, res_ref);
+	} else if (captype == COS_CAP_TYPE_COMP) {
+		return cap_comp_create(captbl_ref, captbl_target_off, ops, res_ref);
+	} else if (captype == COS_CAP_TYPE_SINV) {
+		return cap_sinv_create(captbl_ref, captbl_target_off, res_ref, addr, token);
+	} else if (cap_is_restbl(captype)) {
+		return cap_restbl_create(captbl_ref, captbl_target_off, kt, ops, res_ref);
+	} else {
+		return -COS_ERR_WRONG_CAP_TYPE;
+	}
 }
 
 static struct regs *
