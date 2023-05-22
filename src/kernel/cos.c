@@ -404,7 +404,7 @@ restbl_destroy(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_kerntyp
 {
 	pageref_t rtref;
 
-	COS_CHECK(destroy_lookup_retype(ct, pgtbl_cap, pgtbl_off, COS_PAGE_TYPE_KERNEL, kt, &rtref));
+	COS_CHECK(resource_destroy_lookup_retype(ct, pgtbl_cap, pgtbl_off, COS_PAGE_TYPE_KERNEL, kt, &rtref));
         /*
 	 * If the resource table's refcnt allows deallocation, then
          * there are no links we need to destroy. We'll just clean up
@@ -624,11 +624,30 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 
 			return resource_restbl_create(t, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_THD) {
-			return resource_thd_create();
+			pageref_t schedthd_ref, comp_ref;
+			cos_cap_t schedthd_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+			cos_cap_t comp_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
+			thdid_t id = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
+			id_token_t tok = regs_arg(rs, REGS_GEN_ARGS_BASE + 4);
+			vaddr_t entry = regs_arg(rs, REGS_GEN_ARGS_BASE + 5);
+
+			COS_CHECK(captbl_lookup_type_deref(captbl, schedthd_cap, COS_CAP_TYPE_THD, ops, &schedthd_ref));
+			COS_CHECK(captbl_lookup_type_deref(captbl, comp_cap, COS_CAP_TYPE_COMP, ops, &comp_ref));
+
+			return resource_thd_create(schedthd_ref, comp_ref, id, entry, tok, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_COMP) {
+			pageref_t ct_ref, pt_ref;
+			cos_cap_t ct_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+			cos_cap_t pt_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
+			prot_domain_tag_t tag = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
+			vaddr_t entry = regs_arg(rs, REGS_GEN_ARGS_BASE + 4);
 
+			COS_CHECK(captbl_lookup_type_deref(captbl, ct_cap, COS_CAP_TYPE_CAPTBL_0, ops, &ct_ref));
+			COS_CHECK(captbl_lookup_type_deref(captbl, pt_cap, COS_CAP_TYPE_PGTBL_0, ops, &pt_ref));
+
+			return resource_comp_create(ct_ref, pt_ref, tag, entry, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_DEALLOCATE) {
-
+			return resource_
 		} else if (ops == COS_OP_RESTBL_CAP_COPY) {
 			pgtbl_ref_t from_ref;
 			cos_cap_t from_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);

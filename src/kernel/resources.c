@@ -350,12 +350,8 @@ page_retype_to_untyped(pageref_t idx)
  * - `@return` - the normal return value
  */
 cos_retval_t
-destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_type_t t, page_kerntype_t kt, pageref_t *pgref)
+resource_destroy_lookup_retype(pageref_t pgtbl_ref, uword_t pgtbl_off, page_type_t t, page_kerntype_t kt, pageref_t *pgref)
 {
-	struct capability_resource *pgtbl;
-	pageref_t pgtbl_ref;
-
-	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_cap, COS_CAP_TYPE_PGTBL_LEAF, COS_OP_DEALLOCATE, &pgtbl_ref));
 	/* TODO: pay attention to the permissions */
 	COS_CHECK(pgtbl_leaf_lookup(pgtbl_ref, pgtbl_off, t, kt, COS_PGTBL_PERM_KERNEL, pgref));
 	/* Note that this retype can only proceed after it checks the reference count */
@@ -481,16 +477,21 @@ resource_compref_create(pageref_t compref, struct component_ref *r)
 {
 	struct page_type *t;
 	struct component *comp;
-	struct weak_ref wr;
+	epoch_t epoch;
 
-	COS_CHECK(resource_weakref_create(compref, COS_PAGE_KERNTYPE_COMP, &wr));
+	/* See weakref create: need to take the epoch, then validate type */
+	ref2page(compref, NULL, &t);
+	epoch = epoch_copy(t);
+	mem_barrier();
+
 	COS_CHECK(page_resolve(compref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_COMP, NULL, (struct page **)&comp, &t));
 
 	*r = (struct component_ref) {
 		.pgtbl = comp->pgtbl,
 		.captbl = comp->captbl,
 		.pd_tag = comp->pd_tag,
-		.compref = wr,
+		.component = compref,
+		.epoch = epoch,
 	};
 
 	return COS_RET_SUCCESS;
@@ -642,7 +643,7 @@ resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref, thdid_t id, vad
 	COS_CHECK(page_retype_from_untyped_reserve(ptype, thd_page, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD));
 
         /*
-	 * Take the references for the scheduler and tcap threads.
+	 * Take the references for the scheduler.
          * don't take a reference on the component, instead using
          * `epoch` to determine liveness using the component_ref.
 	 */
@@ -684,10 +685,6 @@ resource_thd_destroy(pageref_t thdref)
         /* These pointers are refcounted so chasing them can't fail */
 	ref2page(t->sched_thd, NULL, &sched_ptype);
 	faa(&sched_ptype->refcnt, -1);
-	if (t->tcap_thd != thdref) {
-		ref2page(t->tcap_thd, NULL, &tcap_ptype);
-		faa(&tcap_ptype->refcnt, -1);
-	}
 
 	return COS_RET_SUCCESS;
 }

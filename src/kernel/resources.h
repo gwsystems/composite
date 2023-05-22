@@ -32,8 +32,8 @@ cos_retval_t resource_thd_destroy(pageref_t thdref);
 
 cos_retval_t resource_restbl_create(page_kerntype_t kt, pageref_t untyped_src_ref);
 
-cos_retval_t destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_type_t t,
-                                   page_kerntype_t kt, pageref_t *pgref);
+cos_retval_t resource_destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_type_t t,
+					    page_kerntype_t kt, pageref_t *pgref);
 
 cos_retval_t resource_weakref_create(pageref_t resource_ref, page_kerntype_t expected_kerntype, struct weak_ref *wr);
 
