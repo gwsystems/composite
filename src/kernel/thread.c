@@ -1,3 +1,4 @@
+#include "cos_consts.h"
 #include <thread.h>
 #include <state.h>
 
@@ -29,13 +30,10 @@ thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs)
 		regs_retval(rs, REGS_RETVAL_BASE, COS_RET_SUCCESS);
 	}
 
-	if (requested_op & COS_OP_THD_TIME_TRANSFER) {
-		/* Transfer time between tcaps */
+	if (requested_op & COS_OP_THD_EVT_OR_DISPATCH) {
+		/* scheduler wait for event */
 	}
-	if (requested_op & COS_OP_THD_TIMER_PROGRAM) {
-		/* Program the timer */
-	}
-	if (requested_op & COS_OP_THD_AWAIT_EVENT) {
+	if (requested_op & COS_OP_THD_AWAIT_ASND) {
 		/*
 		 * Only makes sense if `t` is the current thread. If
 		 * there are events (normal events, or scheduler
@@ -47,17 +45,10 @@ thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs)
 		 * information.
 		 */
 	}
-	if (requested_op & COS_OP_THD_TRIGGER_EVENT) {
+	if (requested_op & COS_OP_THD_TRIGGER_ASND) {
 		/*
 		 * Activate an event for a thread, attempting to
 		 * switch to it, and increment the event count.
-		 */
-	}
-	if (!(requested_op & COS_OP_THD_IGNORE_PRIO)) {
-		/*
-		 * Check tcap priority to determine if we should
-		 * switch threads. If not, return without changing
-		 * threads.
 		 */
 	}
         /*
@@ -65,7 +56,7 @@ thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs)
          * At this point, we haven't escaped the function yet, so
          * check if we're switching threads.
 	 */
-	if (requested_op == COS_OP_THD_DISPATCH) {
+	if (requested_op & COS_OP_THD_DISPATCH) {
 		return thread_switch(t, rs, 0);
 	}
 

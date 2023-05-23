@@ -23,6 +23,16 @@ cas16(u16_t *val, u16_t expected, u16_t new)
 }
 
 static inline int
+cas32(u32_t *val, u32_t expected, u32_t new)
+{
+	if (*val == expected) {
+		*val = new;
+		return 1;
+	}
+	return 0;
+}
+
+static inline int
 cas64(u64_t *val, u64_t expected, u64_t new)
 {
 	if (*val == expected) {

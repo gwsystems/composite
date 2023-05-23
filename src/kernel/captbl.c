@@ -1,3 +1,4 @@
+#include "chal_types.h"
 #include "compiler.h"
 #include "cos_types.h"
 #include <cos_consts.h>
@@ -280,18 +281,16 @@ captbl_cap_activate(struct capability_generic *cap, cos_cap_type_t type, cos_op_
  *
  * - `@captbl` - the captbl leaf node
  * - `@leaf_off` - the offset into that node of the slot to deactivate
- * - `@type` - expected type of the capability
  * - `@return` - normal return with errors on type mismatches, or races
  */
 static cos_retval_t
-captbl_cap_deactivate(struct captbl_leaf *captbl, uword_t leaf_off, cos_cap_type_t type)
+captbl_cap_deactivate(struct captbl_leaf *captbl, uword_t leaf_off)
 {
 	struct capability_generic *cap;
 	cos_cap_type_t t;
 
 	cap = captbl_leaf_lookup(captbl, leaf_off);
 	t   = cap->type;
-	if (t != type) return -COS_ERR_WRONG_CAP_TYPE;
 	if (t == COS_CAP_TYPE_FREE || t == COS_CAP_TYPE_RESERVED) return -COS_ERR_RESOURCE_NOT_FOUND;
 
 	/* parallel quiescence must be calculated from this point */
@@ -304,9 +303,20 @@ captbl_cap_deactivate(struct captbl_leaf *captbl, uword_t leaf_off, cos_cap_type
 
 	mem_barrier();
 	/* Update! */
-	if (!cas16(&cap->type, t, COS_CAP_TYPE_FREE)) return -COS_ERR_CONTENTION;
+	if (!cas32(&cap->type, t, COS_CAP_TYPE_FREE)) return -COS_ERR_CONTENTION;
 
 	return COS_RET_SUCCESS;
+}
+
+cos_retval_t
+capability_remove(pageref_t captblref, uword_t off)
+{
+	struct captbl_leaf *ct;
+	cos_cap_type_t t;
+
+	ref2page(captblref, (struct page **)&ct, NULL);
+
+	return captbl_cap_deactivate(ct, off);
 }
 
 static cos_retval_t
@@ -328,6 +338,17 @@ captbl_cap_copy(struct captbl_leaf *captbl_to, uword_t leaf_off_to, cos_op_bitma
 	captbl_cap_activate(cap_to, type, operations, &cap_from->intern);
 
 	return COS_RET_SUCCESS;
+}
+
+cos_retval_t
+capability_copy(pageref_t captblref_to, uword_t off_to, pageref_t captblref_from, uword_t off_from, cos_op_bitmap_t ops)
+{
+	struct captbl_leaf *to, *from;
+
+	ref2page(captblref_to, (struct page **)&to, NULL);
+	ref2page(captblref_from, (struct page **)&from, NULL);
+
+	return captbl_cap_copy(to, off_to, ops, from, off_from);
 }
 
 /**

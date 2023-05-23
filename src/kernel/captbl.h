@@ -137,3 +137,7 @@ cos_retval_t cap_comp_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_a
 cos_retval_t cap_sinv_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, pageref_t comp_ref, vaddr_t entry_ip, inv_token_t token);
 cos_retval_t cap_thd_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations, pageref_t thd_ref);
 cos_retval_t cap_restbl_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, page_kerntype_t kt, cos_op_bitmap_t operations, pageref_t restbl_ref);
+
+cos_retval_t capability_remove(pageref_t captblref, uword_t off);
+cos_retval_t capability_copy(pageref_t captblref_to, uword_t off_to, pageref_t captblref_from, uword_t off_from,
+                             cos_op_bitmap_t ops);

@@ -381,12 +381,12 @@ poly_destroy(pageref_t res_ref)
  * - `@return` - Normal return value; see error sources above.
  */
 static cos_retval_t
-cap_create_refs(captbl_t ct, page_kerntype_t ktype, cos_cap_t captbl_cap, cos_cap_t pgtbl_cap, uword_t pgtbl_off, pageref_t *captbl_ref, pageref_t *resource_ref)
+cap_create_refs(captbl_t ct, page_kerntype_t ktype, cos_op_bitmap_t ops, cos_cap_t captbl_cap, cos_cap_t pgtbl_cap, uword_t pgtbl_off, pageref_t *captbl_ref, pageref_t *resource_ref)
 {
 	pageref_t pgtbl_ref;
 
-	COS_CHECK(captbl_lookup_type_deref(ct, captbl_cap, COS_CAP_TYPE_CAPTBL_LEAF, COS_OP_MODIFY_ADD, captbl_ref));
-	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_cap,  COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, &pgtbl_ref));
+	COS_CHECK(captbl_lookup_type_deref(ct, captbl_cap, COS_CAP_TYPE_CAPTBL_LEAF, ops, captbl_ref));
+	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_cap,  COS_CAP_TYPE_PGTBL_LEAF,  ops, &pgtbl_ref));
 	COS_CHECK(pgtbl_leaf_lookup(pgtbl_ref, pgtbl_off,  COS_PAGE_TYPE_KERNEL, ktype, 0, resource_ref));
 
 	return COS_RET_SUCCESS;
@@ -444,7 +444,7 @@ capability_create(cos_cap_type_t captype, captbl_t ct, cos_cap_t captbl_target_c
 	pageref_t captbl_ref, res_ref;
 	page_kerntype_t kt = captype2kerntype(captype);
 
-	COS_CHECK(cap_create_refs(ct, kt, captbl_target_cap, pgtbl_src_cap, pgtbl_src_off, &captbl_ref, &res_ref));
+	COS_CHECK(cap_create_refs(ct, kt, ops, captbl_target_cap, pgtbl_src_cap, pgtbl_src_off, &captbl_ref, &res_ref));
 
 	if (captype == COS_CAP_TYPE_THD) {
 		return cap_thd_create(captbl_ref, captbl_target_off, ops, res_ref);
@@ -459,59 +459,62 @@ capability_create(cos_cap_type_t captype, captbl_t ct, cos_cap_t captbl_target_c
 	}
 }
 
-static struct regs *
-thread_activation(struct regs *rs, struct capability_resource *cap, cos_op_bitmap_t op)
-{
-	captbl_t captbl = g->active_captbl;
-	struct thread *t = g->active_thread;
-
-	switch (op) {
-	case COS_OP_THD_DISPATCH:
-	case COS_OP_THD_EVT_OR_DISPATCH:
-	case COS_OP_THD_AWAIT_ASND:
-	case COS_OP_THD_TRIGGER_ASND:
-	case COS_OP_THD_CALL:
-	case COS_OP_THD_REPLY_WAIT:
-		;
-	}
-
-	return rs;
-}
-
 static cos_retval_t
 captbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t capno, cos_op_bitmap_t ops)
 {
 	struct state_percore *g = state();
 	captbl_t captbl = g->active_captbl;
 	struct thread *t = g->active_thread;
-	cos_retval_t r;
+	pageref_t captblref;
 
-	if (cap->type == COS_CAP_TYPE_CAPTBL_LEAF &&
-	    (ops == COS_OP_CAPTBL_CAP_CREATE_THD ||
-	     ops == COS_OP_CAPTBL_CAP_CREATE_RESTBL ||
-	     ops == COS_OP_CAPTBL_CAP_CREATE_COMP ||
-	     ops == COS_OP_CAPTBL_CAP_CREATE_SINV)) {
-		cos_cap_type_t t    = regs_arg(rs, REGS_GEN_ARGS_BASE);
-		cos_cap_t ct_node   = capno;
-		uword_t ct_off      = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
-		cos_op_bitmap_t ops = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
-		cos_cap_t pt_node   = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
-		cos_cap_t pt_off    = regs_arg(rs, REGS_GEN_ARGS_BASE + 4);
-		vaddr_t entry       = regs_arg(rs, REGS_GEN_ARGS_BASE + 5);
-		inv_token_t token   = regs_arg(rs, REGS_GEN_ARGS_BASE + 6);
+	COS_CHECK(resource_weakref_deref(&cap->intern.ref, &captblref));
 
-		r = capability_create(t, g->active_captbl, ct_node, ct_off, ops, pt_node, pt_off, entry, token);
-	} else if (ops == COS_OP_CAPTBL_CAP_REMOVE && cap->type == COS_CAP_TYPE_CAPTBL_LEAF) {
+	if (cap->type == COS_CAP_TYPE_CAPTBL_LEAF) {
+		if (ops == COS_OP_CAPTBL_CAP_CREATE_THD ||
+		    ops == COS_OP_CAPTBL_CAP_CREATE_RESTBL ||
+		    ops == COS_OP_CAPTBL_CAP_CREATE_COMP ||
+		    ops == COS_OP_CAPTBL_CAP_CREATE_SINV) {
+			cos_cap_type_t t    = regs_arg(rs, REGS_GEN_ARGS_BASE);
+			uword_t ct_off      = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+			cos_op_bitmap_t ops = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
+			cos_cap_t pt_node   = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
+			cos_cap_t pt_off    = regs_arg(rs, REGS_GEN_ARGS_BASE + 4);
+			vaddr_t entry       = regs_arg(rs, REGS_GEN_ARGS_BASE + 5);
+			inv_token_t token   = regs_arg(rs, REGS_GEN_ARGS_BASE + 6);
 
-	} else if (ops == COS_OP_RESTBL_CAP_COPY && cap->type == COS_CAP_TYPE_CAPTBL_LEAF) {
+			return capability_create(t, g->active_captbl, capno, ct_off, ops, pt_node, pt_off, entry, token);
+		} else if (ops == COS_OP_CAPTBL_CAP_REMOVE) {
+			uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
 
-	} else if (ops == COS_OP_RESTBL_CONSTRUCT && cap->type != COS_CAP_TYPE_CAPTBL_LEAF) {
+			return capability_remove(captblref, off);
+		} else if (ops == COS_OP_RESTBL_CAP_COPY) {
+			uword_t off_to = regs_arg(rs, REGS_GEN_ARGS_BASE);
+			cos_cap_t from_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+			uword_t off_from = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
+			pageref_t from_ref;
+			uword_t ops_allowed = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
 
-	} else if (ops == COS_OP_RESTBL_DECONSTRUCT && cap->type != COS_CAP_TYPE_CAPTBL_LEAF) {
+			COS_CHECK(captbl_lookup_type_deref(captbl, from_cap, COS_CAP_TYPE_CAPTBL_LEAF, ops, &from_ref));
 
+			return capability_copy(captblref, off_to, ops_allowed, from_ref, off_from);
+		}
+	} else {
+		if (ops == COS_OP_RESTBL_CONSTRUCT) {
+			uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
+			cos_cap_t bottomcap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+			pageref_t bottomref;
+
+			COS_CHECK(captbl_lookup_type_deref(captbl, bottomcap, cap->type + 1, ops, &bottomref));
+
+			return captbl_construct(captblref, bottomref, off);
+		} else if (ops == COS_OP_RESTBL_DECONSTRUCT) {
+			uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
+
+			return captbl_deconstruct(captblref, off);
+		}
 	}
 
-	return rs;
+	return -COS_ERR_NO_OPERATION;
 }
 
 static cos_retval_t
@@ -626,7 +629,14 @@ capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
 	r = -COS_ERR_NO_OPERATION;
 
 	if (cap->type == COS_CAP_TYPE_THD) {
-		return thread_activation(rs, (struct capability_resource *)cap, ops);
+		struct thread *target;
+		pageref_t targetref;
+		struct weak_ref *ref = &((struct capability_resource *)cap)->intern.ref;
+
+		COS_CHECK_THROW(resource_weakref_deref(ref, &targetref), r, err);
+		target = (struct thread *)ref2page_ptr(targetref);
+
+		return thread_slowpath(target, ops, rs);
 	} else if (capability_is_captbl(cap->type)) {
 		r = captbl_activation(rs, (struct capability_resource *)cap, capno, ops);
 	} else if (capability_is_pgtbl(cap->type)) {
@@ -635,6 +645,7 @@ capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
 		;
 	}
 
+err:
 	regs_retval(rs, REGS_RETVAL_BASE, r);
 
         return rs;
