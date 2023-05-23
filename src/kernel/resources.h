@@ -25,17 +25,13 @@ void         page_zero(struct page *p);
 cos_retval_t resource_comp_create(captbl_ref_t captbl_ref, pgtbl_ref_t pgtbl_ref, prot_domain_tag_t pd, vaddr_t entry_ip, pageref_t untyped_src_ref);
 cos_retval_t resource_comp_destroy(pageref_t compref);
 cos_retval_t resource_compref_create(pageref_t compref, struct component_ref *r);
-
 cos_retval_t resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref,
                                  thdid_t id, vaddr_t entry_ip, id_token_t sched_token, pageref_t untyped_src_ref);
 cos_retval_t resource_thd_destroy(pageref_t thdref);
-
 cos_retval_t resource_restbl_create(page_kerntype_t kt, pageref_t untyped_src_ref);
-
-cos_retval_t resource_destroy_lookup_retype(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_type_t t,
-					    page_kerntype_t kt, pageref_t *pgref);
-
+cos_retval_t resource_restbl_destroy(pageref_t restblref);
 cos_retval_t resource_weakref_create(pageref_t resource_ref, page_kerntype_t expected_kerntype, struct weak_ref *wr);
+
 
 /*
  * Faster paths for type checking, and resource dereferencing that

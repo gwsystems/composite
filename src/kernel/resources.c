@@ -128,6 +128,20 @@ int
 page_bounds_check(pageref_t ref)
 { return ref >= COS_NUM_RETYPEABLE_PAGES; }
 
+/* Get the page's epoch. */
+static inline epoch_t
+epoch_copy(struct page_type *pt)
+{
+	return load64(&pt->epoch);
+}
+
+/* Update the page's epoch, and return the previous value. */
+static inline epoch_t
+epoch_update(struct page_type *pt)
+{
+	return (epoch_t)faa(&pt->epoch, 1);
+}
+
 /***
  * ### Resources and Retyping
  *
@@ -324,38 +338,11 @@ page_retype_to_untyped(pageref_t idx)
 	 */
 	if (!cas8(&t->type, type, COS_PAGE_TYPE_RETYPING)) return -COS_ERR_WRONG_PAGE_TYPE;
 	/* Invalidate existing pointers to the resource. */
-//	faa(&t->epoch, 1);
+	epoch_update(t);
 	t->kerntype = 0;
 
 	/* Commit the changes */
 	t->type = COS_PAGE_TYPE_UNTYPED;
-
-	return COS_RET_SUCCESS;
-}
-
-/**
- * `destroy_lookup_retype` looks up a resource reference in a
- * page-table node (located at a specific capability), with a
- * specific, expected type, and attempts to retype it to UNTYPED. This
- * can fail if the capability is wrong, the offset in the page-table
- * node is wrong, or if it cannot be retyped (e.g. because references
- * remain tot he resource).
- *
- * - `@ct` - the captbl to use for the lookup
- * - `@pgtbl_cap` - capability to use to find the page-table
- * - `@pgtbl_off` - the offset into the page-table node of the resource
- * - `@t` - expected type of the resource, and the
- * - `@kt` - expected kernel type
- * - `@pgref` - a return value reference to the resource
- * - `@return` - the normal return value
- */
-cos_retval_t
-resource_destroy_lookup_retype(pageref_t pgtbl_ref, uword_t pgtbl_off, page_type_t t, page_kerntype_t kt, pageref_t *pgref)
-{
-	/* TODO: pay attention to the permissions */
-	COS_CHECK(pgtbl_leaf_lookup(pgtbl_ref, pgtbl_off, t, kt, COS_PGTBL_PERM_KERNEL, pgref));
-	/* Note that this retype can only proceed after it checks the reference count */
-	COS_CHECK(page_retype_to_untyped(*pgref));
 
 	return COS_RET_SUCCESS;
 }
@@ -397,20 +384,6 @@ resource_destroy_lookup_retype(pageref_t pgtbl_ref, uword_t pgtbl_off, page_type
  * (i.e. from a node at level N to a node at level N + 1), and thread
  * references for schedulers and tcaps.
  */
-
-/* Get the page's epoch. */
-static inline epoch_t
-epoch_copy(struct page_type *pt)
-{
-	return load64(&pt->epoch);
-}
-
-/* Update the page's epoch, and return the previous value. */
-static inline epoch_t
-epoch_update(struct page_type *pt)
-{
-	return (epoch_t)faa(&pt->epoch, 1);
-}
 
 /**
  * `resource_weakref_create` creates a new weak reference to a
@@ -592,7 +565,9 @@ resource_comp_destroy(pageref_t compref)
 	struct page_type *comp_ptype, *pt_ptype, *ct_ptype;
 	struct component *c;
 
-	ref2page(compref, (struct page **)&c, &comp_ptype);
+	COS_CHECK(page_resolve(compref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_COMP, NULL, (struct page **)&c, &comp_ptype));
+	COS_CHECK(page_retype_to_untyped(compref));
+
 	/* Make existing pointers in synchronous invocations be invalidated! */
 	epoch_update(comp_ptype);
         /* These pointers are refcounted so chasing them can't fail */
@@ -682,6 +657,8 @@ resource_thd_destroy(pageref_t thdref)
 	struct thread *t;
 
 	COS_CHECK(page_resolve(thdref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, NULL, (struct page **)&t, &thd_ptype));
+	COS_CHECK(page_retype_to_untyped(thdref));
+
         /* These pointers are refcounted so chasing them can't fail */
 	ref2page(t->sched_thd, NULL, &sched_ptype);
 	faa(&sched_ptype->refcnt, -1);
@@ -724,6 +701,19 @@ resource_restbl_create(page_kerntype_t kt, pageref_t untyped_src_ref)
 
 	/* Make the kernel resource accessible as a thread */
 	page_retype_from_untyped_commit(ptype, p, COS_PAGE_TYPE_KERNEL);
+
+	return COS_RET_SUCCESS;
+}
+
+cos_retval_t
+resource_restbl_destroy(pageref_t restblref)
+{
+	struct page_type *ptype;
+
+	ref2page(restblref, NULL, &ptype);
+	if (ptype->type != COS_PAGE_TYPE_KERNEL || !(page_is_captbl(ptype->kerntype) || page_is_pgtbl(ptype->kerntype))) return -COS_ERR_WRONG_PAGE_TYPE;
+
+	COS_CHECK(page_retype_to_untyped(restblref));
 
 	return COS_RET_SUCCESS;
 }

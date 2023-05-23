@@ -239,55 +239,18 @@ struct state_percore core_state[COS_NUM_CPU];
  * - `@pd` - protection domain information for the component.
  * - `@entry_ip` - The entry instruction pointer for threads in the
  *   component.
- * - `@pgtbl_src_cap` - The capability for the page-table entry that
- *   holds the untyped memory to use to construct the component.
- * - `@pgtbl_src_off` - The offset into `pgtbl_src_cap` to the memory.
+ * - `@untyped_ref` - untyped resource to use as the component.
  * - `@return` - `COS_RET_SUCCESS` or a negative error value.
  */
 cos_retval_t
-comp_create(captbl_t ct, cos_cap_t captbl_cap, cos_cap_t pgtbl_cap, prot_domain_tag_t pd, vaddr_t entry_ip, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
+comp_create(captbl_t ct, cos_cap_t captbl_cap, cos_cap_t pgtbl_cap, prot_domain_tag_t pd, vaddr_t entry_ip, pageref_t untyped_ref)
 {
-	pageref_t comp_ref, pgtbl_src_ref, captbl_ref, pgtbl_ref;
+	pageref_t captbl_ref, pgtbl_ref;
 
-	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_cap,       COS_CAP_TYPE_PGTBL_0,     COS_OP_CONSTRUCT, &pgtbl_ref));
-	COS_CHECK(captbl_lookup_type_deref(ct, captbl_cap,      COS_CAP_TYPE_CAPTBL_0,    COS_OP_CONSTRUCT, &captbl_ref));
-	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_src_cap,   COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, &pgtbl_src_ref));
-	COS_CHECK(pgtbl_leaf_lookup(pgtbl_src_ref, pgtbl_src_off, COS_PAGE_TYPE_UNTYPED, COS_PAGE_KERNTYPE_COMP, 0, &comp_ref));
+	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_cap,  COS_CAP_TYPE_PGTBL_0,  COS_OP_PGTBL_RETYPE_COMP, &pgtbl_ref));
+	COS_CHECK(captbl_lookup_type_deref(ct, captbl_cap, COS_CAP_TYPE_CAPTBL_0, COS_OP_PGTBL_RETYPE_COMP, &captbl_ref));
 
-	return resource_comp_create(captbl_ref, pgtbl_ref, pd, entry_ip, comp_ref);
-}
-
-/**
- * `comp_destroy` retypes a component resource to untyped. It takes
- * the capability table (`ct`), the capability to a last-level
- * page-table node that includes a component resource (`pgtbl_cap`),
- * and the offset into that page-table node of the target component
- * (`pgtbl_off`).
- *
- * - `@ct` - capability table to lookup into
- * - `@pgtbl_cap` - capability to the page-table node with the comp ref
- * - `@pgtbl_off` - offset into the page-table node to the component
- * - `@return` - normal success/error return value.
- */
-cos_retval_t
-comp_destroy(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off)
-{
-	pageref_t compref;
-
-	COS_CHECK(destroy_lookup_retype(ct, pgtbl_cap, pgtbl_off, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_COMP, &compref));
-        /*
-         * At this point, we're committed as we've updated the page
-         * type to `COS_PAGE_TYPE_RETYPING`. Remove references to the
-         * resource tables, and update the component's epoch to
-         * invalidate. None of this should be able to fail, so we
-         * don't need to undo the retype that was part of
-         * `page_retype_to_untyped`.
-         *
-	 * Commence the updates to teardown the component page.
-	 */
-	COS_CHECK(resource_comp_destroy(compref));
-
-	return COS_RET_SUCCESS;
+	return resource_comp_create(captbl_ref, pgtbl_ref, pd, entry_ip, untyped_ref);
 }
 
 /**
@@ -310,50 +273,18 @@ comp_destroy(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off)
  * - `@pd` - protection domain information for the component.
  * - `@entry_ip` - The entry instruction pointer for threads in the
  *   component.
- * - `@pgtbl_src_cap` - The capability for the page-table entry that
- *   holds the untyped memory to use to construct the component.
- * - `@pgtbl_src_off` - The offset into `pgtbl_src_cap` to the memory.
+ * - `@untyped_ref` - reference to untyped resource.
  * - `@return` - `COS_RET_SUCCESS` or a negative error value.
  */
 cos_retval_t
-thd_create(captbl_t ct, cos_cap_t schedthd_cap, cos_cap_t comp_cap, cos_op_bitmap_t ops, thdid_t id, id_token_t token, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
+thd_create(captbl_t ct, cos_cap_t schedthd_cap, cos_cap_t comp_cap, cos_op_bitmap_t ops, thdid_t id, id_token_t token, pageref_t untyped_ref)
 {
-	pageref_t schedthd_ref, comp_ref, thd_src_ref, pgtbl_src_ref;
+	pageref_t schedthd_ref, comp_ref;
 
-	COS_CHECK(captbl_lookup_type_deref(ct, schedthd_cap,    COS_CAP_TYPE_THD,         COS_OP_CONSTRUCT,  &schedthd_ref));
-	COS_CHECK(captbl_lookup_type_deref(ct, comp_cap,        COS_CAP_TYPE_COMP,        COS_OP_CONSTRUCT,  &comp_ref));
-	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_src_cap,   COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, &pgtbl_src_ref));
-	COS_CHECK(pgtbl_leaf_lookup(pgtbl_src_ref, pgtbl_src_off, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, 0, &thd_src_ref));
+	COS_CHECK(captbl_lookup_type_deref(ct, schedthd_cap,    COS_CAP_TYPE_THD,         ops,  &schedthd_ref));
+	COS_CHECK(captbl_lookup_type_deref(ct, comp_cap,        COS_CAP_TYPE_COMP,        ops,  &comp_ref));
 
-	return resource_thd_create(schedthd_ref, comp_ref, 0, id, token, thd_src_ref);
-}
-
-/**
- * `thd_destroy` takes the capability table (`ct`), the capability to
- * a last-level page-table node that includes a thread resource
- * (`pgtbl_cap`), and the offset into that page-table node of the
- * target component (`pgtbl_off`).
- *
- * Returns the normal error/success.
- */
-cos_retval_t
-thd_destroy(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off)
-{
-	pageref_t thdref;
-
-	COS_CHECK(destroy_lookup_retype(ct, pgtbl_cap, pgtbl_off, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, &thdref));
-        /*
-         * At this point, we're committed as we've updated the page
-         * type to `COS_PAGE_TYPE_RETYPING`. Remove references to the
-         * resource tables. None of this should be able to fail, so we
-         * don't need to undo the retype that was part of
-         * `page_retype_to_untyped`.
-         *
-	 * Commence the updates to teardown the thread page.
-	 */
-	COS_CHECK(resource_thd_destroy(thdref));
-
-	return COS_RET_SUCCESS;
+	return resource_thd_create(schedthd_ref, comp_ref, 0, id, token, untyped_ref);
 }
 
 /**
@@ -365,51 +296,43 @@ thd_destroy(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off)
  * information such as the thread id and the token to pass to the
  * scheduling thread with this thread's events.
  *
- * - `@ct` - the current capability table
- * - `@comp_restbl_cap` - the capability to the capability table leaf entry
- *   to use to store the capability to the new component.
- * - `@captbl_restbl_off` - the offset into the `comp_ct_cap` entry to
- *   identify the new capability.
- * - `@pgtbl_src_cap` - The capability for the page-table entry that
- *   holds the untyped memory to use to construct the component.
- * - `@pgtbl_src_off` - The offset into `pgtbl_src_cap` to the memory.
+ * - `@kt` - the type of the resource table we want to create
+ * - `@res_ref` - reference to the resource to use as a restbl
  * - `@return` - `COS_RET_SUCCESS` or a negative error value.
  */
 cos_retval_t
-restbl_create(captbl_t ct, page_kerntype_t kt, cos_cap_t pgtbl_src_cap, uword_t pgtbl_src_off)
+restbl_create(page_kerntype_t kt, pageref_t res_ref)
 {
-	pageref_t untyped_src_ref, restbl_ref;
+	pageref_t untyped_src_ref;
 
 	if (!page_is_pgtbl(kt) && !page_is_captbl(kt)) return -COS_ERR_WRONG_INPUT_TYPE;
-	COS_CHECK(captbl_lookup_type_deref(ct, pgtbl_src_cap, COS_CAP_TYPE_PGTBL_LEAF,  COS_OP_CONSTRUCT | COS_OP_MODIFY_UPDATE, &untyped_src_ref));
-	COS_CHECK(pgtbl_leaf_lookup(untyped_src_ref, pgtbl_src_off, COS_PAGE_TYPE_UNTYPED, 0, 0, &restbl_ref));
 
-	return resource_restbl_create(kt, restbl_ref);
+	return resource_restbl_create(kt, res_ref);
 }
 
 /**
- * `restbl_destroy` takes the capability table (`ct`), the capability
- * to a last-level page-table node that includes a thread resource
- * (`pgtbl_cap`), and the offset into that page-table node of the
- * target component (`pgtbl_off`). Also takes the kernel type of the
- * node that must be one of the capability- or page-table node types.
- * Deallocates/retypes the resource table node.
- *
- * Returns the normal error/success.
+ * `poly_destroy` aims to destroy a polymorphic resource type (i.e. a
+ * resource of any type). We assume that the reference counts tell us
+ * if the resource can be destroyed regardless the type. If the
+ * resource is no longer referenced, it will transition into
+ * *untyped*.
  */
 cos_retval_t
-restbl_destroy(captbl_t ct, cos_cap_t pgtbl_cap, uword_t pgtbl_off, page_kerntype_t kt)
+poly_destroy(pageref_t res_ref)
 {
-	pageref_t rtref;
+	struct page_type *pt;
 
-	COS_CHECK(resource_destroy_lookup_retype(ct, pgtbl_cap, pgtbl_off, COS_PAGE_TYPE_KERNEL, kt, &rtref));
-        /*
-	 * If the resource table's refcnt allows deallocation, then
-         * there are no links we need to destroy. We'll just clean up
-         * the memory on retype! In other words, nothing more to do here.
-	 */
-
-	return COS_RET_SUCCESS;
+	ref2page(res_ref, NULL, &pt);
+	if (pt->type != COS_PAGE_TYPE_KERNEL) return -COS_ERR_WRONG_PAGE_TYPE;
+	if (pt->kerntype == COS_PAGE_KERNTYPE_COMP) {
+		return resource_comp_destroy(res_ref);
+	} else if (pt->kerntype == COS_PAGE_KERNTYPE_THD) {
+		return resource_thd_destroy(res_ref);
+	} else if (page_is_pgtbl(pt->kerntype) || page_is_captbl(pt->kerntype)) {
+		return resource_restbl_destroy(res_ref);
+	} else {
+		return -COS_ERR_WRONG_PAGE_TYPE;
+	}
 }
 
 /***
@@ -603,9 +526,10 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 		pageref_t internref;
 		uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
 		page_kerntype_t t;
+		uword_t pgtbl_entry_perm = 0; /* TODO: add R/W perms */
 
 		COS_CHECK(resource_weakref_deref(&cap->intern.ref, &pgtblref));
-		COS_CHECK(pgtbl_leaf_lookup(pgtblref, off, COS_PAGE_TYPE_UNTYPED, 0, ops, &internref));
+		COS_CHECK(pgtbl_leaf_lookup(pgtblref, off, COS_PAGE_TYPE_UNTYPED, 0, pgtbl_entry_perm, &internref));
 
 		if (ops == COS_OP_PGTBL_RETYPE_PGTBL) {
 			uword_t level = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
@@ -613,26 +537,22 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 			if (level > COS_PGTBL_MAX_DEPTH - 1) return -COS_ERR_OUT_OF_BOUNDS;
 			t = COS_PAGE_KERNTYPE_PGTBL_0 + level;
 
-			return resource_restbl_create(t, internref);
+			return restbl_create(t, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_CAPTBL) {
 			uword_t level = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
 
 			if (level > COS_CAPTBL_MAX_DEPTH - 1) return -COS_ERR_OUT_OF_BOUNDS;
 			t = COS_PAGE_KERNTYPE_CAPTBL_0 + level;
 
-			return resource_restbl_create(t, internref);
+			return restbl_create(t, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_THD) {
 			pageref_t schedthd_ref, comp_ref;
 			cos_cap_t schedthd_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
 			cos_cap_t comp_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
 			thdid_t id = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
 			id_token_t tok = regs_arg(rs, REGS_GEN_ARGS_BASE + 4);
-			vaddr_t entry = regs_arg(rs, REGS_GEN_ARGS_BASE + 5);
 
-			COS_CHECK(captbl_lookup_type_deref(captbl, schedthd_cap, COS_CAP_TYPE_THD, ops, &schedthd_ref));
-			COS_CHECK(captbl_lookup_type_deref(captbl, comp_cap, COS_CAP_TYPE_COMP, ops, &comp_ref));
-
-			return resource_thd_create(schedthd_ref, comp_ref, id, entry, tok, internref);
+			return thd_create(captbl, schedthd_cap, comp_cap, ops, id, tok, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_COMP) {
 			pageref_t ct_ref, pt_ref;
 			cos_cap_t ct_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
@@ -640,12 +560,9 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 			prot_domain_tag_t tag = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
 			vaddr_t entry = regs_arg(rs, REGS_GEN_ARGS_BASE + 4);
 
-			COS_CHECK(captbl_lookup_type_deref(captbl, ct_cap, COS_CAP_TYPE_CAPTBL_0, ops, &ct_ref));
-			COS_CHECK(captbl_lookup_type_deref(captbl, pt_cap, COS_CAP_TYPE_PGTBL_0, ops, &pt_ref));
-
-			return resource_comp_create(ct_ref, pt_ref, tag, entry, internref);
+			return comp_create(captbl, ct_ref, pt_ref, tag, entry, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_DEALLOCATE) {
-			return resource_
+			return poly_destroy(internref);
 		} else if (ops == COS_OP_RESTBL_CAP_COPY) {
 			pgtbl_ref_t from_ref;
 			cos_cap_t from_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
@@ -653,15 +570,33 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 			uword_t pgtbl_perm = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
 
 			COS_CHECK(captbl_lookup_type_deref(captbl, from_cap, COS_CAP_TYPE_CAPTBL_LEAF, ops, &from_ref));
-			COS_CHECK(pgtbl_copy(pgtblref, off, from_ref, from_off, pgtbl_perm));
+			return pgtbl_copy(pgtblref, off, from_ref, from_off, pgtbl_perm);
 		}
-	} else if (ops == COS_OP_RESTBL_CONSTRUCT && cap->type != COS_CAP_TYPE_PGTBL_LEAF) {
+	} else if (cap->type != COS_CAP_TYPE_PGTBL_LEAF) {
+		pgtbl_ref_t pgtblref;
+		uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
+		page_kerntype_t t;
+		uword_t pgtbl_entry_perm = 0; /* TODO: add R/W perms */
 
-	} else if (ops == COS_OP_RESTBL_DECONSTRUCT && cap->type != COS_CAP_TYPE_PGTBL_LEAF) {
+		COS_CHECK(resource_weakref_deref(&cap->intern.ref, &pgtblref));
 
+		if (ops == COS_OP_RESTBL_CONSTRUCT) {
+			cos_cap_t bottom_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+			pageref_t bottom_ref;
+			uword_t offset = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
+			uword_t perm = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
+
+			COS_CHECK(captbl_lookup_type_deref(captbl, bottom_cap, cap->type + 1, ops, &bottom_ref));
+
+			return pgtbl_construct(pgtblref, offset, bottom_ref, perm);
+		} else if (ops == COS_OP_RESTBL_DECONSTRUCT) {
+			uword_t offset = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+
+			return pgtbl_deconstruct(pgtblref, offset);
+		}
 	}
 
-	return rs;
+	return -COS_ERR_NO_OPERATION;
 }
 
 COS_NEVER_INLINE static struct regs *
