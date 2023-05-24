@@ -37,11 +37,25 @@ struct invstk {
 	struct invstk_entry entries[COS_INVSTK_SIZE];
 };
 
+struct thd_evt {
+	pageref_t       next;
+	pageref_t       prev;
+	cos_cycles_t    execution;
+	uword_t         evt_count;  /* number of event triggers */
+	cos_thd_state_t state;	    /* one of THD_STATE_* */
+	struct weak_ref dependency; /* only valid if state == THD_STATE_DEPENDENCY */
+};
+
 struct thread {
-	struct invstk invstk;
-	thdid_t       id;
-	pageref_t     sched_thd;
-	struct regs   regs;
+	struct invstk    invstk;
+	thdid_t          id;
+
+	pageref_t        sched_thd;
+	id_token_t       sched_id;
+	sync_token_t     sync_token;
+	struct thd_evt   evt;	        /* Event for the thread/scheduler */
+
+	struct regs      regs;
 };
 
 COS_FORCE_INLINE struct regs *

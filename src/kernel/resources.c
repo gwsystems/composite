@@ -79,6 +79,7 @@
 
 #include "compiler.h"
 #include "component.h"
+#include "consts.h"
 #include "cos_error.h"
 #include <atomics.h>
 #include <chal_regs.h>
@@ -639,6 +640,15 @@ resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref, thdid_t id, vad
 			},
 		},
 		.sched_thd = sched_thd_ref,
+		.sched_id = 0,
+		.sync_token = 0,
+		.evt = (struct sched_evt) {
+			.next = untyped_src_ref,
+			.prev = untyped_src_ref,
+			.execution = 0,
+			.state = THD_STATE_EXECUTING,
+			.dependency = { 0 },
+		},
 		.regs = { 0 },
 	};
 	thd->regs.state = REG_STATE_SYSCALL;
@@ -654,10 +664,17 @@ cos_retval_t
 resource_thd_destroy(pageref_t thdref)
 {
 	struct page_type *thd_ptype, *sched_ptype, *tcap_ptype, *comp_ptype;
-	struct thread *t;
+	struct thread *t, *n, *p;
 
 	COS_CHECK(page_resolve(thdref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, NULL, (struct page **)&t, &thd_ptype));
 	COS_CHECK(page_retype_to_untyped(thdref));
+
+	/* Maintain the event list on thread destruction */
+	n = (struct thread *)ref2page_ptr(t->evt.next);
+	p = (struct thread *)ref2page_ptr(t->evt.prev);
+	n->evt.prev = t->evt.prev;
+	p->evt.next = t->evt.next;
+	t->evt.prev = t->evt.next = thdref;
 
         /* These pointers are refcounted so chasing them can't fail */
 	ref2page(t->sched_thd, NULL, &sched_ptype);

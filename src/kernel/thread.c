@@ -1,6 +1,42 @@
-#include "cos_consts.h"
+#include <cos_consts.h>
+#include <cos_error.h>
+#include <resources.h>
 #include <thread.h>
 #include <state.h>
+
+void
+thread_evt_dequeue(struct thread *t, struct regs *rs)
+{
+
+
+	return;
+}
+
+cos_retval_t
+thread_retrieve_evt_or_switch(struct thread *curr, struct thread *t, struct regs *rs)
+{
+	if (curr != t) return -COS_ERR_INSUFFICIENT_PERMISSIONS;
+
+
+
+	return COS_RET_SUCCESS;
+}
+
+cos_retval_t
+thread_await_asnd(struct thread *t, struct regs *rs)
+{
+	struct thread *sched = (struct thread *)ref2page_ptr(t->sched_thd);
+
+	return COS_RET_SUCCESS;
+}
+
+cos_retval_t
+thread_trigger_asnd(struct thread *t, struct regs *rs)
+{
+	struct thread *sched = (struct thread *)ref2page_ptr(t->sched_thd);
+
+	return COS_RET_SUCCESS;
+}
 
 /**
  * `thread_slowpath` is the aggregate logic for all of the thread
