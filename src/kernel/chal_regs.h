@@ -534,4 +534,9 @@ regs_syscall_11_11(cos_cap_t cap, cos_op_bitmap_t ops,
 		     : "memory", "cc", "di", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");
 }
 
-#endif	/* __ASSEMBLER__ */
+/* Aligned to 512 byte registers */
+struct fpregs {
+	u8_t bytes[2048];
+} __attribute__((aligned(512)));
+
+#endif	/* !__ASSEMBLER__ */

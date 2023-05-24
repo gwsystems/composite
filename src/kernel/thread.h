@@ -18,6 +18,8 @@
  *   corresponds to a system call.
  * - `@return` - the registers to activate on return
  */
+#include "chal_consts.h"
+#include "compiler.h"
 #include <cos_types.h>
 #include <cos_error.h>
 #include <chal_regs.h>
@@ -42,21 +44,25 @@ struct thd_evt {
 	pageref_t       prev;
 	cos_cycles_t    execution;
 	uword_t         evt_count;  /* number of event triggers */
-	cos_thd_state_t state;	    /* one of THD_STATE_* */
 	struct weak_ref dependency; /* only valid if state == THD_STATE_DEPENDENCY */
 };
 
 struct thread {
 	struct invstk    invstk;
-	thdid_t          id;
-
-	pageref_t        sched_thd;
-	id_token_t       sched_id;
-	sync_token_t     sync_token;
-	struct thd_evt   evt;	        /* Event for the thread/scheduler */
+	thdid_t          id;	    /* our thread id */
+	cos_thd_state_t  state;	    /* one of THD_STATE_* */
+	pageref_t        this;	    /* our own pageref */
+	pageref_t        sched_thd; /* our scheduler */
+	cos_prio_t       priority;  /* lower values = higher priority */
+	id_token_t       sched_id;  /* our id, given by, and to be returned to, the scheduler */
+	sync_token_t     sync_token; /* scheduling synchronization token to detect schedule to dispatch races */
+	struct thd_evt   evt;	    /* Event for the thread/scheduler */
 
 	struct regs      regs;
+	struct fpregs    fpregs;
 };
+
+COS_STATIC_ASSERT(sizeof(struct thread) <= COS_PAGE_SIZE, "Thread structure larger than a page.");
 
 COS_FORCE_INLINE struct regs *
 thread_switch(struct thread *t, struct regs *rs, uword_t success_retval) {
@@ -89,7 +95,7 @@ thread_switch(struct thread *t, struct regs *rs, uword_t success_retval) {
 		regs_retval(rs, REGS_RETVAL_BASE, COS_RET_SUCCESS);
 		regs_retval(rs, REGS_RETVAL_BASE + 1, success_retval);
 	}
-	curr->regs = *rs;
+	if (&curr->regs != rs) curr->regs = *rs;
 
 	/* Return the registers we want to restore */
 	return &t->regs;
@@ -102,3 +108,5 @@ err:
 }
 
 struct regs *thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs);
+void         thread_initialize(struct thread *thd, thdid_t id, id_token_t sched_tok, vaddr_t entry_ip,
+                               struct component_ref *compref, pageref_t schedthd_ref, pageref_t thisref);

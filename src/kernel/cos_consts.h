@@ -136,3 +136,11 @@
 #define COS_CAPTBL_LEAF_NENT      64  /* (COS_PAGE_SIZE / 64) */
 #define COS_CAPTBL_LEAF_ENTRY_SZ  64  /* (COS_PAGE_SIZE / 64) */
 #define COS_CAPTBL_MAX_DEPTH      2
+
+/**
+ * Thread states that can be reported to the scheduler
+ */
+#define COS_THD_STATE_EVT_AWAITING   1   /* after calling await_asnd */
+#define COS_THD_STATE_EXECUTING      2   /* normal state, executable, potentially event-triggered */
+#define COS_THD_STATE_IPC_DEPENDENCY 3   /* IPC dependency on another thread */
+#define COS_THD_STATE_IPC_AWAIT      4   /* awaiting IPC from another thread */

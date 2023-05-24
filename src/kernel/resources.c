@@ -627,32 +627,7 @@ resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref, thdid_t id, vad
 
 	thd = (struct thread *)thd_page;
 	/* Update the component structure in recently retyped page */
-	*thd = (struct thread) {
-		.id = id,
-		.invstk = (struct invstk) {
-			.head = 0, /* We're in the top entry */
-			.entries = {
-				(struct invstk_entry) { /* Top entry is the current component */
-					.component = ref,
-					.ip = 0,
-					.sp = 0,
-				},
-			},
-		},
-		.sched_thd = sched_thd_ref,
-		.sched_id = 0,
-		.sync_token = 0,
-		.evt = (struct sched_evt) {
-			.next = untyped_src_ref,
-			.prev = untyped_src_ref,
-			.execution = 0,
-			.state = THD_STATE_EXECUTING,
-			.dependency = { 0 },
-		},
-		.regs = { 0 },
-	};
-	thd->regs.state = REG_STATE_SYSCALL;
-	regs_prepare_upcall(&thd->regs, entry_ip, coreid(), id, 0);
+	thread_initialize(thd, id, sched_token, entry_ip, &ref, sched_thd_ref, untyped_src_ref);
 
 	/* Make the kernel resource accessible as a thread */
 	page_retype_from_untyped_commit(ptype, thd_page, COS_PAGE_TYPE_KERNEL);
