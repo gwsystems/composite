@@ -70,18 +70,23 @@ thread_retrieve_evt_or_switch(struct thread *curr, struct thread *t, struct regs
 	evt = &evt_thd->evt;
 	state = evt_thd->state;
 
+	/* Initialize the 5th return value to 0 */
+	regs_retval(rs, REGS_RETVAL_BASE + 4, 0);
+
 	if (state == COS_THD_STATE_IPC_DEPENDENCY) {
 		pageref_t d_ref;
 
 		/*
 		 * If the thread we depend on has been destroyed,
-		 * return an error, and mark it as executing.
+		 * return an error, and mark the thread as executing.
 		 *
 		 * TODO: This should be replaced with an exception
 		 * thread activation.
 		 */
 		if (resource_weakref_deref(&evt->dependency, &d_ref) != COS_RET_SUCCESS) {
 			state = COS_THD_STATE_EXECUTING;
+			/* event thread must be in a system call, return an error */
+			assert(evt_thd->regs.state == REGS_ST);
 			regs_retval(&evt_thd->regs, REGS_RETVAL_BASE, -COS_ERR_NOT_LIVE);
 		} else {
 			struct thread *d = (struct thread *)ref2page_ptr(d_ref);
