@@ -20,6 +20,7 @@
  */
 #include "chal_consts.h"
 #include "compiler.h"
+#include "cos_consts.h"
 #include <cos_types.h>
 #include <cos_error.h>
 #include <chal_regs.h>
@@ -39,6 +40,16 @@ struct invstk {
 	struct invstk_entry entries[COS_INVSTK_SIZE];
 };
 
+/*
+ * Thread events include:
+ *
+ * 1. a simple counter of asynchronous activations to report the
+ *    number of such activations,
+ * 2. events that are sent to the scheduler thread which form a
+ *    circular doubly linked list and track execution cycles, and
+ * 3. synchronous rendezvous-based IPC events that create dependencies
+ *    between client and server threads.
+ */
 struct thd_evt {
 	pageref_t       next;
 	pageref_t       prev;
@@ -47,6 +58,29 @@ struct thd_evt {
 	struct weak_ref dependency; /* only valid if state == THD_STATE_DEPENDENCY */
 };
 
+/**
+ * The `thread` kernel resource, which abstracts all control flow.
+ * Retyping operations create threads, and they execute through
+ * components, make invocations between them, interact through events
+ * and IPC, and schedule/are scheduled. A component is created in a
+ * component at the head of its invocation stack. Thread
+ * migration-based invocations to other components push entries onto
+ * the stack that track the component in which the thread is
+ * executing. Thus, the component referenced by the head of the
+ * invocation stack indicates the component in which the thread is
+ * executing.
+ *
+ * Thread invariants:
+ *
+ * - `state == COS_THD_STATE_EXECUTING` -> `regs.state == REG_STATE_PREEMPTED`
+ * - `state == COS_THD_STATE_EVT_AWAITING` -> `evt.evt_count == 0`
+ * - `state == COS_THD_STATE_IPC_DEPENDENCY` <-> `valid(evt.dependency)`
+ * - `ref2page_ptr(t->this) == t`
+ * - `ref2page_ptr(t->sched_thd) != t`
+ * - `t == ref2page_ptr(ref2page_ptr(t->evt.next)->evt.prev)`
+ * - `t == ref2page_ptr(ref2page_ptr(t->evt.prev)->evt.next)`
+ * - `is_thd(evt.next) && is_thd(evt.prev) && is_thd(sched_thd)`
+ */
 struct thread {
 	struct invstk    invstk;
 	thdid_t          id;	    /* our thread id */
@@ -64,8 +98,22 @@ struct thread {
 
 COS_STATIC_ASSERT(sizeof(struct thread) <= COS_PAGE_SIZE, "Thread structure larger than a page.");
 
+void thread_calculate_returnvals(struct thread *t);
+
+/**
+ * `thread_switch` simply switches to the specified thread.
+ *
+ * This can be called from interrupt and/or syscall contexts, which
+ * means that `regs->state` can be either `REG_STATE_SYSCALL` or
+ * `REG_STATE_PREEMPTED`. This means we have to be careful about
+ * updating registers.
+ *
+ * - `@t` - The thread to switch to
+ * - `@rs` - The current register set
+ * - `@return` - The registers to load on returning to user-level
+ */
 COS_FORCE_INLINE struct regs *
-thread_switch(struct thread *t, struct regs *rs, uword_t success_retval) {
+thread_switch(struct thread *t, struct regs *rs) {
 	struct state_percore *g = state();
 	struct thread *curr = g->active_thread;
 	struct component_ref *comp;
@@ -87,15 +135,22 @@ thread_switch(struct thread *t, struct regs *rs, uword_t success_retval) {
 	g->invstk_head   = t->invstk.head;
 	g->active_captbl = comp->captbl;
 
-        /*
-	 * If the current registers are from a system call, set return
-         * values accordingly.
+	/* Save the current registers */
+	if (likely(&curr->regs != rs)) curr->regs = *rs;
+
+	/*
+	 * Formulate return values in a manner consistent with the
+	 * thread's state. If the thread is awaiting a asnd trigger
+	 * (e.g. from an interrupt), the return values are setup
+	 * different from the case where the thread is awaiting
+	 * scheduler events.
 	 */
-	if (likely(rs->state == REG_STATE_SYSCALL)) {
-		regs_retval(rs, REGS_RETVAL_BASE, COS_RET_SUCCESS);
-		regs_retval(rs, REGS_RETVAL_BASE + 1, success_retval);
+	if (likely(t->regs.state == REG_STATE_SYSCALL)) {
+		thread_calculate_returnvals(t);
 	}
-	if (&curr->regs != rs) curr->regs = *rs;
+
+	/* Any thread we're about to execution should be in this state... */
+	t->state = COS_THD_STATE_EXECUTING;
 
 	/* Return the registers we want to restore */
 	return &t->regs;

@@ -69,11 +69,12 @@
 #define COS_OP_RESTBL_CAP_COPY          16384
 #define COS_OP_THD_DISPATCH             32768
 #define COS_OP_THD_EVT_OR_DISPATCH      65536
-#define COS_OP_THD_AWAIT_ASND           131072
-#define COS_OP_THD_TRIGGER_ASND         262144
+#define COS_OP_THD_AWAIT_EVT            131072
+#define COS_OP_THD_TRIGGER_EVT          262144
 #define COS_OP_THD_CALL                 524288
 #define COS_OP_THD_REPLY_WAIT           1048576
-#define COS_OP_HW                       2097152
+#define COS_OP_THD_TIMER_PROGRAM        2097152
+#define COS_OP_HW                       4194304
 
 /*
  * - captbl cons/decons: target = {pg|cap}tbl & op == (COS_OP_MODIFY_{ADD|REMOVE} | COS_OP_RESTBL_CONSTRUCT)
@@ -140,7 +141,10 @@
 /**
  * Thread states that can be reported to the scheduler
  */
+#define COS_THD_STATE_NULL           0   /* only used as a user-level retval to denote "nothing" */
 #define COS_THD_STATE_EVT_AWAITING   1   /* after calling await_asnd */
 #define COS_THD_STATE_EXECUTING      2   /* normal state, executable, potentially event-triggered */
 #define COS_THD_STATE_IPC_DEPENDENCY 3   /* IPC dependency on another thread */
 #define COS_THD_STATE_IPC_AWAIT      4   /* awaiting IPC from another thread */
+#define COS_THD_STATE_SCHED_AWAIT    5   /* scheduler awaiting event */
+#define COS_THD_STATE_EVT_TRIGGERED  6   /* after calling await_asnd */
