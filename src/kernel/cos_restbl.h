@@ -8,8 +8,8 @@
 COS_FORCE_INLINE static inline uword_t
 __restbl_num_nodes(uword_t addr, uword_t addr_lower, uword_t node_bits, uword_t node_bit_granularity)
 {
-	uword_t node_addr       = (addr       >> node_bit_granularity) & node_bits;
-	uword_t node_addr_lower = (addr_lower >> node_bit_granularity) & node_bits;
+	uword_t node_addr       = (addr       >> node_bit_granularity) & ((1 << node_bits) - 1);
+	uword_t node_addr_lower = (addr_lower >> node_bit_granularity) & ((1 << node_bits) - 1);
 
 	return node_addr - node_addr_lower + 1;
 }
@@ -86,7 +86,7 @@ restbl_node_offset(uword_t lvl, uword_t addr, uword_t addr_lower, uword_t addr_m
 
 	for (i = 0; i <= lvl; i++) {
 		/* For previous levels, assume max allocations; for the target level, lookup the addr */
-				uword_t c = (i == lvl)? addr: max_addr;
+		uword_t c = (i == lvl)? addr: max_addr;
 
 		if (i == COS_CAPTBL_MAX_DEPTH - 1) { /* Leaf needs to consider no lower-order bits  */
 			off += __restbl_num_nodes(c, addr_lower, LEAF_ORD, 0);
