@@ -22,7 +22,7 @@ struct component_ref {
 };
 
 /* Required so that the sinv capability fits into a cache-line */
-COS_STATIC_ASSERT(sizeof(struct component_ref) == 4 * sizeof(word_t),
+COS_STATIC_ASSERT(sizeof(struct component_ref) <= 4 * sizeof(word_t),
 		  "Component reference is larger than expected.");
 
 COS_FASTPATH static inline void

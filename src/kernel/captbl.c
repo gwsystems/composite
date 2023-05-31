@@ -22,8 +22,8 @@ captbl_leaf_initialize(struct captbl_leaf *ct)
 		ct->capabilities[i] = (struct capability_generic) {
 			.type = COS_CAP_TYPE_FREE,
 			.liveness = 0,
+			.operations = COS_OP_NIL,
 			.intern = 0,
-			.operations = COS_OP_MODIFY_UPDATE,
 		};
 	}
 }
@@ -510,7 +510,6 @@ cap_restbl_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_of
 {
 	struct capability_resource_intern r;
 	cos_retval_t ret;
-	struct page_type *ptype;
 	struct captbl_leaf *captbl_entry;
 	struct capability_generic *cap;
 	struct weak_ref weak_ref;

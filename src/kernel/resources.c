@@ -102,7 +102,7 @@ static inline struct page_type *
 page2type(void *p)
 { return &page_types[page2ref(p)]; }
 
-__attribute__((noinline)) void
+COS_NEVER_INLINE void
 page_zero(struct page *p)
 {
 	unsigned int i;

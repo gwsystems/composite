@@ -34,6 +34,7 @@
 #define COS_ERR_CAP_LOOKUP               14 /* A capability lookup error: not present or incorrect type */
 #define COS_ERR_CONTENTION               15 /* Another core has contended this operation, and won the race */
 #define COS_ERR_NO_OPERATION             16 /* Another core has contended this operation, and won the race */
+#define COS_ERR_SCHED_RETRY              17 /* There has been a scheduler race, and it should retry scheduling */
 
 /*
  * General return value from the kernel. Negative values indicate

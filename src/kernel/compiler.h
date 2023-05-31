@@ -20,6 +20,8 @@
 #define COS_FORCE_INLINE  __attribute__((always_inline))
 /* Prevent inlining. Forces error paths to be in separate functions */
 #define COS_NEVER_INLINE  __attribute__((noinline))
+/* This function will never return */
+#define COS_NO_RETURN     __attribute__((noreturn))
 
 #ifndef __cplusplus
 #define COS_STATIC_ASSERT(cond, err_msg) _Static_assert(cond, err_msg)

@@ -7,6 +7,25 @@
 #include <thread.h>
 #include <state.h>
 
+
+/*
+ * A scheduler's event queue contains the *threads*, one per event,
+ * that have triggered events for that scheduler. The events include:
+ *
+ * - Being triggered by an asynchronous event, including interrupts
+ * - Awaiting an asynchronous event
+ * - Executing for a number of cycles (after a trigger-driven switch)
+ * - IPC-based interactions (including inter-thread dependencies)
+ *
+ * Assumptions:
+ *
+ * - Each thread represents a node in a circular, doubly-linked list
+ *   of events.
+ * - Each thread referenced in the list is through a page reference.
+ * - Each thread in the list is alive (they remove themself when being
+ *   retyped).
+ */
+
 static void
 thread_evt_remove(struct thread *t)
 {
@@ -55,15 +74,36 @@ thread_evt_enqueue(struct thread *s, struct thread *t)
 static inline int
 thread_evt_pending(struct thread *s)
 {
+	/* There are no events *also* if s->evt.prev != s->this */
 	return s->evt.next != s->this;
 }
 
+/**
+ * `thread_sched_returnvals` sets up the proper return values for a
+ * scheduler thread that is returning from an await on scheduler
+ * events.
+ *
+ * Assumes:
+ * - `s` is returning from a `sched_await_or_switch` operation.
+ * - Thus, the thread's registers are not in a preempted state.
+ *
+ * - `@s` - the scheduler thread
+ * - `@rs` - current register set of that thread
+ * - `@return` - registers to load on return
+ */
 static struct regs *
 thread_sched_returnvals(struct thread *s, struct regs *rs)
 {
 	struct thread *evt_thd;
 	struct thd_evt *evt;
 
+	/*
+	 * We might return to the scheduler when there are no events
+	 * either because 1. a direct switch to the scheduler is made
+	 * (i.e. as the scheduler has the scheduler's critical section
+	 * for a core), or 2. a timer interrupt fires, and no events
+	 * exist at the time of it firing.
+	 */
 	if (!thread_evt_pending(s)) {
 		regs_retval(rs, REGS_RETVAL_BASE + 0, COS_RET_SUCCESS);
 		regs_retval(rs, REGS_RETVAL_BASE + 1, COS_THD_STATE_NULL);
@@ -71,20 +111,34 @@ thread_sched_returnvals(struct thread *s, struct regs *rs)
 		return rs;
 	}
 
+	/* If there are events, return one! */
 	evt_thd = thread_evt_dequeue(s);
 	evt     = &evt_thd->evt;
 
 	regs_retval(rs, REGS_RETVAL_BASE + 0, COS_RET_SUCCESS);
-	regs_retval(rs, REGS_RETVAL_BASE + 1, evt_thd->state);
-	regs_retval(rs, REGS_RETVAL_BASE + 2, evt_thd->sched_id);
-	regs_retval(rs, REGS_RETVAL_BASE + 3, evt->execution);
-	regs_retval(rs, REGS_RETVAL_BASE + 4, 0); /* dependency placeholder */
+	/* Are there even more events to process? */
+	regs_retval(rs, REGS_RETVAL_BASE + 1, thread_evt_pending(s));
+	regs_retval(rs, REGS_RETVAL_BASE + 2, evt_thd->state);
+	regs_retval(rs, REGS_RETVAL_BASE + 3, evt_thd->sched_id);
+	regs_retval(rs, REGS_RETVAL_BASE + 4, evt->execution);
+	regs_retval(rs, REGS_RETVAL_BASE + 5, 0); /* dependency placeholder */
+
+	/* TODO: return 2 events at a time */
 
 	return rs;
 }
 
 /**
- * `thread_await_evt_
+ * `thread_await_evt_returnvals` sets up the proper return values for
+ * a thread that is returning from await_evt calls.
+ *
+ * Assumes:
+ * - `t` is returning from an await_evt operation.
+ * - Thus, the thread's registers are not in a preempted state.
+ *
+ * - `@t` - thread for which we're setting up the return values
+ * - `@rs` - current register set of that thread
+ * - `@return` - registers to load on return
  */
 static struct regs *
 thread_await_evt_returnvals(struct thread *t, struct regs *rs)
@@ -221,12 +275,15 @@ thread_calculate_returnvals(struct thread *t)
 void
 thread_initialize(struct thread *thd, thdid_t id, id_token_t sched_tok, vaddr_t entry_ip, struct component_ref *compref, pageref_t schedthd_ref, pageref_t thisref)
 {
+	struct thread *sched = (struct thread *)ref2page_ptr(schedthd_ref);
+
 	*thd = (struct thread) {
 		.id = id,
 		.invstk = (struct invstk) {
 			.head = 0, /* We're in the top entry */
 			.entries = {
-				(struct invstk_entry) { /* Top entry is the current component */
+				/* The top invstk entry is the current component */
+				(struct invstk_entry) {
 					.component = *compref,
 					.ip = 0,
 					.sp = 0,
@@ -236,6 +293,8 @@ thread_initialize(struct thread *thd, thdid_t id, id_token_t sched_tok, vaddr_t 
 		.this = thisref,
 		.state = COS_THD_STATE_EXECUTING,
 		.sched_thd = schedthd_ref,
+		.sched_evt_thd = schedthd_ref,
+		.priority = COS_PRIO_LOW,
 		.sched_id = sched_tok,
 		.sync_token = 0,
 		.evt = (struct thd_evt) {
@@ -246,17 +305,20 @@ thread_initialize(struct thread *thd, thdid_t id, id_token_t sched_tok, vaddr_t 
 		},
 		.regs = { 0 },
 	};
+
+	/* Make sure that the scheduler thread properly understands its role. */
+	sched->sched_thd = schedthd_ref;
+
 	thd->regs.state = REG_STATE_SYSCALL;
 	regs_prepare_upcall(&thd->regs, entry_ip, coreid(), id, 0);
 }
 
 /**
  * `thread_slowpath` is the aggregate logic for all of the thread
- * capability options. Not all of them necessarily make sense
- * together, but they shouldn't threaten any access control
- * invariants, nor the kernel integrity, so let user-level do as it
- * will. Note here that the permission checking has already been
- * performed to validate that only allowed operations are requested.
+ * capability operations.
+ *
+ * We assume this is only called from syscalls (thus `rs->state ==
+ * REG_STATE_SYSCALL`).
  *
  * We assume here that the registers (arguments) are laid out statically:
  *
@@ -271,12 +333,12 @@ thread_initialize(struct thread *thd, thdid_t id, id_token_t sched_tok, vaddr_t 
 COS_NEVER_INLINE struct regs *
 thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs)
 {
-	struct state_percore *g = state();
-	struct thread *curr = g->active_thread;
+	struct thread *curr = state()->active_thread;
+	cos_retval_t r = -COS_ERR_NO_OPERATION;
 
-	if (rs->state == REG_STATE_SYSCALL) {
-		regs_retval(rs, REGS_RETVAL_BASE, COS_RET_SUCCESS);
-	}
+	/* Default return value for the current thread */
+	regs_retval(rs, REGS_RETVAL_BASE, COS_RET_SUCCESS);
+	COS_CHECK_THROW(thread_scheduler_update(&requested_op, t, rs), r, err);
 
 	switch(requested_op) {
 	case COS_OP_THD_DISPATCH:
@@ -288,32 +350,50 @@ thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs)
 	case COS_OP_THD_AWAIT_EVT:
 		return thread_await_evt(curr, rs);
 	}
-
-	regs_retval(rs, REGS_RETVAL_BASE, -COS_ERR_NO_OPERATION);
+err:
+	regs_retval(rs, REGS_RETVAL_BASE, r);
 
 	return rs;
 }
 
-COS_NEVER_INLINE struct regs *
+/**
+ * `thread_interrupt_activation` should be called in interrupt context
+ * to trigger an asynchronous event for the target thread, `t`. This
+ * is essentially the exact same logic as for normal user-level
+ * accessible triggers. This might continue executing in the current,
+ * active thread, or might switch to the interrupt thread.
+ *
+ * - `@t` - thread to trigger: the "interrupt thread"
+ * - `@rs` - the current register set (of the active thread)
+ * - `@return` - the registers we should activate on return to user-level.
+ */
+struct regs *
 thread_interrupt_activation(struct thread *t, struct regs *rs)
 {
-	struct state_percore *g = state();
-	struct thread *curr = g->active_thread;
+	struct thread *curr = state()->active_thread;
 
 	return thread_trigger_evt(curr, t, rs);
 }
 
-
-COS_NEVER_INLINE struct regs *
-thread_timer_activation(struct thread *t, struct regs *rs)
+/**
+ * `thread_timer_activation` is called by the timer interrupt to
+ * active the corresponding scheduler. This function relies on the
+ * logic of the `thread_switch` to properly set up the scheduler's
+ * return values. This *unconditionally* switches to the scheduler
+ * thread as at this point, the "next" timer isn't programmed.
+ *
+ * Assumes: there's effectively only a single scheduler in the system.
+ * Will later get TCaps working to sanely enable multiple schedulers.
+ *
+ * - `@rs` - the current register set
+ * - `@return` - the register set of the scheduler to activate
+ */
+struct regs *
+thread_timer_activation(struct regs *rs)
 {
-	struct state_percore *g = state();
-	struct thread *curr = g->active_thread;
-	struct thread *sched = g->sched_thread;
+	struct thread *sched = state()->sched_thread;
 
-	/*
-	 * TODO: what if the scheduler is the current thread? How do
-	 * we find the scheduler? How do we update the timer?
-	 */
+	if (unlikely(!sched)) return rs;
+
 	return thread_switch(sched, rs);
 }

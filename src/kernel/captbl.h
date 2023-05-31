@@ -1,5 +1,6 @@
 #pragma once
 
+#include "compiler.h"
 #include "component.h"
 #include "cos_consts.h"
 #include <types.h>
@@ -11,9 +12,15 @@ struct captbl_internal {
 	captbl_t next[COS_CAPTBL_INTERNAL_NENT];
 };
 
+COS_STATIC_ASSERT(COS_PAGE_SIZE / sizeof(uword_t) == COS_CAPTBL_INTERNAL_NENT,
+		  "Capability table's internal leaf's entries have an incorrect size.");
+
 struct captbl_leaf {
-	struct capability_generic capabilities[COS_PAGE_SIZE / sizeof(struct capability_generic)];
+	struct capability_generic capabilities[COS_CAPTBL_LEAF_NENT];
 };
+
+COS_STATIC_ASSERT(COS_PAGE_SIZE / sizeof(struct capability_generic) == COS_CAPTBL_LEAF_NENT,
+		  "Capability table's leaf's entries have an incorrect size.");
 
 cos_retval_t captbl_construct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset);
 cos_retval_t captbl_deconstruct(captbl_ref_t top, uword_t offset);

@@ -27,6 +27,7 @@ typedef uword_t        id_token_t;        /* a token that holds an id, either fo
 typedef uword_t        sync_token_t;      /* the token used to count, thus detect stale, dispatches */
 
 typedef u64_t          cos_prio_t;        /* Priority value with lower values meaning higher priority */
+#define COS_PRIO_LOW   (~0)
 
 typedef u64_t          cos_cycles_t;      /* accounting cycle count */
 typedef u64_t          cos_time_t;	  /* absolute time */

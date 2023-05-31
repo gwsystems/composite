@@ -499,6 +499,9 @@ captbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t ca
 			return capability_copy(captblref, off_to, ops_allowed, from_ref, off_from);
 		}
 	} else {
+		if (ops & COS_OP_NEST) {
+
+		}
 		if (ops == COS_OP_RESTBL_CONSTRUCT) {
 			uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
 			cos_cap_t bottomcap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
@@ -643,6 +646,8 @@ capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
 		r = pgtbl_activation(rs, (struct capability_resource *)cap, capno, ops);
 	} else if (cap->type == COS_CAP_TYPE_HW) {
 		;
+	} else if (cap->type == COS_CAP_TYPE_SINV) {
+		;
 	}
 
 err:
@@ -695,6 +700,11 @@ capability_activation(struct regs *rs)
 		cos_retval_t ret;
 
 		t = (struct thread *)ref2page_ptr(ref);
+		ret = thread_scheduler_update(&ops, t, rs);
+		if (unlikely(ret != COS_RET_SUCCESS)) {
+			regs_retval(rs, REGS_RETVAL_BASE, ret);
+			return rs;
+		}
 		/* Thread operations. First, the dispatch fast-path. */
 		if (likely(ops == COS_OP_THD_DISPATCH)) {
                         return thread_switch(t, rs, 0);

@@ -24,6 +24,7 @@
 #include <cos_types.h>
 #include <cos_error.h>
 #include <chal_regs.h>
+#include <chal_timer.h>
 
 #include <types.h>
 #include <component.h>
@@ -70,6 +71,18 @@ struct thd_evt {
  * invocation stack indicates the component in which the thread is
  * executing.
  *
+ * The active scheduler will always be the one referenced by
+ * `sched_thd`. Thus when we pass time values with which to program
+ * the timer, this is the scheduler to be notified. In contrast, when
+ * a thread awaits an event, or has an event triggered, the
+ * `sched_evt_thread` is the one that is notified. For all normal
+ * threads, `sched_thd == sched_evt_thread`, and they both reference
+ * the scheduler for that thread. However, in the case of a scheduler
+ * thread itself, `sched_thd == this`, and `sched_evt_thread` is the
+ * parent scheduler thread. The final case is the case of the "boot
+ * thread" on a core, in which case, `sched_thd == sched_evt_thread ==
+ * this`.
+ *
  * Thread invariants:
  *
  * - `state == COS_THD_STATE_EXECUTING` -> `regs.state == REG_STATE_PREEMPTED`
@@ -82,16 +95,24 @@ struct thd_evt {
  * - `is_thd(evt.next) && is_thd(evt.prev) && is_thd(sched_thd)`
  */
 struct thread {
+	/* Thread state meta-data */
 	struct invstk    invstk;
-	thdid_t          id;	    /* our thread id */
-	cos_thd_state_t  state;	    /* one of THD_STATE_* */
-	pageref_t        this;	    /* our own pageref */
-	pageref_t        sched_thd; /* our scheduler */
-	cos_prio_t       priority;  /* lower values = higher priority */
-	id_token_t       sched_id;  /* our id, given by, and to be returned to, the scheduler */
-	sync_token_t     sync_token; /* scheduling synchronization token to detect schedule to dispatch races */
-	struct thd_evt   evt;	    /* Event for the thread/scheduler */
+	thdid_t          id;	        /* our thread id */
+	cos_thd_state_t  state;         /* one of THD_STATE_* */
+	pageref_t        this;	        /* our own pageref */
 
+	/* Scheduling meta-data */
+	pageref_t        sched_thd;     /* our scheduler, or us if we're a scheduler */
+	cos_prio_t       priority;      /* lower values = higher priority */
+	id_token_t       sched_id;      /* our id, given by, and to be returned to, the scheduler */
+	sync_token_t     sync_token;    /* scheduling synchronization token to detect schedule to dispatch races */
+	cos_time_t       timeout;	/* If we're a scheduler, this is the timeout we're asking for */
+	struct thd_evt   evt;	        /* Event for the thread/scheduler */
+
+	/* Scheduler hierarchy meta-data */
+	pageref_t        sched_evt_thd; /* the scheduler to send scheduling events */
+
+	/* Thread registers */
 	struct regs      regs;
 	struct fpregs    fpregs;
 };
@@ -114,10 +135,10 @@ void thread_calculate_returnvals(struct thread *t);
  */
 COS_FORCE_INLINE struct regs *
 thread_switch(struct thread *t, struct regs *rs) {
-	struct state_percore *g = state();
-	struct thread *curr = g->active_thread;
+	struct state_percore *g    = state();
+	struct thread        *curr = g->active_thread;
 	struct component_ref *comp;
-	cos_retval_t r;
+	cos_retval_t          r;
 
         /*
 	 * This gets written back first, so that the thread's record
@@ -160,6 +181,45 @@ err:
 	}
 
 	return rs;
+}
+
+/**
+ * `thread_scheduler_update` sets thread priority, checks
+ * synchronization via the `sched_token`, and sets the next timeout,
+ * only if the operation includes `COS_OP_THD_SCHEDULE`. To enable
+ * later options to proceed, we mask out the schedule operation. Note
+ * that the timeout is only programmed if the synchronization token
+ * indicates no race.
+ *
+ * This assumes that the arguments for the synchronization token,
+ * timeout, and priority are in the first three general argument
+ * registers.
+ *
+ * - `@ops` - The operations to perform during this thread operation.
+ *   This is a pointer so that we can *remove* the schedule flag from
+ *   it.
+ * - `@t` - Thread we're switching to
+ * - `@rs` - Register set for the current system call.
+ * - `@return` - Normal return value, notable error on synchronization
+ *   race
+ */
+COS_FORCE_INLINE cos_retval_t
+thread_scheduler_update(cos_op_bitmap_t *ops, struct thread *t, struct regs *rs)
+{
+	struct state_percore *g = state();
+	struct thread *s = (struct thread *)ref2page_ptr(t->sched_thd);
+	sync_token_t tok = regs_arg(rs, REGS_GEN_ARGS_BASE + 0);
+	cos_time_t timeout = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+
+	if (!(*ops & COS_OP_THD_SCHEDULE)) return COS_RET_SUCCESS;
+	*ops &= ~COS_OP_THD_SCHEDULE;
+
+	t->priority   = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
+	if (tok <= s->sync_token) return -COS_ERR_SCHED_RETRY;
+	s->sync_token = tok;
+	if (g->timeout != timeout) chal_timer_program(timeout);
+
+	return COS_RET_SUCCESS;
 }
 
 struct regs *thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs);

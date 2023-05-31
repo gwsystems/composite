@@ -73,7 +73,7 @@
 #define COS_OP_THD_TRIGGER_EVT          262144
 #define COS_OP_THD_CALL                 524288
 #define COS_OP_THD_REPLY_WAIT           1048576
-#define COS_OP_THD_TIMER_PROGRAM        2097152
+#define COS_OP_THD_SCHEDULE             2097152
 #define COS_OP_HW                       4194304
 
 /*
@@ -133,10 +133,12 @@
  * both radix tries. These defines select the radix trie sizes (i.e.
  * how many indices do they have, and how deep are they).
  */
-#define COS_CAPTBL_INTERNAL_NENT  512 /* (COS_PAGE_SIZE / sizeof(captbl_t)) */
-#define COS_CAPTBL_LEAF_NENT      64  /* (COS_PAGE_SIZE / 64) */
-#define COS_CAPTBL_LEAF_ENTRY_SZ  64  /* (COS_PAGE_SIZE / 64) */
-#define COS_CAPTBL_MAX_DEPTH      2
+#define COS_CAPTBL_INTERNAL_NENT 512  /* (COS_PAGE_SIZE / sizeof(captbl_t)) */
+#define COS_CAPTBL_INTERNAL_ORD    9  /* log_2(COS_CAPTBL_INTERNAL_NENT) */
+#define COS_CAPTBL_LEAF_NENT      64  /* (COS_PAGE_SIZE / sizeof(struct capability_generic)) */
+#define COS_CAPTBL_LEAF_ORD        6  /* log_2(COS_CAPTBL_LEAF_NENT) */
+#define COS_CAPTBL_LEAF_ENTRY_SZ  64  /* sizeof(struct capability_generic) */
+#define COS_CAPTBL_MAX_DEPTH       2
 
 /**
  * Thread states that can be reported to the scheduler
