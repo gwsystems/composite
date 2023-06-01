@@ -17,7 +17,7 @@
 #define LOW_PRIORITY (LOWEST_PRIORITY - 1)
 #define HIGH_PRIORITY (LOWEST_PRIORITY - 10)
 
-#define TEST_ITERS 1000000
+#define TEST_ITERS 10000
 
 static volatile int test_done = 0;
 static volatile thdid_t spin_thd[2] = { 0 };

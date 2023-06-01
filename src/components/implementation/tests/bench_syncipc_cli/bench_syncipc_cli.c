@@ -19,7 +19,7 @@ main(void)
 	word_t arg0 = 0, arg1 = 1;
 	cycles_t start, end;
 	int i;
- 
+
 	perfdata_init(&perf, "Synchronous IPC round trip latency", results, ITERATION);
 
 	sched_thd_param_set(tid, sp);

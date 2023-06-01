@@ -911,7 +911,6 @@ expended_process(struct pt_regs *regs, struct thread *thd_curr, struct comp_info
  * 4. notifies the scheduler of the thread's execution
  * 5. switch tcap and thread context
  */
-int aaa =0;
 int
 timer_process(struct pt_regs *regs)
 {
@@ -924,7 +923,6 @@ timer_process(struct pt_regs *regs)
 	thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &comp);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	assert(comp);
-	aaa++;
 	int ret = expended_process(regs, thd_curr, comp, cos_info, 1);
 	return ret;
 }

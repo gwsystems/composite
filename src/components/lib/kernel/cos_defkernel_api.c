@@ -232,7 +232,6 @@ cos_aep_tcap_alloc(struct cos_aep_info *aep, tcap_t tc, cos_aepthd_fn_t fn, void
 int
 cos_defswitch(thdcap_t c, tcap_prio_t p, tcap_time_t r, sched_tok_t stok)
 {
-	//printc("called: %d, %d, %d, %d\n", c, p, r, stok);
 	struct cos_defcompinfo *defci     = cos_defcompinfo_curr_get();
 	struct cos_aep_info    *sched_aep = cos_sched_aep_get(defci);
 

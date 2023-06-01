@@ -798,13 +798,19 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 	}
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
 		assert(preempt == 0);
-		unsigned long flags = regs->flags;
 		memset(regs, 0, sizeof(struct pt_regs));
 		__userregs_set(regs, 0, thd->dcbinfo->sp, thd->dcbinfo->ip + DCB_IP_KERN_OFF);
 #if defined(__x86_64__)
-		regs->r11 = regs->flags;
+		/*
+		 * This considers a third type of state of a thread when using slite besides
+		 * THD_STATE_PREEMPTED and THD_STATE_RCVING. If there's valid sp in the dcb of
+		 * the next thread, meaning the next thread is cooperatively blocked. We need
+		 * to restore sp and ip register based on the values in the dcb. Additionally,
+		 * we have to set r11 back to default because the register set of the next thread
+		 * in the kernel can be the last time it has been preempted.
+		 */
+		regs->r11 = 0x3200;
 #endif
-		assert(preempt == 0);
 		thd->dcbinfo->sp = 0;
 	}
 	if (issame && preempt == 0) {

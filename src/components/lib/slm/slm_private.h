@@ -147,7 +147,6 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 	unsigned long pre_tok = 0;
 	u64_t thdpack = (next->thd << 16) | next->tid;
 
-	//assert(curr != next);
 	if (curr == next) {
 		return 0; 
 	}
@@ -236,7 +235,6 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 
 #if defined(__x86_64__)
 	__asm__ __volatile__ (
-		"pushq %%r10\n\t"               \
 		"pushq %%rbx\n\t"               \
 		"pushq %%rbp\n\t"               \
 		"mov %%rsp, %%rbp\n\t"          \
@@ -271,12 +269,11 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		"3:\n\t"                        \
 		"popq %%rbp\n\t"                \
 		"popq %%rbx\n\t"                \
-		"popq %%r10\n\t"                \
 		: "=b" (pre_tok)
 		: "a" (cd), "S" (nd),
 		  "b" (tok), "D" (timeout),
 		  "c" (&(scb->curr_thd)), "d" (thdpack)
-		: "memory", "cc", "r8", "r9", "r11", "r12", "r13", "r14", "r15");
+		: "memory", "cc", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");
 #else
 	/*__asm__ __volatile__ (              \
 		"pushl %%ebp\n\t"               \
