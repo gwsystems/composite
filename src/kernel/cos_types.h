@@ -11,6 +11,7 @@
  */
 
 /* Utility types */
+
 typedef unsigned long  u64_t;
 typedef unsigned int   u32_t;
 typedef unsigned short u16_t;
@@ -32,3 +33,30 @@ typedef u64_t          cos_prio_t;        /* Priority value with lower values me
 typedef u64_t          cos_cycles_t;      /* accounting cycle count */
 typedef u64_t          cos_time_t;	  /* absolute time */
 typedef u8_t           cos_thd_state_t;   /* thread state, reported to scheduler */
+
+#include <compiler.h>
+
+/**
+ * `cos_round_down_to_pow2` round a value down to the closest multiple of a
+ * power-of-two value.
+ *
+ * Assume: `to` is a power of two (`popcnt(to) == 1`)
+ *
+ * - `@val` - value to round down
+ * - `@to` - the value to round down to
+ * - `@return` - rounded down value.
+ */
+COS_FORCE_INLINE static inline uword_t
+cos_round_down_to_pow2(uword_t val, uword_t to)
+{
+	return val & ~(to - 1);
+}
+
+/**
+ * Similarly, round up to the closest multiple of a power-of-two value.
+ */
+COS_FORCE_INLINE static inline uword_t
+cos_round_up_to_pow2(uword_t val, uword_t to)
+{
+	return cos_round_down_to_pow2(val + (to - 1), to);
+}

@@ -13,7 +13,9 @@
 #define COS_PGTBL_TOP_ORD         8
 #define COS_PGTBL_KERN_NENT       256
 #define COS_PGTBL_INTERNAL_NENT   512
+#define COS_PGTBL_LEAF_NENT       512
 #define COS_PGTBL_INTERNAL_ORD    9
+#define COS_PGTBL_LEAF_ORD        9
 #define COS_PGTBL_PERM_PRESENT    1
 #define COS_PGTBL_PERM_WRITE      2
 #define COS_PGTBL_PERM_EXECUTE    4

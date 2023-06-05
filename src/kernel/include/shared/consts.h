@@ -41,7 +41,7 @@
 #define MAX_STACK_SZ (COS_STACK_SZ / 4)
 
 #define ALL_STACK_SZ ((MAX_NUM_THREADS + 1) * MAX_STACK_SZ)
-/* 
+/*
  * 4096B / 4 * (64+1) : to flatten the math because of the below error
  * cos_asm_upcall_simple_stacks.S:28: Error: bad or irreducible absolute expression
  * All stack size = per_stack_size * number_of_threads, here we set it as COS_STACK_SZ * 8

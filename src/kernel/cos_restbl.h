@@ -14,6 +14,12 @@ __restbl_num_nodes(uword_t addr, uword_t addr_lower, uword_t node_bits, uword_t 
 	return node_addr - node_addr_lower + 1;
 }
 
+COS_FORCE_INLINE static inline uword_t
+__restbl_offset_node(uword_t addr, uword_t node_bits, uword_t node_bit_granularity)
+{
+	return (addr >> node_bit_granularity) & ((1 << node_bits) - 1);
+}
+
 /*
  * `restbl_node_offset` returns the capability offset for a
  * captbl/pgtbl node at a specific level that indexes a given `addr`
@@ -72,7 +78,7 @@ __restbl_num_nodes(uword_t addr, uword_t addr_lower, uword_t node_bits, uword_t 
  */
 COS_FORCE_INLINE static inline cos_retval_t
 restbl_node_offset(uword_t lvl, uword_t addr, uword_t addr_lower, uword_t addr_max_num,
-		   uword_t MAX_DEPTH, uword_t TOP_ORD, uword_t INTERN_ORD, uword_t LEAF_ORD, uword_t *off_ret)
+		   const uword_t MAX_DEPTH, const uword_t TOP_ORD, const uword_t INTERN_ORD, const uword_t LEAF_ORD, uword_t *off_ret)
 {
 	uword_t i, off = 0;
 	/* Maximum, bit-addressable address. We assume that MAX_DEPTH >= 2 (see static assertion below). */
@@ -114,6 +120,11 @@ restbl_node_offset(uword_t lvl, uword_t addr, uword_t addr_lower, uword_t addr_m
 		restbl_node_offset(max_depth - 1, addr_lower + addr_max_num - 1, addr_lower, \
 				   addr_max_num, max_depth, top_ord, intern_ord, leaf_ord, &off_ret); \
 		return off_ret;						\
+	}								\
+	static inline uword_t						\
+	name##_intern_offset(uword_t lvl, uword_t addr)			\
+	{								\
+		return __restbl_offset_node(addr, 0, 0);		\
 	}
 
 RESTBL_NODE_OFFSET_GEN(captbl, COS_CAPTBL_MAX_DEPTH, COS_CAPTBL_INTERNAL_ORD, COS_CAPTBL_INTERNAL_ORD, COS_CAPTBL_LEAF_ORD)
