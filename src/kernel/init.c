@@ -214,11 +214,11 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, uw
 		uword_t bottom_upper, bottom_lower; /* bottom node, upper and lower addresses */
 		uword_t i, j, nentries;
 
-		COS_CHECK(pgtbl_node_offset(lvl, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &top_lower));
-		COS_CHECK(pgtbl_node_offset(lvl, constructor_lower_vaddr + constructor_size - 1, constructor_lower_vaddr, constructor_size, &top_lower));
+		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &top_lower));
+		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_vaddr + constructor_size - 1, constructor_lower_vaddr, constructor_size, &top_lower));
 
-		COS_CHECK(pgtbl_node_offset(lvl + 1, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &bottom_lower));
-		COS_CHECK(pgtbl_node_offset(lvl + 1, constructor_lower_vaddr + constructor_size - 1, constructor_lower_vaddr, constructor_size, &bottom_upper));
+		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &bottom_lower));
+		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_lower_vaddr + constructor_size - 1, constructor_lower_vaddr, constructor_size, &bottom_upper));
 
 		nentries = (lvl == COS_PGTBL_TOP_NENT)? COS_PGTBL_TOP_NENT: COS_PGTBL_INTERNAL_NENT;
 		for (i = 0; i < top_upper - top_lower; i++) {

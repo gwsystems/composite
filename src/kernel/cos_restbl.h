@@ -4,23 +4,55 @@
 #include <cos_error.h>
 #include <cos_types.h>
 
-/* Not a public API: find how many blocks/nodes represent addresses up to `addr` (within a single level).  */
-COS_FORCE_INLINE static inline uword_t
-__restbl_num_nodes(uword_t addr, uword_t addr_lower, uword_t node_bits, uword_t node_bit_granularity)
-{
-	uword_t node_addr       = (addr       >> node_bit_granularity) & ((1 << node_bits) - 1);
-	uword_t node_addr_lower = (addr_lower >> node_bit_granularity) & ((1 << node_bits) - 1);
+/* `o` = # of bits, output = mask of `o` 1s. E.g. o = 3 -> ...00111 = 7 */
+#define COS_ORD2MASK(o) ((1 << (o)) - 1)
 
+/**
+ * `cos_restbl_intern_bits` returns bits `(B_n, B_m]` of `addr` where
+ *
+ * m = `node_bit_granularity`
+ * n = `node_bit_granularity + node_bits`
+ *
+ * Thus, the return value is < 2^{n-m}.
+ *
+ * We assume that `node_bit_granularity + node_bits <= sizeof(uword_t) * 8`.
+ *
+ * - `@addr` - The address from which we'll extract bits
+ * - `@node_bits` - How many bits we want to remove
+ * - `@node_bit_granularity` - at what offset into add?
+ * - `@return` - resulting bits
+ */
+COS_FORCE_INLINE static inline uword_t
+cos_restbl_intern_bits(uword_t addr, uword_t node_bits, uword_t node_bit_granularity)
+{
+	return (addr >> node_bit_granularity) & COS_ORD2MASK(node_bits);
+}
+
+/**
+ * `cos_restbl_num_nodes` finds how many blocks/nodes represent
+ * addresses up to `addr` from a lower address `addr_lower` at a
+ * specific level in the trie. Put another way, how many values within
+ * the bits `(B_n, B_m]` (as defined in `cos_restbl_intern_bits`) are
+ * necessary to represent the address range `(addr + addr_lower,
+ * addr_lower]`?
+ *
+ * - `@addr` - the higher address of the range
+ * - `@addr_lower` - the lower address of the range
+ * - `@node_bits` - how many bits are represented at a level
+ * - `@node_bit_granularity` - the offset of the node's bits
+ * - `@return` - # of nodes needed to represent the range
+ */
+COS_FORCE_INLINE static inline uword_t
+cos_restbl_num_nodes(uword_t addr, uword_t addr_lower, uword_t node_bits, uword_t node_bit_granularity)
+{
+	uword_t node_addr       = cos_restbl_intern_bits(addr, node_bits, node_bit_granularity);
+	uword_t node_addr_lower = cos_restbl_intern_bits(addr_lower, node_bits, node_bit_granularity);
+
+	/* +1 as we always require a single node */
 	return node_addr - node_addr_lower + 1;
 }
 
-COS_FORCE_INLINE static inline uword_t
-__restbl_offset_node(uword_t addr, uword_t node_bits, uword_t node_bit_granularity)
-{
-	return (addr >> node_bit_granularity) & ((1 << node_bits) - 1);
-}
-
-/*
+/**
  * `restbl_node_offset` returns the capability offset for a
  * captbl/pgtbl node at a specific level that indexes a given `addr`
  * within a referenced (internal) capability-table. Note that concrete
@@ -72,17 +104,21 @@ __restbl_offset_node(uword_t addr, uword_t node_bits, uword_t node_bit_granulari
  * - `@addr_max_num` - The maximum number of capabilities represented
  *   by the capability nodes. Thus, capabilities [addr_lower,
  *   addr_lower + addr_max_num) are represented by the nodes.
+ * - `@MAX_DEPTH` - depth of the radix trie
+ * - `@TOP_ORD` - # of bits in the top node
+ * - `@INTERN_ORD` - # of bits in internal nodes
+ * - `@LEAF_ORD` - # of bits in leaf nodes
  * - `@off_ret` - The offset at which we find the capability to the captbl
  *   node if the return value is "success".
  * - `@return` - normal return value, errors if out of bound.
  */
 COS_FORCE_INLINE static inline cos_retval_t
-restbl_node_offset(uword_t lvl, uword_t addr, uword_t addr_lower, uword_t addr_max_num,
-		   const uword_t MAX_DEPTH, const uword_t TOP_ORD, const uword_t INTERN_ORD, const uword_t LEAF_ORD, uword_t *off_ret)
+cos_restbl_node_offset(uword_t lvl, uword_t addr, uword_t addr_lower, uword_t addr_max_num, const uword_t MAX_DEPTH,
+		       const uword_t TOP_ORD, const uword_t INTERN_ORD, const uword_t LEAF_ORD, uword_t *off_ret)
 {
 	uword_t i, off = 0;
 	/* Maximum, bit-addressable address. We assume that MAX_DEPTH >= 2 (see static assertion below). */
-	const uword_t addrspc_max = ((1 << (TOP_ORD + (INTERN_ORD * (MAX_DEPTH - 2)) + LEAF_ORD)) - 1);
+	const uword_t addrspc_max = COS_ORD2MASK(TOP_ORD + (INTERN_ORD * (MAX_DEPTH - 2)) + LEAF_ORD);
 	/* Maximum address within the slice of the namespace defined by the arguments. */
 	const uword_t max_addr = addr_lower + addr_max_num - 1;
 
@@ -94,12 +130,12 @@ restbl_node_offset(uword_t lvl, uword_t addr, uword_t addr_lower, uword_t addr_m
 		/* For previous levels, assume max allocations; for the target level, lookup the addr */
 		uword_t c = (i == lvl)? addr: max_addr;
 
-		if (i == COS_CAPTBL_MAX_DEPTH - 1) { /* Leaf needs to consider no lower-order bits  */
-			off += __restbl_num_nodes(c, addr_lower, LEAF_ORD, 0);
-		} else if (i == 0) {                 /* top node considers all lower-order bits */
-			off += __restbl_num_nodes(c, addr_lower, TOP_ORD, LEAF_ORD + ((MAX_DEPTH - 1) * INTERN_ORD));
-		} else {
-			off += __restbl_num_nodes(c, addr_lower, INTERN_ORD, LEAF_ORD + ((MAX_DEPTH - i - 1) * INTERN_ORD));
+		if (i == 0) {        /* only a single top node */
+			off += 1;
+		} else if (i == 1) { /* second level uses the top-level's properties */
+			off += cos_restbl_num_nodes(c, addr_lower, TOP_ORD, LEAF_ORD + ((MAX_DEPTH - 2) * INTERN_ORD));
+		} else {	     /* the rest of the levels... */
+			off += cos_restbl_num_nodes(c, addr_lower, INTERN_ORD, LEAF_ORD + ((MAX_DEPTH - i - 1) * INTERN_ORD));
 		}
 	}
 	*off_ret = off - 1; 	/* -1 here as at `lvl`, we counted past the node */
@@ -107,25 +143,60 @@ restbl_node_offset(uword_t lvl, uword_t addr, uword_t addr_lower, uword_t addr_m
 	return COS_RET_SUCCESS;
 }
 
-/* Generate the captbl/pgtbl node offset functions with constant "shape" variables. */
-#define RESTBL_NODE_OFFSET_GEN(name, max_depth, top_ord, intern_ord, leaf_ord) \
-	COS_FORCE_INLINE static inline cos_retval_t			\
-	name##_node_offset(uword_t lvl, uword_t addr, uword_t addr_lower, uword_t addr_max_num, uword_t *off_ret) \
-	{ return restbl_node_offset(lvl, addr, addr_lower, addr_max_num, max_depth, top_ord, intern_ord, leaf_ord, off_ret); } \
-	COS_STATIC_ASSERT(max_depth >= 2, "Resource tables must have at least two levels."); \
-	static inline uword_t						\
-	name##_num_nodes(uword_t addr_lower, uword_t addr_max_num)	\
-	{								\
-		uword_t off_ret;					\
-		restbl_node_offset(max_depth - 1, addr_lower + addr_max_num - 1, addr_lower, \
-				   addr_max_num, max_depth, top_ord, intern_ord, leaf_ord, &off_ret); \
-		return off_ret;						\
-	}								\
-	static inline uword_t						\
-	name##_intern_offset(uword_t lvl, uword_t addr)			\
-	{								\
-		return __restbl_offset_node(addr, 0, 0);		\
+/**
+ * `cos_restbl_intern_offset` calculates the offset into the node at
+ * level `lvl` who holds the reference to the next node for address
+ * `addr`. In short: find the offset for `addr` in the node at `lvl`.
+ * This is meant to be used with the `RESTBL_NODE_OFFSET_GEN` macro to
+ * make the radix trie values constant.
+ *
+ * - `@lvl` - for which level do we want to know the offset
+ * - `@addr` - address we want to know offset of
+ * - `@MAX_DEPTH` - trie depth
+ * - `@TOP_ORD` - order of top node
+ * - `@INTERN_ORD` - order of internal nodes
+ * - `@LEAF_ORD` - order of leaf nodes
+ * - `@off_ret` - return value
+ * - `@return` - `COS_ERR_OUT_OF_BOUNDS` or success.
+ */
+COS_FORCE_INLINE static inline cos_retval_t
+cos_restbl_intern_offset(uword_t lvl, uword_t addr, const uword_t MAX_DEPTH, const uword_t TOP_ORD,
+		     const uword_t INTERN_ORD, const uword_t LEAF_ORD, uword_t *off_ret)
+{
+	const uword_t addrspc_max = COS_ORD2MASK(TOP_ORD + (INTERN_ORD * (MAX_DEPTH - 2)) + LEAF_ORD);
+	uword_t granularity, bits;
+
+	if (lvl > MAX_DEPTH - 1 || addr >= addrspc_max) return -COS_ERR_OUT_OF_BOUNDS;
+
+	if (lvl == MAX_DEPTH - 1) { /* Leaf needs to consider no lower-order bits  */
+		*off_ret = cos_restbl_intern_bits(addr, LEAF_ORD, 0);
+	} else if (lvl == 0) { /* top node considers all lower-order bits */
+		*off_ret = cos_restbl_intern_bits(addr, TOP_ORD, LEAF_ORD + ((MAX_DEPTH - 2) * INTERN_ORD));
+	} else {		/* internal nodes */
+		*off_ret = cos_restbl_intern_bits(addr, INTERN_ORD, LEAF_ORD + ((MAX_DEPTH - 2 - lvl) * INTERN_ORD));
 	}
 
-RESTBL_NODE_OFFSET_GEN(captbl, COS_CAPTBL_MAX_DEPTH, COS_CAPTBL_INTERNAL_ORD, COS_CAPTBL_INTERNAL_ORD, COS_CAPTBL_LEAF_ORD)
-RESTBL_NODE_OFFSET_GEN(pgtbl,  COS_PGTBL_MAX_DEPTH,  COS_PGTBL_TOP_ORD,       COS_PGTBL_INTERNAL_ORD,  COS_PGTBL_INTERNAL_ORD)
+	return COS_RET_SUCCESS;
+}
+
+/* Generate the captbl/pgtbl node offset functions with constant "shape" variables. */
+#define COS_RESTBL_NODE_OFFSET_GEN(name, max_depth, top_ord, intern_ord, leaf_ord) \
+	COS_STATIC_ASSERT(max_depth >= 2, "Resource tables must have at least two levels."); \
+	COS_FORCE_INLINE static inline cos_retval_t			\
+	cos_##name##_node_offset(uword_t lvl, uword_t addr, uword_t addr_lower, uword_t addr_max_num, uword_t *off_ret) \
+	{ return cos_restbl_node_offset(lvl, addr, addr_lower, addr_max_num, max_depth, top_ord, intern_ord, leaf_ord, off_ret); } \
+	static inline cos_retval_t					\
+	cos_##name##_intern_offset(uword_t lvl, uword_t addr, uword_t *ret) \
+	{ return cos_restbl_intern_offset(lvl, addr, max_depth, top_ord, intern_ord, leaf_ord, ret); } \
+	static inline uword_t						\
+	cos_##name##_num_nodes(uword_t addr_lower, uword_t addr_max_num) \
+	{								\
+		uword_t off_ret;					\
+		cos_restbl_node_offset(max_depth - 1, addr_lower + addr_max_num - 1, addr_lower, \
+				       addr_max_num, max_depth, top_ord, intern_ord, leaf_ord, &off_ret); \
+		return off_ret;						\
+	}
+
+COS_RESTBL_NODE_OFFSET_GEN(captbl, COS_CAPTBL_MAX_DEPTH, COS_CAPTBL_INTERNAL_ORD, COS_CAPTBL_INTERNAL_ORD, COS_CAPTBL_LEAF_ORD)
+/* Note that all pgtbl APIs are indexed by page number (pageno == address), not virtual addresses */
+COS_RESTBL_NODE_OFFSET_GEN(pgtbl,  COS_PGTBL_MAX_DEPTH,  COS_PGTBL_TOP_ORD,       COS_PGTBL_INTERNAL_ORD,  COS_PGTBL_INTERNAL_ORD)
