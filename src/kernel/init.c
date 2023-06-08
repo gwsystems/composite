@@ -15,7 +15,7 @@
 static uword_t
 captbl_initial_fixedpoint(uword_t const_caps, uword_t captbl_node_num)
 {
-	return captbl_num_nodes(0, captbl_node_num + const_caps);
+	return cos_captbl_num_nodes(0, captbl_node_num + const_caps);
 }
 
 /*
@@ -81,7 +81,7 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, uw
 	pgtbl_offset       = res_pgtbl_offset + res_num;
 	/* Have to map all untyped pages and *also* vaddrs */
 	mappings_num       = cos_round_up_to_pow2(constructor_size, COS_PAGE_SIZE) / COS_PAGE_SIZE;
-	pgtbl_num          = pgtbl_num_nodes(constructor_lower_vaddr, mappings_num);
+	pgtbl_num          = cos_pgtbl_num_nodes(constructor_lower_vaddr, mappings_num);
 
 	/*
 	 * How many captbl nodes do we need? This includes:
@@ -166,7 +166,7 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, uw
 		uword_t max;
 
 		/* FIXME: this logic expects the # of nodes, not the offset */
-		COS_CHECK(pgtbl_node_offset(lvl, mappings_num - 1, constructor_lower_vaddr, mappings_num, &max));
+		COS_CHECK(cos_pgtbl_node_offset(lvl, mappings_num - 1, constructor_lower_vaddr, mappings_num, &max));
 		for (i = pgtbl_iter; i <= max; i++) {
 			COS_CHECK(resource_restbl_create(COS_PAGE_KERNTYPE_PGTBL_0 + lvl, i));
 		}
@@ -181,7 +181,7 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, uw
 	for (lvl = 0; lvl < COS_CAPTBL_MAX_DEPTH; lvl++) {
 		uword_t max;
 
-		COS_CHECK(captbl_node_offset(lvl, frontier - 1, 0, frontier, &max));
+		COS_CHECK(cos_captbl_node_offset(lvl, frontier - 1, 0, frontier, &max));
 		for (i = captbl_iter; i <= max; i++) {
 			COS_CHECK(resource_restbl_create(COS_PAGE_KERNTYPE_CAPTBL_0 + lvl, i));
 		}
@@ -190,11 +190,15 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, uw
 
 	/*
 	 * Component wrapping together the page and capability tables.
+	 * Assumes that the first entry of the pgtbl and captbl arrays
+	 * is the top.
 	 */
 	COS_CHECK(resource_comp_create(captbl_offset, pgtbl_offset, 0, constructor_entry, component_offset));
 
 	/*
-	 * Initialize the initial threads, one per core.
+	 * Initialize the initial threads, one per core. Had to wait
+	 * for the component to be created first, which required the
+	 * resource tables.
 	 */
 	for (i = thread_offset; i < COS_NUM_CPU; i++) {
 		COS_CHECK(resource_thd_create(i, component_offset, i - thread_offset + 1, constructor_entry, 0, i));
@@ -206,26 +210,55 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, uw
 	 * layout. Lets link together the nodes of the captbls and
 	 * pgtbls.
 	 *
-	 * First, page-tables should include references to all
-	 * resources.
+	 * First, the constructor's page-table must have internal
+	 * links to construct the tries.
+	 *
+	 * ...
 	 */
 	for (lvl = 0; lvl < COS_PGTBL_MAX_DEPTH - 1; lvl++) {
-		uword_t top_upper, top_lower; /* top node, upper and lower addresses */
+		uword_t top_off;         /* top nodes to iterate through */
 		uword_t bottom_upper, bottom_lower; /* bottom node, upper and lower addresses */
-		uword_t i, j, nentries;
+		uword_t bottom_off, nentries, cons_off;
 
-		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &top_lower));
-		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_vaddr + constructor_size - 1, constructor_lower_vaddr, constructor_size, &top_lower));
+		/* Where are the top nodes? */
+		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &top_off));
+		COS_CHECK(cos_pgtbl_intern_offset(lvl, constructor_lower_vaddr, &cons_off));
 
 		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &bottom_lower));
 		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_lower_vaddr + constructor_size - 1, constructor_lower_vaddr, constructor_size, &bottom_upper));
 
-		nentries = (lvl == COS_PGTBL_TOP_NENT)? COS_PGTBL_TOP_NENT: COS_PGTBL_INTERNAL_NENT;
-		for (i = 0; i < top_upper - top_lower; i++) {
-			for (j = 0; j < bottom_upper - bottom_lower; j++) {
-				/* FIXME: need to break up this inner loop, nentries per outer */
-				COS_CHECK(pgtbl_construct(i + pgtbl_offset, i % nentries, j + pgtbl_offset, 0));
-			}
+		nentries = (lvl == 0)? COS_PGTBL_TOP_NENT: COS_PGTBL_INTERNAL_NENT;
+		for (bottom_off = bottom_lower; bottom_off < bottom_upper; bottom_off++, cons_off = (cons_off + 1) % nentries) {
+			COS_CHECK(pgtbl_construct(pgtbl_offset + top_off, cons_off, pgtbl_offset + bottom_off, 0));
+
+			/* roll over onto the next top-level node */
+			if (cons_off == nentries - 1) top_off++;
+		}
+	}
+
+	/* ...Second, lets add the constructors virtual memory into the page-tables... */
+
+	/* ...Third, we'll add page-tables that reference all resources... */
+
+	/* ...Finally, construct the capability table for the constructor... */
+	for (lvl = 0; lvl < COS_CAPTBL_MAX_DEPTH - 1; lvl++) {
+		uword_t top_off;         /* top nodes to iterate through */
+		uword_t bottom_upper, bottom_lower; /* bottom node, upper and lower addresses */
+		uword_t bottom_off, nentries, cons_off;
+
+		/* Where are the top nodes? */
+		COS_CHECK(cos_captbl_node_offset(lvl, 1, 1, captbl_num, &top_off));
+		COS_CHECK(cos_captbl_intern_offset(lvl, 1, &cons_off));
+
+		COS_CHECK(cos_captbl_node_offset(lvl + 1, 1, 1, captbl_num, &bottom_lower));
+		COS_CHECK(cos_captbl_node_offset(lvl + 1, 1 + captbl_num - 1, 1, captbl_num, &bottom_upper));
+
+		nentries = COS_CAPTBL_INTERNAL_NENT;
+		for (bottom_off = bottom_lower; bottom_off < bottom_upper; bottom_off++, cons_off = (cons_off + 1) % nentries) {
+			COS_CHECK(captbl_construct(captbl_offset + top_off, cons_off, captbl_offset + bottom_off));
+
+			/* roll over onto the next top-level node */
+			if (cons_off == nentries - 1) top_off++;
 		}
 	}
 
