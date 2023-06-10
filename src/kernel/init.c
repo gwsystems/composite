@@ -95,7 +95,7 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, va
 	int i, lvl;
 	struct captbl_leaf *captbl_null;
 	uword_t constructor_offset, constructor_size, thread_offset, component_offset, captbl_offset, captbl_iter;
-	uword_t pgtbl_offset, pgtbl_iter, res_pgtbl_offset, zeroed_page_offset, frontier;
+	uword_t pgtbl_offset, pgtbl_leaf_off, pgtbl_iter, res_pgtbl_offset, zeroed_page_offset, frontier;
 	uword_t captbl_num, pgtbl_num, mappings_num, res_pgtbl_num;
 
 	/*
@@ -276,7 +276,35 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, va
 	}
 
 	/* ...Second, lets add the constructor's virtual memory into the page-tables... */
+	COS_CHECK(cos_pgtbl_node_offset(COS_PGTBL_MAX_DEPTH - 1, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &pgtbl_leaf_off));
+	for (i = 0; i < constructor_size / COS_PAGE_SIZE; i++) {
+		uword_t offset = ((constructor_lower_vaddr / COS_PAGE_SIZE) + i) % COS_PGTBL_LEAF_NENT;
+		uword_t vm_page, perm;
 
+		/*
+		 * Find the page-we're mapping in, and its
+		 * permissions. This depends on if the page is in the
+		 * read-only section, the read-write (data) section,
+		 * or in the zeroed-memory section (bss).
+		 */
+		if (i < ro_sz / COS_PAGE_SIZE) { /* read-only section */
+			vm_page = constructor_offset + (ro_off / COS_PAGE_SIZE) + i;
+			perm = 0;
+		} else if (i < (data_sz + ro_sz) / COS_PAGE_SIZE) { /* read-write section */
+			vm_page = constructor_offset + (data_off / COS_PAGE_SIZE) + i - (ro_sz / COS_PAGE_SIZE);
+			perm = 0;
+		} else if (i < (data_sz + ro_sz + zero_sz) / COS_PAGE_SIZE) { /* bss/zero-data section */
+			vm_page = zeroed_page_offset + i - ((ro_sz + data_sz) / COS_PAGE_SIZE);
+			perm = 0;
+		} else {	/* this should never happen... */
+			return -COS_ERR_OUT_OF_BOUNDS;
+		}
+
+		COS_CHECK(pgtbl_map(pgtbl_offset + pgtbl_leaf_off, offset, vm_page, perm));
+
+		/* If we've reached the end of a page-table node, move on to the next */
+		if (offset == (COS_PGTBL_LEAF_NENT - 1)) pgtbl_leaf_off++;
+	}
 
 	/* ...Third, construct the capability table for the constructor... */
 	for (lvl = 0; lvl < COS_CAPTBL_MAX_DEPTH - 1; lvl++) {
