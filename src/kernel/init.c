@@ -61,24 +61,56 @@ captbl_initial(uword_t const_caps)
  *
  * Assumes:
  *
- * - `constructor_lower_vaddr` is exactly divisible by `COS_PAGE_SIZE`.
- * - `constructor_size` is exactly divisible by `COS_PAGE_SIZE`.
+ * - `constructor_lower_vaddr`, `ro_off`, `data_off`, `ro_sz`,
+ *   `data_sz`, and `zero_sz` are all exactly divisible by
+ *   `COS_PAGE_SIZE`.
+ * - In virtual addresses: the zero (bss) section directly follows
+ *   data, which directly follows read-only mappings.
+ * - elf sections don't overlap: `ro_off + ro_sz <= data_off`
+ * - elf sections fit within the elf object:
+ *   `ro_sz + data_sz <= (post_constructor_offset - 1) * COS_PAGE_SIZE`
+ * - elf entry address is in the code:
+ *   `constructor_entry > constructor_lower_vaddr && constructor_entry <= (constructor_lower_vaddr + ro_sz)`
+ *
+ * The arguments include information about which pages/resources
+ * contain the constructor's elf image, and the offsets within that
+ * image of the various sections. An implicit argument is where the
+ * constructor's elf object starts in the resource array, which is
+ * hard-coded by the linker script to `1`.
+ *
+ * - `@post_constructor_offset` - page offset directly past the constructor
+ * - `@constructor_lower_vaddr` - the lowest virtual addr of the constructor
+ * - `@constructor_entry` - address at which to begin execution
+ * - `@ro_off` - offset into the constructor of the read-only data
+ * - `@ro_sz` - size of that section (multiple of `COS_PAGE_SIZE`)
+ * - `@data_off` - offset into the constructor of the data
+ * - `@data_sz` - size of that section (multiple of `COS_PAGE_SIZE`)
+ * - `@zero_sz` - size of the "zeroed" (BSS) section (multiple of `COS_PAGE_SIZE`)
+ * - `@return` - normal return error, should be `COS_RET_SUCCESS`.
  */
 cos_retval_t
-kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, uword_t constructor_size, vaddr_t constructor_entry)
+kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
+	    uword_t ro_off, uword_t ro_sz, uword_t data_off, uword_t data_sz, uword_t zero_sz)
 {
 	int i, lvl;
 	struct captbl_leaf *captbl_null;
-	uword_t constructor_offset, thread_offset, component_offset, captbl_offset, captbl_iter;
-	uword_t pgtbl_offset, pgtbl_iter, res_pgtbl_offset, frontier;
+	uword_t constructor_offset, constructor_size, thread_offset, component_offset, captbl_offset, captbl_iter;
+	uword_t pgtbl_offset, pgtbl_iter, res_pgtbl_offset, zeroed_page_offset, frontier;
 	uword_t captbl_num, pgtbl_num, mappings_num, res_pgtbl_num;
 
+	/*
+	 * This set of blocks calculates the *layout* of the resources
+	 * for all threads, resource tables, the component, etc...
+	 */
 	constructor_offset = 1;
-	res_pgtbl_offset   = post_constructor_offset;
+	constructor_size = ro_sz + data_sz + zero_sz;
+	zeroed_page_offset = post_constructor_offset;
+
+	res_pgtbl_offset   = zeroed_page_offset + cos_round_up_to_pow2(zero_sz, COS_PAGE_SIZE);
 	/* The number of pgtbl leaf nodes necessary to track all memory */
 	res_pgtbl_num      = cos_round_up_to_pow2(COS_NUM_RETYPEABLE_PAGES, COS_PGTBL_LEAF_NENT) / COS_PGTBL_LEAF_NENT;
 
-	pgtbl_offset       = res_pgtbl_offset + res_num;
+	pgtbl_offset       = res_pgtbl_offset + res_pgtbl_num;
 	/* Have to map all untyped pages and *also* vaddrs */
 	mappings_num       = cos_round_up_to_pow2(constructor_size, COS_PAGE_SIZE) / COS_PAGE_SIZE;
 	pgtbl_num          = cos_pgtbl_num_nodes(constructor_lower_vaddr, mappings_num);
@@ -126,7 +158,7 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, uw
 	 * script (`linker.ld`). We don't want to use a `resource_*`
 	 * API, as it initializes the associated page.
 	 */
-	for (i = constructor_offset; i < pgtbl_offset; i++) {
+	for (i = constructor_offset; i < res_pgtbl_offset; i++) {
 		page_types[i] = (struct page_type) {
 			.type = COS_PAGE_TYPE_VM,
 			.kerntype = 0,
@@ -150,11 +182,18 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, uw
 	}
 
 	/*
-	 * Leaf-level page-table nodes to store references to all
-	 * untyped memory pages.
+	 * Create the leaf-level page-table nodes, and store
+	 * references to all memory pages including those that we're
+	 * typing, and those that remain untyped. Note that pgtbl
+	 * references to resources are not typed if they are not
+	 * user-accessible, so we can retype them later in this
+	 * function without complication.
 	 */
 	for (i = res_pgtbl_offset; i < res_pgtbl_offset + res_pgtbl_num; i++) {
 		COS_CHECK(resource_restbl_create(COS_PAGE_KERNTYPE_PGTBL_LEAF, i));
+	}
+	for (i = 1; i < COS_NUM_RETYPEABLE_PAGES; i++) {
+		COS_CHECK(pgtbl_map(res_pgtbl_offset + i / COS_PGTBL_LEAF_NENT, i % COS_PGTBL_LEAF_NENT, i, 0));
 	}
 
 	/*
@@ -236,11 +275,10 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, uw
 		}
 	}
 
-	/* ...Second, lets add the constructors virtual memory into the page-tables... */
+	/* ...Second, lets add the constructor's virtual memory into the page-tables... */
 
-	/* ...Third, we'll add page-tables that reference all resources... */
 
-	/* ...Finally, construct the capability table for the constructor... */
+	/* ...Third, construct the capability table for the constructor... */
 	for (lvl = 0; lvl < COS_CAPTBL_MAX_DEPTH - 1; lvl++) {
 		uword_t top_off;         /* top nodes to iterate through */
 		uword_t bottom_upper, bottom_lower; /* bottom node, upper and lower addresses */
@@ -261,6 +299,8 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, uw
 			if (cons_off == nentries - 1) top_off++;
 		}
 	}
+
+	/* ...Finally, populate the capability-tables */
 
 	return COS_RET_SUCCESS;
 }
