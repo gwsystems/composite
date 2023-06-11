@@ -194,7 +194,7 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, va
 		COS_CHECK(resource_restbl_create(COS_PAGE_KERNTYPE_PGTBL_LEAF, i));
 	}
 	for (i = 1; i < COS_NUM_RETYPEABLE_PAGES; i++) {
-		COS_CHECK(pgtbl_map(res_pgtbl_offset + i / COS_PGTBL_LEAF_NENT, i % COS_PGTBL_LEAF_NENT, i, 0));
+		COS_CHECK(pgtbl_map(res_pgtbl_offset + (i / COS_PGTBL_LEAF_NENT), i % COS_PGTBL_LEAF_NENT, i, 0));
 	}
 
 	/*
@@ -332,8 +332,11 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, va
 
 	/* ...Finally, populate the capability-tables */
 	COS_CHECK(cos_captbl_node_offset(COS_CAPTBL_MAX_DEPTH - 1, 1, 1, captbl_num, &captbl_lower));
-	for (i = captbl_lower; i < captbl_num; i++) {
-		COS_CHECK(cap_restbl_create(captbl_lower + captbl_offset));
+	for (i = 0; i < captbl_num; i++) {
+		uword_t ct  = captbl_lower + captbl_offset + (i / COS_CAPTBL_LEAF_NENT);
+		uword_t off = (i + 2) % COS_CAPTBL_LEAF_NENT; /* offset by two for the return and HW capability */
+
+		COS_CHECK(cap_restbl_create(ct, off, COS_PAGE_KERNTYPE_PGTBL_LEAF, COS_OP_ALL, res_pgtbl_offset + i));
 	}
 
 	return COS_RET_SUCCESS;
