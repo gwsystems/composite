@@ -94,7 +94,7 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, va
 {
 	int i, lvl;
 	struct captbl_leaf *captbl_null;
-	uword_t constructor_offset, constructor_size, thread_offset, component_offset, captbl_offset, captbl_iter;
+	uword_t constructor_offset, constructor_size, thread_offset, component_offset, captbl_offset, captbl_lower, captbl_iter;
 	uword_t pgtbl_offset, pgtbl_leaf_off, pgtbl_iter, res_pgtbl_offset, zeroed_page_offset, frontier;
 	uword_t captbl_num, pgtbl_num, mappings_num, res_pgtbl_num;
 
@@ -118,12 +118,13 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, va
 	/*
 	 * How many captbl nodes do we need? This includes:
 	 *
-	 * - pgtbl nodes,
-	 * - component,
-	 * - threads, and
+	 * - the empty slot for the return capability,
+	 * - the hardware capability,
+	 * - threads (though not populated),
+	 * - pgtbl nodes, and
 	 * - empty spaces for captbl nodes to expand for future allocations
 	 */
-	captbl_num         = captbl_initial(res_pgtbl_num + pgtbl_num + 1 + COS_NUM_CPU + COS_CAPTBL_MAX_DEPTH - 1);
+	captbl_num         = captbl_initial(1 + 1 + COS_NUM_CPU + res_pgtbl_num);
 	captbl_offset      = pgtbl_offset + pgtbl_num;
 	component_offset   = captbl_offset + captbl_num;
 	thread_offset      = component_offset + 1;
@@ -263,6 +264,7 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, va
 		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &top_off));
 		COS_CHECK(cos_pgtbl_intern_offset(lvl, constructor_lower_vaddr, &cons_off));
 
+		/* ...and the next level? */
 		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &bottom_lower));
 		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_lower_vaddr + constructor_size - 1, constructor_lower_vaddr, constructor_size, &bottom_upper));
 
@@ -329,6 +331,10 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, va
 	}
 
 	/* ...Finally, populate the capability-tables */
+	COS_CHECK(cos_captbl_node_offset(COS_CAPTBL_MAX_DEPTH - 1, 1, 1, captbl_num, &captbl_lower));
+	for (i = captbl_lower; i < captbl_num; i++) {
+		COS_CHECK(cap_restbl_create(captbl_lower + captbl_offset));
+	}
 
 	return COS_RET_SUCCESS;
 }
