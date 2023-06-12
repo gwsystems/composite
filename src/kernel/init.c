@@ -399,10 +399,9 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 COS_NO_RETURN void
 constructor_core_execute(coreid_t coreid, vaddr_t entry_ip)
 {
-	struct regs rs;
+	struct regs rs = { 0 };
 
-	memset(&rs, 0, sizeof(struct regs));
-	regs_set_ip_sp(&rs, entry_ip, 0);
+	regs_prepare_upcall(&rs, entry_ip, coreid, coreid + 1, 0);
 
 	ASM_SYSCALL_RETURN(&rs);
 }

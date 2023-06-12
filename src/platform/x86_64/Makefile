@@ -7,7 +7,8 @@ AS := as --64 -g
 
 INCPATH := ../../kernel/include
 INCS    := -I$(INCPATH) -I$(INCPATH)/shared/ -I$(INCPATH)/chal/
-CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone -mcmodel=large -mno-sse -mno-sse2 -mgeneral-regs-only $(INCS)
+#  -Wno-unused-variable
+CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone -mcmodel=large -mno-sse -mno-sse2 -mgeneral-regs-only $(INCS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img
@@ -55,13 +56,7 @@ KERNEL_CFILES += ulinv.c
 OBJS := $(KERNEL_CFILES:%.c=%.o)
 DEPS := $(KERNEL_CFILES:%.c=%.d)
 
-# COS KERNEL_CFILES
-COS_CFILES += ../../kernel/pgtbl.c
-COS_CFILES += ../../kernel/retype_tbl.c
-COS_CFILES += ../../kernel/liveness_tbl.c
-COS_CFILES += ../../kernel/tcap.c
-COS_CFILES += ../../kernel/capinv.c
-COS_CFILES += ../../kernel/captbl.c
+COS_CFILES = $(wildcard ../../kernel/*.c)
 
 OBJS += $(COS_CFILES:../../kernel/%.c=%.o)
 DEPS += $(COS_CFILES:../../kernel/%.c=%.d)
@@ -99,11 +94,6 @@ endef
 
 %.o:../../kernel/%.c ; $(COMPILE_OBJ_RULE)
 %.o: %.c ; $(COMPILE_OBJ_RULE)
-
-ulinv.o: ../../kernel/ulinv.c
-	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
-
 
 %.d:../../kernel/%.c ; $(COMPILE_DEP_RULE)
 %.d:%.c ; $(COMPILE_DEP_RULE)

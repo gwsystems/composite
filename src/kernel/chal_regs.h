@@ -170,9 +170,9 @@
  */
 
 #define ASM_SYSCALL_RETURN(rs) \
-	asm volatile("lea %0, %%rsp;" EXPAND(POP_REGS_RET_SYSCALL) : : "m" (&rs[1]) : "memory" )
+	asm volatile("lea %0, %%rsp;" EXPAND(POP_REGS_RET_SYSCALL) : : "m" (&(rs[1])) : "memory" )
 #define ASM_TRAP_RETURN(rs) \
-	asm volatile("lea %0, %%rsp;" EXPAND(POP_REGS_RET_TRAP) : : "m" (&rs[1]) : "memory" )
+	asm volatile("lea %0, %%rsp;" EXPAND(POP_REGS_RET_TRAP) : : "m" (&(rs[1])) : "memory" )
 
 COS_STATIC_ASSERT(REGS_MAX_NUM_ARGS + REGS_GEN_ARGS_BASE == REGS_NUM_ARGS_RETS,
 		  "The relationship between REGS_MAX_NUM_ARGS, REGS_GEN_ARGS_BASE, and REGS_NUM_ARGS_RETS is not correct.");
