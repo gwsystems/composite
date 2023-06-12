@@ -533,3 +533,11 @@ cap_restbl_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_of
 
 	return COS_RET_SUCCESS;
 }
+
+cos_retval_t
+cap_hw_create(captbl_ref_t captbl_to_entry_ref, uword_t captbl_to_entry_off, captbl_ref_t captbl_from_entry_ref, uword_t captbl_from_entry_off, cos_op_bitmap_t ops)
+{
+	/* TODO */
+
+	return COS_RET_SUCCESS;
+}

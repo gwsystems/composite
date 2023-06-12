@@ -1,7 +1,8 @@
-#include "chal_consts.h"
-#include "cos_error.h"
-#include "cos_types.h"
-#include "pgtbl.h"
+#include <chal_consts.h>
+#include <chal_regs.h>
+#include <cos_error.h>
+#include <cos_types.h>
+#include <pgtbl.h>
 #include <cos_consts.h>
 #include <compiler.h>
 #include <chal_types.h>
@@ -89,8 +90,109 @@ captbl_initial(uword_t const_caps)
  * - `@return` - normal return error, should be `COS_RET_SUCCESS`.
  */
 cos_retval_t
-kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
-	    uword_t ro_off, uword_t ro_sz, uword_t data_off, uword_t data_sz, uword_t zero_sz)
+kernel_init(uword_t post_constructor_offset)
+{
+	int i;
+	struct captbl_leaf *captbl_null;
+	uword_t constructor_offset;
+
+	/*
+	 * This set of blocks calculates the *layout* of the resources
+	 * for all threads, resource tables, the component, etc...
+	 */
+	constructor_offset = 1;
+
+	/*
+	 * Initialize the null captbl node:
+	 */
+	captbl_null = (struct captbl_leaf *)&pages[0];
+	for (i = 0; i < COS_CAPTBL_LEAF_NENT; i++) {
+		struct capability_generic *cap = &captbl_null->capabilities[i];
+
+		*cap = (struct capability_generic) {
+			.type = COS_CAP_TYPE_NIL, /* Can never be used for anything */
+			.liveness = 0,
+			.intern = 0,
+			.operations = COS_OP_NIL,
+		};
+	}
+	page_types[0] = (struct page_type) {
+		.type = COS_PAGE_TYPE_KERNEL,
+		.kerntype = COS_PAGE_KERNTYPE_CAPTBL_LEAF,
+		.refcnt = 1,
+		.coreid = 0,
+		.liveness = 0,
+	};
+
+	/*
+	 * Initialize the page-types for the pages devoted to the
+	 * constructor's image. Note that the constructor's elf object
+	 * should already be loaded into these pages by the linker
+	 * script (`linker.ld`). We don't want to use a `resource_*`
+	 * API, as it initializes the associated page.
+	 */
+	for (i = constructor_offset; i < post_constructor_offset; i++) {
+		page_types[i] = (struct page_type) {
+			.type = COS_PAGE_TYPE_VM,
+			.kerntype = 0,
+			.refcnt = 1,
+			.coreid = 0,
+			.liveness = 0,
+		};
+	}
+
+	/*
+	 * Initialize the pages and page-types structures for the rest
+	 * of the pages. Assume that the `pgtbl_offset` is post the
+	 * captbl nil page and the component's elf image.
+	 */
+	for (i = post_constructor_offset; i < COS_NUM_RETYPEABLE_PAGES; i++) {
+		page_zero(&pages[i]);
+		page_types[i] = (struct page_type) {
+			.type = COS_PAGE_TYPE_UNTYPED,
+			.kerntype = 0,
+		};
+	}
+
+	return COS_RET_SUCCESS;
+}
+
+/**
+ * `kernel_core_init()` initializes per-core, global kernel
+ * data-structures. These include:
+ *
+ * - the `struct state_percore` in `core_state`
+ */
+void
+kernel_core_init(uword_t start_page, coreid_t coreid)
+{
+	extern struct state_percore core_state[COS_NUM_CPU];
+	/* The 1 here is for the null captbl page */
+	struct thread *t = (struct thread *)&pages[start_page + coreid];
+
+	core_state[coreid] = (struct state_percore) {
+		.registers = { 0 },
+		.active_thread = t,
+		.active_captbl = t->invstk.entries[0].component.captbl,
+		.sched_thread = t,
+	};
+}
+
+/**
+ * `constructor_init()` initializes the data-structures for the
+ * booter/constructor component. These include:
+ *
+ * - page-table nodes,
+ * - capability table nodes,
+ * - component page, and
+ * - initial threads.
+ *
+ * The main challenge here is the initialization of the capability-table
+ * that includes references to the other resources *and* to itself.
+ */
+cos_retval_t
+constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
+		 uword_t ro_off, uword_t ro_sz, uword_t data_off, uword_t data_sz, uword_t zero_sz)
 {
 	int i, lvl;
 	struct captbl_leaf *captbl_null;
@@ -129,58 +231,6 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, va
 	component_offset   = captbl_offset + captbl_num;
 	thread_offset      = component_offset + 1;
 	frontier           = thread_offset + COS_NUM_CPU;
-
-	/*
-	 * Initialize the null captbl node:
-	 */
-	captbl_null = (struct captbl_leaf *)&pages[0];
-	for (i = 0; i < COS_CAPTBL_LEAF_NENT; i++) {
-		struct capability_generic *cap = &captbl_null->capabilities[i];
-
-		*cap = (struct capability_generic) {
-			.type = COS_CAP_TYPE_NIL, /* Can never be used for anything */
-			.liveness = 0,
-			.intern = 0,
-			.operations = COS_OP_NIL,
-		};
-	}
-	page_types[0] = (struct page_type) {
-		.type = COS_PAGE_TYPE_KERNEL,
-		.kerntype = COS_PAGE_KERNTYPE_CAPTBL_LEAF,
-		.refcnt = 1,
-		.coreid = 0,
-		.liveness = 0,
-	};
-
-	/*
-	 * Initialize the page-types for the pages devoted to the
-	 * constructor's image. Note that the constructor's elf object
-	 * should already be loaded into these pages by the linker
-	 * script (`linker.ld`). We don't want to use a `resource_*`
-	 * API, as it initializes the associated page.
-	 */
-	for (i = constructor_offset; i < res_pgtbl_offset; i++) {
-		page_types[i] = (struct page_type) {
-			.type = COS_PAGE_TYPE_VM,
-			.kerntype = 0,
-			.refcnt = 1,
-			.coreid = 0,
-			.liveness = 0,
-		};
-	}
-
-	/*
-	 * Initialize the pages and page-types structures for the rest
-	 * of the pages. Assume that the `pgtbl_offset` is post the
-	 * captbl nil page and the component's elf image.
-	 */
-	for (i = pgtbl_offset; i < COS_NUM_RETYPEABLE_PAGES; i++) {
-		page_zero(&pages[i]);
-		page_types[i] = (struct page_type) {
-			.type = COS_PAGE_TYPE_UNTYPED,
-			.kerntype = 0,
-		};
-	}
 
 	/*
 	 * Create the leaf-level page-table nodes, and store
@@ -343,53 +393,16 @@ kernel_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, va
 }
 
 /**
- * `kernel_core_init()` initializes per-core, global kernel
- * data-structures. These include:
- *
- * - the `struct state_percore` in `core_state`
- */
-void
-kernel_core_init(uword_t start_page, coreid_t coreid)
-{
-	extern struct state_percore core_state[COS_NUM_CPU];
-	/* The 1 here is for the null captbl page */
-	struct thread *t = (struct thread *)&pages[start_page + coreid];
-
-	core_state[coreid] = (struct state_percore) {
-		.registers = { 0 },
-		.active_thread = t,
-		.active_captbl = t->invstk.entries[0].component.captbl,
-		.sched_thread = t,
-	};
-}
-
-/**
- * `constructor_init()` initializes the data-structures for the
- * booter/constructor component. These include:
- *
- * - page-table nodes,
- * - capability table nodes,
- * - component page, and
- * - initial threads.
- *
- * The main challenge here is the initialization of the capability-table
- * that includes references to the other resources *and* to itself.
- */
-void
-constructor_init()
-{
-	int captbl_root_off, captbl_leaf_off, captbl_leaf_nent;
-	int pgtbl0_off, pgtbl1_off, pgtbl2_off, pgtbl3_off, pgtbl3_nent;
-
-	captbl_num_nodes();
-}
-
-/**
  * `constructor_core_execute()` begins execution of the constructor on
  * this specific core.
  */
 COS_NO_RETURN void
-constructor_core_execute(coreid_t coreid)
+constructor_core_execute(coreid_t coreid, vaddr_t entry_ip)
 {
+	struct regs rs;
 
+	memset(&rs, 0, sizeof(struct regs));
+	regs_set_ip_sp(&rs, entry_ip, 0);
+
+	ASM_SYSCALL_RETURN(&rs);
 }

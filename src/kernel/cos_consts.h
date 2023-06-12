@@ -75,7 +75,8 @@
 #define COS_OP_THD_REPLY_WAIT           1048576
 #define COS_OP_THD_SCHEDULE             2097152
 #define COS_OP_HW                       4194304
-#define COS_OP_ALL                      8388608
+#define COS_OP_CAP_COPY                 8388608
+#define COS_OP_ALL                      16777215
 
 /*
  * - captbl cons/decons: target = {pg|cap}tbl & op == (COS_OP_MODIFY_{ADD|REMOVE} | COS_OP_RESTBL_CONSTRUCT)
