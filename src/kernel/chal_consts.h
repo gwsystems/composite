@@ -20,16 +20,17 @@
 #define COS_PGTBL_PERM_WRITE      2
 #define COS_PGTBL_PERM_EXECUTE    4
 #define COS_PGTBL_PERM_USER       8
-#define COS_PGTBL_PERM_UNTYPED    16
-#define COS_PGTBL_PERM_RESERVED   32
-#define COS_PGTBL_PERM_KERNEL     64
 /* Aggregate permissions: */
-#define COS_PGTBL_PERM_VM_REQ     9     /* 1 + 8 */
-#define COS_PGTBL_PERM_VM_ALLOWED 15    /* 1 + 2 + 4 + 8 */
-#define COS_PGTBL_PERM_ALLOCATED  97	/* 64 + 32 + 1 */
-#define COS_PGTBL_DEFAULT_INTERN_PERM 1 /* internal nodes */
-#define COS_PGTBL_ALLOWED_INTERN_PERM 1
-#define COS_PGTBL_PERM_MASK       4095 /* all 1s up to the address */
-#define COS_PGTBL_MAX_DEPTH       4
+#define COS_PGTBL_PERM_VM_RO          9
+#define COS_PGTBL_PERM_VM_EXEC        13
+#define COS_PGTBL_PERM_VM_RW          11
+#define COS_PGTBL_PERM_VM_REQ         9
+#define COS_PGTBL_PERM_VM_ALLOWED     15
+#define COS_PGTBL_PERM_KERN           0
+#define COS_PGTBL_PERM_INTERN_DEFAULT 11 /* internal nodes */
+#define COS_PGTBL_PERM_INTERN_ALLOWED 15
+#define COS_PGTBL_PERM_INTERN_REQ     9
+#define COS_PGTBL_PERM_MASK           4095 /* all 1s up to the address */
+#define COS_PGTBL_MAX_DEPTH           4
 
 #define COS_PAGE_KERNTYPE_PGTBL_LEAF 7 /* TODO update when it is updated in the cos_consts.h */

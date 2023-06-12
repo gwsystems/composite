@@ -341,13 +341,13 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 		 */
 		if (i < ro_sz / COS_PAGE_SIZE) { /* read-only section */
 			vm_page = constructor_offset + (ro_off / COS_PAGE_SIZE) + i;
-			perm = 0;
+			perm = COS_PGTBL_PERM_VM_EXEC;
 		} else if (i < (data_sz + ro_sz) / COS_PAGE_SIZE) { /* read-write section */
 			vm_page = constructor_offset + (data_off / COS_PAGE_SIZE) + i - (ro_sz / COS_PAGE_SIZE);
-			perm = 0;
+			perm = COS_PGTBL_PERM_VM_RW;
 		} else if (i < (data_sz + ro_sz + zero_sz) / COS_PAGE_SIZE) { /* bss/zero-data section */
 			vm_page = zeroed_page_offset + i - ((ro_sz + data_sz) / COS_PAGE_SIZE);
-			perm = 0;
+			perm = COS_PGTBL_PERM_VM_RW;
 		} else {	/* this should never happen... */
 			return -COS_ERR_OUT_OF_BOUNDS;
 		}
