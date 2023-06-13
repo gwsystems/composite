@@ -126,7 +126,7 @@
 #define RETYPE_MEM_NPAGES (1)
 #define RETYPE_MEM_SIZE (RETYPE_MEM_NPAGES * PAGE_SIZE)
 
-#include "../asm_ipc_defs.h" /* FIXME: just for cos_component.h now */
+#include "asm_ipc_defs.h" /* FIXME: just for cos_component.h now */
 
 #define KERN_BASE_ADDR 0xc0000000 // should be COS_MEM_KERN_START_VA
 

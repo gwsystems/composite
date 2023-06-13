@@ -8,7 +8,7 @@
 //#define __ASM__
 #include <consts.h>
 #include <cos_asm_simple_stacks.h>
-#include "../../../kernel/include/asm_ipc_defs.h"
+#include "../../../kernel/include/shared/asm_ipc_defs.h"
 #if defined(__x86__)
 #include "arch/x86/cos_asm_upcall_simple_stacks.h"
 #elif defined(__x86_64__)
@@ -68,4 +68,3 @@ cos_atomic_user4:
 cos_atomic_user4_end:
 	/* crash out as something's wrong */
 	COS_ATOMIC_USER4_END
-	

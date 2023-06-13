@@ -5,7 +5,7 @@
 
 /* clang-format off */
 #ifdef COS_SERVER_STUBS
-#include "../../../kernel/include/asm_ipc_defs.h"
+#include "../../../kernel/include/shared/asm_ipc_defs.h"
 //#include <consts.h>
 
 /*
@@ -57,7 +57,7 @@ __cosrt_alts_##name: 						\
 	callq   name;						\
 	popq	%rcx;						\
 	retq ;							\
-								
+
 /*
  * This stub enables three return values (%ecx, %esi, %edi), AND
  * requires that you provide separate stub functions that are
@@ -111,8 +111,8 @@ __cosrt_alts_##name: 						\
 	popq	%rdi;						\
 	popq	%rsi;						\
 	popq	%rcx;						\
-	retq ;							
-						
+	retq ;
+
 
 #endif
 #ifdef COS_UCAP_STUBS
@@ -147,31 +147,31 @@ __cosrt_alts_##name: 						\
  *
  * The __cosrt_extern_* aliases are to support components to call a
  * server function in an interface that it also exports.
- * 
+ *
  * __cosrt_fast_callgate_* is the trampoline for making user-level
  * synchronous invocations. It does the following:
  * 	- save callee saved registers to the client stack
- * 	- save the parameters in rcx and rdx; we will need these 
+ * 	- save the parameters in rcx and rdx; we will need these
  * 		for scratch registers
  * 	- load the client AUTH token into r15; this value is JITed
  * 		at boot time
  * 	- get the tid off the stack
  * 	- use the tid to index into the user-level kernel memory
- * 		and get a pointer to this thread's user-level 
+ * 		and get a pointer to this thread's user-level
  * 		invocation stack
  * 	- switch to the user-level kernel's protection domain
  * 	- push the call's invocation stack from
  * 		- the client stack
  * 		- the sinvcap for kernel usage
  * 	- switch to the server's protection domain
- * 	- put the invocation token into rbp, just like in 
+ * 	- put the invocation token into rbp, just like in
  * 		a normal sinv
  * 	- check the client AUTH token to verify we got without
  * 		tampering
  * 	- save the return address into rcx; we are switching stacks
  * 		and cant using the stack for control flow
  * 	- jump to the server side of the callgate. this:
- * 		- gets the server's stack 
+ * 		- gets the server's stack
  * 		- sets up the server's stack with the
  * 			invocation token and thdid
  * 		- push the return address we put in rcx

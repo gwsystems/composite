@@ -13,15 +13,9 @@
 #include <state.h>
 #include <thread.h>
 
-static uword_t
-captbl_initial_fixedpoint(uword_t const_caps, uword_t captbl_node_num)
-{
-	return cos_captbl_num_nodes(0, captbl_node_num + const_caps);
-}
-
 /*
- * `captbl_initial` returns the number of required capability table
- * nodes.
+ * `captbl_num_nodes_initial` returns the number of required
+ * capability table nodes.
  *
  * We have an annoying set of dependencies here: to know how many
  * captbl nodes we need, we have to know how many capabilities
@@ -32,21 +26,50 @@ captbl_initial_fixedpoint(uword_t const_caps, uword_t captbl_node_num)
  * before the threads.
  *
  * So the solution is that we need to reach a fixed point on the
- * required number of capabilities. Given that each capability node
- * holds 64 capabilities, three iterations should reach fixed point.
+ * required number of capabilities. Based on an assumption elaborated
+ * below, this requires only three iterations, thus we've unrolled
+ * those.
  *
  * - `@const_caps` - The constant # of non-captbl capabilities
  * - `@return` - the number of required captbl nodes
  */
 static uword_t
-captbl_initial(uword_t const_caps)
+captbl_num_nodes_initial(uword_t const_caps)
 {
-	uword_t prev = 0;
+	uword_t captbl_caps_required = 0;
 
-	prev = captbl_initial_fixedpoint(const_caps, prev);
-	prev = captbl_initial_fixedpoint(const_caps, prev);
+	/*
+	 * First, how many caps do we need to support the requested
+	 * caps? Note that this isn't just `const_caps` as this
+	 * requires capability node allocations to hold/index the
+	 * `const_caps` number of capabilities.
+	 */
+	captbl_caps_required = cos_captbl_num_nodes(0, const_caps);
+	/* How many caps are required given we have to hold captbl caps as well? */
+	captbl_caps_required = cos_captbl_num_nodes(0, const_caps + captbl_caps_required);
+	/* If the expands the needed captbl nodes, we might need more. */
+	captbl_caps_required = cos_captbl_num_nodes(0, const_caps + captbl_caps_required);
 
-	return captbl_initial_fixedpoint(const_caps, prev);
+	/*
+	 * We assume that the number of required capabilities has
+	 * converged at this point (we're reached a fixed-point). Each
+	 * call, we should require at most
+	 * `prev`/`COS_CAPTBL_LEAF_NENT` additional capabilities (for
+	 * captbl nodes) where `prev` is the previous iteration's
+	 * requirement. So this assumption should hold if `const_caps
+	 * < 64^3 = 2^6^8 = 2^24`. As captbls are smaller than that,
+	 * this assumption must hold.
+	 *
+	 * This analysis ignores the capabilities/nodes needed for
+	 * non-leaf captbl nodes, but doing so shouldn't change the
+	 * conclusion (being very conservative, we can assume that
+	 * `COS_CAPTBL_MAX_DEPTH` capabilities are required for each
+	 * leaf node, which changes the math to `const_caps < (64 -
+	 * COS_CAPTBL_MAX_DEPTH - 1)^3`...which is still larger than
+	 * the capability namespace for any reasonable captbl depth).
+	 */
+
+	return captbl_caps_required;
 }
 
 /**
@@ -226,7 +249,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	 * - pgtbl nodes, and
 	 * - empty spaces for captbl nodes to expand for future allocations
 	 */
-	captbl_num         = captbl_initial(1 + 1 + COS_NUM_CPU + res_pgtbl_num);
+	captbl_num         = captbl_num_nodes_initial(1 + 1 + COS_NUM_CPU + res_pgtbl_num);
 	captbl_offset      = pgtbl_offset + pgtbl_num;
 	component_offset   = captbl_offset + captbl_num;
 	thread_offset      = component_offset + 1;
@@ -382,6 +405,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 
 	/* ...Finally, populate the capability-tables */
 	COS_CHECK(cos_captbl_node_offset(COS_CAPTBL_MAX_DEPTH - 1, 1, 1, captbl_num, &captbl_lower));
+	/* TODO: HW cap in slot 1 */
 	for (i = 0; i < captbl_num; i++) {
 		uword_t ct  = captbl_lower + captbl_offset + (i / COS_CAPTBL_LEAF_NENT);
 		uword_t off = (i + 2) % COS_CAPTBL_LEAF_NENT; /* offset by two for the return and HW capability */
