@@ -1,61 +1,16 @@
-#include "chal_consts.h"
+#include <chal_consts.h>
+#include <chal_atomics.h>
 #include <cos_consts.h>
 #include <cos_error.h>
 #include <compiler.h>
 #include <types.h>
-#include <atomics.h>
 
 #include <resources.h>
 #include <pgtbl.h>
 
-static inline pgtbl_t
-pgtbl_arch_entry_pack(pageref_t ref, uword_t perm)
-{
-	return (ref << 12) & perm;
-}
-
-static inline void
-pgtbl_arch_entry_unpack(pgtbl_t entry, pageref_t *ref, uword_t *perm)
-{
-	if (ref  != NULL) *ref  = entry >> 12;
-	if (perm != NULL) *perm = entry & ((1 << 12) - 1);
-}
-
-#define PGTBL_ARCH_ENTRY_NULL 0
-
-static inline int
-pgtbl_arch_entry_empty(pgtbl_t entry)
-{
-	return entry == PGTBL_ARCH_ENTRY_NULL;
-}
-
 int
 page_is_pgtbl(page_kerntype_t type)
 { return !(type < COS_PAGE_KERNTYPE_PGTBL_0 || type >= (COS_PAGE_KERNTYPE_PGTBL_0 + COS_PGTBL_MAX_DEPTH)); }
-
-void
-pgtbl_top_initialize(struct pgtbl_top *pt)
-{
-	int i;
-
-	/* The top-level of a page-table must include the kernel mappings. */
-	for (i = 0; i < COS_PGTBL_TOP_NENT; i++) {
-		pt->next[i] = 0;
-	}
-	for (i = 0; i < COS_PGTBL_KERN_NENT; i++) {
-		pt->kern_next[i] = 0; /* TODO: copy kern mappings */
-	}
-}
-
-void
-pgtbl_intern_initialize(struct pgtbl_internal *pt)
-{
-	/*
-	 * we have an internal page-table. Zeroing it out
-	 * should yield entries with vacuous permissions.
-	 */
-	page_zero((struct page *)pt);
-}
 
 cos_retval_t
 pgtbl_construct(pgtbl_ref_t top, uword_t offset, pgtbl_ref_t bottom, uword_t perm)
@@ -229,6 +184,19 @@ pgtbl_leaf_lookup(pgtbl_ref_t pgtbl_ref, uword_t pgtbl_src_off, page_type_t expe
 	return COS_RET_SUCCESS;
 }
 
+/**
+ * `pgtbl_copy` copies an entry from one pgtbl node, to another. This
+ * aliases mappings, which creates shared memory in the case of the
+ * entries pointing to virtual memory. This operates on *leaf* nodes.
+ * For non-leaf nodes, `*_construct` should be used.
+ *
+ * - `@pgtbl_from` - page-table node to copy from
+ * - `@pgtbl_off_from` - offset in that node to copy from
+ * - `@pgtbl_to` - page-table node to copy to
+ * - `@pgtbl_off_to` - offset in that node to copy into
+ * - `@perm` - permissions which must be a subset of "from"'s permissions
+ * - `@return` - typical return value, with various errors.
+ */
 cos_retval_t
 pgtbl_copy(pgtbl_ref_t pgtbl_from, uword_t pgtbl_off_from, pgtbl_ref_t pgtbl_to, uword_t pgtbl_off_to, uword_t perm)
 {

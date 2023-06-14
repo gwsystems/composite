@@ -11,21 +11,21 @@
 
 #include "../../../kernel/include/shared/consts.h"
 #include "../../../kernel/include/shared/cos_types.h"
-#include "../../../kernel/include/asm_ipc_defs.h"
-#include "../../../kernel/include/list.h"
+#include "../../../kernel/include/shared/asm_ipc_defs.h"
+//#include "../../../kernel/include/list.h"
 #include "../chal_asm_inc.h"
 
 static inline cycles_t
 tsc(void)
 {
 	unsigned long long ret;
-	
+
 	#if defined(__x86_64__)
 		__asm__ __volatile__("rdtsc; shl $32, %%rdx; or %%rdx, %0" : "=a"(ret)::"rdx");
 	#elif defined(__i386__)
 		__asm__ __volatile__("rdtsc" : "=A"(ret));
 	#endif
-	
+
 
 	return ret;
 }
@@ -55,7 +55,7 @@ struct cos_cpu_local_info {
 	unsigned long cpuid;
 	void *        curr_thd;
 	void *        curr_tcap;
-	struct list   tcaps;
+//	struct list   tcaps;
 	tcap_uid_t    tcap_uid;
 	tcap_prio_t   tcap_prio;
 	cycles_t      cycles;

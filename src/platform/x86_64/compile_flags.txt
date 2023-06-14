@@ -1,0 +1,6 @@
+-I
+./
+-I
+../../kernel/include/
+-I
+../../components/lib/cos/

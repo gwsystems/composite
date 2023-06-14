@@ -77,11 +77,11 @@
  * when all TLBs have been flushed.
  */
 
-#include "compiler.h"
-#include "component.h"
-#include "consts.h"
-#include "cos_error.h"
-#include <atomics.h>
+#include <compiler.h>
+#include <component.h>
+#include <consts.h>
+#include <cos_error.h>
+#include <chal_atomics.h>
 #include <chal_regs.h>
 
 #include <resources.h>

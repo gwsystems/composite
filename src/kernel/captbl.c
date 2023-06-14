@@ -1,10 +1,10 @@
 #include <chal_types.h>
+#include <chal_atomics.h>
 #include <compiler.h>
 #include <cos_types.h>
 #include <cos_consts.h>
 #include <cos_error.h>
 #include <types.h>
-#include <atomics.h>
 #include <state.h>
 
 #include <capabilities.h>

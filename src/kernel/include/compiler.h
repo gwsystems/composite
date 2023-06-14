@@ -1,7 +1,5 @@
 #pragma once
 
-#include <chal_consts.h>
-
 #ifndef NULL
 #define NULL ((void *)0)
 #endif
@@ -9,7 +7,7 @@
 #define unlikely(p) __builtin_expect((p), 0)
 #endif
 #ifndef likely
-#define likely(p) __builtin_expect((p), 1)
+#define likely(p)   __builtin_expect((p), 1)
 #endif
 
 #define COS_PAGE_ALIGNED  __attribute__((aligned(COS_PAGE_SIZE)))
