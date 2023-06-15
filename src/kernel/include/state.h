@@ -33,6 +33,9 @@ struct state_percore {
 
 	/* Scheduler information, assuming effectively a single scheduler */
 	struct thread *sched_thread;
+
+	int fpu_disabled;
+	struct thread *fpu_last_used;
 } COS_CACHE_ALIGNED;
 
 COS_FORCE_INLINE static inline struct state_percore *
@@ -40,8 +43,10 @@ state(void)
 {
 	extern struct state_percore core_state[COS_NUM_CPU];
 
-	return &core_state[0];
+	return &core_state[coreid()];
 }
+
+#define PERCPU_GET(name) (&state()->##name)
 
 static inline liveness_t
 liveness_now()
