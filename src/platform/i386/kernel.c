@@ -1,18 +1,10 @@
-#include "assert.h"
+#include <assert.h>
 #include "kernel.h"
 #include "multiboot2.h"
 #include "string.h"
-#include "boot_comp.h"
-#include "mem_layout.h"
 #include "chal_cpu.h"
 
-#include <captbl.h>
-#include <retype_tbl.h>
-#include <component.h>
-#include <thd.h>
-#include <chal_plat.h>
 #include <fpu.h>
-#define ADDR_STR_LEN 8
 
 boot_state_t initialization_state = INIT_BOOTED;
 
@@ -220,7 +212,7 @@ khalt(void)
 	static int method = 0;
 
 	if (method == 0) printk("Shutting down...\n");
-	
+
 	/*
 	 * Use the case statement as we shutdown in the fault handler,
 	 * thus faults on shutdown require that we bypass faulty

@@ -9,10 +9,7 @@
 #include "mem_layout.h"
 #include "chal_pgtbl.h"
 
-#define LARGE_BSS __attribute__((section(".largebss,\"aw\",@nobits#")))
-
-struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED LARGE_BSS;
-struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED LARGE_BSS;
+struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
 
 #define KERN_INIT_PGD_IDX ((COS_MEM_KERN_START_VA & COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK) >> PGD_SHIFT)
 u64_t boot_comp_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {0};
@@ -22,47 +19,6 @@ u64_t boot_comp_pgt1[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {0};
 u64_t boot_ap_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
                                                              [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
                                                                                      | X86_PGTBL_SUPER};
-
-
-void
-kern_retype_initial(void)
-{
-	u8_t *k;
-
-	assert((unsigned long)mem_bootc_start() % RETYPE_MEM_NPAGES == 0);
-	assert((unsigned long)mem_bootc_end() % RETYPE_MEM_NPAGES == 0);
-	for (k = mem_bootc_start(); k < mem_bootc_end(); k += PAGE_SIZE * RETYPE_MEM_NPAGES) {
-		if (retypetbl_retype2user((void *)chal_va2pa(k), PAGE_ORDER)) assert(0);
-	}
-}
-
-u8_t *
-mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
-{
-	u8_t *        r = glb_memlayout.kern_boot_heap;
-	unsigned long i;
-
-	assert(glb_memlayout.allocs_avail);
-
-	glb_memlayout.kern_boot_heap += npages * (PAGE_SIZE / sizeof(u8_t));
-	assert(glb_memlayout.kern_boot_heap <= mem_kmem_end());
-	for (i = (unsigned long)r; i < (unsigned long)glb_memlayout.kern_boot_heap; i += PAGE_SIZE) {
-		if ((unsigned long)i % RETYPE_MEM_NPAGES == 0) {
-			if (retypetbl_retype2kern((void *)chal_va2pa((void *)i), PAGE_ORDER)) {
-			}
-		}
-	}
-
-	memset((void *)r, 0, npages * (PAGE_SIZE / sizeof(u8_t)));
-
-	return r;
-}
-
-/*
- * Essentially the kernel's heap pointer. Used for device memory
- * allocation AFTER memory has been allocated for typeable memory.
- */
-unsigned long kernel_mapped_offset;
 
 int
 kern_setup_image(void)
