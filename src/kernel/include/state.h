@@ -1,9 +1,10 @@
 #pragma once
 
-#include "chal_consts.h"
-#include "compiler.h"
-#include <component.h>
+#include <chal_consts.h>
 #include <chal_regs.h>
+
+#include <compiler.h>
+#include <component.h>
 
 COS_FORCE_INLINE static inline coreid_t
 coreid(void)
@@ -34,6 +35,7 @@ struct state_percore {
 	/* Scheduler information, assuming effectively a single scheduler */
 	struct thread *sched_thread;
 
+	/* Floating point state */
 	int fpu_disabled;
 	struct thread *fpu_last_used;
 } COS_CACHE_ALIGNED;

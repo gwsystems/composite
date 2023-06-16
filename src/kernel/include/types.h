@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cos_types.h>
-#include <consts.h>
 
 /*
  * Kernel value types

@@ -152,3 +152,5 @@
 #define COS_THD_STATE_IPC_AWAIT      4   /* awaiting IPC from another thread */
 #define COS_THD_STATE_SCHED_AWAIT    5   /* scheduler awaiting event */
 #define COS_THD_STATE_EVT_TRIGGERED  6   /* after calling await_asnd */
+
+#define COS_ASSERTIONS_ACTIVE 1

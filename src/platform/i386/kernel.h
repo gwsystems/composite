@@ -1,41 +1,16 @@
-#ifndef KERNEL_H
-#define KERNEL_H
+#pragma once
 
-#include <shared/cos_config.h>
-#include <shared/cos_types.h>
-#include <shared/util.h>
-#include "chal.h"
-#include "multiboot2.h"
+#include <cos_types.h>
+#include <chal.h>
+#include <multiboot2.h>
 
-#include "chal_asm_inc.h"
-#include <thd.h>
-#include <hw.h>
+#include <thread.h>
 
 #ifdef ENABLE_SERIAL
 void serial_init(void);
 #endif
 
 #define PRINTK(format, ...) printk("%d: " format, get_cpuid(), ## __VA_ARGS__)
-
-typedef enum {
-	INIT_BOOTED,   /* initial boot */
-	INIT_CPU,      /* bare minimum CPU initialization (tss, gdt, idt, etc...) */
-	INIT_MEM_MAP,  /* interpret the grub memory map to understand phys mem layout */
-	INIT_DATA_STRUCT,	/* initialize data-structures */
-	INIT_UT_MEM,   /* initialized and allocated vaddr for untyped memory  */
-	INIT_KMEM,     /* kernel virtual memory mappings are frozen */
-	INIT_COMP_MEM_ALLOC,
-	INIT_MULTICORE_INIT,
-	INIT_BOOT_COMP
-} boot_state_t;
-
-extern boot_state_t initialization_state;
-/*
- * This is a #define so that we maintain the line number where this
- * fails for better error reporting
- */
-#define boot_state_assert(s) assert(initialization_state == s)
-void boot_state_transition(boot_state_t from, boot_state_t to);
 
 /* These numbers map directly to actual timers in the HPET */
 typedef enum {
@@ -87,5 +62,3 @@ int printk_register_handler(void (*handler)(const char *));
 void print_pt_regs(struct pt_regs *r);
 
 void khalt(void);
-
-#endif /* KERNEL_H */

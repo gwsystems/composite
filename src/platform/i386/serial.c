@@ -1,7 +1,7 @@
-#include "string.h"
-#include "chal/shared/cos_io.h"
-#include "isr.h"
-#include "kernel.h"
+#include <string.h>
+#include <chal/shared/cos_io.h>
+#include <isr.h>
+#include <kernel.h>
 
 void serial_puts(const char *s);
 

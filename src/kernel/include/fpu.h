@@ -1,21 +1,15 @@
 #ifndef FPU_H
 #define FPU_H
 
+#include <thread.h>
+
 /* TODO: Make this file architecture independent */
 
-#include <per_cpu.h>
 #define FPU_DISABLED_MASK 0x8
 #define FXSR (1 << 24)
 #define HAVE_SSE (1 << 25)
 
-PERCPU_DECL(int, fpu_disabled);
-PERCPU_EXTERN(fpu_disabled);
-
-PERCPU_DECL(struct thread *, fpu_last_used);
-PERCPU_EXTERN(fpu_last_used);
-
-enum
-{
+enum {
 	FPU_DISABLE = 0,
 	FPU_ENABLE  = 1
 };
@@ -42,7 +36,6 @@ static inline void          fpu_set(int);
 static inline int           fpu_get_info(void);
 static inline int           fpu_check_fxsr(void);
 static inline int           fpu_check_sse(void);
-#include "thd.h"
 
 #if FPU_ENABLED
 static inline int
@@ -184,16 +177,16 @@ fpu_disabled_exception_handler(void)
 static inline void
 fpu_thread_init(struct thread *thd)
 {
-	memset(&thd->fpu, 0, sizeof(struct cos_fpu));
+	memset(&thd->fpu_regs, 0, sizeof(struct fpu_regs));
 	/* Have to set bit 63 of xcomp_bv to 1, or it will cause a #GP */
-	thd->fpu.xcomp_bv |= ((u64_t)1 << 63);
-	thd->fpu.cwd = 0x37f;
+	thd->fpu_regs.xcomp_bv |= ((u64_t)1 << 63);
+	thd->fpu_regs.cwd = 0x37f;
 #if FPU_SUPPORT_SSE > 0
 	/*
 	 * Mask all SSE exceptions, this will make processor ingore the exceptions
 	 * and the user program has to deal with invalid SSE results.
 	 */
-	thd->fpu.mxcsr = 0x1f80;
+	thd->fpu_regs.mxcsr = 0x1f80;
 #endif
 	return;
 }

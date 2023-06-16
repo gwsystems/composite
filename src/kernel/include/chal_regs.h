@@ -253,6 +253,68 @@ COS_STATIC_ASSERT((sizeof(struct regs) - (sizeof(reg_state_t) + sizeof(struct tr
 COS_STATIC_ASSERT(sizeof(struct trap_frame) == REGS_TRAPFRAME_SZ,
 		  "Trap frame register structure of incorrect size.");
 
+struct fpu_regs {
+#ifdef FPU_ENABLED
+	u16_t cwd; /* Control Word */
+	u16_t swd; /* Status Word */
+	u16_t twd; /* Tag Word */
+	u16_t fop; /* Last Instruction Opcode */
+	union {
+		struct {
+			u64_t rip; /* Instruction Pointer */
+			u64_t rdp; /* Data Pointer */
+		};
+		struct {
+			u32_t fip; /* FPU IP Offset */
+			u32_t fcs; /* FPU IP Selector */
+			u32_t foo; /* FPU Operand Offset */
+			u32_t fos; /* FPU Operand Selector */
+		};
+	};
+	u32_t mxcsr;      /* MXCSR Register State */
+	u32_t mxcsr_mask; /* MXCSR Mask */
+
+	/* 8*16 bytes for each FP-reg = 128 bytes: */
+	u32_t st_space[32];
+
+	/* 16*16 bytes for each XMM-reg = 256 bytes: */
+	u32_t xmm_space[64];
+
+	u32_t padding[12];
+
+	union {
+		u32_t padding1[12];
+		u32_t sw_reserved[12];
+	};
+	/* Above is lagecy 512 bytes area */
+
+	union {
+		struct {
+			/* XSAVE Header, followed by reserved area */
+			u64_t xstate_bv;
+			u64_t xcomp_bv;
+		};
+		u8_t header_area[64];
+	};
+
+	/* Offset here should be at 576 bytes */
+
+	/*
+	 * 800 is calculated by sizeof(struct thread) - 576,
+	 * with a little reserved area left in struct thread. This
+	 * is to make sure all members of struct thread is still
+	 * in a single page. This should be OK because the size
+	 * is big enough to save all SSE and AVX2 state components.
+	 *
+	 * Note this will not work with AVX512! You have to make sure
+	 * closing to save AVX512 component in XCR0.
+	 */
+	u8_t xsave_ext_area[800];
+
+	int status;
+#endif
+} __attribute__((aligned(64)));
+
 /**
  * `regs_arg` retrieves a thread's argument. This should only be used
  * when the register's state (`rs->state`) is `REG_STATE_SYSCALL`.
@@ -494,7 +556,7 @@ regs_syscall_4_4(cos_cap_t cap, cos_op_bitmap_t ops,
 		 uword_t a0, uword_t a1, uword_t a2, uword_t a3,
 		 uword_t *r0, uword_t *r1, uword_t *r2, uword_t *r3) {
 	REGS_SYSCALL_CTXT;
-	register uword_t r11 __asm__("r11") = a3;
+	REGS_SYSCALL_DECL_ARGS4;
 	asm volatile(REGS_SYSCALL_TEMPLATE
 		     : REGS_SYSCALL_RET4
 		     : REGS_SYSCALL_ARG4
@@ -506,7 +568,7 @@ regs_syscall_11_1(cos_cap_t cap, cos_op_bitmap_t ops,
 		  uword_t a0, uword_t a1, uword_t a2, uword_t a3, uword_t a4, uword_t a5,
 		  uword_t a6, uword_t a7, uword_t a8, uword_t a9, uword_t a10, uword_t *r0) {
 	REGS_SYSCALL_CTXT;
-	REGS_SYSCALL_REGISTER_VAR_ARGS;
+	REGS_SYSCALL_DECL_ARGS9;
 	asm volatile(REGS_SYSCALL_TEMPLATE
 		     : REGS_SYSCALL_RET1
 		     : "a" (cap), "b" (ops), "d" (a0), "S" (a1), "D" (a2), "r" (r11), "r" (r8), "r" (r9), "r" (r10), "r" (r12), "r" (r13), "r" (r14), "r" (r15), "c" (&frame_ctx)
@@ -519,7 +581,7 @@ regs_syscall_11_11(cos_cap_t cap, cos_op_bitmap_t ops,
 		   uword_t a6, uword_t a7, uword_t a8, uword_t a9, uword_t a10,
 		   uword_t *r0) {
 	REGS_SYSCALL_CTXT;
-	REGS_SYSCALL_REGISTER_VAR_ARGS;
+	REGS_SYSCALL_DECL_ARGS9;
 	register uword_t r11 __asm__("r11") = a3;
 	register uword_t r8 __asm__("r8")   = a4;
 	register uword_t r9 __asm__("r9")   = a5;
@@ -533,10 +595,5 @@ regs_syscall_11_11(cos_cap_t cap, cos_op_bitmap_t ops,
 		     : "a" (cap), "b" (ops), "d" (a0), "S" (a1), "D" (a2), "r" (r11), "r" (r8), "r" (r9), "r" (r10), "r" (r12), "r" (r13), "r" (r14), "r" (r15), "c" (&frame_ctx)
 		     : "memory", "cc", "di", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");
 }
-
-/* Aligned to 512 byte registers */
-struct fpregs {
-	u8_t bytes[2048];
-} __attribute__((aligned(512)));
 
 #endif	/* !__ASSEMBLER__ */

@@ -18,14 +18,14 @@
  *   corresponds to a system call.
  * - `@return` - the registers to activate on return
  */
-#include "chal_consts.h"
-#include "compiler.h"
-#include "cos_consts.h"
-#include <cos_types.h>
-#include <cos_error.h>
+#include <chal_consts.h>
 #include <chal_regs.h>
 #include <chal_timer.h>
 
+#include <cos_types.h>
+#include <cos_error.h>
+
+#include <compiler.h>
 #include <types.h>
 #include <component.h>
 #include <state.h>
@@ -114,7 +114,7 @@ struct thread {
 
 	/* Thread registers */
 	struct regs      regs;
-	struct fpregs    fpregs;
+	struct fpu_regs  fpregs;
 };
 
 COS_STATIC_ASSERT(sizeof(struct thread) <= COS_PAGE_SIZE, "Thread structure larger than a page.");

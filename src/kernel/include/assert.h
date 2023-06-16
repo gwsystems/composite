@@ -2,6 +2,8 @@
 #define ASSERT_H
 
 #include <chal.h>
+#include <consts.h>
+#include <cos_consts.h>
 #include <compiler.h>
 
 /* A not so nice way of oopsing */

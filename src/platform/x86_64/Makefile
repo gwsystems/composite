@@ -7,7 +7,7 @@ AS := as --64 -g
 
 KINCPATH := ../../kernel/include
 UINCPATH := ../../components/lib/cos/
-INCS    := -I$(KINCPATH) -I$(KINCPATH)/shared/ -I$(KINCPATH)/chal/ -I$(UINCPATH)
+INCS    := -I$(KINCPATH) -I$(KINCPATH)/chal/ -I$(UINCPATH) -I.
 #  -Wno-unused-variable
 CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone -mcmodel=large -mno-sse -mno-sse2 -mgeneral-regs-only $(INCS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs

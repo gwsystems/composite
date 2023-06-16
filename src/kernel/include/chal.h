@@ -20,7 +20,7 @@
 #ifndef CHAL_H
 #define CHAL_H
 
-#include "shared/cos_types.h"
+#include <types.h>
 
 /*
  * Namespacing in the cHAL: chal_<family>_<operation>(...).  <family>
@@ -71,10 +71,6 @@ void *chal_alloc_kern_mem(int order);
 void  chal_free_page(void *page);
 void  chal_free_kern_mem(void *mem, int order);
 
-/* Per core ACAPs for timer events */
-PERCPU_DECL(struct async_cap *, cos_timer_acap);
-PERCPU_DECL(struct cap_arcv *, cos_timer_arcv);
-
 /*******************
  * Other functions *
  *******************/
@@ -82,15 +78,12 @@ PERCPU_DECL(struct cap_arcv *, cos_timer_arcv);
 int          chal_cyc_usec(void);
 unsigned int chal_cyc_thresh(void);
 
-int chal_attempt_arcv(struct cap_arcv *arcv);
-int chal_attempt_ainv(struct async_cap *acap);
-
 /* IPI sending */
 void chal_send_ipi(int cpu_id);
 
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 void chal_idle(void);
-void chal_timer_set(cycles_t cycles);
+void chal_timer_set(cos_cycles_t cycles);
 void chal_timer_disable(void);
 
 void chal_init(void);
