@@ -4,7 +4,7 @@
 #include <cos_consts.h>
 #include <types.h>
 #include <compiler.h>
-#include <component.h>
+//#include <component.h>
 
 struct page_type {
 	page_type_t     type;  	   /* page type */
@@ -24,7 +24,6 @@ void         page_zero(struct page *p);
 
 cos_retval_t resource_comp_create(captbl_ref_t captbl_ref, pgtbl_ref_t pgtbl_ref, prot_domain_tag_t pd, vaddr_t entry_ip, pageref_t untyped_src_ref);
 cos_retval_t resource_comp_destroy(pageref_t compref);
-cos_retval_t resource_compref_create(pageref_t compref, struct component_ref *r);
 cos_retval_t resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref,
                                  thdid_t id, vaddr_t entry_ip, id_token_t sched_token, pageref_t untyped_src_ref);
 cos_retval_t resource_thd_destroy(pageref_t thdref);
@@ -136,3 +135,52 @@ resource_weakref_copy(struct weak_ref *to, struct weak_ref *from)
 {
 	*to = *from;
 }
+
+/**
+ * `struct component_ref` is a specialized form of a weak reference
+ * that not only references a component, but also caches that
+ * component's information in the reference, thus avoiding another
+ * cache-line access, and pointer-chasing.
+ */
+struct component_ref {
+	pgtbl_t                    pgtbl;
+	captbl_t                   captbl;
+	/*
+	 * This is a `struct weakref`, but we have to guarantee that
+	 * the pageref_t and the prot_domain_tag_t share the same 64
+	 * bit word to make sure the sinv capability fits into a
+	 * cache-line.
+	 */
+	epoch_t                    epoch;
+	pageref_t                  component;
+	prot_domain_tag_t          pd_tag;
+};
+
+/* Required so that the sinv capability fits into a cache-line */
+COS_STATIC_ASSERT(sizeof(struct component_ref) <= 4 * sizeof(word_t),
+		  "Component reference is larger than expected.");
+
+/**
+ * `resource_compref_copy` is on the fastpath as it is used to copy a
+ * reference from a synchronous invocation capability reference, into
+ * the thread's invocation stack to track the invocation.
+ */
+COS_FASTPATH static inline void
+resource_compref_copy(struct component_ref *to, struct component_ref *from)
+{
+	*to = *from;
+}
+
+COS_FASTPATH static inline cos_retval_t
+resource_compref_deref(struct component_ref *comp, pageref_t *ref)
+{
+	struct page_type *t;
+
+	ref2page(comp->component, NULL, &t);
+	if (unlikely(t->epoch != comp->epoch)) return -COS_ERR_NOT_LIVE;
+	*ref = comp->component;
+
+	return COS_RET_SUCCESS;
+}
+
+cos_retval_t resource_compref_create(pageref_t compref, struct component_ref *r);

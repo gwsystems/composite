@@ -461,11 +461,11 @@ resource_compref_create(pageref_t compref, struct component_ref *r)
 	COS_CHECK(page_resolve(compref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_COMP, NULL, (struct page **)&comp, &t));
 
 	*r = (struct component_ref) {
-		.pgtbl = comp->pgtbl,
-		.captbl = comp->captbl,
-		.pd_tag = comp->pd_tag,
+		.pgtbl     = comp->pgtbl,
+		.captbl    = comp->captbl,
+		.pd_tag    = comp->pd_tag,
 		.component = compref,
-		.epoch = epoch,
+		.epoch     = epoch,
 	};
 
 	return COS_RET_SUCCESS;

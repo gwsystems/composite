@@ -36,8 +36,8 @@ struct state_percore {
 	struct thread *sched_thread;
 
 	/* Floating point state */
-	int fpu_disabled;
-	struct thread *fpu_last_used;
+	int fpu_disabled;	      /* is access to floating point disabled (thus use will cause an exception) */
+	struct thread *fpu_last_used; /* which thread does the current floating point state belong to? */
 } COS_CACHE_ALIGNED;
 
 COS_FORCE_INLINE static inline struct state_percore *
@@ -48,7 +48,7 @@ state(void)
 	return &core_state[coreid()];
 }
 
-#define PERCPU_GET(name) (&state()->##name)
+#define PERCPU_GET(name) (&(state()->##name))
 
 static inline liveness_t
 liveness_now()
