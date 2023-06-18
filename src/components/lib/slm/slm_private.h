@@ -235,7 +235,7 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		"mov %%rsi, %%r12\n\t"                   \
 		/* Offset of next thread. */
 		"imulq %%r14, %%rsi\n\t"                 \
-		/* Hardcod baseaddr. */
+		/* Hardcoded DCB base address. */
 		"movabs $0x7f8000001000, %%r14\n\t"      \
 		/* dcb_addr of current thread. */
 		"addq %%r14, %%rdx\n\t"                  \
@@ -244,7 +244,7 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		/* Save content in %rcx and %rdx, which will be cleared for wrpkru. */
 		"movq %%rcx, %%r8\n\t"                   \
 		"movq %%rdx, %%r9\n\t"                   \
-		/* Hardcode protection domain of ulk. */
+		/* Hardcoded protection domain of ulk. */
 		"movl $0x01, %%ecx\n\t"                  \
 		"addl %%ecx, %%ecx\n\t"                  \
 		"movl $0b11, %%eax\n\t"                  \
