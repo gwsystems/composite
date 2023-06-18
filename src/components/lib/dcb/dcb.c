@@ -32,12 +32,14 @@ cos_dcb_info_init(struct cos_dcbinfo_data *cdi, struct cos_compinfo *ci)
 void
 cos_dcb_info_init_curr(void)
 {
+	assert(0);
 	cos_dcb_info_init_curr_ext(0, 0, 0);
 }
 
 void
 cos_dcb_info_init_curr_ext(dcbcap_t initdcbcap, vaddr_t initdcbaddr, dcboff_t st_off)
 {
+	assert(0);
 	struct cos_compinfo *ci = cos_compinfo_get(cos_defcompinfo_curr_get());
 
 	if (initdcbcap == 0 && initdcbaddr == 0) {
@@ -62,6 +64,7 @@ cos_dcb_info_init_curr_ext(dcbcap_t initdcbcap, vaddr_t initdcbaddr, dcboff_t st
 dcbcap_t
 cos_dcb_info_alloc_curr(dcboff_t *dcboff, vaddr_t *dcbaddr)
 {
+	assert(0);
 	return cos_dcb_info_alloc(&_cos_dcbinfo[cos_cpuid()], dcboff, dcbaddr);
 }
 

@@ -32,10 +32,9 @@ dcb_activate(struct captbl *t, capid_t ctcap, capid_t dcbcap, vaddr_t kaddr, liv
 	paddr_t              pf = chal_va2pa((void *)kaddr);
 
 	ptcin = (struct cap_pgtbl *)captbl_lkup(t, ptcapin);
-	if (!ptcin || ptcin->h.type != CAP_PGTBL) //return -EINVAL;
-		assert(0);
+	if (!ptcin || ptcin->h.type != CAP_PGTBL) return -EINVAL;
 	/* FIXME: hard coded page order */
-	if (pgtbl_mapping_add(ptcin->pgtbl, uaddr, pf, PGTBL_USER_DEF, 12)) return -EINVAL;
+	if (pgtbl_mapping_add(ptcin->pgtbl, uaddr, pf, PGTBL_USER_DEF | ULK_PGTBL_FLAG, 12)) return -EINVAL;
 
 	dc = (struct cap_dcb *)__cap_capactivate_pre(t, ctcap, dcbcap, CAP_DCB, &ret);
 	if (!dc) return -EINVAL;

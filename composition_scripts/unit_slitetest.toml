@@ -31,3 +31,12 @@ img  = "tests.unit_slitetest"
 baseaddr = "0x2200000"
 deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}]
 constructor = "booter"
+
+[[address_spaces]]
+name = "system"
+components = ["capmgr", "sched"]
+
+[[address_spaces]]
+name = "test"
+components = ["schedtest"]
+parent = "system"

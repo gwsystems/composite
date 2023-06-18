@@ -14,6 +14,10 @@
 
 struct comp_info;
 
+#ifndef ULK_PGTBL_FLAG
+#define ULK_PGTBL_FLAG (1ul << 59)
+#endif
+
 struct cap_scb {
 	struct cap_header     h;
 	struct liveness_data  liveness;
@@ -79,9 +83,7 @@ scb_mapping(struct captbl *ct, struct cap_scb *sc, struct cap_pgtbl *ptcin, stru
 {
 	assert(sc->compc == compc || !sc->compc);
 	paddr_t pf = chal_va2pa((void *)(sc->kern_addr));
-	//struct cos_scb_info *scb_core = sc->kern_addr + get_cpuid();
-	//scb_core->sched_tok = (u32_t)uaddrin;
-	if (pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF, 12)) return -EINVAL;
+	if (pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF | ULK_PGTBL_FLAG, 12)) return -EINVAL;
 
 	return 0;
 }

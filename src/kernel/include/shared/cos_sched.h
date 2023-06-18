@@ -52,7 +52,11 @@ struct cos_dcb_info {
  * user-level dispatch routine before, then the only registers that it can restore are
  * "ip" and "sp", everything else is either clobbered or saved/loaded at user-level.
  */
+#if defined (__protected_dispatch__)
+#define DCB_IP_KERN_OFF 88
+#else
 #define DCB_IP_KERN_OFF 8
+#endif
 
 #if defined(__x86_64__)
 #define SLITE_BIT_PACK_SZ 32

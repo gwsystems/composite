@@ -776,6 +776,7 @@ struct {
 	pgtblcap_t secondlvl;   /* for pgtbl mapping */
 	ulkcap_t   curr_pg;     /* current ulk page to alloc stacks in */
 	vaddr_t    pg_frontier; /* vaddr of next page to alloc */
+	dcbcap_t   dcbcap;      /* dcb cap for secured thread dispatch */
 } __cos_ulk_info;
 
 void
@@ -783,6 +784,9 @@ cos_ulk_info_init(struct cos_compinfo *ci)
 {
 	__cos_ulk_info.toplvl = cos_ulk_pgtbl_create(ci, &__cos_ulk_info.secondlvl);
 	__cos_ulk_info.pg_frontier = round_to_page(ULK_INVSTK_ADDR + __thdid_alloc * sizeof(struct ulk_invstk));
+	printc("%x, %d\n", __cos_ulk_info.pg_frontier, __thdid_alloc * sizeof(struct ulk_invstk));
+	__cos_ulk_info.dcbcap = cos_dcb_alloc(ci, __cos_ulk_info.toplvl, ULK_DCB_ADDR);
+	//__cos_ulk_info.dcbcap = 0;
 	assert(__cos_ulk_info.toplvl);
 }
 
@@ -795,7 +799,7 @@ cos_ulk_map_scb(struct cos_compinfo *ci, scbcap_t scbcap)
 pgtblcap_t
 cos_ulk_pgtbl_create(struct cos_compinfo *ci, pgtblcap_t *secondlvl)
 {
-	size_t     range = sizeof(struct ulk_invstk) * MAX_NUM_THREADS;
+	size_t     range = sizeof(struct ulk_invstk) * MAX_NUM_THREADS + 2 * PAGE_SIZE;
 	pgtblcap_t toplvl;
 	int        pgtbl_lvl;
 
@@ -881,6 +885,12 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 
 	ulkcap = __cos_thd_ulk_page_alloc(ci, tid);
 
+#if defined(__protected_dispatch__)
+	assert(tid < PAGE_SIZE / sizeof(struct cos_dcb_info));
+	dc = __cos_ulk_info.dcbcap;
+	off = tid;
+#endif
+
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
 
 	assert(kmem && (round_to_page(kmem) == kmem));
@@ -903,6 +913,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	ret = call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, ((u64_t)init_data) << 32 | spack,
 			  __compinfo_metacap(ci)->mi.pgtbl_cap << 32 | cpack, kmem, (u64_t)hi << 32 | lo);
 #endif
+	//printc("ret: %d, dcb: %d, %d\n", ret, dc, __compinfo_metacap(ci)->mi.pgtbl_cap);
 	if (ret) BUG();
 
 	return cap;
@@ -1024,7 +1035,6 @@ cos_scb_alloc(struct cos_compinfo *ci)
 
 	if (__alloc_mem_cap(ci, CAP_SCB, &kmem, &cap)) return 0;
 	assert(kmem && (round_to_page(kmem) == kmem));
-	//printc("cap: %d, captblcap: %d, compcap: %d\n", cap, ci->captbl_cap, ci->comp_cap);
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_SCB_ACTIVATE, cap, __compinfo_metacap(ci)->mi.pgtbl_cap, kmem, lid))
 		BUG();
 

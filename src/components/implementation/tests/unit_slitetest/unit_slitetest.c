@@ -76,5 +76,6 @@ main(void)
 	test_ipi_switch();
 
 	printc("Running unit test, exiting main thread...\n");
+	SPIN();
 	return 0;
 }

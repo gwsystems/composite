@@ -28,6 +28,10 @@
 #endif
 #endif
 
+#ifndef __protected_dispatch__
+#define __protected_dispatch__
+#endif
+
 #define MAX_SERVICE_DEPTH 31
 #define MAX_NUM_THREADS (64 * NUM_CPU)
 
@@ -132,10 +136,13 @@
 
 #define ULK_BASE_ADDR 	0x7f8000000000
 #define ULK_SCB_ADDR  	ULK_BASE_ADDR
-#define ULK_INVSTK_ADDR	(ULK_BASE_ADDR + PAGE_SIZE)
+#define ULK_DCB_ADDR    (ULK_SCB_ADDR + PAGE_SIZE)
+#define ULK_INVSTK_ADDR	(ULK_DCB_ADDR + PAGE_SIZE)
+//#define ULK_INVSTK_ADDR	(ULK_BASE_ADDR + PAGE_SIZE)
 
 /* for callgate assembly... size verified at compile-time in cos_sched.h */
 #define COS_SCB_INFO_SIZE 448
+#define COS_DCB_INFO_SIZE 32
 
 /* We save information on the user level stack for fast access. The
  * offsets below are used to access CPU and thread IDs. */

@@ -406,6 +406,7 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	/* FIXME: This is a hack making every component has SCB by default. */
 	//scbcap_t scbc = cos_scb_alloc(root_ci);
 	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, protdom);
+	printc("protkey: %x\n", PROTDOM_MPK_KEY(protdom));
 	assert(!ret);
 
 	tot_sz = round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz);
@@ -740,7 +741,7 @@ crt_thd_create_in(struct crt_thd *t, struct crt_comp *c, struct crt_comp *s, dcb
 
 	assert(target_ci->comp_cap);
 	capid_t comp_cap = (target_ci->comp_cap_shared) ? target_ci->comp_cap_shared : target_ci->comp_cap;
-	//assert(s->scb);
+
 	if (closure_id == 0) {
 		if (target_aep->thd != 0) return -1; /* should not allow double initialization */
 

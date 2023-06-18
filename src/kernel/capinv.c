@@ -1266,8 +1266,10 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			
 			/* ret is returned by the overall function */
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, scb_cap, dcb_cap, dcboff, tid, ulstk, sched_cap);
-			if (ret) kmem_unalloc(pte);
-
+			if (ret) {
+				assert(0);
+				kmem_unalloc(pte);
+			}
 			break;
 		}
 		case CAPTBL_OP_THDMIGRATE: {

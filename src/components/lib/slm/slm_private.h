@@ -145,7 +145,6 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 	volatile struct cos_scb_info *scb       = (struct cos_scb_info*)ci->scb_uaddr + cos_cpuid();
 	
 	unsigned long pre_tok = 0;
-	u64_t thdpack = (next->thd << 16) | next->tid;
 
 	if (curr == next) {
 		return 0; 
@@ -180,60 +179,207 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 
 	assert(timeout);
 
-	/* __asm__ __volatile__ (           \
-	 *	"pushl %%ebp\n\t"               \
-	 *	"movl %%esp, %%ebp\n\t"         \
-	 *	"movl $2f, (%%eax)\n\t"         \ save ip of the current thread, 
-	                                      when switch back to this thread
-										  it should continue from $2f.
-	 *	"movl %%esp, 4(%%eax)\n\t"      \ save sp of the current thread,
-	                                      if sp in the dcb is non-zero, 
-										  meaning the ip is valid.
-	 *	"cmp $0, 4(%%ebx)\n\t"          \ compare if dcb of the **next**
-	                                      thread has a non-zero sp.
-	 *	"je 1f\n\t"                     \ if sp of the dcb of the next
-	                                      thread equals 0, we will take
-										  kernel dispatch path.
-	 *	"movl %%edx, (%%ecx)\n\t"       \ update current active thread
-	                                      in the scb of the current core.
-	 *	"movl 4(%%ebx), %%esp\n\t"      \ load the sp of the thread we
-	                                      are dispatching to.
-	 *	"jmp *(%%ebx)\n\t"              \ switch thread!
-	 *	".align 4\n\t"                  \
-	 *	"1:\n\t"                        \ this is the kernel path of
-	                                      dispatching a thread. It should
-										  mimic what we do in normal syscall.
-	 *	"movl $3f, %%ecx\n\t"           \
-	 *	"movl %%edx, %%eax\n\t"         \
-	 *	"inc %%eax\n\t"                 \
-	 *	"shl $16, %%eax\n\t"            \
-	 *	"movl $0, %%ebx\n\t"            \
-	 *	"movl $0, %%esi\n\t"            \
-	 *	"movl %%edi, %%edx\n\t"         \
-	 *	"movl $0, %%edi\n\t"            \
-	 *	"sysenter\n\t"                  \
-	 *	"jmp 3f\n\t"                    \
-	 *	".align 4\n\t"                  \ The alignment is important, since
-	                                      kernel rely on the alignment to
-										  calculate which ip to return to
-										  if a thread got preempted during
-										  a user-level thread dispatch.
-	 *	"2:\n\t"                        \
-	 *	"movl $0, 4(%%ebx)\n\t"         \ Reset the value of the sp in the dcb
-	                                      of the **current** thread (because)
-										  we already switch to the "next"
-										  thread
-	 *	".align 4\n\t"                  \
-	 *	"3:\n\t"                        \
-	 *	"popl %%ebp\n\t"                \
-	 *	: "=S" (htok)
-	 *	: "a" (cd), "b" (nd),
-	 *	  "S" (tok), "D" (timeout),
-	 *	  "c" (&(scb->curr_thd)), "d" (next)
-	 *	: "memory", "cc");
-     */
+#ifndef __x86_64__
+	printc("User-level thread dispatch is not supported in 32bit.\n");
+	assert(0);
+	/*__asm__ __volatile__ (              \
+		"pushl %%ebp\n\t"               \
+		"movl %%esp, %%ebp\n\t"         \
+		"movl $2f, (%%eax)\n\t"         \
+		"movl %%esp, 4(%%eax)\n\t"      \
+		"cmp $0, 4(%%ebx)\n\t"          \
+		"je 1f\n\t"                     \
+		"movl %%edx, (%%ecx)\n\t"       \
+		"movl 4(%%ebx), %%esp\n\t"      \
+		"jmp *(%%ebx)\n\t"              \
+		".align 4\n\t"                  \
+		"1:\n\t"                        \
+		"movl $3f, %%ecx\n\t"           \
+		"movl %%edx, %%eax\n\t"         \
+		"inc %%eax\n\t"                 \
+		"shl $16, %%eax\n\t"            \
+		"movl $0, %%ebx\n\t"            \
+		"movl $0, %%esi\n\t"            \
+		"movl %%edi, %%edx\n\t"         \
+		"movl $0, %%edi\n\t"            \
+		"sysenter\n\t"                  \
+		"jmp 3f\n\t"                    \
+		".align 4\n\t"                  \
+		"2:\n\t"                        \
+		"movl $0, 4(%%ebx)\n\t"         \
+		".align 4\n\t"                  \
+		"3:\n\t"                        \
+		"popl %%ebp\n\t"                \
+		: "=S" (pre_tok)
+		: "a" (cd), "b" (nd),
+		  "S" (tok), "D" (timeout),
+		  "c" (&(scb->curr_thd)), "d" (next->thd)
+		: "memory", "cc");*/
+#endif
 
-#if defined(__x86_64__)
+#if defined(__protected_dispatch__)
+	u64_t address = 0;
+	__asm__ __volatile__ (
+		/* Push sched token to the stack */
+		"pushq %%rbx\n\t"                        \
+		"pushq %%rbp\n\t"                        \
+		"mov %%rsp, %%rbp\n\t"                   \
+		/* Save rax since it will be cleared by wrpkru */
+		"mov %%rax, %%r11\n\t"                   \
+		"movabs $0xdeadbeefdeadbeef, %%r15\n\t"  \
+		/* Size of cos_dcb_info struct. */
+		"movabs $0x20, %%r14\n\t"                \
+		/* Offset of current thread. */
+		"imulq %%r14, %%rdx\n\t"                 \
+		/* Save thread id of the next thread for possible scb updates. */
+		"mov %%rsi, %%r12\n\t"                   \
+		/* Offset of next thread. */
+		"imulq %%r14, %%rsi\n\t"                 \
+		/* Hardcod baseaddr. */
+		"movabs $0x7f8000001000, %%r14\n\t"      \
+		/* dcb_addr of current thread. */
+		"addq %%r14, %%rdx\n\t"                  \
+		/* dcb_addr of next thread. */
+		"addq %%r14, %%rsi\n\t"                  \
+		/* Save content in %rcx and %rdx, which will be cleared for wrpkru. */
+		"movq %%rcx, %%r8\n\t"                   \
+		"movq %%rdx, %%r9\n\t"                   \
+		/* Hardcode protection domain of ulk. */
+		"movl $0x01, %%ecx\n\t"                  \
+		"addl %%ecx, %%ecx\n\t"                  \
+		"movl $0b11, %%eax\n\t"                  \
+		"sall %%cl, %%eax\n\t"                   \
+		"notl %%eax\n\t"                         \
+		"andl $-4, %%eax\n\t"                    \
+		"xor %%rcx, %%rcx\n\t"                   \
+		"xor %%rdx, %%rdx\n\t"                   \
+		/* Switch protection domain. */
+		"wrpkru\n\t"                             \
+		/* Update ip and sp in the dcb of the current thread. */
+		"movabs $2f, %%r10\n\t"                  \
+		"movq %%r10, (%%r9)\n\t"                 \
+		"mov %%rsp, 8(%%r9)\n\t"                 \
+		/* Read out the sp from the dcb of next thread */
+		"mov 8(%%rsi), %%r14\n\t"                \
+		/* Check if sp in dcb of the next thread equals zero. */
+		"cmp $0, %%r14\n\t"                      \
+		/* If it equals 0, Take kernel path. */
+		"je 1f\n\t"                              \
+		/*
+		 * Read out the ip from the dcb of next thread.
+		 * Can't jmp directly, need to switch back to scheduler's protection domain first.
+		 */
+		"mov (%%rsi), %%r13\n\t"                 \
+		/* Update current active thread in the scb. */
+		/* Get core ID */                        \
+		"rdpid %%rdx\n\t"                        \
+		"movq %%rdx, %%rax\n\t"                  \
+		/* Get per-core scb info */              \
+		/* Hardcoded size of scb_info. */
+		"movabs $448, %%rcx\n\t"                 \
+		"imulq %%rcx, %%rax\n\t"                 \
+		/* Base address of scb. */
+		"movabs $0x7f8000000000, %%rcx\n\t"      \
+		"addq %%rcx, %%rax\n\t"                  \
+		/* Update tid in scb */
+		"movq %%r12, (%%rax)\n\t"                \
+		/* Update thdcap in scb */
+		"movq %%r11, 8(%%rax)\n\t"               \
+		/* Return to scheduler's protection domain. */
+		"movl $0x02, %%ecx\n\t"                  \
+		"addl %%ecx, %%ecx\n\t"                  \
+		"movl $0b11, %%eax\n\t"                  \
+		"sall %%cl, %%eax\n\t"                   \
+		"notl %%eax\n\t"                         \
+		"andl $-4, %%eax\n\t"                    \
+		"xor %%rcx, %%rcx\n\t"                   \
+		"xor %%rdx, %%rdx\n\t"                   \
+		"wrpkru\n\t"                             \
+		"movabs $0xdeadbeefdeadbeef, %%r10\n\t"  \
+		"cmp %%r10, %%r15\n\t"                   \
+		/* TODO: error handling */
+		/* restore sp to what we just read out in r14. */
+		"mov %%r14, %%rsp\n\t"                   \
+		/* jmp to the ip which we just read out in r13. */
+		"jmp *%%r13\n\t"                         \
+		/* Kernel Path */
+		".align 8\n\t"                           \
+		"1:\n\t"                                 \
+		/*
+		 * Haven't switch back to scheduler's protection domain yet.
+		 * Return to scheduler's protection domain.
+		 */
+		"movl $0x02, %%ecx\n\t"                  \
+		"addl %%ecx, %%ecx\n\t"                  \
+		"movl $0b11, %%eax\n\t"                  \
+		"sall %%cl, %%eax\n\t"                   \
+		"notl %%eax\n\t"                         \
+		"andl $-4, %%eax\n\t"                    \
+		"xor %%rcx, %%rcx\n\t"                   \
+		"xor %%rdx, %%rdx\n\t"                   \
+		"wrpkru\n\t"                             \
+		"movabs $0xdeadbeefdeadbeef, %%r10\n\t"  \
+		"cmp %%r10, %%r15\n\t"                   \
+		/* TODO: error handling */
+		/* Kernel path starts from here. */
+		"movabs $3f, %%r8\n\t"                   \
+		/* Mov thdcap of next thread to rax. */
+		"mov %%r11, %%rax\n\t"                   \
+		"inc %%rax\n\t"                          \
+		"shl $16, %%rax\n\t"                     \
+		"mov $0, %%rsi\n\t"                      \
+		/* Mov timeout into rdx */
+		"mov %%rdi, %%rdx\n\t"                   \
+		"mov $0, %%rdi\n\t"                      \
+		"syscall\n\t"                            \
+		"jmp 3f\n\t"                             \
+		/*
+		 * User-level path. Already switched back from thd_next,
+		 * now clear sp in the dcb of the current thread. 
+		 */
+		".align 8\n\t"                           \
+		"2:\n\t"                                 \
+		"movabs $0x1234123412341234, %%r15\n\t"  \
+		/* Hardcode protection domain of ulk. */
+		"movl $0x01, %%ecx\n\t"                  \
+		"addl %%ecx, %%ecx\n\t"                  \
+		"movl $0b11, %%eax\n\t"                  \
+		"sall %%cl, %%eax\n\t"                   \
+		"notl %%eax\n\t"                         \
+		"andl $-4, %%eax\n\t"                    \
+		"xor %%rcx, %%rcx\n\t"                   \
+		"xor %%rdx, %%rdx\n\t"                   \
+		/* Switch protection domain. */
+		"wrpkru\n\t"                             \
+		/* clear sp in dcb of next thread. */
+		"movq $0, 8(%%rsi)\n\t"                  \
+		/* Hardcode protection domain of scheduler. */
+		"movl $0x02, %%ecx\n\t"                  \
+		"addl %%ecx, %%ecx\n\t"                  \
+		"movl $0b11, %%eax\n\t"                  \
+		"sall %%cl, %%eax\n\t"                   \
+		"notl %%eax\n\t"                         \
+		"andl $-4, %%eax\n\t"                    \
+		"xor %%rcx, %%rcx\n\t"                   \
+		"xor %%rdx, %%rdx\n\t"                   \
+		/* Switch protection domain. */
+		"wrpkru\n\t"                             \
+		"movabs $0x1234123412341234, %%r10\n\t"  \
+		"cmp %%r10, %%r15\n\t"                   \
+		/* TODO: error handling */
+		".align 8\n\t"                           \
+		"3:\n\t"                                 \
+		"mov %%r9, %%rdx\n\t"                    \
+		"popq %%rbp\n\t"                         \
+		"popq %%rbx\n\t"                         \
+		: "=b" (pre_tok), "=d" (address)
+		: "a" (next->thd), "S" (next->tid),
+		  "b" (tok), "D" (timeout),
+		  "d" (curr->tid)
+		: "memory", "cc", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");
+
+#else
+	u64_t thdpack = (next->thd << 16) | next->tid;
 	__asm__ __volatile__ (
 		"pushq %%rbx\n\t"               \
 		"pushq %%rbp\n\t"               \
@@ -274,42 +420,6 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		  "b" (tok), "D" (timeout),
 		  "c" (&(scb->curr_thd)), "d" (thdpack)
 		: "memory", "cc", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");
-#else
-	/*__asm__ __volatile__ (              \
-		"pushl %%ebp\n\t"               \
-		"movl %%esp, %%ebp\n\t"         \
-		"movl $2f, (%%eax)\n\t"         \
-		"movl %%esp, 4(%%eax)\n\t"      \
-		"cmp $0, 4(%%ebx)\n\t"          \
-		"je 1f\n\t"                     \
-		"movl %%edx, (%%ecx)\n\t"       \
-		"movl 4(%%ebx), %%esp\n\t"      \
-		"jmp *(%%ebx)\n\t"              \
-		".align 4\n\t"                  \
-		"1:\n\t"                        \
-		"movl $3f, %%ecx\n\t"           \
-		"movl %%edx, %%eax\n\t"         \
-		"inc %%eax\n\t"                 \
-		"shl $16, %%eax\n\t"            \
-		"movl $0, %%ebx\n\t"            \
-		"movl $0, %%esi\n\t"            \
-		"movl %%edi, %%edx\n\t"         \
-		"movl $0, %%edi\n\t"            \
-		"sysenter\n\t"                  \
-		"jmp 3f\n\t"                    \
-		".align 4\n\t"                  \
-		"2:\n\t"                        \
-		"movl $0, 4(%%ebx)\n\t"         \
-		".align 4\n\t"                  \
-		"3:\n\t"                        \
-		"popl %%ebp\n\t"                \
-		: "=S" (pre_tok)
-		: "a" (cd), "b" (nd),
-		  "S" (tok), "D" (timeout),
-		  "c" (&(scb->curr_thd)), "d" (next->thd)
-		: "memory", "cc");*/
-	printc("User-level thread dispatch is not supported in 32bit.\n");
-	assert(0);
 #endif
 	scb = slm_scb_info_core();
 	assert(scb);
@@ -347,7 +457,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 			return ret;
 		}
 	}
-	if (!cd || !nd || (cd->vas_id != nd->vas_id)) {
+	if (!cd || !nd || (curr->vasid != t->vasid)) {
 		if (scb->timer_pre < timeout) {
 			scb->timer_pre = timeout;
 		}

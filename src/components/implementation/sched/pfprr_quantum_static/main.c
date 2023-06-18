@@ -25,6 +25,7 @@ struct slm_resources_thd {
 	thdcap_t cap;
 	thdid_t  tid;
 	compid_t comp;
+	unsigned long vasid;
 };
 
 struct slm_thd *slm_thd_static_cm_lookup(thdid_t id);
@@ -61,7 +62,7 @@ slm_thd_from_container(struct slm_thd_container *c) {
 }
 
 struct slm_thd_container *
-slm_thd_mem_alloc(thdcap_t _cap, thdid_t _tid, thdcap_t *thd, thdid_t *tid)
+slm_thd_mem_alloc(thdcap_t _cap, thdid_t _tid, thdcap_t *thd, thdid_t *tid, unsigned long vasid)
 {
 	struct slm_thd_container *t   = NULL;
 	struct slm_thd_container *ret = NULL;
@@ -71,9 +72,10 @@ slm_thd_mem_alloc(thdcap_t _cap, thdid_t _tid, thdcap_t *thd, thdid_t *tid)
 
 	assert(_cap != 0 && _tid != 0);
 	t->resources = (struct slm_resources_thd) {
-		.cap  = _cap,
-		.tid  = _tid,
-		.comp = cos_compid()
+		.cap   = _cap,
+		.tid   = _tid,
+		.comp  = cos_compid(),
+		.vasid = vasid
 	};
 
 	*thd = _cap;
@@ -581,12 +583,12 @@ slm_ipithd_create(thd_fn_t fn, void * data, crt_rcv_flags_t flags, thdcap_t *thd
 	r->cpuid = cos_cpuid();
 	r->tid = _tid;
 
-	t = slm_thd_mem_alloc(_thd, _tid, thdcap, tid);
+	t = slm_thd_mem_alloc(_thd, _tid, thdcap, tid, 0);
 	if (!t) ERR_THROW(NULL, done);
 	thd = slm_thd_from_container(t);
 
 	slm_cs_enter(current, SLM_CS_NONE);
-	if (slm_thd_init(thd, _thd, _tid, NULL)) ERR_THROW(NULL, free);
+	if (slm_thd_init(thd, _thd, _tid, 0, NULL)) ERR_THROW(NULL, free);
 
 	slm_thd_mem_activate(t);
 

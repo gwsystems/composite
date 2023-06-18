@@ -214,6 +214,7 @@ __cosrt_fast_callgate_##name:					\
 	movq    %rdx, %r9;					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	/* core ID */						\
+	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)		\
 	rdpid   %rdx;						\
 	movq    %rdx, %rax;					\
 	/* get per-core scb info */				\
@@ -226,7 +227,6 @@ __cosrt_fast_callgate_##name:					\
 	shl	$16, %rdx;					\
 	or	%rdx, %r13;					\
 	COS_ULINV_GET_INVSTK					\
-	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)		\
 	COS_ULINV_PUSH_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
 	/* invocation token */					\
@@ -308,6 +308,7 @@ __cosrt_fast_callgate_##name:					\
 	movq    %rdx, %r9;					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	/* core ID */						\
+	COS_ULINV_GET_INVSTK					\
 	rdpid   %rdx;						\
 	movq    %rdx, %rax;					\
 	/* get per-core scb info */				\
@@ -319,7 +320,6 @@ __cosrt_fast_callgate_##name:					\
 	movq    (%rax), %r13;					\
 	shl	$16, %rdx;					\
 	or	%rdx, %r13;					\
-	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)		\
 	COS_ULINV_PUSH_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\

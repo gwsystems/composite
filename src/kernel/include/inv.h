@@ -301,7 +301,6 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 		return;
 	}
 
-	//printk("[[[[[[[[[[ ");
 	pgtbl_update(&sinvc->comp_info.pgtblinfo);
 	chal_protdom_write(sinvc->comp_info.pgtblinfo.protdom);
 
@@ -334,7 +333,6 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 		return;
 	}
 
-	//printk("]]]]]]]]]] ");
 	pgtbl_update(&ci->pgtblinfo);
 	chal_protdom_write(protdom);
 

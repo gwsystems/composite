@@ -6,7 +6,7 @@
 struct slm_thd_container;
 
 /* Thread memory allocation functions */
-struct slm_thd_container *slm_thd_mem_alloc(thdcap_t _cap, thdid_t _tid, thdcap_t *thd, thdid_t *tid);
+struct slm_thd_container *slm_thd_mem_alloc(thdcap_t _cap, thdid_t _tid, thdcap_t *thd, thdid_t *tid, unsigned long vasid);
 void slm_thd_mem_activate(struct slm_thd_container *t);
 void slm_thd_mem_free(struct slm_thd_container *t);
 
