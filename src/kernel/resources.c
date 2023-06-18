@@ -1,5 +1,5 @@
 /***
- * ## Resource/page Abstractions
+ * ## Resource/Page Abstractions
  *
  * Resources are page-based memory that is *typed* either into a
  * kernel-accessible data-structure, or as user-level virtual memory.
@@ -75,6 +75,40 @@
  * structure if the system has quiesced. Quiescence occurs when no
  * references are still possible. TLB quiescence, for example, occurs
  * when all TLBs have been flushed.
+ *
+ * ### References
+ *
+ * Resources/pages are referenced by each other, and by the per-core
+ * local state. These resource references each use one of five
+ * different mechanisms, that represent different trade-offs.
+ *
+ * 1. Direct pointer - A direct reference to the page. This is the
+ *    fastest option as it just requires pointer chasing. This is used
+ *    when i. performance is important, and ii. when the resources are
+ *    *reference counted*, so that we know the pointer is valid, and
+ *    of the correct type. A variant on direct pointers is physical
+ *    memory pointers (e.g. in page-tables).
+ *
+ * 2. Indexed references - The `pageref_t` (and variants) reference a
+ *    page with the variable's offset into the pages array. The
+ *    benefit of these references is that they are easier to verify in
+ *    memory. A simple assertion that the reference must be less than
+ *    the number of pages is sufficient. The referenced page must be
+ *    reference counted.
+ *
+ * 3. Weak references - A versioned reference that checks liveness
+ *    while dereferencing. This reference does *not* carry a reference
+ *    count in the destination page. Instead, the `epoch` of the page
+ *    must be the same as that of the reference for the page to be
+ *    deemed "live". When resources are retyped, their epoch is
+ *    updated. See a detailed description below in "Weak References".
+ *
+ * 4. Component references - These are weak references that also
+ *    include an optimization. They cache the component's meta-data
+ *    (capability-table, page-table, protection domain information,
+ *    component reference) is stored redundantly *in the reference*
+ *    along with the `epoch`. This saves us a pointer chase, and
+ *    cache-line access on the fast-paths.
  */
 
 #include <compiler.h>
@@ -384,6 +418,15 @@ page_retype_to_untyped(pageref_t idx)
  * are still used to track the internal references in resource tables
  * (i.e. from a node at level N to a node at level N + 1), and thread
  * references for schedulers and tcaps.
+ *
+ * **Component references** are a *specialized form* of a weak reference
+ * that is an *optimization*. They not only reference a component, but
+ * also *cache* that component's information in the reference, thus
+ * avoiding another cache-line access, and pointer-chasing. An a
+ * fast-path, it is not uncommon to need to dereference two components
+ * per IPC direction, one for the client and another for the server.
+ * This total of four cache-line accesses has a significant impact on
+ * performance.
  */
 
 /**

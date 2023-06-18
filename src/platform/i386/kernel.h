@@ -3,14 +3,14 @@
 #include <cos_types.h>
 #include <chal.h>
 #include <multiboot2.h>
-
+#include <state.h>
 #include <thread.h>
 
 #ifdef ENABLE_SERIAL
 void serial_init(void);
 #endif
 
-#define PRINTK(format, ...) printk("%d: " format, get_cpuid(), ## __VA_ARGS__)
+#define PRINTK(format, ...) printk("%d: " format, coreid(), ## __VA_ARGS__)
 
 /* These numbers map directly to actual timers in the HPET */
 typedef enum {
@@ -29,9 +29,9 @@ u64_t timer_find_hpet(void *timer);
 void  timer_thd_init(struct thread *t);
 void *timer_initialize_hpet(void *timer);
 
-void  tss_init(const cpuid_t cpu_id);
-void  idt_init(const cpuid_t cpu_id);
-void  gdt_init(const cpuid_t cpu_id);
+void  tss_init(const coreid_t cpu_id);
+void  idt_init(const coreid_t cpu_id);
+void  gdt_init(const coreid_t cpu_id);
 void  user_init(void);
 void  paging_init(void);
 
@@ -47,11 +47,11 @@ void  acpi_shutdown(void);
 int   lapic_find_localaddr(void *l);
 void  lapic_timer_init(void);
 void  lapic_init(void);
-void  lapic_set_timer(int timer_type, cycles_t deadline);
+void  lapic_set_timer(int timer_type, cos_time_t deadline);
 u32_t lapic_get_ccr(void);
 void  lapic_timer_calibration(u32_t ratio);
 int   lapic_timer_calibrated(void);
-void  lapic_asnd_ipi_send(const cpuid_t cpu_id);
+void  lapic_asnd_ipi_send(const coreid_t cpu_id);
 
 void smp_init(volatile int *cores_ready);
 
@@ -59,6 +59,6 @@ void tls_update(u32_t addr);
 
 // void printk(const char *fmt, ...);
 int printk_register_handler(void (*handler)(const char *));
-void print_pt_regs(struct pt_regs *r);
+void print_pt_regs(struct regs *r);
 
 void khalt(void);

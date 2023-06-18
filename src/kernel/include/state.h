@@ -1,10 +1,13 @@
 #pragma once
 
+#include "cos_types.h"
 #include <chal_consts.h>
 #include <chal_regs.h>
 
 #include <compiler.h>
 #include <component.h>
+#include <resources.h>
+#include <types.h>
 
 COS_FORCE_INLINE static inline coreid_t
 coreid(void)
@@ -17,7 +20,7 @@ component_activate(struct component_ref *comp)
 {
 	pageref_t ref;
 
-	COS_CHECK(component_ref_deref(comp, &ref));
+	COS_CHECK(resource_compref_deref(comp, &ref));
 
 	/* TODO: Load page-table, save captbl globally. */
 
@@ -34,24 +37,25 @@ struct state_percore {
 
 	/* Scheduler information, assuming effectively a single scheduler */
 	struct thread *sched_thread;
+	cos_time_t timeout;
 
 	/* Floating point state */
 	int fpu_disabled;	      /* is access to floating point disabled (thus use will cause an exception) */
 	struct thread *fpu_last_used; /* which thread does the current floating point state belong to? */
 } COS_CACHE_ALIGNED;
 
+extern struct state_percore core_state[COS_NUM_CPU];
+
 COS_FORCE_INLINE static inline struct state_percore *
 state(void)
 {
-	extern struct state_percore core_state[COS_NUM_CPU];
-
 	return &core_state[coreid()];
 }
 
 #define PERCPU_GET(name) (&(state()->##name))
 
 static inline liveness_t
-liveness_now()
+liveness_now(void)
 {
 	/* TODO: actual liveness. */
 	return 0;
