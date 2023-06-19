@@ -13,6 +13,8 @@
 #include <state.h>
 #include <thread.h>
 
+#include <init.h>
+
 /*
  * `captbl_num_nodes_initial` returns the number of required
  * capability table nodes.
@@ -180,6 +182,8 @@ kernel_init(uword_t post_constructor_offset)
 	return COS_RET_SUCCESS;
 }
 
+uword_t threads_offset = 0;
+
 /**
  * `kernel_core_init()` initializes per-core, global kernel
  * data-structures. These include:
@@ -187,17 +191,19 @@ kernel_init(uword_t post_constructor_offset)
  * - the `struct state_percore` in `core_state`
  */
 void
-kernel_core_init(uword_t start_page, coreid_t coreid)
+kernel_core_init(coreid_t coreid)
 {
 	extern struct state_percore core_state[COS_NUM_CPU];
 	/* The 1 here is for the null captbl page */
-	struct thread *t = (struct thread *)&pages[start_page + coreid];
+	struct thread *t = (struct thread *)&pages[threads_offset + coreid];
+	/* If this triggers, you should call `constructor_init` before this! */
+	assert(threads_offset > 0);
 
 	core_state[coreid] = (struct state_percore) {
-		.registers = { 0 },
+		.registers     = { 0 },
 		.active_thread = t,
 		.active_captbl = t->invstk.entries[0].component.captbl,
-		.sched_thread = t,
+		.sched_thread  = t,
 	};
 }
 

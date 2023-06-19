@@ -52,7 +52,7 @@ state(void)
 	return &core_state[coreid()];
 }
 
-#define PERCPU_GET(name) (&(state()->##name))
+#define PERCPU_GET(name) (&(state()-> name))
 
 static inline liveness_t
 liveness_now(void)

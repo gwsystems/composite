@@ -2,10 +2,9 @@
 #define CHAL_CPU_H
 
 #include <pgtbl.h>
-#include <thd.h>
 #include <fpu.h>
-#include "isr.h"
-#include "tss.h"
+#include <isr.h>
+#include <tss.h>
 
 typedef enum {
 	CR0_PE    = 1 << 0,  /* Protected Mode Enable */
@@ -187,7 +186,7 @@ static void
 chal_cpu_init(void)
 {
 	unsigned long cr4 = chal_cpu_cr4_get();
-	cpuid_t cpu_id = get_cpuid();
+	cpuid_t cpu_id = coreid();
 
 #if defined(__x86_64__)
 	u32_t low = 0, high = 0;

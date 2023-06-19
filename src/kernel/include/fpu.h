@@ -96,14 +96,14 @@ fpu_init(void)
 	if (fxsr == 0) {
 		printk("Core %d: FPU doesn't support fxsave/fxrstor. Need to use fsave/frstr instead. Check "
 		       "FPU_SUPPORT_FXSR in cos_config.\n",
-		       get_cpuid());
+		       coreid());
 		return -1;
 	}
 #endif
 
 #if FPU_SUPPORT_SSE > 0
 	if (fsse == 0) {
-		printk("Core %d: FPU doesn't support sse. Check FPU_SUPPORT_SSE in cos_config.\n", get_cpuid());
+		printk("Core %d: FPU doesn't support sse. Check FPU_SUPPORT_SSE in cos_config.\n", coreid());
 		return -1;
 	}
 #endif
@@ -162,13 +162,13 @@ static inline int
 fpu_disabled_exception_handler(void)
 {
 	struct thread *curr_thd;
-	curr_thd = cos_get_curr_thd();
+	curr_thd = *PERCPU_GET(active_thread);
 	assert(curr_thd != NULL);
 
 	/* If this thread enables fpu and there is still a #NM, tell the handler to deal with */
 	if(!fpu_is_disabled()) return 0;
 
-	curr_thd->fpu.status = 1;
+	curr_thd->fpregs.status = 1;
 	fpu_switch(curr_thd);
 
 	return 1;
@@ -177,16 +177,16 @@ fpu_disabled_exception_handler(void)
 static inline void
 fpu_thread_init(struct thread *thd)
 {
-	memset(&thd->fpu_regs, 0, sizeof(struct fpu_regs));
+	memset(&thd->fpregs, 0, sizeof(struct fpu_regs));
 	/* Have to set bit 63 of xcomp_bv to 1, or it will cause a #GP */
-	thd->fpu_regs.xcomp_bv |= ((u64_t)1 << 63);
-	thd->fpu_regs.cwd = 0x37f;
+	thd->fpregs.xcomp_bv |= ((u64_t)1 << 63);
+	thd->fpregs.cwd = 0x37f;
 #if FPU_SUPPORT_SSE > 0
 	/*
 	 * Mask all SSE exceptions, this will make processor ingore the exceptions
 	 * and the user program has to deal with invalid SSE results.
 	 */
-	thd->fpu_regs.mxcsr = 0x1f80;
+	thd->fpregs.mxcsr = 0x1f80;
 #endif
 	return;
 }
@@ -242,16 +242,16 @@ fpu_enable(void)
 static inline int
 fpu_thread_uses_fp(struct thread *thd)
 {
-	return thd->fpu.status;
+	return thd->fpregs.status;
 }
 
 static inline void
 fxsave(struct thread *thd)
 {
 #if FPU_SUPPORT_FXSR > 0
-	asm volatile("fxsave %0" : "=m"(thd->fpu));
+	asm volatile("fxsave %0" : "=m"(thd->fpregs));
 #else
-	asm volatile("fsave %0" : "=m"(thd->fpu));
+	asm volatile("fsave %0" : "=m"(thd->fpregs));
 #endif
 	return;
 }
@@ -260,9 +260,9 @@ static inline void
 fxrstor(struct thread *thd)
 {
 #if FPU_SUPPORT_FXSR > 0
-	asm volatile("fxrstor %0" : : "m"(thd->fpu));
+	asm volatile("fxrstor %0" : : "m"(thd->fpregs));
 #else
-	asm volatile("frstor %0" : : "m"(thd->fpu));
+	asm volatile("frstor %0" : : "m"(thd->fpregs));
 #endif
 	return;
 }
@@ -272,9 +272,9 @@ xsaves(struct thread *thd)
 {
 #ifdef __x86_64__
 	/* 0x7: XCR0_x87 | XCR0_x87 | XCR0_x87 */
-	asm volatile("xsaves64 %0" : "=m"(thd->fpu): "a"(0x7), "d"(0):"memory");
+	asm volatile("xsaves64 %0" : "=m"(thd->fpregs): "a"(0x7), "d"(0):"memory");
 #else
-	asm volatile("xsaves %0" : "=m"(thd->fpu): "a"(0x7), "d"(0):"memory");
+	asm volatile("xsaves %0" : "=m"(thd->fpregs): "a"(0x7), "d"(0):"memory");
 #endif
 }
 
@@ -283,9 +283,9 @@ xrestors(struct thread *thd)
 {
 #ifdef __x86_64__
 	/* 0x7: XCR0_x87 | XCR0_x87 | XCR0_x87 */
-	asm volatile("xrstors64 %0" : :"m"(thd->fpu), "a"(0x7), "d"(0):"memory");
+	asm volatile("xrstors64 %0" : :"m"(thd->fpregs), "a"(0x7), "d"(0):"memory");
 #else
-	asm volatile("xrstors %0" : :"m"(thd->fpu), "a"(0x7), "d"(0):"memory");
+	asm volatile("xrstors %0" : :"m"(thd->fpregs), "a"(0x7), "d"(0):"memory");
 #endif
 }
 

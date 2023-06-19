@@ -29,6 +29,7 @@
 #include <types.h>
 #include <component.h>
 #include <state.h>
+#include <consts.h>
 
 struct invstk_entry {
 	struct component_ref component;

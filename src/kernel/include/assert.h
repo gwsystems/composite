@@ -5,11 +5,12 @@
 #include <consts.h>
 #include <cos_consts.h>
 #include <compiler.h>
+#include <state.h>
 
 /* A not so nice way of oopsing */
 #define die(fmt, ...)                                            \
 	do {                                                     \
-		printk("(%d) " fmt, get_cpuid(), ##__VA_ARGS__); \
+		printk("(%d) " fmt, coreid(), ##__VA_ARGS__); \
 		chal_khalt();                                    \
 	} while (0)
 

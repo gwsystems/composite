@@ -59,6 +59,6 @@ void tls_update(u32_t addr);
 
 // void printk(const char *fmt, ...);
 int printk_register_handler(void (*handler)(const char *));
-void print_pt_regs(struct regs *r);
+void print_regs(struct regs *r);
 
 void khalt(void);

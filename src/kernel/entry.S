@@ -1,4 +1,4 @@
-#include <cos_arch_regs.h>
+#include <cos_regs.h>
 
 /* The entire IPC path should be in __ipc_entry section. */
 .section .ipc_fastpath, "ax"

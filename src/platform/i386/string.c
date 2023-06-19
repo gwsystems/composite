@@ -43,3 +43,16 @@ strncmp(const char *s1, const char *s2, size_t n)
 	}
 	return 0;
 }
+
+void *
+memset(void *a, int c, size_t n)
+{
+	size_t off;
+	char  *c_arr = a;
+
+	for (off = 0; off < n; off++) {
+		c_arr[off] = (char)c;
+	}
+
+	return a;
+}
