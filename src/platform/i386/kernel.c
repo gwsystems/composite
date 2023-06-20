@@ -1,13 +1,17 @@
-#include "resources.h"
-#include <cos_consts.h>
-#include <state.h>
+#include "cos_error.h"
 #include <assert.h>
 #include <kernel.h>
 #include <multiboot2.h>
+#include <stddef.h>
 #include <string.h>
 #include <chal_cpu.h>
+
+#include <resources.h>
+#include <cos_consts.h>
+#include <state.h>
 #include <fpu.h>
 #include <init.h>
+#include <cos_elf_loader.h>
 
 volatile int cores_ready[NUM_CPU];
 
@@ -86,8 +90,15 @@ void
 kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 {
 #define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
+	int r;
+	cos_retval_t rv;
 	uword_t max;
 	uword_t post_constructor;
+	struct elf_hdr *h;
+
+	vaddr_t ro_addr, rw_addr;
+	size_t ro_sz, data_sz, bss_sz;
+	char *ro_src, *data_src;
 
 	tss_init(INIT_CORE);
 	gdt_init(INIT_CORE);
@@ -109,8 +120,19 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 
 	post_constructor = ((uword_t)&_binary_constructor_end - (uword_t)pages) / COS_PAGE_SIZE;
 	kernel_init(post_constructor);
-	constructor_init(post_constructor, ((uword_t)&_binary_constructor_start - (uword_t)pages) / COS_PAGE_SIZE,
-		);
+
+	h = (struct elf_hdr *)&_binary_constructor_start;
+	r = elf_load_info(h, &ro_addr, &ro_sz, &ro_src, &rw_addr, &data_sz, &data_src, &bss_sz);
+	assert(r == 0);
+	rv = constructor_init(post_constructor, ((uword_t)&_binary_constructor_start - (uword_t)pages) / COS_PAGE_SIZE,
+			 ro_addr,
+			 elf_entry_addr(h),
+			 ro_src,
+			 ro_sz,
+			 data_off,
+			 data_sz,
+			 zero_sz);
+	assert(rv == COS_RET_SUCCESS);
 	kernel_core_init(INIT_CORE);
 
 	smp_init(cores_ready);
