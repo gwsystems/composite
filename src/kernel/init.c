@@ -7,6 +7,7 @@
 #include <compiler.h>
 #include <chal_types.h>
 #include <cos_restbl.h>
+#include <assert.h>
 
 #include <resources.h>
 #include <captbl.h>
@@ -218,6 +219,16 @@ kernel_core_init(coreid_t coreid)
  *
  * The main challenge here is the initialization of the capability-table
  * that includes references to the other resources *and* to itself.
+ *
+ * - `@post_constructor_offset` - page offset following constructor elf object
+ * - `@constructor_lower_vaddr` - lowest virtual address of constructor
+ * - `@constructor_entry` - entry instruction pointer virtual address
+ * - `@ro_off` - offset into the object of the read-only section
+ * - `@ro_sz` - size of that read-only section
+ * - `@data_off` - offset into the object of the read-write section
+ * - `@data_sz` - size of that read-write section
+ * - `@zero_sz` - size of the bss (zero-initialized) data section
+ * - `@return` - normal return value, error implies significant failure
  */
 cos_retval_t
 constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
@@ -433,5 +444,5 @@ constructor_core_execute(coreid_t coreid, vaddr_t entry_ip)
 
 	regs_prepare_upcall(&rs, entry_ip, coreid, coreid + 1, 0);
 
-	ASM_SYSCALL_RETURN(&rs);
+	userlevel_eager_return_syscall(&rs);
 }

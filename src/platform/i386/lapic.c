@@ -1,6 +1,8 @@
-#include "kernel.h"
-#include "chal_cpu.h"
-#include "isr.h"
+#include <kernel.h>
+#include <chal_cpu.h>
+#include <isr.h>
+#include <cos_types.h>
+#include <cos_consts.h>
 
 #define APIC_DEFAULT_PHYS 0xfee00000
 #define APIC_HDR_LEN_OFF 0x04
@@ -38,7 +40,7 @@ struct ioapic_cntl {
 } __attribute__((packed));
 
 volatile int ncpus = 1;
-volatile int apicids[NUM_CPU];
+volatile int apicids[COS_NUM_CPU];
 
 #define CMOS_PORT    0x70
 
@@ -87,7 +89,7 @@ volatile int apicids[NUM_CPU];
 #define LAPIC_ONESHOT_THRESH (1 << 12)
 #define LAPIC_TSCDEADLINE_THRESH 0
 
-extern int timer_process(struct pt_regs *regs);
+extern int timer_process(struct regs *regs);
 
 enum lapic_timer_type
 {
@@ -444,13 +446,13 @@ lapic_asnd_ipi_send(const cpuid_t cpu_id)
 }
 
 int
-lapic_spurious_handler(struct pt_regs *regs)
+lapic_spurious_handler(struct regs *regs)
 {
 	return 1;
 }
 
 int
-lapic_ipi_asnd_handler(struct pt_regs *regs)
+lapic_ipi_asnd_handler(struct regs *regs)
 {
 	int preempt = 1;
 
@@ -462,7 +464,7 @@ lapic_ipi_asnd_handler(struct pt_regs *regs)
 }
 
 int
-lapic_timer_handler(struct pt_regs *regs)
+lapic_timer_handler(struct regs *regs)
 {
 	int preempt = 1;
 

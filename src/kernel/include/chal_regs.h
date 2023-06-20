@@ -176,9 +176,9 @@
  */
 
 #define ASM_SYSCALL_RETURN(rs) \
-	asm volatile("lea %0, %%rsp;" EXPAND(POP_REGS_RET_SYSCALL) : : "m" (&(rs[1])) : "memory" )
+	asm volatile("lea %0, %%rsp;" EXPAND(POP_REGS_RET_SYSCALL) : : "m" (rs) : "memory" )
 #define ASM_TRAP_RETURN(rs) \
-	asm volatile("lea %0, %%rsp;" EXPAND(POP_REGS_RET_TRAP) : : "m" (&(rs[1])) : "memory" )
+	asm volatile("lea %0, %%rsp;" EXPAND(POP_REGS_RET_TRAP) : : "m" (rs) : "memory" )
 
 COS_STATIC_ASSERT(REGS_MAX_NUM_ARGS + REGS_GEN_ARGS_BASE == REGS_NUM_ARGS_RETS,
 		  "The relationship between REGS_MAX_NUM_ARGS, REGS_GEN_ARGS_BASE, and REGS_NUM_ARGS_RETS is not correct.");
@@ -258,6 +258,37 @@ COS_STATIC_ASSERT((sizeof(struct regs) - (sizeof(reg_state_t) + sizeof(struct tr
 		  "struct regs size doesn't match the number of general purpose registers.");
 COS_STATIC_ASSERT(sizeof(struct trap_frame) == REGS_TRAPFRAME_SZ,
 		  "Trap frame register structure of incorrect size.");
+
+/*
+ * `userlevel_eager_return_syscall` returns back to user-level
+ * immediately, under the assumption that the registers have `state ==
+ * 1`, thus we can return using the sysret fastpath.
+ */
+COS_FASTPATH COS_NO_RETURN static inline void
+userlevel_eager_return_syscall(struct regs *rs)
+{
+	struct regs *end_of_struct = &(rs[1]);
+
+	ASM_SYSCALL_RETURN(end_of_struct);
+
+	while (1) ;
+}
+
+/*
+ * `userlevel_eager_return` immediately returns to user-level using
+ * the syscall or trap logic, depending on the format of the
+ * registers.
+ */
+COS_FASTPATH COS_NO_RETURN static inline void
+userlevel_eager_return(struct regs *rs)
+{
+	struct regs *end_of_struct = &(rs[1]);
+
+	if (rs->state == 0)      ASM_TRAP_RETURN(end_of_struct);
+	else if (rs->state == 1) ASM_SYSCALL_RETURN(end_of_struct);
+
+	while (1) ;
+}
 
 struct fpu_regs {
 	u16_t cwd; /* Control Word */

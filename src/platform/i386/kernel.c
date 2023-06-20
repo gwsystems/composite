@@ -1,3 +1,4 @@
+#include "chal_consts.h"
 #include "cos_error.h"
 #include <assert.h>
 #include <kernel.h>
@@ -124,14 +125,13 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	h = (struct elf_hdr *)&_binary_constructor_start;
 	r = elf_load_info(h, &ro_addr, &ro_sz, &ro_src, &rw_addr, &data_sz, &data_src, &bss_sz);
 	assert(r == 0);
-	rv = constructor_init(post_constructor, ((uword_t)&_binary_constructor_start - (uword_t)pages) / COS_PAGE_SIZE,
-			 ro_addr,
-			 elf_entry_addr(h),
-			 ro_src,
-			 ro_sz,
-			 data_off,
-			 data_sz,
-			 zero_sz);
+	/* Linker script should have placed the elf object at offset 1 in the page array */
+	assert(((uword_t)&_binary_constructor_start - (uword_t)pages) == COS_PAGE_SIZE);
+	rv = constructor_init(post_constructor,
+			      ro_addr, elf_entry_addr(h),
+			      (uword_t)ro_src - (uword_t)h, ro_sz,
+			      (uword_t)data_src - (uword_t)h, data_sz,
+			      bss_sz);
 	assert(rv == COS_RET_SUCCESS);
 	kernel_core_init(INIT_CORE);
 
