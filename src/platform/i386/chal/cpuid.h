@@ -18,7 +18,7 @@
 static inline cycles_t
 tsc(void)
 {
-	unsigned long long ret;
+	unsigned long long ret = 0;
 
 	#if defined(__x86_64__)
 		__asm__ __volatile__("rdtsc; shl $32, %%rdx; or %%rdx, %0" : "=a"(ret)::"rdx");

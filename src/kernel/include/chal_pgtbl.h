@@ -1,5 +1,7 @@
 #pragma once
 
+#include "chal_types.h"
+#include "cos_types.h"
 #include <types.h>
 #include <chal_consts.h>
 
@@ -29,4 +31,14 @@ pgtbl_arch_entry_unpack(pgtbl_t entry, pageref_t *ref, uword_t *perm)
 {
 	if (ref  != NULL) *ref  = entry >> 12;
 	if (perm != NULL) *perm = entry & ((1 << 12) - 1);
+}
+
+static inline void
+pgtbl_arch_activate(pgtbl_t pgtbl, prot_domain_tag_t tag)
+{
+	u64_t tag64 = tag;
+	u64_t ts    = (tag64 & 0xFFFF) | ((tag64 >> 16) << 48);
+	u64_t pt    = pgtbl | ts;
+
+	asm volatile("movq %0, %%cr3" : : "r"(pt));
 }

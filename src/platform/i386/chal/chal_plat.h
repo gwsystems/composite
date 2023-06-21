@@ -1,6 +1,8 @@
 #ifndef CHAL_PLAT_H
 #define CHAL_PLAT_H
 
+#include <types.h>
+
 int chal_tlb_lockdown(unsigned long entryid, unsigned long vaddr, unsigned long paddr);
 int chal_l1flush(void);
 int chal_tlbstall(void);

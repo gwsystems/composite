@@ -177,6 +177,12 @@ chal_cpuid(u32_t *a, u32_t *b, u32_t *c, u32_t *d)
 }
 
 static inline void
+chal_flush_cache(void)
+{
+	asm volatile("wbinvd" : : : "memory");
+}
+
+static inline void
 chal_cpu_coreid_set(u32_t coreid)
 {
 	writemsr(MSR_TSC_AUX, coreid, 0x0u);
