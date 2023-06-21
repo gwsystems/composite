@@ -1,9 +1,8 @@
-#include "chal_consts.h"
-#include "cos_error.h"
+#include <chal_consts.h>
+#include <cos_error.h>
 #include <assert.h>
 #include <kernel.h>
 #include <multiboot2.h>
-#include <stddef.h>
 #include <string.h>
 #include <chal_cpu.h>
 
