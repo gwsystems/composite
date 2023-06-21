@@ -138,7 +138,7 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
 
-	kern_boot_upcall();
+	constructor_core_execute(0, elf_entry_addr(h));
 
 	/* should not get here... */
 	khalt();
@@ -156,15 +156,14 @@ smp_kmain(void)
 	idt_init(cpu_id);
 
 	chal_cpu_init();
-	kern_boot_comp(cpu_id);
 	lapic_init();
 
 	printk("New CPU %d Booted\n", cpu_id);
 	cores_ready[cpu_id] = 1;
-	/* waiting for all cored booted */
+	/* waiting for all cores to boot */
 	while(cores_ready[INIT_CORE] == 0);
 
-	kern_boot_upcall();
+	constructor_core_execute(cpu_id, elf_entry_addr(h));
 
 	while(1) ;
 }

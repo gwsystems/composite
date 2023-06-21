@@ -183,7 +183,7 @@ kernel_init(uword_t post_constructor_offset)
 	return COS_RET_SUCCESS;
 }
 
-uword_t threads_offset = 0;
+uword_t gbl_thread_offset = 0;
 
 /**
  * `kernel_core_init()` initializes per-core, global kernel
@@ -196,9 +196,9 @@ kernel_core_init(coreid_t coreid)
 {
 	extern struct state_percore core_state[COS_NUM_CPU];
 	/* The 1 here is for the null captbl page */
-	struct thread *t = (struct thread *)&pages[threads_offset + coreid];
+	struct thread *t = (struct thread *)&pages[gbl_thread_offset + coreid];
 	/* If this triggers, you should call `constructor_init` before this! */
-	assert(threads_offset > 0);
+	assert(gbl_thread_offset > 0);
 
 	core_state[coreid] = (struct state_percore) {
 		.registers     = { 0 },
@@ -270,6 +270,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	captbl_offset      = pgtbl_offset + pgtbl_num;
 	component_offset   = captbl_offset + captbl_num;
 	thread_offset      = component_offset + 1;
+	gbl_thread_offset  = thread_offset;
 	frontier           = thread_offset + COS_NUM_CPU;
 
 	/*
