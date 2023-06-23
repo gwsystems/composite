@@ -1,4 +1,4 @@
-#include <chal_consts.h>
+#include <consts.h>
 #include <cos_error.h>
 #include <assert.h>
 #include <kernel.h>
@@ -7,13 +7,12 @@
 #include <chal_cpu.h>
 
 #include <resources.h>
-#include <cos_consts.h>
 #include <state.h>
 #include <fpu.h>
 #include <init.h>
 #include <cos_elf_loader.h>
 
-volatile int cores_ready[NUM_CPU];
+volatile int cores_ready[COS_NUM_CPU];
 
 extern u8_t end; /* from the linker script */
 
@@ -36,7 +35,7 @@ multiboot_mem_parse(struct multiboot_tag *tag)
 	     mmap = (multiboot_memory_map_t *)((unsigned long)mmap + ((struct multiboot_tag_mmap *)tag)->entry_size)) {
 
 		mem_addr = chal_pa2va((paddr_t)mmap->addr);
-		mem_len  = (mmap->len > COS_PHYMEM_MAX_SZ ? COS_PHYMEM_MAX_SZ : mmap->len); /* maximum allowed */
+		mem_len  = mmap->len; /* maximum allowed */
 		printk("\t- %d (%s): [%08llx, %08llx) sz = %ldMB + %ldKB\n", i,
 			mmap->type == 1 ? "Available" : "Reserved ",
 			mmap->addr, mmap->addr + mmap->len,

@@ -5,9 +5,9 @@ CC := gcc -m64
 LD := ld -m elf_x86_64 --nmagic
 AS := as --64 -g
 
-KINCPATH := ../../kernel/include
-UINCPATH := ../../components/lib/cos/
-INCS    := -I$(KINCPATH) -I$(KINCPATH)/chal/ -I$(UINCPATH) -I.
+KINCPATH := $(KINC)
+UINCPATH := $(CDIR)/lib/cos/
+INCS    := -I$(KINCPATH) -I$(KINCPATH)/chal/ -I$(UINCPATH) -I$(PLATDIR)/include/
 #  -Wno-unused-variable
 CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone -mcmodel=large -mno-sse -mno-sse2 -mgeneral-regs-only $(INCS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
@@ -44,15 +44,15 @@ KERNEL_CFILES += vtxprintf.c
 KERNEL_CFILES += tss.c
 KERNEL_CFILES += user.c
 KERNEL_CFILES += serial.c
-KERNEL_CFILES += hpet.c
+# KERNEL_CFILES += hpet.c
 KERNEL_CFILES += chal.c
 KERNEL_CFILES += boot_comp.c
 KERNEL_CFILES += miniacpi.c
 KERNEL_CFILES += exception.c
 KERNEL_CFILES += lapic.c
-KERNEL_CFILES += chal_pgtbl.c
-KERNEL_CFILES += fpu.c
-KERNEL_CFILES += ulinv.c
+# KERNEL_CFILES += chal_pgtbl.c
+# KERNEL_CFILES += fpu.c
+# KERNEL_CFILES += ulinv.c
 
 OBJS := $(KERNEL_CFILES:%.c=%.o)
 DEPS := $(KERNEL_CFILES:%.c=%.d)
@@ -81,7 +81,7 @@ loader.o: loader.S entry.S
 
 define COMPILE_OBJ_RULE
 	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 endef
 
 define COMPILE_DEP_RULE

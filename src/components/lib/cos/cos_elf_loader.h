@@ -1,5 +1,4 @@
-#ifndef SIMPLE_ELF_H
-#define SIMPLE_ELF_H
+#pragma once
 
 /*
  * Simple ELF object parser that focuses on only reading the program
@@ -12,7 +11,7 @@
  */
 
 #include <cos_types.h>
-
+#include <cos_bitmath.h>
 
 enum ELF_HDR_TYPE {
 	ELF_HDR_ERR 	= -1,
@@ -87,7 +86,6 @@ static inline int
 elf32_contig_mem(struct elf_hdr *hdr, unsigned int nmem, struct elf_contig_mem *mem)
 {
 	struct elf32_proghdr *proghdr, *memsect = NULL;
-	u32_t off;
 	unsigned int i, cntmem;
 
 	if (elf_chk_format(hdr) != ELF_HDR_32 ||
@@ -120,7 +118,7 @@ elf32_contig_mem(struct elf_hdr *hdr, unsigned int nmem, struct elf_contig_mem *
  * This is the elf_64 related code
  */
 struct elf64_hdr{
-        unsigned char   e_ident[16]; 
+        unsigned char   e_ident[16];
         u16_t           e_type;
         u16_t           e_machine;
         u32_t           e_version;
@@ -153,7 +151,6 @@ static inline int
 elf64_contig_mem(struct elf64_hdr *hdr, unsigned int nmem, struct elf_contig_mem *mem)
 {
 	struct elf64_proghdr *proghdr, *memsect = NULL;
-	u32_t off;
 	unsigned int i, cntmem;
 
 	if (elf_chk_format((struct elf_hdr *)hdr) != ELF_HDR_64 ||
@@ -245,7 +242,7 @@ elf_load_info(struct elf_hdr *hdr, vaddr_t *ro_addr, size_t *ro_sz, char **ro_sr
 	    s[0].objsz != s[0].sz || s[0].access != ELF_PH_CODE) return -1;
 	/* Data + BSS, note that the data should immediately follow the code */
 	if (elf_contig_mem(hdr, 1, &s[1]) ||
-	    s[1].access != ELF_PH_RW || round_up_to_page(s[0].vstart + s[0].sz) != s[1].vstart) return -1;
+	    s[1].access != ELF_PH_RW || cos_round_up_to_page(s[0].vstart + s[0].sz) != s[1].vstart) return -1;
 
 	*ro_addr  = s[0].vstart;
 	*ro_sz    = s[0].sz;
@@ -258,5 +255,3 @@ elf_load_info(struct elf_hdr *hdr, vaddr_t *ro_addr, size_t *ro_sz, char **ro_sr
 
 	return 0;
 }
-
-#endif	/* SIMPLE_ELF_H */

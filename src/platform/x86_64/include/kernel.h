@@ -1,6 +1,6 @@
 #pragma once
 
-#include <types.h>
+#include <cos_types.h>
 #include <chal.h>
 #include <multiboot2.h>
 #include <state.h>
@@ -59,4 +59,4 @@ void tls_update(u32_t addr);
 int printk_register_handler(void (*handler)(const char *));
 void print_regs(struct regs *r);
 
-void khalt(void);
+void khalt(void) __attribute__((noreturn));

@@ -1,31 +1,34 @@
-#include <cc.h>
+#include <compiler.h>
 #include <pgtbl.h>
-#include <thd.h>
+#include <thread.h>
 
-#include "kernel.h"
-#include "string.h"
-#include "isr.h"
-#include "chal_cpu.h"
-#include "mem_layout.h"
-#include "chal_pgtbl.h"
+//#include "kernel.h"
+//#include "string.h"
+//#include "isr.h"
+#include <chal_cpu.h>
+#include <chal_pgtbl.h>
+#include <consts.h>
+#include <arch_consts.h>
 
-struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
+struct tlb_quiescence tlb_quiescence[COS_NUM_CPU] COS_CACHE_ALIGNED;
 
 #define KERN_INIT_PGD_IDX ((COS_MEM_KERN_START_VA & COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK) >> PGD_SHIFT)
-u64_t boot_comp_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {0};
 
-u64_t boot_comp_pgt1[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {0};
+u64_t boot_comp_pgd[COS_PAGE_SIZE / sizeof(u64_t)] COS_PAGE_ALIGNED = {0};
 
-u64_t boot_ap_pgd[PAGE_SIZE / sizeof(u64_t)] PAGE_ALIGNED = {[0] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
-                                                             [KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE
-                                                                                     | X86_PGTBL_SUPER};
+u64_t boot_comp_pgt1[COS_PAGE_SIZE / sizeof(u64_t)] COS_PAGE_ALIGNED = {0};
+
+u64_t boot_ap_pgd[COS_PAGE_SIZE / sizeof(u64_t)] COS_PAGE_ALIGNED = {
+	[0]                 = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
+	[KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
+};
 
 int
 kern_setup_image(void)
 {
 	u64_t i, j;
 	paddr_t       kern_pa_start, kern_pa_end;
-	int cpu_id = get_cpuid();
+	int cpu_id = coreid();
 
 	printk("\tSetting up initial page directory.\n");
 	kern_pa_start = round_to_pgd_page(chal_va2pa(mem_kern_start())); /* likely 0 */

@@ -1,7 +1,6 @@
 #pragma once
 
-#include <chal_consts.h>
-#include <chal_types.h>
+#include <cos_chal_consts.h>
 
 /*
  * Shared Kernel/User Constants and Types

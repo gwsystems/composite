@@ -3,7 +3,7 @@
 
 #include <chal.h>
 #include <consts.h>
-#include <cos_consts.h>
+#include <types.h>
 #include <compiler.h>
 #include <state.h>
 

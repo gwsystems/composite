@@ -1,9 +1,7 @@
 #pragma once
 
-#include "chal_types.h"
-#include "cos_types.h"
 #include <types.h>
-#include <chal_consts.h>
+#include <consts.h>
 
 #define PGTBL_ARCH_ENTRY_NULL 0	/* not present, and no referenced page */
 
@@ -33,6 +31,8 @@ pgtbl_arch_entry_unpack(pgtbl_t entry, pageref_t *ref, uword_t *perm)
 	if (perm != NULL) *perm = entry & ((1 << 12) - 1);
 }
 
+#include <chal_cpu.h>
+
 static inline void
 pgtbl_arch_activate(pgtbl_t pgtbl, prot_domain_tag_t tag)
 {
@@ -40,5 +40,5 @@ pgtbl_arch_activate(pgtbl_t pgtbl, prot_domain_tag_t tag)
 	u64_t ts    = (tag64 & 0xFFFF) | ((tag64 >> 16) << 48);
 	u64_t pt    = pgtbl | ts;
 
-	asm volatile("movq %0, %%cr3" : : "r"(pt));
+	chal_cpu_pgtbl_activate(pt pgtbl)
 }

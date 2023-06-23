@@ -1,5 +1,5 @@
-#include <compiler.h>
-#include <chal_consts.h>
+#include <cos_compiler.h>
+#include <cos_consts.h>
 #include <cos_consts.h>
 #include <cos_error.h>
 #include <cos_types.h>

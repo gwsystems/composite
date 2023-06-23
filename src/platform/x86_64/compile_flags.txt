@@ -1,5 +1,8 @@
+-D__x86_64__
 -I
 ./
+-I
+./include/
 -I
 ../../kernel/include/
 -I

@@ -34,29 +34,29 @@ typedef u64_t          cos_cycles_t;      /* accounting cycle count */
 typedef u64_t          cos_time_t;	  /* absolute time */
 typedef u8_t           cos_thd_state_t;   /* thread state, reported to scheduler */
 
-#include <compiler.h>
+typedef uword_t        cos_cap_t;
+typedef u32_t          cos_op_bitmap_t;   /* bitmap where each bit designates an allowed operation on a resource */
 
-/**
- * `cos_round_down_to_pow2` round a value down to the closest multiple of a
- * power-of-two value.
- *
- * Assume: `to` is a power of two (`popcnt(to) == 1`)
- *
- * - `@val` - value to round down
- * - `@to` - the value to round down to
- * - `@return` - rounded down value.
- */
-COS_FORCE_INLINE static inline uword_t
-cos_round_down_to_pow2(uword_t val, uword_t to)
-{
-	return val & ~(to - 1);
-}
+typedef uword_t        vaddr_t;           /* opaque, user-level virtual address */
 
-/**
- * Similarly, round up to the closest multiple of a power-of-two value.
- */
-COS_FORCE_INLINE static inline uword_t
-cos_round_up_to_pow2(uword_t val, uword_t to)
-{
-	return cos_round_down_to_pow2(val + (to - 1), to);
-}
+#include <cos_compiler.h>
+
+struct ulk_invstk_entry {
+	cos_cap_t sinv_cap;
+	vaddr_t sp;
+} __attribute__((packed));
+
+#define ULK_INVSTK_NUM_ENT 15
+#define ULK_INVSTK_SZ 256ul
+
+struct ulk_invstk {
+	u64_t top, pad;
+	struct ulk_invstk_entry stk[ULK_INVSTK_NUM_ENT];
+};
+
+#include <cos_consts.h>
+
+#define ULK_STACKS_PER_PAGE (COS_PAGE_SIZE / sizeof(struct ulk_invstk))
+
+COS_STATIC_ASSERT(ULK_INVSTK_SZ == sizeof(struct ulk_invstk),
+	"User-level invocation stack");

@@ -1,1 +1,2 @@
-../i386/user.c
+#include "kernel.h"
+#include "mem_layout.h"

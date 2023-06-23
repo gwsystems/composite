@@ -1,9 +1,14 @@
-#ifndef FPU_H
-#define FPU_H
+#pragma once
 
 #include <thread.h>
 
-/* TODO: Make this file architecture independent */
+#define FPU_ENABLED 1
+#define FPU_SUPPORT_SSE 1
+#define FPU_SUPPORT_FXSR 1 /* >0 : CPU supports FXSR. */
+#define FPU_SUPPORT_XSAVE 1
+#define FPU_SUPPORT_XSAVEOPT 1
+#define FPU_SUPPORT_XSAVEC 1
+#define FPU_SUPPORT_XSAVES 1
 
 #define FPU_DISABLED_MASK 0x8
 #define FXSR (1 << 24)
@@ -378,6 +383,4 @@ fpu_restore(struct thread *)
 {
 	return;
 }
-#endif
-
 #endif

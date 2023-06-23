@@ -1,15 +1,14 @@
 #pragma once
 
+#include <chal_types.h>
 #include <cos_types.h>
 
 /*
  * Kernel value types
  */
 typedef uword_t        kaddr_t;           /* kernel virtual address, directly dereferenceable */
-typedef uword_t        paddr_t;	          /* physical addresss */
-typedef uword_t        vaddr_t;           /* opaque, user-level virtual address */
 typedef u32_t          pageref_t;         /* opaque page reference. Can be used to index into the page_types, and pages */
-typedef paddr_t        pgtbl_t;	          /* a reference within the namespace of page-tables (i.e. that can be loaded into the CPU) */
+typedef uword_t        paddr_t;	          /* physical address */
 typedef uword_t        captbl_t;          /* reference to a capability table that can be dereferenced */
 typedef pageref_t      pgtbl_ref_t;       /* indirect reference to a page-table */
 typedef pageref_t      captbl_ref_t;      /* indirect reference to a capability-table */

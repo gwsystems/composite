@@ -707,7 +707,7 @@ capability_activation(struct regs *rs)
 		}
 		/* Thread operations. First, the dispatch fast-path. */
 		if (likely(ops == COS_OP_THD_DISPATCH)) {
-                        return thread_switch(t, rs, 0);
+                        return thread_switch(t, rs);
 		}
 		/* TODO: add call and reply-and-wait fastpaths */
 
@@ -719,7 +719,7 @@ capability_activation(struct regs *rs)
 	return capability_activation_slowpath(rs, cap_slot);
 }
 
-__attribute__((section(".ipc_fastpath")))
+COS_FASTPATH_SECTION
 reg_state_t
 syscall_handler(struct regs **rs)
 {

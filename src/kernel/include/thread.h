@@ -134,7 +134,7 @@ void thread_calculate_returnvals(struct thread *t);
  * - `@rs` - The current register set
  * - `@return` - The registers to load on returning to user-level
  */
-COS_FORCE_INLINE struct regs *
+COS_FORCE_INLINE static inline struct regs *
 thread_switch(struct thread *t, struct regs *rs) {
 	struct state_percore *g    = state();
 	struct thread        *curr = g->active_thread;
@@ -171,7 +171,7 @@ thread_switch(struct thread *t, struct regs *rs) {
 		thread_calculate_returnvals(t);
 	}
 
-	/* Any thread we're about to execution should be in this state... */
+	/* Any thread we're about to execute should be in this state... */
 	t->state = COS_THD_STATE_EXECUTING;
 
 	/* Return the registers we want to restore */
@@ -204,7 +204,7 @@ err:
  * - `@return` - Normal return value, notable error on synchronization
  *   race
  */
-COS_FORCE_INLINE cos_retval_t
+COS_FORCE_INLINE static inline cos_retval_t
 thread_scheduler_update(cos_op_bitmap_t *ops, struct thread *t, struct regs *rs)
 {
 	struct state_percore *g = state();

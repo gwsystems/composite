@@ -1,7 +1,10 @@
 #ifndef TSS_H
 #define TSS_H
 
-#include "shared/cos_types.h"
+#include <chal_consts.h>
+#include <cos_types.h>
+#include <types.h>
+
 struct tss {
     u32_t resv0;
     u64_t rsp0;
@@ -25,7 +28,7 @@ struct kernel_stack_info {
 	vaddr_t user_stack_addr;
 };
 
-extern struct tss tss[NUM_CPU];
-extern struct kernel_stack_info kernel_stack_info[NUM_CPU];
+extern struct tss tss[COS_NUM_CPU];
+extern struct kernel_stack_info kernel_stack_info[COS_NUM_CPU];
 
 #endif /* TSS_H */

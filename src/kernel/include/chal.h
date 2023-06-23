@@ -96,6 +96,6 @@ void chal_init(void);
 //#include "../chal/chal_plat.h"
 
 extern void printk(const char *fmt, ...);
-void        chal_khalt(void);
+void        chal_khalt(void) __attribute__((noreturn));
 
 #endif /* CHAL_H */

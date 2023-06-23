@@ -1,1 +1,0 @@
-../i386/chal_pgtbl.h

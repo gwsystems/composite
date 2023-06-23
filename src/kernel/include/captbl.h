@@ -1,12 +1,11 @@
 #pragma once
 
-#include "compiler.h"
-#include "component.h"
-#include "cos_consts.h"
+#include <compiler.h>
+#include <component.h>
+#include <consts.h>
 #include <types.h>
 #include <cos_error.h>
 #include <capabilities.h>
-#include <chal_consts.h>
 
 struct captbl_internal {
 	captbl_t next[COS_CAPTBL_INTERNAL_NENT];

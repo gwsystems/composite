@@ -1,6 +1,9 @@
+-D__x86_64__
 -I
 include/
 -I
 ../platform/x86_64/
+-I
+../platform/x86_64/include/
 -I
 ../components/lib/cos/
