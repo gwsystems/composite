@@ -332,6 +332,7 @@ static inline pgtbl_t
 chal_cached_pt_curr(prot_domain_tag_t protdom)
 {
 	u16_t asid = PROTDOM_ASID(protdom);
+
 	return tlb_asid_map[coreid()].mapped_pt[asid];
 }
 
@@ -339,6 +340,7 @@ static inline void
 chal_cached_pt_update(pgtbl_t pt, prot_domain_tag_t protdom)
 {
 	u16_t asid = PROTDOM_ASID(protdom);
+
 	tlb_asid_map[coreid()].mapped_pt[asid] = pt;
 }
 

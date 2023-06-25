@@ -5,10 +5,7 @@
 #include <consts.h>
 #include <compiler.h>
 
-u32_t        free_thd_id;
-char         timer_detector[COS_PAGE_SIZE] COS_PAGE_ALIGNED;
-extern void *cos_kmem, *cos_kmem_base;
-u32_t        chal_msr_mhz = 0;
+char timer_detector[COS_PAGE_SIZE] COS_PAGE_ALIGNED;
 
 paddr_t chal_kernel_mem_pa;
 
