@@ -29,13 +29,15 @@ debug_dump_info(void)
 	#define LIMIT 10000
 	#define CORE_ID 0
 	static u64_t counter = 0;
+	struct slm_sched_thd *t;
+	struct ps_list_head *prios = threads[CORE_ID].prio;
 
 	if (cos_cpuid() == CORE_ID) {
 		counter++;
 		if (counter > LIMIT) {
 			//iterate thread queue
 			printc("---thread queue dump begin---\n");
-			for (i = 0 ; i < SLM_FPRR_NPRIOS ; i++) {
+			for (int i = 0 ; i < SLM_FPRR_NPRIOS ; i++) {
 				if (ps_list_head_empty(&prios[i])) continue;
 				ps_list_foreach(&prios[i], t, list) {
 					struct slm_thd *cur = slm_thd_from_sched(t);

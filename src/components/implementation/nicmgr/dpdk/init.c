@@ -290,7 +290,7 @@ cos_nic_start(){
 		cos_free_rx_buf();
 #endif
 #if ENABLE_DEBUG_INFO
-		debug_dump_info()
+		debug_dump_info();
 #endif
 		// process_tx_packets();
 
