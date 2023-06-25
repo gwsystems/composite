@@ -250,25 +250,6 @@ chal_va2pa(void *address)
 /* FIXME:find a better way to do this */
 #define EXTRACT_SUB_PAGE(super) ((super) & SUPER_PAGE_PTE_MASK)
 
-/* Page table related prototypes & structs */
-/* make it an opaque type...not to be touched */
-typedef struct pgtbl *pgtbl_t;
-
-struct pgtbl_info {
-	pgtbl_t       pgtbl;
-	prot_domain_t protdom;
-} __attribute__((packed));
-
-/* identical to the capability structure */
-struct cap_pgtbl {
-	struct cap_header h;
-	u32_t             refcnt_flags; /* includes refcnt and flags */
-	pgtbl_t           pgtbl;
-	u32_t             lvl;       /* what level are the pgtbl nodes at? */
-	struct cap_pgtbl *parent;    /* if !null, points to parent cap */
-	u64_t             frozen_ts; /* timestamp when frozen is set. */
-} __attribute__((packed));
-
 // #define MPK_ENABLE 1
 
 #ifdef MPK_ENABLE
@@ -304,20 +285,20 @@ rdpkru(void)
 }
 
 static inline u32_t
-pkru_state(prot_domain_t protdom)
+pkru_state(prot_domain_tag_t protdom)
 {
 	u16_t mpk_key = PROTDOM_MPK_KEY(protdom);
 	return ~(0b11 << (2 * mpk_key)) & ~0b11;
 }
 
 static inline void
-chal_protdom_write(prot_domain_t protdom)
+chal_protdom_write(prot_domain_tag_t protdom)
 {
 	/* we only update asid on pagetable switch */
 	wrpkru(pkru_state(protdom));
 }
 
-static inline prot_domain_t
+static inline prot_domain_tag_t
 chal_protdom_read(void)
 {
 	unsigned long cr3;
@@ -336,45 +317,45 @@ chal_protdom_read(void)
 #else /* !MPK_ENABLE */
 static inline void wrpkru(u32_t pkru) {}
 static inline u32_t rdpkru(void) { return 0; }
-static inline u32_t pkru_state(prot_domain_t protdom) { return 0; }
-static inline void chal_protdom_write(prot_domain_t protdom) {}
-static inline prot_domain_t chal_protdom_read(void) { return 0; }
+static inline u32_t pkru_state(prot_domain_tag_t protdom) { return 0; }
+static inline void chal_protdom_write(prot_domain_tag_t protdom) {}
+static inline prot_domain_tag_t chal_protdom_read(void) { return 0; }
 #endif /* MPK_ENABLE */
 
 struct cpu_tlb_asid_map {
 	pgtbl_t mapped_pt[NUM_ASID_MAX];
 } CACHE_ALIGNED;
 
-extern struct cpu_tlb_asid_map tlb_asid_map[NUM_CPU];
+extern struct cpu_tlb_asid_map tlb_asid_map[COS_NUM_CPU];
 
 static inline pgtbl_t
-chal_cached_pt_curr(prot_domain_t protdom)
+chal_cached_pt_curr(prot_domain_tag_t protdom)
 {
 	u16_t asid = PROTDOM_ASID(protdom);
-	return tlb_asid_map[get_cpuid()].mapped_pt[asid];
+	return tlb_asid_map[coreid()].mapped_pt[asid];
 }
 
 static inline void
-chal_cached_pt_update(pgtbl_t pt, prot_domain_t protdom)
+chal_cached_pt_update(pgtbl_t pt, prot_domain_tag_t protdom)
 {
 	u16_t asid = PROTDOM_ASID(protdom);
-	tlb_asid_map[get_cpuid()].mapped_pt[asid] = pt;
+	tlb_asid_map[coreid()].mapped_pt[asid] = pt;
 }
 
 /* Update the page table */
 static inline void
-chal_pgtbl_update(struct pgtbl_info *pt)
+chal_pgtbl_update(pgtbl_t pt, prot_domain_tag_t dom)
 {
-	u16_t asid = PROTDOM_ASID(pt->protdom);
+	u16_t asid = PROTDOM_ASID(dom);
 
 	/* lowest 12 bits is the context identifier */
-	unsigned long cr3 = (unsigned long)pt->pgtbl | asid;
+	unsigned long cr3 = (unsigned long)pt | asid;
 
 	/* fastpath: don't need to invalidate tlb entries; otherwise flush tlb on switch */
-	if (likely(chal_cached_pt_curr(asid) == pt->pgtbl)) {
+	if (likely(chal_cached_pt_curr(asid) == pt)) {
 		cr3 |= CR3_NO_FLUSH;
 	} else {
-		chal_cached_pt_update(pt->pgtbl, asid);
+		chal_cached_pt_update(pt, asid);
 	}
 
 	asm volatile("mov %0, %%cr3" : : "r"(cr3));

@@ -1,4 +1,4 @@
-#include "cos_types.h"
+#include <types.h>
 #include <consts.h>
 #include <cos_error.h>
 #include <assert.h>
