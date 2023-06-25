@@ -4,6 +4,8 @@
 #include <cos_types.h>
 #include <cos_component.h>
 
+#define ENABLE_DEBUG_INFO 0
+
 #define SLM_FPRR_NPRIOS         32
 #define SLM_FPRR_PRIO_HIGHEST   TCAP_PRIO_MAX
 #define SLM_FPRR_PRIO_LOWEST    (SLM_FPRR_NPRIOS - 1)
@@ -20,12 +22,42 @@ void
 slm_sched_fprr_execution(struct slm_thd *t, cycles_t cycles)
 { return; }
 
+// simply dump a core's task queue for debug usage
+static void
+debug_dump_info(void)
+{
+	#define LIMIT 10000
+	#define CORE_ID 0
+	static u64_t counter = 0;
+
+	if (cos_cpuid() == CORE_ID) {
+		counter++;
+		if (counter > LIMIT) {
+			//iterate thread queue
+			printc("---thread queue dump begin---\n");
+			for (i = 0 ; i < SLM_FPRR_NPRIOS ; i++) {
+				if (ps_list_head_empty(&prios[i])) continue;
+				ps_list_foreach(&prios[i], t, list) {
+					struct slm_thd *cur = slm_thd_from_sched(t);
+					printc("thd id:%u, stage:%d\n", cur->tid, cur->state);
+				}
+			}
+			printc("---thread queue dump end---\n");
+			counter = 0;
+		} 
+	}
+}
+
 struct slm_thd *
 slm_sched_fprr_schedule(void)
 {
 	int i;
 	struct slm_sched_thd *t;
 	struct ps_list_head *prios = threads[cos_cpuid()].prio;
+
+#if ENABLE_DEBUG_INFO
+	debug_dump_info();
+#endif
 
 	for (i = 0 ; i < SLM_FPRR_NPRIOS ; i++) {
 		if (ps_list_head_empty(&prios[i])) continue;

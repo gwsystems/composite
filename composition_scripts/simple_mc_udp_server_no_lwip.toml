@@ -47,3 +47,9 @@ deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"
 constructor = "booter"
 baseaddr = "0x9000000"
 
+[[components]]
+name = "simple_mc_udp_server2"
+img  = "simple_mc_udp_server.simple_mc_udp_server_no_lwip"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}, {srv = "memcached", interface = "mc"}]
+constructor = "booter"
+baseaddr = "0xA000000"

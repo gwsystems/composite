@@ -14,6 +14,8 @@
 #include <sync_lock.h>
 #include "nicmgr.h"
 
+#define ENABLE_DEBUG_INFO 0
+
 #define NB_RX_DESC_DEFAULT 1024
 #define NB_TX_DESC_DEFAULT 1024
 
@@ -67,17 +69,6 @@ cos_hash_add(uint16_t tenant_id, struct client_session *session)
 	assert(ret >= 0);
 }
 
-static void
-debug_print_stats(void)
-{
-	cos_get_port_stats(0);
-
-	printc("rx mempool in use:%u\n", cos_mempool_in_use_count(g_rx_mp[0]));
-	printc("rx enqueued miss:%llu\n", rx_enqueued_miss);
-	printc("tx enqueued miss:%lu\n", tx_enqueued_miss.cnt);
-	printc("enqueue:%lu, txqneueue:%lu\n", enqueued_rx, dequeued_tx);
-}
-
 struct client_session *
 cos_hash_lookup(uint16_t tenant_id)
 {
@@ -96,6 +87,36 @@ cos_hash_lookup(uint16_t tenant_id)
 	if (ret < 0) return NULL;
 
 	return session;
+}
+
+static void
+debug_print_stats(void)
+{
+	cos_get_port_stats(0);
+
+	printc("rx mempool in use:%u\n", cos_mempool_in_use_count(g_rx_mp[0]));
+	printc("rx enqueued miss:%llu\n", rx_enqueued_miss);
+	printc("tx enqueued miss:%lu\n", tx_enqueued_miss.cnt);
+	printc("enqueue:%lu, txqneueue:%lu\n", enqueued_rx, dequeued_tx);
+	struct client_session	*session1, *session2;
+	session1 = cos_hash_lookup(ntohs(6));
+	session2 = cos_hash_lookup(ntohs(7));
+	int ret1 = sched_debug_thd_state(session1->thd);
+	int ret2 = sched_debug_thd_state(session2->thd);
+	printc("com 6:%u\n", ret1);
+	printc("com 7:%u\n", ret2);
+}
+
+static void
+debug_dump_info(void)
+{
+	static u64_t counter = 0;
+	#define LIMIT 1000000000
+	counter++;
+	if (counter > LIMIT) {
+		debug_print_stats();
+		counter=0;
+	}
 }
 
 static void
@@ -174,6 +195,10 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			// printc("port id:0x%x\n", port->dst_port);
 			session = cos_hash_lookup(port->dst_port);
 			// assert(session->port == port->dst_port);
+			if (unlikely(debug_flag)) {
+				debug_print_stats();
+				debug_flag = 0;
+			}
 			if (unlikely(session == NULL)) {
 				cos_free_packet(rx_pkts[i]);
 				continue;
@@ -200,11 +225,6 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			// }
 
 			sync_sem_give(&session->sem);
-
-			if (unlikely(debug_flag)) {
-				debug_print_stats();
-				debug_flag = 0;
-			}
 		} else if (htons(eth->ether_type) == 0x0806) {
 			cos_free_packet(buf.pkt);
 			continue;
@@ -268,6 +288,9 @@ cos_nic_start(){
 	while (1) {
 #if USE_CK_RING_FREE_MBUF
 		cos_free_rx_buf();
+#endif
+#if ENABLE_DEBUG_INFO
+		debug_dump_info()
 #endif
 		// process_tx_packets();
 

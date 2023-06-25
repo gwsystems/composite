@@ -138,7 +138,9 @@ static void
 ext_buf_free_callback_fn(void *addr, void *opaque)
 {
 	/* Shared mem uses borrow api, thus do not need to free it here */
-	if (addr == NULL) {
+	if (addr != NULL) {
+		shm_bm_free_net_pkt_buf(addr);
+	} else {
 		printc("External buffer address is invalid\n");
 		assert(0);
 	}

@@ -40,9 +40,9 @@ cos_init(void)
 		"--listen=10.10.2.2",
 		"--port=0",// close tcp initialization
 		"--udp-port=11211",
-		"--threads=32",
+		"--threads=64",
 		"--protocol=auto",
-		"--memory-limit=39", //pre-allocation mode needs at least 39MB by default in Memcached
+		"--memory-limit=64", //pre-allocation mode needs at least 39MB by default in Memcached
 		"--extended=no_lru_crawler,no_lru_maintainer,no_hashexpand,no_slab_reassign,no_slab_automove",
 	};
 
