@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cos_chal_types.h>
+
 /***
  * This file includes all of the types that should be shared between
  * user and kernel level. It attempts to avoid architecture-specific

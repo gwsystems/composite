@@ -1,5 +1,7 @@
 /* Based on code from Pintos. See LICENSE.pintos for licensing information */
 
+#include "cos_compiler.h"
+#include "cos_types.h"
 #include "kernel.h"
 #include "tss.h"
 #include "chal_asm_inc.h"
@@ -7,8 +9,8 @@
 
 struct gdt_aligned {
         u64_t seg_descs[SEL_CNT];
-} __attribute__((aligned(CACHE_LINE)));
-static volatile struct gdt_aligned gdt[NUM_CPU];
+} COS_CACHE_ALIGNED;
+static volatile struct gdt_aligned gdt[COS_NUM_CPU];
 
 /* GDT helpers. */
 static u64_t make_code_desc(int dpl);
@@ -28,7 +30,7 @@ chal_tls_update(vaddr_t addr)
  * user-mode selectors or a TSS, but we need both now.
  */
 void
-gdt_init(const cpuid_t cpu_id)
+gdt_init(const coreid_t cpu_id)
 {
 	u8_t gdtr_operand[10];
 
@@ -50,9 +52,9 @@ gdt_init(const cpuid_t cpu_id)
 	 */
 	make_gdtr_operand(gdtr_operand, sizeof gdt[cpu_id] - 1 ,(u64_t)(gdt + cpu_id));
 	asm volatile("lgdt %0" : : "m"(gdtr_operand));
-	/* 
+	/*
 	 * Be careful to have the correct tss structure in memory and in gdt,
-	 * qemu does not check tss validity, but real machine does check 
+	 * qemu does not check tss validity, but real machine does check
 	 */
 	asm volatile("ltr %w0" : : "r"(SEL_TSS));
 	flush_selectors();
@@ -83,11 +85,11 @@ make_gdtr_operand(u8_t gdtr_addr[10], u16_t limit, u64_t base)
 static u64_t
 make_code_desc(int dpl)
 {
-	/* 
-	 * make sure to init variables before use, you don't know 
-	 * whether the value comes from registers or memory, if it does 
-	 * comes from memory, value in that address could be random, 
-	 * thus you need to init that memory first. 	
+	/*
+	 * make sure to init variables before use, you don't know
+	 * whether the value comes from registers or memory, if it does
+	 * comes from memory, value in that address could be random,
+	 * thus you need to init that memory first.
 	 */
 	u32_t e0 = 0, e1 = 0;
 
@@ -106,11 +108,11 @@ make_code_desc(int dpl)
 static u64_t
 make_data_desc(int dpl)
 {
-	/* 
-	 * make sure to init variables before use, you don't know 
-	 * whether the value comes from registers or memory, if it does 
-	 * comes from memory, value in that address could be random, 
-	 * thus you need to init that memory first. 
+	/*
+	 * make sure to init variables before use, you don't know
+	 * whether the value comes from registers or memory, if it does
+	 * comes from memory, value in that address could be random,
+	 * thus you need to init that memory first.
 	 */
 	u32_t e0 = 0, e1 = 0;
 
@@ -126,11 +128,11 @@ make_data_desc(int dpl)
 static void
 make_tss_desc(volatile u64_t * tss_desc, u64_t tss_addr)
 {
-	/* 
-	 * make sure to init variables before use, you don't know 
-	 * whether the value comes from registers or memory, if it does 
-	 * comes from memory, value in that address could be random, 
-	 * thus you need to init that memory first. 	
+	/*
+	 * make sure to init variables before use, you don't know
+	 * whether the value comes from registers or memory, if it does
+	 * comes from memory, value in that address could be random,
+	 * thus you need to init that memory first.
 	 */
 	u32_t e0 = 0, e1 = 0;
 	u64_t e2 = (tss_addr >> 32) & 0x00000000ffffffff;
@@ -148,7 +150,7 @@ make_tss_desc(volatile u64_t * tss_desc, u64_t tss_addr)
 	      | (limit & 0xf0000)     	/* Limit 16:19. */
 	      | (base & 0xff000000)); 	/* Base 31:24. */
 
-	*tss_desc = (e0 | ((u64_t)e1 << 32));	
+	*tss_desc = (e0 | ((u64_t)e1 << 32));
 	*(tss_desc + 1) = e2;
 }
 
@@ -159,12 +161,12 @@ make_tss_desc(volatile u64_t * tss_desc, u64_t tss_addr)
 static void
 flush_selectors(void)
 {
-	__asm__ __volatile__("mov %0, %%rax   \n\t"   
+	__asm__ __volatile__("mov %0, %%rax   \n\t"
 						 "mov %%rax, %%ds  \n\t"
 				 		 "mov %%rax, %%ss     \n\t"
 						 "mov $0, %%rax    \n\t"
 						 "mov %%rax, %%es	  \n\t"
-						 "mov %%rax, %%fs     \n\t"   
+						 "mov %%rax, %%fs     \n\t"
 						 "mov %%rax, %%gs     \n\t"
 						 "mov %1, %%rax	  \n\t"
 						 "pushq %%rax	  \n\t"
@@ -173,8 +175,8 @@ flush_selectors(void)
 						 "lretq    \n\t"
 						 ".global label_1\n\t"
 						 "label_1:\n\t"
-						:                  
-						:"i"(SEL_KDSEG), "i"(SEL_KCSEG)                         
-						:"%rax");                   
+						:
+						:"i"(SEL_KDSEG), "i"(SEL_KCSEG)
+						:"%rax");
 
 }

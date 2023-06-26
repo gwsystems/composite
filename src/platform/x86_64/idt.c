@@ -1,7 +1,8 @@
-#include "kernel.h"
-#include "string.h"
-#include "isr.h"
-#include "chal/shared/cos_io.h"
+#include "cos_types.h"
+#include <kernel.h>
+#include <string.h>
+#include <isr.h>
+#include <chal_cpu.h>
 
 /* Information taken from: http://wiki.osdev.org/PIC */
 /* FIXME:  Remove magic numbers and replace with this */
@@ -58,7 +59,6 @@ idt_flush(struct idt_ptr * idt_ptr_addr){
 static void
 idt_set_gate(u8_t num, unsigned long base, u16_t sel, u8_t flags)
 {
-	int cpu_id = get_cpuid();
 	idt_entries[num].base_lo = base & 0xFFFF;
 	idt_entries[num].base_hi = (base >> 16) & 0xFFFF;
 #if defined(__x86_64__)
@@ -73,7 +73,7 @@ idt_set_gate(u8_t num, unsigned long base, u16_t sel, u8_t flags)
 }
 
 int
-hw_handler(struct pt_regs *regs)
+hw_handler(struct regs *regs)
 {
 	int preempt = 1;
 
@@ -81,8 +81,9 @@ hw_handler(struct pt_regs *regs)
 	 * TODO: ack here? or
 	 *       after user-level interrupt(rcv event) processing?
 	 */
-	ack_irq(regs->orig_ax);
-	preempt = cap_hw_asnd(&hw_asnd_caps[regs->orig_ax], regs);
+	ack_irq(regs->frame.errcode);
+	/* TODO: asnd... */
+	//preempt = cap_hw_asnd(&hw_asnd_caps[regs->orig_ax], regs);
 
 	return preempt;
 }
@@ -100,8 +101,45 @@ remap_irq_table(void)
 }
 #endif
 
+typedef enum {
+	HW_PERIODIC = 32, /* periodic timer interrupt */
+	HW_ID2,
+	HW_ID3,
+	HW_ID4,
+	HW_SERIAL, /* serial interrupt */
+	HW_ID6,
+	HW_ID7,
+	HW_ID8,
+	HW_ONESHOT, /* onetime timer interrupt */
+	HW_ID10,
+	HW_ID11,
+	HW_ID12,
+	HW_ID13,
+	HW_ID14,
+	HW_ID15,
+	HW_ID16,
+	HW_ID17,
+	HW_ID18,
+	HW_ID19,
+	HW_ID20,
+	HW_ID21,
+	HW_ID22,
+	HW_ID23,
+	HW_ID24,
+	HW_ID25,
+	HW_ID26,
+	HW_ID27,
+	HW_ID28,
+	HW_ID29,
+	HW_ID30,
+	HW_ID31,
+	HW_LAPIC_SPURIOUS,
+	HW_LAPIC_IPI_ASND    = 254, /* ipi interrupt for asnd */
+	HW_LAPIC_TIMER = 255, /* Local APIC TSC-DEADLINE mode - Timer interrupts */
+} hwid_t;
+
 void
-idt_init(const cpuid_t cpu_id)
+idt_init(const coreid_t cpu_id)
 {
 	/* Non-init cores don't need to set the global idt_entries again */
 	if (cpu_id != INIT_CORE) goto flush_idt;

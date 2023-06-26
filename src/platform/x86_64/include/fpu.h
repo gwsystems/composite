@@ -1,6 +1,7 @@
 #pragma once
 
 #include <thread.h>
+#include <string.h>
 
 #define FPU_ENABLED 1
 #define FPU_SUPPORT_SSE 1
