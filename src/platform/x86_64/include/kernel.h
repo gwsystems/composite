@@ -60,3 +60,10 @@ int printk_register_handler(void (*handler)(const char *));
 void print_regs(struct regs *r);
 
 void khalt(void) __attribute__((noreturn));
+
+/*
+ * Symbols from the linker script, references the end of kernel image's
+ * memory. This should be beyond the retypeable pages, and the
+ * remaining memory might be statically user-level, VM typed.
+ */
+extern u8_t kernel_start_va, kernel_end_va;

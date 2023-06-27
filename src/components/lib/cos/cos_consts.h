@@ -90,7 +90,7 @@
  */
 
 /* Memory constants */
-#define COS_NUM_RETYPEABLE_PAGES  4
+#define COS_NUM_RETYPEABLE_PAGES  16384 /* 64MB to start */
 #define COS_NUM_VM_PAGES          0
 
 /*

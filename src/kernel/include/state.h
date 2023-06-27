@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cos_chal_consts.h"
 #include "cos_types.h"
 #include <chal_consts.h>
 #include <chal_regs.h>
@@ -67,3 +68,14 @@ liveness_quiesced(liveness_t past)
 	/* TODO: actual liveness. */
 	return liveness_now() > past;
 }
+
+struct tlb_quiescence {
+	/* Updated by timer. */
+	u64_t last_periodic_flush;
+	/* Updated by tlb flush IPI. */
+	u64_t last_mandatory_flush;
+	/* cacheline size padding. */
+	u8_t __padding[COS_CACHELINE_SIZE - 2 * sizeof(u64_t)];
+} __attribute__((aligned(COS_CACHELINE_SIZE), packed));
+
+extern struct tlb_quiescence tlb_quiescence[COS_NUM_CPU] COS_CACHE_ALIGNED;

@@ -174,6 +174,8 @@
  */
 struct state_percore core_state[COS_NUM_CPU];
 
+struct tlb_quiescence tlb_quiescence[COS_NUM_CPU] COS_CACHE_ALIGNED;
+
 /**
  * Address-space conversions. The address spaces include:
  *

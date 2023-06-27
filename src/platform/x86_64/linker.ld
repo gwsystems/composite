@@ -5,22 +5,40 @@
 
 OUTPUT_FORMAT(elf64-x86-64)
 ENTRY (loader)
-phys = 0x00100000;  		/* This should be COS_MEM_KERN_PA */
+
+/* System constants. TODO auto-gen these (see above). */
+KERN_PHYS = 0x00100000;  		/* This should be COS_MEM_KERN_PA */
+KERN_VADDR = 0xffff800000000000;	/* kernel virtual address */
+NUM_RETYPABLE_PAGES = 16384;	        /* 64MB memory to start */
+COS_PAGE_SIZE = 4096;
+
 SECTIONS {
 
-    . = phys;
+    /*
+     * Code and data to be linked into physical addresses. This code's
+     * main job is to simply activate the page-tables and virtual addresses
+     * of the kernel.
+     */
+    . = KERN_PHYS;
 
-    .boottext : AT(phys) ALIGN(8)
+    .boottext : AT(KERN_PHYS) ALIGN(8)
     {
        loader.o(.text)
        . = ALIGN(4096);
     }
 
-    phys = .;
+    KERN_PHYS = .;
 
-    . += 0xffff800000000000;		/* This should be COS_MEM_KERN_START_VA + COS_MEM_KERN_PA */
+    /*
+     * The rest of the linker script creates virtual addresses that
+     * must be accessed through the page-table. Specifically, these
+     * virtual addresses are in the kernel portion of the virtual
+     * address space.
+     */
+    . += KERN_VADDR;		/* This should be COS_MEM_KERN_START_VA + COS_MEM_KERN_PA */
 
-    .text : AT(phys) {
+    kernel_start_va = .;			/* The first virtual address of the kernel. */
+    .text : AT(KERN_PHYS) {
         code = .;
         loader.o(.smptext)
         *(.text)
@@ -31,42 +49,35 @@ SECTIONS {
         . = ALIGN(4096);
     }
 
-    .data : AT(phys + (data - code)) {
+    .data : AT(KERN_PHYS + (data - code)) {
         data = .;
         *(.data)
         . = ALIGN(4096);
     }
 
-    .bss : AT(phys + (bss - code)) {
+    .bss : AT(KERN_PHYS + (bss - code)) {
         bss = .;
         *(.bss)
 	*(COMMON)
         . = ALIGN(4096);
     }
 
-    /* The first page is a nil captbl node, then the initial image. */
+    /* The `pages` array includes all of the retypable pages in the system. */
     pages = .;
-    . = . + 4096;
-
-    /* /\* */
-    /*  * We allocate all large allocations after the normal .bss and .data so that data */
-    /*  * that is needed in the intial kernel image (referred to by a single 4MB super-page) */
-    /*  *\/ */
-    /* .largebss : AT(phys + (largebss - code)) { */
-    /*     largebss = .; */
-    /*     *(.largebss) */
-    /*     . = ALIGN(4096); */
-    /* } */
-    /* end = .;		/\* Unfortunately, this variable will take up the whole page. *\/ */
-    /* . = ALIGN(4096); */
+    /* The first page is a nil captbl node, then the initial image. */
+    . = . + COS_PAGE_SIZE;
 
     /* Initial image is in pages that will be directly mapped into the constructor */
-    .initial_component : AT(phys + (initial_component - code)) {
-        initial_component_start = .;
+    initial_component_start = .;
+    .initial_component : AT(KERN_PHYS + (initial_component - code)) {
         *(.initial_component)
-	. = ALIGN(4096);
-	initial_component_end = .;
     }
+    . = ALIGN(4096);
+    initial_component_end = .;
+
+    /* Move to the end of the retypable page array */
+    . = . + ((NUM_RETYPABLE_PAGES * COS_PAGE_SIZE) - (COS_PAGE_SIZE + initial_component_end - initial_component_start))
+    kernel_end_va = .
 
     /DISCARD/ : {
         *(.comment)

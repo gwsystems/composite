@@ -1,3 +1,4 @@
+#include <kernel.h>
 #include <compiler.h>
 #include <pgtbl.h>
 #include <thread.h>
@@ -9,8 +10,8 @@
 #include <chal_pgtbl.h>
 #include <consts.h>
 #include <arch_consts.h>
-
-struct tlb_quiescence tlb_quiescence[COS_NUM_CPU] COS_CACHE_ALIGNED;
+#include <types.h>
+#include <cos_bitmath.h>
 
 #define KERN_INIT_PGD_IDX ((COS_MEM_KERN_START_VA & COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK) >> (PGD_SHIFT))
 
@@ -31,11 +32,10 @@ kern_setup_image(void)
 	int cpu_id = coreid();
 
 	printk("\tSetting up initial page directory.\n");
-	kern_pa_start = round_to_pgd_page(chal_va2pa(mem_kern_start())); /* likely 0 */
-	kern_pa_end   = chal_va2pa(mem_kmem_end());
+	kern_pa_start = cos_round_down_to_pow2(chal_va2pa(&kernel_start_va), PGD_SIZE); /* likely 0 */
+	kern_pa_end   = chal_va2pa(&kernel_end_va);
 	/* ASSUMPTION: The static layout of boot_comp_pgd is identical to a pgd post-pgtbl_alloc */
-	/* FIXME: should use pgtbl_extend instead of directly accessing the pgd array... */
-	for (i = kern_pa_start; i < (unsigned long) round_up_to_pgt1_page(kern_pa_end); i += PGT1_RANGE, j++) {
+	for (i = kern_pa_start; i < (unsigned long)cos_round_up_to_pow2(kern_pa_end, PGT1_SIZE); i += PGT1_RANGE, j++) {
 		boot_comp_pgt1[i / PGT1_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 	}
 	boot_comp_pgd[0] = 0; /* unmap lower addresses */
@@ -44,7 +44,6 @@ kern_setup_image(void)
 
 	chal_cpu_init();
 	chal_cpu_pgtbl_activate((pgtbl_t)chal_va2pa(boot_comp_pgd));
-	kern_retype_initial();
 
 	return 0;
 }

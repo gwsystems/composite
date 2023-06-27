@@ -13,9 +13,8 @@
 #include <init.h>
 #include <cos_elf_loader.h>
 
+/* Track boot progress across all cores. */
 volatile int cores_ready[COS_NUM_CPU];
-
-extern u8_t end; /* from the linker script */
 
 #define MEM_KB_ONLY(x) (((x) & ((1 << 20) - 1)) >> 10)
 #define MEM_MB_ONLY(x) ((x) >> 20)
