@@ -33,12 +33,8 @@ pgtbl_arch_entry_unpack(pgtbl_t entry, pageref_t *ref, uword_t *perm)
 
 #include <chal_cpu.h>
 
-static inline void
+static inline voyid
 pgtbl_arch_activate(pgtbl_t pgtbl, prot_domain_tag_t tag)
 {
-	u64_t tag64 = tag;
-	u64_t ts    = (tag64 & 0xFFFF) | ((tag64 >> 16) << 48);
-	u64_t pt    = pgtbl | ts;
-
-	chal_cpu_pgtbl_activate(pt pgtbl)
+	chal_cpu_pgtbl_activate(pgtbl | (((u64_t)tag) & 0xFFF))
 }
