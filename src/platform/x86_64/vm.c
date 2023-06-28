@@ -27,15 +27,15 @@ u64_t boot_ap_pgd[COS_PAGE_SIZE / sizeof(u64_t)] COS_PAGE_ALIGNED = {
 int
 kern_setup_image(void)
 {
-	u64_t i, j;
-	paddr_t       kern_pa_start, kern_pa_end;
-	int cpu_id = coreid();
+	u64_t    i;
+	paddr_t  kern_pa_start, kern_pa_end;
+	coreid_t cpu_id = coreid();
 
 	printk("\tSetting up initial page directory.\n");
 	kern_pa_start = cos_round_down_to_pow2(chal_va2pa(&kernel_start_va), PGD_SIZE); /* likely 0 */
 	kern_pa_end   = chal_va2pa(&kernel_end_va);
 	/* ASSUMPTION: The static layout of boot_comp_pgd is identical to a pgd post-pgtbl_alloc */
-	for (i = kern_pa_start; i < (unsigned long)cos_round_up_to_pow2(kern_pa_end, PGT1_SIZE); i += PGT1_RANGE, j++) {
+	for (i = kern_pa_start; i < (unsigned long)cos_round_up_to_pow2(kern_pa_end, PGT1_SIZE); i += PGT1_RANGE) {
 		boot_comp_pgt1[i / PGT1_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 	}
 	boot_comp_pgd[0] = 0; /* unmap lower addresses */
@@ -143,7 +143,7 @@ kern_paging_map_init(void *pa)
 	boot_comp_pgd[KERN_INIT_PGD_IDX] = (u64_t)chal_va2pa(&boot_comp_pgt1) | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE;
 
 
-	for (i = kern_pa_start; i < (unsigned long)round_up_to_pgt1_page(kern_pa_end); i += PGT1_RANGE) {
+	for (i = kern_pa_start; i < (unsigned long)cos_round_up_to_pow2(kern_pa_end, PGT1_SIZE); i += PGT1_RANGE) {
 		boot_comp_pgt1[i / PGT1_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 	}
 }
