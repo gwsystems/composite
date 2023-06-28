@@ -27,17 +27,8 @@ constructor = "booter"
 baseaddr = "0x1600000"
 
 [[components]]
-name = "schedtest"
-img  = "tests.unit_slitetest"
-baseaddr = "0x2200000"
-deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}]
+name = "xcpu_sem"
+img  = "tests.unit_xcpu_sem"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}]
 constructor = "booter"
-
-[[address_spaces]]
-name = "system"
-components = ["capmgr", "sched"]
-
-[[address_spaces]]
-name = "test"
-components = ["schedtest"]
-parent = "system"
+baseaddr = "0x6000000"

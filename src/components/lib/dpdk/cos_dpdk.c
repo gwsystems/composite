@@ -114,6 +114,10 @@ cos_eth_ports_init(void)
 	for (i = 0; i < nb_ports; i++) {
 		cos_eth_info_print(ports_ids[i]);
 	}
+#if E810_NIC
+	ports_ids[0] = 1;
+	nb_ports = 1;
+#endif
 
 	return nb_ports;
 }
@@ -252,7 +256,7 @@ cos_dev_port_rx_queue_setup(cos_portid_t port_id, uint16_t rx_queue_id,
 	ret = rte_eth_dev_info_get(real_port_id, &dev_info);
 	rxq_conf = dev_info.default_rxconf;
 
-	ret = rte_eth_rx_queue_setup(real_port_id, 0, nb_rx_desc,
+	ret = rte_eth_rx_queue_setup(real_port_id, rx_queue_id, nb_rx_desc,
 					rte_eth_dev_socket_id(real_port_id),
 					&rxq_conf,
 					(struct rte_mempool *)mp);
@@ -295,9 +299,12 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IPV4_CKSUM);
 	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM);
 
+	// txq_conf.tx_free_thresh = 4096;
 	/* set the txq to enable IP and UDP offload */
-	txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
-	txq_conf.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
+	if (ENABLE_OFFLOAD) {
+		txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
+		txq_conf.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
+	}
 
 	ret = rte_eth_tx_queue_setup(real_port_id, tx_queue_id, nb_tx_desc,
 				rte_eth_dev_socket_id(real_port_id),
@@ -458,7 +465,7 @@ cos_get_port_stats(cos_portid_t port_id)
 {
 	struct rte_eth_stats stats;
 
-	rte_eth_stats_get(port_id, &stats);
+	rte_eth_stats_get(ports_ids[port_id], &stats);
 
 	COS_DPDK_APP_LOG(NOTICE, 
 		"PORT STATS(%d):\n"
@@ -508,6 +515,72 @@ cos_dpdk_init(int argc, char **argv)
 	}
 
 	return ret;
+}
+
+/* A simple transmiting test function */
+void
+cos_test_send(int queue, char* mp) {
+	struct rte_mbuf * mbuf;
+	struct rte_ether_hdr *eth_hdr;
+#if E810_NIC
+	struct rte_ether_addr s_addr = {{0x6c,0xfe,0x54,0x40,0x41,0x01}};
+	struct rte_ether_addr d_addr = {{0x6c,0xfe,0x54,0x40,0x46,0x09}};
+#else 
+	struct rte_ether_addr s_addr = {{0x66,0x66,0x66,0x66,0x66,0x66}};
+	struct rte_ether_addr d_addr = {{0x10,0x10,0x10,0x10,0x10,0x11}};
+#endif
+	char *tx_packets[4096];
+	#define BURST_NB 1024 
+	#define PKT_SZ 100
+	struct rte_ipv4_hdr *ip_hdr;
+	struct rte_udp_hdr *udp_hdr;
+
+	while (1)
+	{
+		/* code */
+		for (int i = 0;i < BURST_NB; i++) {
+			mbuf = rte_pktmbuf_alloc((struct rte_mempool *)mp);
+			assert(mbuf);
+			tx_packets[i] = mbuf;
+			mbuf->data_off = 128;
+
+			mbuf->data_len = PKT_SZ;
+			mbuf->pkt_len = PKT_SZ;
+
+			mbuf->buf_len = 1500;
+			mbuf->tx_offload = 0;
+
+			eth_hdr = mbuf->buf_addr + mbuf->data_off;
+			eth_hdr->dst_addr = d_addr;
+			eth_hdr->src_addr = s_addr;
+			eth_hdr->ether_type = 0x0008;
+
+			ip_hdr = mbuf->buf_addr + mbuf->data_off + 14;
+			udp_hdr =  mbuf->buf_addr + mbuf->data_off + 14 + 20;
+
+			udp_hdr->src_port = 10000;
+			udp_hdr->dst_port = 20000;
+			udp_hdr->dgram_len = htons(200 + 8);
+			udp_hdr->dgram_cksum = 0;
+
+			ip_hdr->ihl =  5;
+			ip_hdr->version = 4;
+			ip_hdr->type_of_service = 0;
+			ip_hdr->total_length = htons(20 + 200);
+			ip_hdr->packet_id = 0;
+			ip_hdr->fragment_offset = 0;
+			ip_hdr->time_to_live = 64;
+			ip_hdr->next_proto_id = 17;
+			ip_hdr->src_addr =0x01010101;
+			ip_hdr->dst_addr = 0x02020202;
+			ip_hdr->hdr_checksum = 0;
+		}
+
+		uint16_t ret = 0;
+		while (ret < BURST_NB) {
+			ret += cos_dev_port_tx_burst(0, queue, &tx_packets[ret], BURST_NB - ret);
+		}
+	}
 }
 
 uint16_t cos_send_a_packet(char * pkt, uint32_t pkt_size, char* mp)

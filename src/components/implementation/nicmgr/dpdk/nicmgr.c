@@ -9,14 +9,17 @@
 #include <ck_ring.h>
 #include <rte_atomic.h>
 #include <sync_sem.h>
+#include <sync_lock.h>
+#include <arpa/inet.h>
 #include "nicmgr.h"
+
+extern volatile int debug_flag;
 
 typedef unsigned long cos_paddr_t; /* physical address */
 typedef unsigned long cos_vaddr_t; /* virtual address */
 
 extern cos_paddr_t cos_map_virt_to_phys(cos_vaddr_t addr);
-extern char *g_tx_mp;
-extern char *g_rx_mp;
+extern char *g_tx_mp[NIC_TX_QUEUE_NUM];
 
 /* indexed by thread id */
 struct client_session client_sessions[NIC_MAX_SESSION];
@@ -28,13 +31,16 @@ struct pkt_ring_buf g_free_ring;
 
 rte_atomic64_t tx_enqueued_miss = {0};
 
+static char ring_buffers[NIC_MAX_SESSION][RX_PKT_RING_SZ];
 void
 pkt_ring_buf_init(struct pkt_ring_buf *pkt_ring_buf, size_t ringbuf_num, size_t ringbuf_sz)
 {
 	struct ck_ring *buf_addr;
 
-	buf_addr = (struct ck_ring *)malloc(ringbuf_sz);
-	assert(buf_addr);
+	// buf_addr = (struct ck_ring *)malloc(ringbuf_sz);
+	/* prevent multiple thread from contending memory */
+	assert(cos_thdid() < NIC_MAX_SESSION);
+	buf_addr = (struct ck_ring *)&ring_buffers[cos_thdid()];
 
 	ck_ring_init(buf_addr, ringbuf_num);
 
@@ -81,7 +87,19 @@ nic_get_a_packet(u16_t *pkt_len)
 
 	session = &client_sessions[thd];
 
+	// if (unlikely(debug_flag)) {
+	// 	printc("tenant %u(%u) is to dequeue\n", ntohs(session->port), thd);
+	// }
 	session->blocked_loops_begin++;
+	// while (1)
+	// {
+	// 	/* code */
+	// 	printc("#\n");
+	// 	sync_sem_take(&session->sem);
+	// 	printc("*\n");
+	// }
+	// memset(&buf, 0, sizeof(buf));
+	
 	sync_sem_take(&session->sem);
 	session->blocked_loops_end++;
 
@@ -90,13 +108,21 @@ nic_get_a_packet(u16_t *pkt_len)
 	while (!pkt_ring_buf_dequeue(&session->pkt_ring_buf, &buf))
 	assert(buf.pkt);
 
+	char *pkt = cos_get_packet(buf.pkt, &len);
+	assert(len < PKT_BUF_SIZE);
+	// u16_t* tenant_port = (u16_t*)(pkt + 14 + 20 + 2);
+	// if(ntohs(*tenant_port) != ((u16_t)cos_inv_token())) {
+	// 	printc("tenant:0x%x, dst:0x%x, tag:%d\n", htons((u16_t)cos_inv_token()),*tenant_port, buf.tent_id);
+	// 	assert(0);
+	// }
+
 	obj = shm_bm_alloc_net_pkt_buf(session->shemem_info.shm, &objid);
 	assert(obj);
 
-	char *pkt = cos_get_packet(buf.pkt, &len);
-	assert(len < PKT_BUF_SIZE);
-
 	memcpy(obj->data, pkt, len);
+	// for (int t = 0; t < len; t++){
+	// 	obj->data[t] = pkt[t];
+	// }
 #if USE_CK_RING_FREE_MBUF
 	while (!pkt_ring_buf_enqueue(&g_free_ring, &buf));
 #else
@@ -107,6 +133,20 @@ nic_get_a_packet(u16_t *pkt_len)
 
 	return objid;
 }
+
+static void
+ext_buf_free_callback_fn(void *addr, void *opaque)
+{
+	/* Shared mem uses borrow api, thus do not need to free it here */
+	if (addr != NULL) {
+		shm_bm_free_net_pkt_buf(addr);
+	} else {
+		printc("External buffer address is invalid\n");
+		assert(0);
+	}
+}
+
+extern struct sync_lock tx_lock[NUM_CPU];
 
 int
 nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
@@ -129,12 +169,32 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	
 	buf.paddr   = data_paddr;
 	buf.pkt_len = pkt_len;
-
+#if 0
 	if (!pkt_ring_buf_enqueue(&client_sessions[thd].pkt_tx_ring, &buf)) {
 		/* tx queue is full, drop the packet */
 		rte_atomic64_add(&tx_enqueued_miss, 1);
 		shm_bm_free_net_pkt_buf(obj);
 	}
+#else 
+	char *mbuf;
+	void *ext_shinfo;
+	char *tx_packets[256];
+
+	coreid_t core_id = cos_cpuid();
+#if E810_NIC == 0
+	core_id = 1;
+#endif
+	mbuf = cos_allocate_mbuf(g_tx_mp[core_id - 1]);
+	assert(mbuf);
+	ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
+	cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
+	cos_set_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len, 1);
+	tx_packets[0] = mbuf;
+
+	sync_lock_take(&tx_lock[core_id - 1]);
+	cos_dev_port_tx_burst(0, core_id - 1, tx_packets, 1);
+	sync_lock_release(&tx_lock[core_id - 1]);
+#endif
 
 	return 0;
 }
@@ -177,7 +237,7 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 	sync_sem_init(&client_sessions[thd].sem, 0);
 
 	pkt_ring_buf_init(&client_sessions[thd].pkt_ring_buf, RX_PKT_RBUF_NUM, RX_PKT_RING_SZ);
-	pkt_ring_buf_init(&client_sessions[thd].pkt_tx_ring, TX_PKT_RBUF_NUM, TX_PKT_RING_SZ);
+	// pkt_ring_buf_init(&client_sessions[thd].pkt_tx_ring, TX_PKT_RBUF_NUM, TX_PKT_RING_SZ);
 
 	client_sessions[thd].blocked_loops_begin = 0;
 	client_sessions[thd].blocked_loops_end = 0;

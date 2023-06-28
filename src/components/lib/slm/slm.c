@@ -441,7 +441,7 @@ slm_cs_enter_sched(void)
 {
 	int ret;
 
-	while ((ret = slm_cs_enter(&slm_global()->sched_thd, SLM_CS_NOSPIN))) {
+	while ((ret = slm_cs_enter(&slm_global()->sched_thd, SLM_CS_SCHEDEVT))) {
 		/* We don't want to retry if we have pending events to handle */
 		if (ret == -EBUSY) break;
 	}
@@ -569,9 +569,7 @@ pending_events:
 		if (slm_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
 		ret = slm_cs_exit_reschedule(us, SLM_CS_CHECK_TIMEOUT);
-		if (ret && ret != -EAGAIN) {
-			BUG();
-		}
+		if (ret && ret != -EAGAIN) BUG();
 	}
 }
 

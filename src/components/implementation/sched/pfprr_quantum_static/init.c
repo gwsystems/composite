@@ -242,7 +242,7 @@ slm_comp_init_loop(void)
 
 		/* Create the thread for initialization of the next component */
 		extern struct slm_thd *thd_alloc_in(compid_t id, thdclosure_index_t idx, sched_param_t *parameters, int reschedule);
-		t = thd_alloc_in(client, 0, param, 0);
+		t = thd_alloc_in(client, 0, param, 1);
 		assert(t);
 
 		n = &initialization_state[client];
