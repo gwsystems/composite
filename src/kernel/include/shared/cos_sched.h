@@ -3,6 +3,10 @@
 
 #include "./cos_types.h"
 
+#ifndef offsetof
+#define offsetof(type, member) __builtin_offsetof(type, member)
+#endif
+
 struct cos_thd_event {
 	u16_t         blocked;
 	u32_t         next_timeout;
@@ -31,6 +35,8 @@ struct cos_scb_info {
 } CACHE_ALIGNED;
 
 COS_STATIC_ASSERT(COS_SCB_INFO_SIZE == sizeof(struct cos_scb_info), "Update COS_SCB_INFO_SIZE with sizeof struct cos_scb_info");
+COS_STATIC_ASSERT(COS_SCB_THDCAP_OFFSET == offsetof(struct cos_scb_info, curr_thd), "Update COS_SCB_THDCAP_OFFSET with the offset of curr_thd in the SCB");
+COS_STATIC_ASSERT(COS_SCB_TID_OFFSET == offsetof(struct cos_scb_info, tid), "Update COS_SCB_TID_OFFSET with the offset of tid in the SCB");
 
 struct cos_dcb_info {
 	unsigned long ip;
@@ -38,6 +44,10 @@ struct cos_dcb_info {
 	unsigned long pending; /* binary value. TODO: move it to ip or sp */
 	unsigned long vas_id;
 } __attribute__((packed));
+
+COS_STATIC_ASSERT(COS_DCB_INFO_SIZE == sizeof(struct cos_dcb_info), "Update COS_DCB_INFO_SIZE with sizeof struct cos_scb_info");
+COS_STATIC_ASSERT(COS_DCB_IP_OFFSET == offsetof(struct cos_dcb_info, ip), "Update COS_DCB_IP_OFFSET with the offset of ip in the dcb");
+COS_STATIC_ASSERT(COS_DCB_SP_OFFSET == offsetof(struct cos_dcb_info, sp), "Update COS_DCB_SP_OFFSET with the offset of sp in the dcb");
 
 /*
  * This is the "ip" the kernel uses to update the thread when it sees that the
@@ -52,8 +62,8 @@ struct cos_dcb_info {
  * user-level dispatch routine before, then the only registers that it can restore are
  * "ip" and "sp", everything else is either clobbered or saved/loaded at user-level.
  */
-#if defined (__protected_dispatch__)
-#define DCB_IP_KERN_OFF 88
+#if defined (__PROTECTED_DISPATCH__)
+#define DCB_IP_KERN_OFF 72
 #else
 #define DCB_IP_KERN_OFF 8
 #endif

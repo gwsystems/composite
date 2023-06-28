@@ -564,7 +564,7 @@ booter_init(void)
 	cos_defcompinfo_init();
 	//scbcap_t scbcap = cos_scb_alloc(boot_info);
 	boot_info->scb_uaddr = (vaddr_t)cos_page_bump_intern_valloc(boot_info, PAGE_SIZE);
-	if (cos_scb_mapping(boot_info, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_PT, LLBOOT_CAPTBL_SCB, boot_info->scb_uaddr)) BUG();
+	if (cos_scb_ro_map(boot_info, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_PT, LLBOOT_CAPTBL_SCB, boot_info->scb_uaddr)) BUG();
 	cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 }
 

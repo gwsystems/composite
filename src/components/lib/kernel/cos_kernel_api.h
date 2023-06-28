@@ -127,7 +127,8 @@ captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
 pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
 compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, prot_domain_t protdom);
 scbcap_t    cos_scb_alloc(struct cos_compinfo *ci);
-int         cos_scb_mapping(struct cos_compinfo *ci, compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr);
+int         cos_scb_ro_map(struct cos_compinfo *ci, compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr);
+int         cos_scb_ulk_map(struct cos_compinfo *ci, compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr);
 dcbcap_t    cos_dcb_alloc(struct cos_compinfo *ci, pgtblcap_t ptc, vaddr_t dcb_uaddr);
 int         cos_dcb_mapping(struct cos_compinfo *ci, compcap_t comp, pgtblcap_t ptc, dcbcap_t dcbc, vaddr_t dcb_uaddr);
 

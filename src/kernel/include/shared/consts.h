@@ -28,8 +28,8 @@
 #endif
 #endif
 
-#ifndef __protected_dispatch__
-#define __protected_dispatch__
+#ifndef __PROTECTED_DISPATCH__
+#define __PROTECTED_DISPATCH__
 #endif
 
 #define MAX_SERVICE_DEPTH 31
@@ -142,7 +142,15 @@
 
 /* for callgate assembly... size verified at compile-time in cos_sched.h */
 #define COS_SCB_INFO_SIZE 448
+#define COS_SCB_THDCAP_OFFSET 8
+#define COS_SCB_TID_OFFSET 0
 #define COS_DCB_INFO_SIZE 32
+#define COS_DCB_IP_OFFSET 0
+#define COS_DCB_SP_OFFSET 8
+
+#define ULK_MPK_KEY 0x01
+#define SCHED_MPK_KEY 0x02
+#define MPK_KEY2REG(k) ((~(0b11 << (k * 2))) & 0xFFFFFFFC)
 
 /* We save information on the user level stack for fast access. The
  * offsets below are used to access CPU and thread IDs. */

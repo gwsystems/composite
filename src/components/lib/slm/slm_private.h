@@ -5,6 +5,10 @@
 #include <ps.h>
 #include <slm_api.h>
 
+#ifndef offsetof
+#define offsetof(type, member) __builtin_offsetof(type, member)
+#endif
+
 typedef unsigned long slm_cs_cached_t;
 /* Critical section (cs) API to protect scheduler data-structures */
 struct slm_cs {
@@ -144,7 +148,7 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 	struct cos_compinfo          *ci        = cos_compinfo_get(defci);
 	volatile struct cos_scb_info *scb       = (struct cos_scb_info*)ci->scb_uaddr + cos_cpuid();
 	
-	unsigned long pre_tok = 0;
+	unsigned long pre_tok = tok;
 
 	if (curr == next) {
 		return 0; 
@@ -217,167 +221,140 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		: "memory", "cc");*/
 #endif
 
-#if defined(__protected_dispatch__)
-	u64_t address = 0;
+#if defined(__PROTECTED_DISPATCH__)
 	__asm__ __volatile__ (
-		/* Push sched token to the stack */
-		"pushq %%rbx\n\t"                        \
-		"pushq %%rbp\n\t"                        \
-		"mov %%rsp, %%rbp\n\t"                   \
+		"pushq %%rbp\n\t"                                         \
+		"mov %%rsp, %%rbp\n\t"                                    \
 		/* Save rax since it will be cleared by wrpkru */
-		"mov %%rax, %%r11\n\t"                   \
-		"movabs $0xdeadbeefdeadbeef, %%r15\n\t"  \
+		"mov %%rax, %%r11\n\t"                                    \
+		"movabs $0xdeadbeefdeadbeef, %%r15\n\t"                   \
 		/* Size of cos_dcb_info struct. */
-		"movabs $0x20, %%r14\n\t"                \
+		"movabs $" STR(COS_DCB_INFO_SIZE) ", %%r14\n\t"           \
 		/* Offset of current thread. */
-		"imulq %%r14, %%rdx\n\t"                 \
+		"imulq %%r14, %%rdx\n\t"                                  \
 		/* Save thread id of the next thread for possible scb updates. */
-		"mov %%rsi, %%r12\n\t"                   \
+		"mov %%rsi, %%r12\n\t"                                    \
 		/* Offset of next thread. */
-		"imulq %%r14, %%rsi\n\t"                 \
+		"imulq %%r14, %%rsi\n\t"                                  \
 		/* Hardcoded DCB base address. */
-		"movabs $0x7f8000001000, %%r14\n\t"      \
+		"movabs $" STR(ULK_DCB_ADDR) ", %%r14\n\t"                \
 		/* dcb_addr of current thread. */
-		"addq %%r14, %%rdx\n\t"                  \
+		"addq %%r14, %%rdx\n\t"                                   \
 		/* dcb_addr of next thread. */
-		"addq %%r14, %%rsi\n\t"                  \
+		"addq %%r14, %%rsi\n\t"                                   \
 		/* Save content in %rcx and %rdx, which will be cleared for wrpkru. */
-		"movq %%rcx, %%r8\n\t"                   \
-		"movq %%rdx, %%r9\n\t"                   \
+		"movq %%rcx, %%r8\n\t"                                    \
+		"movq %%rdx, %%r9\n\t"                                    \
 		/* Hardcoded protection domain of ulk. */
-		"movl $0x01, %%ecx\n\t"                  \
-		"addl %%ecx, %%ecx\n\t"                  \
-		"movl $0b11, %%eax\n\t"                  \
-		"sall %%cl, %%eax\n\t"                   \
-		"notl %%eax\n\t"                         \
-		"andl $-4, %%eax\n\t"                    \
-		"xor %%rcx, %%rcx\n\t"                   \
-		"xor %%rdx, %%rdx\n\t"                   \
+		"movl $" STR(MPK_KEY2REG(ULK_MPK_KEY)) ",%%eax\n\t"       \
+		"xor %%rcx, %%rcx\n\t"                                    \
+		"xor %%rdx, %%rdx\n\t"                                    \
 		/* Switch protection domain. */
-		"wrpkru\n\t"                             \
+		"wrpkru\n\t"                                              \
+		"movabs $0xdeadbeefdeadbeef, %%r10\n\t"                   \
+		"cmp %%r10, %%r15\n\t"                                    \
+		/* TODO: error handling */
 		/* Update ip and sp in the dcb of the current thread. */
-		"movabs $2f, %%r10\n\t"                  \
-		"movq %%r10, (%%r9)\n\t"                 \
-		"mov %%rsp, 8(%%r9)\n\t"                 \
+		"movabs $2f, %%r10\n\t"                                   \
+		"mov %%r10, " STR(COS_DCB_IP_OFFSET) "(%%r9)\n\t"         \
+		"mov %%rsp, " STR(COS_DCB_SP_OFFSET) "(%%r9)\n\t"         \
 		/* Read out the sp from the dcb of next thread */
-		"mov 8(%%rsi), %%r14\n\t"                \
+		"mov 8(%%rsi), %%r14\n\t"                                 \
 		/* Check if sp in dcb of the next thread equals zero. */
-		"cmp $0, %%r14\n\t"                      \
+		"cmp $0, %%r14\n\t"                                       \
 		/* If it equals 0, Take kernel path. */
-		"je 1f\n\t"                              \
+		"je 1f\n\t"                                               \
 		/*
 		 * Read out the ip from the dcb of next thread.
 		 * Can't jmp directly, need to switch back to scheduler's protection domain first.
 		 */
-		"mov (%%rsi), %%r13\n\t"                 \
+		"mov (%%rsi), %%r13\n\t"                                  \
 		/* Update current active thread in the scb. */
-		/* Get core ID */                        \
-		"rdpid %%rdx\n\t"                        \
-		"movq %%rdx, %%rax\n\t"                  \
-		/* Get per-core scb info */              \
+		/* Get core ID */
+		"rdpid %%rdx\n\t"                                         \
+		"movq %%rdx, %%rax\n\t"                                   \
+		/* Get per-core scb info */
 		/* Hardcoded size of scb_info. */
-		"movabs $448, %%rcx\n\t"                 \
-		"imulq %%rcx, %%rax\n\t"                 \
+		"movabs $" STR(COS_SCB_INFO_SIZE) ", %%rcx\n\t"           \
+		"imulq %%rcx, %%rax\n\t"                                  \
 		/* Base address of scb. */
-		"movabs $0x7f8000000000, %%rcx\n\t"      \
-		"addq %%rcx, %%rax\n\t"                  \
+		"movabs $" STR(ULK_SCB_ADDR) ", %%rcx\n\t"                \
+		"addq %%rcx, %%rax\n\t"                                   \
 		/* Update tid in scb */
-		"movq %%r12, (%%rax)\n\t"                \
+		"movq %%r12, " STR(COS_SCB_TID_OFFSET) "(%%rax)\n\t"      \
 		/* Update thdcap in scb */
-		"movq %%r11, 8(%%rax)\n\t"               \
+		"movq %%r11, " STR(COS_SCB_THDCAP_OFFSET) "(%%rax)\n\t"   \
 		/* Return to scheduler's protection domain. */
-		"movl $0x02, %%ecx\n\t"                  \
-		"addl %%ecx, %%ecx\n\t"                  \
-		"movl $0b11, %%eax\n\t"                  \
-		"sall %%cl, %%eax\n\t"                   \
-		"notl %%eax\n\t"                         \
-		"andl $-4, %%eax\n\t"                    \
-		"xor %%rcx, %%rcx\n\t"                   \
-		"xor %%rdx, %%rdx\n\t"                   \
-		"wrpkru\n\t"                             \
-		"movabs $0xdeadbeefdeadbeef, %%r10\n\t"  \
-		"cmp %%r10, %%r15\n\t"                   \
+		"movl $" STR(MPK_KEY2REG(SCHED_MPK_KEY)) ",%%eax\n\t"     \
+		"xor %%rcx, %%rcx\n\t"                                    \
+		"xor %%rdx, %%rdx\n\t"                                    \
+		"wrpkru\n\t"                                              \
+		"movabs $0xdeadbeefdeadbeef, %%r10\n\t"                   \
+		"cmp %%r10, %%r15\n\t"                                    \
 		/* TODO: error handling */
 		/* restore sp to what we just read out in r14. */
-		"mov %%r14, %%rsp\n\t"                   \
+		"mov %%r14, %%rsp\n\t"                                    \
 		/* jmp to the ip which we just read out in r13. */
-		"jmp *%%r13\n\t"                         \
+		"jmp *%%r13\n\t"                                          \
 		/* Kernel Path */
-		".align 8\n\t"                           \
-		"1:\n\t"                                 \
 		/*
 		 * Haven't switch back to scheduler's protection domain yet.
-		 * Return to scheduler's protection domain.
+		 * But, we don't have to do it immediately. We can do it at 3f,
+		 * since we have to have the return logic at 3f to prevent the case
+		 * which we got an interrupt before switch protection domain back
+		 * to the scheduler.
 		 */
-		"movl $0x02, %%ecx\n\t"                  \
-		"addl %%ecx, %%ecx\n\t"                  \
-		"movl $0b11, %%eax\n\t"                  \
-		"sall %%cl, %%eax\n\t"                   \
-		"notl %%eax\n\t"                         \
-		"andl $-4, %%eax\n\t"                    \
-		"xor %%rcx, %%rcx\n\t"                   \
-		"xor %%rdx, %%rdx\n\t"                   \
-		"wrpkru\n\t"                             \
-		"movabs $0xdeadbeefdeadbeef, %%r10\n\t"  \
-		"cmp %%r10, %%r15\n\t"                   \
-		/* TODO: error handling */
+		".align 8\n\t"                                            \
+		"1:\n\t"                                                  \
 		/* Kernel path starts from here. */
-		"movabs $3f, %%r8\n\t"                   \
+		"movabs $3f, %%r8\n\t"                                    \
 		/* Mov thdcap of next thread to rax. */
-		"mov %%r11, %%rax\n\t"                   \
-		"inc %%rax\n\t"                          \
-		"shl $16, %%rax\n\t"                     \
-		"mov $0, %%rsi\n\t"                      \
+		"mov %%r11, %%rax\n\t"                                    \
+		"inc %%rax\n\t"                                           \
+		"shl $16, %%rax\n\t"                                      \
+		"mov $0, %%rsi\n\t"                                       \
 		/* Mov timeout into rdx */
-		"mov %%rdi, %%rdx\n\t"                   \
-		"mov $0, %%rdi\n\t"                      \
-		"syscall\n\t"                            \
-		"jmp 3f\n\t"                             \
+		"mov %%rdi, %%rdx\n\t"                                    \
+		"mov $0, %%rdi\n\t"                                       \
+		"syscall\n\t"                                             \
+		"jmp 3f\n\t"                                              \
 		/*
 		 * User-level path. Already switched back from thd_next,
 		 * now clear sp in the dcb of the current thread. 
 		 */
-		".align 8\n\t"                           \
-		"2:\n\t"                                 \
-		"movabs $0x1234123412341234, %%r15\n\t"  \
+		".align 8\n\t"                                            \
+		"2:\n\t"                                                  \
+		"movabs $0x1234123412341234, %%r15\n\t"                   \
 		/* Hardcode protection domain of ulk. */
-		"movl $0x01, %%ecx\n\t"                  \
-		"addl %%ecx, %%ecx\n\t"                  \
-		"movl $0b11, %%eax\n\t"                  \
-		"sall %%cl, %%eax\n\t"                   \
-		"notl %%eax\n\t"                         \
-		"andl $-4, %%eax\n\t"                    \
-		"xor %%rcx, %%rcx\n\t"                   \
-		"xor %%rdx, %%rdx\n\t"                   \
+		"movl $" STR(MPK_KEY2REG(ULK_MPK_KEY)) ",%%eax\n\t"       \
+		"xor %%rcx, %%rcx\n\t"                                    \
+		"xor %%rdx, %%rdx\n\t"                                    \
 		/* Switch protection domain. */
-		"wrpkru\n\t"                             \
-		/* clear sp in dcb of next thread. */
-		"movq $0, 8(%%rsi)\n\t"                  \
-		/* Hardcode protection domain of scheduler. */
-		"movl $0x02, %%ecx\n\t"                  \
-		"addl %%ecx, %%ecx\n\t"                  \
-		"movl $0b11, %%eax\n\t"                  \
-		"sall %%cl, %%eax\n\t"                   \
-		"notl %%eax\n\t"                         \
-		"andl $-4, %%eax\n\t"                    \
-		"xor %%rcx, %%rcx\n\t"                   \
-		"xor %%rdx, %%rdx\n\t"                   \
-		/* Switch protection domain. */
-		"wrpkru\n\t"                             \
-		"movabs $0x1234123412341234, %%r10\n\t"  \
-		"cmp %%r10, %%r15\n\t"                   \
+		"wrpkru\n\t"                                              \
+		"movabs $0x1234123412341234, %%r10\n\t"                   \
+		"cmp %%r15, %%r10\n\t"                                    \
 		/* TODO: error handling */
-		".align 8\n\t"                           \
-		"3:\n\t"                                 \
-		"mov %%r9, %%rdx\n\t"                    \
-		"popq %%rbp\n\t"                         \
-		"popq %%rbx\n\t"                         \
-		: "=b" (pre_tok), "=d" (address)
+		/* clear sp in dcb of next thread. */
+		"movq $0, 8(%%rsi)\n\t"                                   \
+		/* Hardcode protection domain of scheduler. */
+		"movl $" STR(MPK_KEY2REG(SCHED_MPK_KEY)) ",%%eax\n\t"     \
+		"xor %%rcx, %%rcx\n\t"                                    \
+		"xor %%rdx, %%rdx\n\t"                                    \
+		/* Switch protection domain. */
+		"wrpkru\n\t"                                              \
+		"movabs $0x123456789abcdef0, %%r10\n\t"                   \
+		"cmp %%r10, %%r15\n\t"                                    \
+		/* TODO: error handling */
+		".align 8\n\t"                                            \
+		"3:\n\t"                                                  \
+		"popq %%rbp\n\t"                                          \
+		:
 		: "a" (next->thd), "S" (next->tid),
 		  "b" (tok), "D" (timeout),
 		  "d" (curr->tid)
 		: "memory", "cc", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");
 
+	//printc("pkru: %lx\n", pkru);
 #else
 	u64_t thdpack = (next->thd << 16) | next->tid;
 	__asm__ __volatile__ (
@@ -414,7 +391,6 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		".align 8\n\t"                  \
 		"3:\n\t"                        \
 		"popq %%rbp\n\t"                \
-		"popq %%rbx\n\t"                \
 		: "=b" (pre_tok)
 		: "a" (cd), "S" (nd),
 		  "b" (tok), "D" (timeout),

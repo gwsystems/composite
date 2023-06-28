@@ -403,10 +403,11 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	printc("\t\t elf obj: ro [0x%lx, 0x%lx), data [0x%lx, 0x%lx), bss [0x%lx, 0x%lx).\n",
 	       c->ro_addr, c->ro_addr + ro_sz, c->rw_addr, c->rw_addr + data_sz, c->rw_addr + data_sz, c->rw_addr + data_sz + bss_sz);
 
+	/* FIXME: this is a hack in order to catch an error if the protdom of the scheduler doesn't equal 0x02. */
+	if (id == 3) assert(SCHED_MPK_KEY == PROTDOM_MPK_KEY(protdom));
 	/* FIXME: This is a hack making every component has SCB by default. */
 	//scbcap_t scbc = cos_scb_alloc(root_ci);
 	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, protdom);
-	printc("protkey: %x\n", PROTDOM_MPK_KEY(protdom));
 	assert(!ret);
 
 	tot_sz = round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz);
@@ -1134,6 +1135,8 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 	}
 
 	if (ctxt->flags & CRT_COMP_SCHED) {
+		printc("protkey: %d\n", PROTDOM_MPK_KEY(c->protdom));
+		//assert(PROTDOM_MPK_KEY(c->protdom) == SCHED_MPK_KEY);
 		struct crt_rcv_resources rcvres;
 		struct crt_rcv *r;
 		vaddr_t init_dcb;
@@ -1153,7 +1156,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		ps_lock_take(&_lock);
 		c->scb = cos_scb_alloc(ci);
 		target_ci->scb_uaddr = (vaddr_t)cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
-		if (cos_scb_mapping(target_ci, target_ci->comp_cap, target_ci->pgtbl_cap, c->scb, target_ci->scb_uaddr)) BUG();
+		if (cos_scb_ro_map(target_ci, target_ci->comp_cap, target_ci->pgtbl_cap, c->scb, target_ci->scb_uaddr)) BUG();
 
 		if (crt_rcv_create_in(r, c, 0, 0, 0, c->scb, &init_dcb)) BUG();
 		c->init_dcb_addr[cos_cpuid()] = init_dcb;

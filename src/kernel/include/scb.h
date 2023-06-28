@@ -79,11 +79,21 @@ scb_comp_update(struct captbl *ct, struct cap_scb *sc, struct cap_comp *compc)
 }
 
 static inline int
-scb_mapping(struct captbl *ct, struct cap_scb *sc, struct cap_pgtbl *ptcin, struct cap_comp *compc, vaddr_t uaddrin)
+scb_ulk_mapping(struct captbl *ct, struct cap_scb *sc, struct cap_pgtbl *ptcin, struct cap_comp *compc, vaddr_t uaddrin)
 {
 	assert(sc->compc == compc || !sc->compc);
 	paddr_t pf = chal_va2pa((void *)(sc->kern_addr));
 	if (pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF | ULK_PGTBL_FLAG, 12)) return -EINVAL;
+
+	return 0;
+}
+
+static inline int
+scb_ro_mapping(struct captbl *ct, struct cap_scb *sc, struct cap_pgtbl *ptcin, struct cap_comp *compc, vaddr_t uaddrin)
+{
+	assert(sc->compc == compc || !sc->compc);
+	paddr_t pf = chal_va2pa((void *)(sc->kern_addr));
+	if (pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF, 12)) return -EINVAL;
 
 	return 0;
 }

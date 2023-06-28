@@ -220,7 +220,7 @@ cm_dcb_alloc_in(struct cm_comp *sched)
 	vaddr_t        dcbaddr = 0;
 	dcboff_t       dcboff = 0;
 
-#ifndef __protected_dispatch__
+#ifndef __PROTECTED_DISPATCH__
 	dcbcap = cos_dcb_info_alloc(&sched->comp.dcb_data[cos_cpuid()], &dcboff, &dcbaddr);
 	assert(dcbcap);
 #endif
@@ -570,28 +570,6 @@ capmgr_comp_sched_get(compid_t cid)
 	return atoi(sched);
 }
 
-/*extern scbcap_t scb_mapping(compid_t id, vaddr_t scb_uaddr);
-
-int
-capmgr_scb_mapping(compid_t id)
-{
-	assert(0);
-	struct cos_compinfo *ci;
-	struct cm_comp *s;
-	struct cos_defcompinfo *def = cos_defcompinfo_curr_get();
-	vaddr_t scb_uaddr;
-
-	if (!id) id = (compid_t)cos_inv_token();
-
-	s = ss_comp_get(id);
-	assert(s);
-	ci = cos_compinfo_get(s->comp.comp_res);
-	assert(ci);
-	scb_uaddr = (vaddr_t)(s->dcb_init_ptr - COS_SCB_SIZE);
-	
-	return scb_mapping(id, scb_uaddr);
-}*/
-
 #define SCHED_COMP 3
 
 unsigned long
@@ -671,7 +649,7 @@ capmgr_execution_init(int is_init_core)
 
 			capmgr_dcb_info_init(cmc);
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, &r->rcv))) BUG();
-			//crt_ulk_map_scb(comp);
+			crt_ulk_map_scb(comp);
 			ss_rcv_activate(r);
 			cmc->sched_rcv[cos_cpuid()] = r;
 			if (is_init_core) printc("\tCreated scheduling execution for %ld\n", id);
@@ -903,7 +881,7 @@ capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid, unsi
 	}
 
 	info = ss_dcbinfo_alloc_at_id(t->thd.tid);
-#if defined (__protected_dispatch__)
+#if defined (__PROTECTED_DISPATCH__)
 	assert(d->dcb_cap == 0);
 	d->dcb_off = t->thd.tid;
 	d->dcb_addr = ULK_DCB_ADDR + (sizeof(struct cos_dcb_info) * d->dcb_off);

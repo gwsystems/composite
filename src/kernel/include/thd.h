@@ -355,7 +355,6 @@ thd_current(struct cos_cpu_local_info *cos_info)
 
 	if (curr) {
 		sched_comp = &(sched_thd->invstk[0].comp_info);
-		printk("\n\tcurr: %d\n", curr);
 		tc = (struct cap_thd *)captbl_lkup(sched_comp->captbl, curr);
 		if (unlikely(!tc || tc->h.type != CAP_THD)) assert(0);
 		curr_thd = tc->t;
@@ -429,7 +428,6 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 		if (ret) goto err; /* TODO: cleanup captbl slot */
 		thd->dcbinfo = (struct cos_dcb_info *)(dc->kern_addr + (dcboff * sizeof(struct cos_dcb_info)));
 		thd->dcbinfo->ip = thd->tid;
-		printk("\nip: %d, address: %lx\n", thd->dcbinfo->ip, thd->dcbinfo);
 		memset(thd->dcbinfo, 0, sizeof(struct cos_dcb_info));
 	}
 	thd->ulk_invstk                       = ulinvstk;

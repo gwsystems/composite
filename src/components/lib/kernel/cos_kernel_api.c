@@ -784,16 +784,14 @@ cos_ulk_info_init(struct cos_compinfo *ci)
 {
 	__cos_ulk_info.toplvl = cos_ulk_pgtbl_create(ci, &__cos_ulk_info.secondlvl);
 	__cos_ulk_info.pg_frontier = round_to_page(ULK_INVSTK_ADDR + __thdid_alloc * sizeof(struct ulk_invstk));
-	printc("%x, %d\n", __cos_ulk_info.pg_frontier, __thdid_alloc * sizeof(struct ulk_invstk));
 	__cos_ulk_info.dcbcap = cos_dcb_alloc(ci, __cos_ulk_info.toplvl, ULK_DCB_ADDR);
-	//__cos_ulk_info.dcbcap = 0;
 	assert(__cos_ulk_info.toplvl);
 }
 
 int
 cos_ulk_map_scb(struct cos_compinfo *ci, scbcap_t scbcap)
 {
-	return cos_scb_mapping(ci, ci->comp_cap, __cos_ulk_info.toplvl, scbcap, ULK_SCB_ADDR); 
+	return cos_scb_ulk_map(ci, ci->comp_cap, __cos_ulk_info.toplvl, scbcap, ULK_SCB_ADDR);
 }
 
 pgtblcap_t
@@ -885,7 +883,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 
 	ulkcap = __cos_thd_ulk_page_alloc(ci, tid);
 
-#if defined(__protected_dispatch__)
+#if defined(__PROTECTED_DISPATCH__)
 	assert(tid < PAGE_SIZE / sizeof(struct cos_dcb_info));
 	dc = __cos_ulk_info.dcbcap;
 	off = tid;
@@ -1042,10 +1040,19 @@ cos_scb_alloc(struct cos_compinfo *ci)
 }
 
 int
-cos_scb_mapping(struct cos_compinfo *ci,  compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr)
+cos_scb_ulk_map(struct cos_compinfo *ci,  compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr)
 {
 	assert(ci->scb_uaddr);
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_SCB_MAPPING, comp, ptc, scbc, scb_uaddr)) return 1;
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_SCB_ULK_MAP, comp, ptc, scbc, scb_uaddr)) return 1;
+
+	return 0;
+}
+
+int
+cos_scb_ro_map(struct cos_compinfo *ci,  compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr)
+{
+	assert(ci->scb_uaddr);
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_SCB_RO_MAP, comp, ptc, scbc, scb_uaddr)) return 1;
 
 	return 0;
 }

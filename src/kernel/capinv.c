@@ -461,8 +461,12 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	if (likely(pgtbl_current() != next_pt->pgtbl)) {
 		pgtbl_update(next_pt);
 	}
-	
-	chal_protdom_write(next_protdom);
+
+	if (next->dcbinfo && next->dcbinfo->sp) {
+		chal_protdom_write(SCHED_MPK_KEY);
+	} else {
+		chal_protdom_write(next_protdom);
+	}
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
 	if (next->tls != curr->tls) chal_tls_update(next->tls);
@@ -1465,7 +1469,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			break;
 		}
-		case CAPTBL_OP_SCB_MAPPING: {
+		case CAPTBL_OP_SCB_ULK_MAP: {
 			capid_t      comp_cap  = __userregs_get1(regs);
 			capid_t      ptcap     = __userregs_get2(regs);
 			capid_t      scbcap    = __userregs_get3(regs);
@@ -1484,7 +1488,30 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			ptc = (struct cap_pgtbl *)captbl_lkup(ct, ptcap);
 			assert(ptc);
 
-			ret = scb_mapping(ct, scbc, ptc, compc, scb_uaddr);
+			ret = scb_ulk_mapping(ct, scbc, ptc, compc, scb_uaddr);
+			assert(!ret);
+			return ret;
+		}
+		case CAPTBL_OP_SCB_RO_MAP: {
+			capid_t      comp_cap  = __userregs_get1(regs);
+			capid_t      ptcap     = __userregs_get2(regs);
+			capid_t      scbcap    = __userregs_get3(regs);
+			vaddr_t      scb_uaddr = __userregs_get4(regs);
+
+			struct cap_scb *scbc = NULL;
+			struct cap_comp *compc = NULL;
+			struct cap_pgtbl *ptc = NULL;
+
+			scbc = (struct cap_scb *)captbl_lkup(ct, scbcap);
+			if ((unlikely(!scbc || scbc->h.type != CAP_SCB))) return -EINVAL;
+
+			compc = (struct cap_comp *)captbl_lkup(ct, comp_cap);
+			assert(compc);
+
+			ptc = (struct cap_pgtbl *)captbl_lkup(ct, ptcap);
+			assert(ptc);
+
+			ret = scb_ro_mapping(ct, scbc, ptc, compc, scb_uaddr);
 			assert(!ret);
 			return ret;
 		}
