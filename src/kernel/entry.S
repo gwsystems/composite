@@ -1,4 +1,5 @@
 #include <cos_regs.h>
+#include <state.h>
 
 /* The entire IPC path should be in __ipc_entry section. */
 .section .ipc_fastpath, "ax"
@@ -6,7 +7,7 @@
 .globl syscall_entry
 syscall_entry:
 	swapgs           /* activate the kernel gs */
-	movq %gs:0, %rsp /* from it get the stack pointer */
+	movq %gs:STATE_STACK_POINTER, %rsp /* from it get the stack pointer */
 	PUSH_REGS_SYSCALL
 	pushq %rsp       /* pointer to the registers to use a retval */
 	mov %rsp, %rdi   /* pointer to pointer to struct reg argument */

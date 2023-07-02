@@ -1,14 +1,48 @@
 #pragma once
 
-#include "cos_chal_consts.h"
-#include "cos_types.h"
-#include <chal_consts.h>
+#include <types.h>
+#include <consts.h>
 #include <chal_regs.h>
 
 #include <compiler.h>
 #include <component.h>
 #include <resources.h>
 #include <types.h>
+
+/*
+ * The per-core, global data-structure. This includes the per-core
+ * kernel stacks.
+ */
+struct state {
+	/* Current thread information, consolidated onto a single cache-line here */
+	struct thread *active_thread;
+	uword_t invstk_head;
+	captbl_t active_captbl;
+
+	/* Scheduler information, assuming effectively a single scheduler */
+	struct thread *sched_thread;
+	cos_time_t timeout;
+
+	/* Floating point state */
+	int fpu_disabled;	      /* is access to floating point disabled (thus use will cause an exception) */
+	struct thread *fpu_last_used; /* which thread does the current floating point state belong to? */
+};
+
+struct tlb_quiescence {
+	/* Updated by timer. */
+	u64_t last_periodic_flush;
+	/* Updated by tlb flush IPI. */
+	u64_t last_mandatory_flush;
+	/* cacheline size padding. */
+	u8_t __padding[COS_CACHELINE_SIZE - 2 * sizeof(u64_t)];
+} __attribute__((aligned(COS_CACHELINE_SIZE), packed));
+
+/*
+ * We keep this data-structure separate from the other per-core state
+ * as it might cause cache-coherency traffic, which we want to
+ * guarantee will *not* happen for the core structures.
+ */
+extern struct tlb_quiescence tlb_quiescence[COS_NUM_CPU] COS_CACHE_ALIGNED;
 
 COS_FORCE_INLINE static inline coreid_t
 coreid(void)
@@ -28,32 +62,7 @@ component_activate(struct component_ref *comp)
 	return COS_RET_SUCCESS;
 }
 
-struct state_percore {
-	struct regs registers;	/* must be the first item as we're going to use stack ops to populate these */
-
-	/* Current thread information, consolidated onto a single cache-line here */
-	struct thread *active_thread;
-	uword_t invstk_head;
-	captbl_t active_captbl;
-
-	/* Scheduler information, assuming effectively a single scheduler */
-	struct thread *sched_thread;
-	cos_time_t timeout;
-
-	/* Floating point state */
-	int fpu_disabled;	      /* is access to floating point disabled (thus use will cause an exception) */
-	struct thread *fpu_last_used; /* which thread does the current floating point state belong to? */
-} COS_CACHE_ALIGNED;
-
-extern struct state_percore core_state[COS_NUM_CPU];
-
-COS_FORCE_INLINE static inline struct state_percore *
-state(void)
-{
-	return &core_state[coreid()];
-}
-
-#define PERCPU_GET(name) (&(state()-> name))
+#define PERCPU_GET(name) (&(state()->globals. name))
 
 static inline liveness_t
 liveness_now(void)
@@ -68,14 +77,3 @@ liveness_quiesced(liveness_t past)
 	/* TODO: actual liveness. */
 	return liveness_now() > past;
 }
-
-struct tlb_quiescence {
-	/* Updated by timer. */
-	u64_t last_periodic_flush;
-	/* Updated by tlb flush IPI. */
-	u64_t last_mandatory_flush;
-	/* cacheline size padding. */
-	u8_t __padding[COS_CACHELINE_SIZE - 2 * sizeof(u64_t)];
-} __attribute__((aligned(COS_CACHELINE_SIZE), packed));
-
-extern struct tlb_quiescence tlb_quiescence[COS_NUM_CPU] COS_CACHE_ALIGNED;
