@@ -15,14 +15,8 @@ chal_state_init(void)
 		core_state[i].redzone = 0xDEADBEEF;
 		core_state[i].gs_stack_ptr = (void *)&core_state[i].gs_stack_ptr;
 		assert((u64_t)core_state[i].gs_stack_ptr - (u64_t)&core_state[i] == STATE_STACK_OFFSET);
-		core_state[i].registers = (struct regs) {
-			.state = 1,
-			.frame = (struct trap_frame) {
-				.flags = REGS_RFLAGS_DEFAULT,
-				.cs = 0,
-				.ss = 0,
-			},
-		};
+		/* We should *not* use the registers set up on boot, so just zero them all out */
+		core_state[i].registers = (struct regs) { 0 };
 		/* We assume that the .globals are initialized separately */
 
 		tlb_quiescence[i] = (struct tlb_quiescence) {

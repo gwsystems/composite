@@ -148,7 +148,6 @@ kern_paging_map_init(void *pa)
 	}
 }
 
-
 void
 paging_init(void)
 {

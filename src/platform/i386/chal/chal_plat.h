@@ -10,11 +10,6 @@ int chal_tlbstall_recount(int a);
 int chal_tlbflush(int a);
 
 /* This flushes all levels of cache of the current logical CPU. */
-static inline void
-chal_flush_cache(void)
-{
-	asm volatile("wbinvd" : : : "memory");
-}
 
 static inline void
 chal_flush_tlb_global(void)
