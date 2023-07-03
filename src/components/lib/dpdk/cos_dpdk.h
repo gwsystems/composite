@@ -119,6 +119,11 @@ void cos_test_send(int queue, char *mp);
 
 #define E810_NIC 0
 #define NIC_RX_QUEUE_NUM 1
+
+#if E810_NIC
+#define NIC_TX_QUEUE_NUM (NUM_CPU - 1)
+#else
 #define NIC_TX_QUEUE_NUM 1
+#endif
 
 #endif /* COS_DPDK_H */

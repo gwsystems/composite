@@ -73,7 +73,7 @@ sync_lock_teardown(struct sync_lock *l)
 static inline void
 sync_lock_take(struct sync_lock *l)
 {
-#if 0
+#if 1
 	ps_lock_take(&l->owner_blked);
 #else
 	struct sync_blkpt_checkpoint chkpt;
@@ -109,11 +109,15 @@ sync_lock_take(struct sync_lock *l)
 static inline int
 sync_lock_try_take(struct sync_lock *l)
 {
+#if 1
+	return l->owner_blked;
+#else
 	if (ps_cas(&l->owner_blked, 0, (unsigned long)cos_thdid())) {
 		return 0;	/* success! */
 	} else {
 		return 1;
 	}
+#endif
 }
 
 /**
@@ -126,7 +130,7 @@ sync_lock_try_take(struct sync_lock *l)
 static inline void
 sync_lock_release(struct sync_lock *l)
 {
-#if 0
+#if 1
 	ps_lock_release(&l->owner_blked);	
 #else
 	while (1) {
