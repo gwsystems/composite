@@ -28,7 +28,7 @@
 #include <compiler.h>
 #include <types.h>
 #include <component.h>
-#include <state.h>
+#include <chal_state.h>
 #include <consts.h>
 
 struct invstk_entry {
@@ -99,6 +99,7 @@ struct thread {
 	/* Thread state meta-data */
 	struct invstk    invstk;
 	thdid_t          id;	        /* our thread id */
+	coreid_t         core;          /* the core the thread can run on */
 	cos_thd_state_t  state;         /* one of THD_STATE_* */
 	pageref_t        this;	        /* our own pageref */
 
@@ -114,6 +115,7 @@ struct thread {
 	pageref_t        sched_evt_thd; /* the scheduler to send scheduling events */
 
 	/* Thread registers */
+	uword_t          tls;
 	struct regs      regs;
 	struct fpu_regs  fpregs;
 };
@@ -136,7 +138,7 @@ void thread_calculate_returnvals(struct thread *t);
  */
 COS_FORCE_INLINE static inline struct regs *
 thread_switch(struct thread *t, struct regs *rs) {
-	struct state_percore *g    = state();
+	struct state         *g    = state();
 	struct thread        *curr = g->active_thread;
 	struct component_ref *comp;
 	cos_retval_t          r;
@@ -207,7 +209,7 @@ err:
 COS_FORCE_INLINE static inline cos_retval_t
 thread_scheduler_update(cos_op_bitmap_t *ops, struct thread *t, struct regs *rs)
 {
-	struct state_percore *g = state();
+	struct state  *g = state();
 	struct thread *s = (struct thread *)ref2page_ptr(t->sched_thd);
 	sync_token_t tok = regs_arg(rs, REGS_GEN_ARGS_BASE + 0);
 	cos_time_t timeout = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);

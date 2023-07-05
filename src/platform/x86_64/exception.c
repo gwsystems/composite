@@ -1,5 +1,5 @@
 #include <pgtbl.h>
-#include <thd.h>
+#include <thread.h>
 #include <fpu.h>
 #include <kernel.h>
 #include <string.h>
@@ -120,20 +120,20 @@ gen_protect_fault_handler(struct regs *regs)
 int
 page_fault_handler(struct regs *regs)
 {
-	unsigned long                      fault_addr = 0, errcode = 0, ip = 0;
-	struct cos_cpu_local_info *ci    = cos_cpu_local_info();
-	struct thread * curr             = thd_current(ci);
-	thdid_t                    thdid = curr->tid;
+	unsigned long fault_addr = 0, errcode = 0, ip = 0;
+	struct state *ci    = state();
+	struct thread *curr = ci->active_thread;
+	thdid_t       thdid = curr->id;
 
 	print_regs(regs);
 	fault_addr = chal_cpu_fault_vaddr(regs);
 	errcode    = chal_cpu_fault_errcode(regs);
-	ip        = chal_cpu_fault_ip(regs);
+	ip         = chal_cpu_fault_ip(regs);
 
 	die("FAULT: Page Fault in thd %d (%s %s %s %s %s) @ 0x%p, ip 0x%p, tls 0x%p\n", thdid,
-	    errcode & PGTBL_PRESENT ? "present" : "not-present",
-	    errcode & PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & PGTBL_USER ? "user-mode" : "system",
-	    errcode & PGTBL_WT ? "reserved" : "", errcode & PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, ip, curr->tls);
+	    errcode & X86_PGTBL_PRESENT ? "present" : "not-present",
+	    errcode & X86_PGTBL_WRITABLE ? "write-fault" : "read-fault", errcode & X86_PGTBL_USER ? "user-mode" : "system",
+	    errcode & X86_PGTBL_WT ? "reserved" : "", errcode & X86_PGTBL_NOCACHE ? "instruction-fetch" : "", fault_addr, ip, curr->tls);
 
 	return 1;
 }

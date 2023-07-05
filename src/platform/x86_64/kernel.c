@@ -104,7 +104,7 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	idt_init(INIT_CORE);
 	serial_init();
 
-	max = MAX((unsigned long)chal_va2pa((void*)mboot_addr), (unsigned long)(chal_va2pa(&end)));
+	max = MAX((unsigned long)chal_va2pa((void*)mboot_addr), (unsigned long)(chal_va2pa(&kernel_end_va)));
 
 	kern_paging_map_init((void *)(max));
 	multiboot_output(mboot_addr, mboot_magic);

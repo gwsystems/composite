@@ -24,12 +24,13 @@ u64_t boot_ap_pgd[COS_PAGE_SIZE / sizeof(u64_t)] COS_PAGE_ALIGNED = {
 	[KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
 };
 
+unsigned long kernel_mapped_offset;
+
 int
 kern_setup_image(void)
 {
 	u64_t    i;
 	paddr_t  kern_pa_start, kern_pa_end;
-	coreid_t cpu_id = coreid();
 
 	printk("\tSetting up initial page directory.\n");
 	kern_pa_start = cos_round_down_to_pow2(chal_va2pa(&kernel_start_va), PGD_SIZE); /* likely 0 */
@@ -82,8 +83,8 @@ device_pa2va(paddr_t dev_addr)
 	int i;
 
 	for (i = 0; i < dev_map_off; i++) {
-		paddr_t rounded = round_to_pgt1_page(dev_addr);
-		if (round_to_pgt1_page(dev_mem[i].physaddr) == rounded) {
+		paddr_t rounded = cos_round_down_to_pow2(dev_addr, PGT1_SIZE);
+		if (cos_round_down_to_pow2(dev_mem[i].physaddr, PGT1_SIZE) == rounded) {
 			return (char *)dev_mem[i].virtaddr + (dev_addr - rounded);
 		}
 	}
@@ -106,7 +107,6 @@ device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags)
 	void   *vaddr;
 	unsigned long off = kernel_mapped_offset;
 
-	boot_state_assert(INIT_UT_MEM);
 	vaddr = device_pa2va(dev_addr);
 	if (vaddr) {
 		boot_comp_pgt1[((unsigned long)vaddr - (unsigned long)(COS_MEM_KERN_START_VA)) / PGT1_RANGE] |= pt_extra_flags; /* use the union of the flags */
@@ -115,8 +115,8 @@ device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags)
 	}
 
 	/* Allocate a PGD/PGT3 region, and map it in */
-	assert(off < PAGE_SIZE / sizeof(unsigned long));
-	rounded = round_to_pgt1_page(dev_addr);
+	assert(off < COS_PAGE_SIZE / sizeof(unsigned long));
+	rounded = cos_round_up_to_pow2(dev_addr, PGT1_SIZE);
 	boot_comp_pgt1[off] = rounded | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL | pt_extra_flags;
 	dev_mem[dev_map_off] = (struct dev_map) {
 		.physaddr = rounded,

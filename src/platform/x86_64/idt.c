@@ -101,43 +101,6 @@ remap_irq_table(void)
 }
 #endif
 
-typedef enum {
-	HW_PERIODIC = 32, /* periodic timer interrupt */
-	HW_ID2,
-	HW_ID3,
-	HW_ID4,
-	HW_SERIAL, /* serial interrupt */
-	HW_ID6,
-	HW_ID7,
-	HW_ID8,
-	HW_ONESHOT, /* onetime timer interrupt */
-	HW_ID10,
-	HW_ID11,
-	HW_ID12,
-	HW_ID13,
-	HW_ID14,
-	HW_ID15,
-	HW_ID16,
-	HW_ID17,
-	HW_ID18,
-	HW_ID19,
-	HW_ID20,
-	HW_ID21,
-	HW_ID22,
-	HW_ID23,
-	HW_ID24,
-	HW_ID25,
-	HW_ID26,
-	HW_ID27,
-	HW_ID28,
-	HW_ID29,
-	HW_ID30,
-	HW_ID31,
-	HW_LAPIC_SPURIOUS,
-	HW_LAPIC_IPI_ASND    = 254, /* ipi interrupt for asnd */
-	HW_LAPIC_TIMER = 255, /* Local APIC TSC-DEADLINE mode - Timer interrupts */
-} hwid_t;
-
 void
 idt_init(const coreid_t cpu_id)
 {

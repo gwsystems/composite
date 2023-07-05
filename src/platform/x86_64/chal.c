@@ -8,11 +8,12 @@
 char timer_detector[COS_PAGE_SIZE] COS_PAGE_ALIGNED;
 
 paddr_t chal_kernel_mem_pa;
+u32_t chal_msr_mhz;
 
 struct cpu_tlb_asid_map tlb_asid_map[COS_NUM_CPU];
 
 void
-chal_send_ipi(int cpu_id)
+chal_send_ipi(coreid_t cpu_id)
 {
 	lapic_asnd_ipi_send(cpu_id);
 
@@ -43,8 +44,6 @@ chal_init(void)
 {
 	u32_t a = 0, b = 0, c = 0, d = 0;
 	u32_t vendor[4];
-	char *v = (char *)&vendor[0];
-	int   apicid, i;
 
 	printk("Processor information:\n");
 	a = 0;
@@ -110,6 +109,4 @@ chal_init(void)
 		printk("\tMSR Frequency: %d (* 100Mhz)\n", a);
 		chal_msr_mhz = a * 100;
 	}
-
-	free_thd_id = 1;
 }

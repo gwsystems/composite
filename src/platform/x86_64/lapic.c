@@ -5,6 +5,7 @@
 #include <isr.h>
 #include <cos_types.h>
 #include <cos_consts.h>
+#include <cos_system.h>
 
 #define APIC_DEFAULT_PHYS 0xfee00000
 #define APIC_HDR_LEN_OFF 0x04
@@ -114,7 +115,7 @@ enum lapic_timer_div_by_config
 
 static volatile void *lapic             = (void *)APIC_DEFAULT_PHYS;
 static unsigned int   lapic_timer_mode  = LAPIC_TSC_DEADLINE;
-static unsigned int   lapic_is_disabled[NUM_CPU] CACHE_ALIGNED;
+static unsigned int   lapic_is_disabled[COS_NUM_CPU] COS_CACHE_ALIGNED;
 
 static unsigned int lapic_cycs_thresh        = 0;
 static u32_t        lapic_cpu_to_timer_ratio = 0;
@@ -208,7 +209,7 @@ lapic_intsrc_iter(unsigned char *madt)
 			assert(l->header.len == sizeof(struct lapic_cntl));
 			printk("\tLAPIC found: coreid %d, apicid %d flags %d\n", l->proc_id, l->apic_id, l->flags);
 
-			if (l->apic_id != us && l->flags && ncpus < NUM_CPU && NUM_CPU > 1) {
+			if (l->apic_id != us && l->flags && ncpus < COS_NUM_CPU && COS_NUM_CPU > 1) {
 				apicids[off++] = l->apic_id;
 				ncpus++;
 			}
@@ -231,8 +232,8 @@ lapic_intsrc_iter(unsigned char *madt)
 	}
 	printk("\tAPICs processed, %d cores\n", ncpus);
 
-	if (ncpus != NUM_CPU) {
-		printk("Number of LAPICs processed =%d not meeting the requirement = %d\n", ncpus, NUM_CPU);
+	if (ncpus != COS_NUM_CPU) {
+		printk("Number of LAPICs processed =%d not meeting the requirement = %d\n", ncpus, COS_NUM_CPU);
 		printk("Please reconfigure NUM_CPU in Composite/HW-BIOS\n");
 		assert(0);
 	}
@@ -264,7 +265,7 @@ lapic_find_localaddr(void *l)
 	lapic_intsrc_iter(lapicaddr);
 
 	printk("\tChecksum is OK\n");
-	lapic = device_map_mem((paddr_t)addr, PGTBL_NOCACHE);
+	lapic = device_map_mem((paddr_t)addr, X86_PGTBL_NOCACHE);
 	printk("\tlapic: %p\n", lapic);
 
 	readmsr(MSR_APIC_BASE, &lo, &hi);
@@ -316,12 +317,12 @@ lapic_disable_timer(int timer_type)
 }
 
 void
-lapic_set_timer(int timer_type, cycles_t deadline)
+lapic_set_timer(int timer_type, cos_time_t deadline)
 {
 	u64_t now;
 
 	assert(lapic_timer_calibrated());
-	rdtscll(now);
+	now = cos_now();
 	if (deadline < now || (deadline - now) < LAPIC_TIMER_MIN) deadline = now + LAPIC_TIMER_MIN;
 
 	if (timer_type == LAPIC_ONESHOT) {
@@ -338,7 +339,7 @@ lapic_set_timer(int timer_type, cycles_t deadline)
 		assert(0);
 	}
 
-	lapic_is_disabled[get_cpuid()] = 0;
+	lapic_is_disabled[coreid()] = 0;
 }
 
 u32_t
@@ -358,11 +359,11 @@ lapic_timer_calibration(u32_t ratio)
 	/* reset INIT counter, and unmask timer */
 	lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
 	lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) & ~LAPIC_TIMER_MASKED);
-	lapic_is_disabled[get_cpuid()] = 1;
+	lapic_is_disabled[coreid()] = 1;
 }
 
 void
-chal_timer_set(cycles_t cycles)
+chal_timer_set(cos_cycles_t cycles)
 {
 	lapic_set_timer(lapic_timer_mode, cycles);
 }
@@ -382,7 +383,6 @@ chal_cyc_thresh(void)
 void
 lapic_timer_init(void)
 {
-	u32_t low, high;
 	u32_t a = 0, b = 0, c = 0, d = 0;
 
 	a = 1;
@@ -398,7 +398,7 @@ lapic_timer_init(void)
 		/* Set the timer and mask it, so timer interrupt is not fired - for timer calibration through HPET */
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, LAPIC_TIMER_CALIB_VAL);
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) | LAPIC_TIMER_MASKED);
-		if (get_cpuid() == INIT_CORE) {
+		if (coreid() == INIT_CORE) {
 			lapic_timer_mode       = LAPIC_ONESHOT;
 			lapic_timer_calib_init = 1;
 			lapic_cycs_thresh      = LAPIC_ONESHOT_THRESH;
@@ -408,7 +408,7 @@ lapic_timer_init(void)
 
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_TSCDEADLINE_MODE);
-		if (get_cpuid() == INIT_CORE) {
+		if (coreid() == INIT_CORE) {
 			lapic_timer_mode  = LAPIC_TSC_DEADLINE;
 			lapic_cycs_thresh = LAPIC_TSCDEADLINE_THRESH;
 		}
@@ -417,13 +417,13 @@ lapic_timer_init(void)
 	/* Set the divisor */
 	lapic_write_reg(LAPIC_DIV_CONF_REG, LAPIC_DIV_BY_1);
 
-	if (get_cpuid() != INIT_CORE) {
+	if (coreid() != INIT_CORE) {
 		/* reset INIT counter, and unmask timer */
 		lapic_write_reg(LAPIC_INIT_COUNT_REG, 0);
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, lapic_read_reg(LAPIC_TIMER_LVT_REG) & ~LAPIC_TIMER_MASKED);
 	}
 
-	lapic_is_disabled[get_cpuid()] = 1;
+	lapic_is_disabled[coreid()] = 1;
 }
 
 static int
@@ -438,7 +438,7 @@ lapic_ipi_send(u32_t dest, u32_t vect_flags)
 	return 0;
 }
 void
-lapic_asnd_ipi_send(const cpuid_t cpu_id)
+lapic_asnd_ipi_send(const coreid_t cpu_id)
 {
 	assert(ncpus > 1 && cpu_id >= 0 && cpu_id < ncpus);
 
@@ -458,7 +458,7 @@ lapic_ipi_asnd_handler(struct regs *regs)
 {
 	int preempt = 1;
 
-	preempt = cap_ipi_process(regs);
+	preempt = chal_ipi_process(regs);
 
 	lapic_ack();
 
@@ -481,14 +481,14 @@ lapic_timer_handler(struct regs *regs)
 static void
 delay_us(u32_t us)
 {
-	unsigned long long hz = CPU_GHZ, hz_per_us = hz * 1000;
+	unsigned long long hz_per_us = COS_CPU_MHZ;
 	unsigned long long end;
 	volatile unsigned long long tsc;
 
-	rdtscll(tsc);
+	tsc = cos_now();
 	end = tsc + (hz_per_us * us);
 	while (1) {
-		rdtscll(tsc);
+		tsc = cos_now();
 		if (tsc >= end) return;
 		asm("pause");
 	}
@@ -532,7 +532,7 @@ smp_boot_all_ap(volatile int *cores_ready)
 		printk("\nBooting AP %d with apic_id %d\n", i, apicids[i]);
 		/* Application Processor (AP) startup sequence: */
 		/* ...make sure that we pass this core's stack */
-		*stackpatch = (char *)((unsigned long)&state_percore + ((COS_PAGE_SIZE * i) + STATE_REGS_OFFSET));
+		*stackpatch = (char *)&chal_percore_state_coreid(i)->registers;
 
 		/* Now the IPI coordination process to boot the AP: first send init ipi... */
 		lapic_ipi_send(apicids[i], LAPIC_ICR_LEVEL | LAPIC_ICR_ASSERT | LAPIC_ICR_INIT);

@@ -1,7 +1,9 @@
-#include "kernel.h"
-#include "string.h"
-#include "mem_layout.h"
-#include "pgtbl.h"
+#include <kernel.h>
+#include <pgtbl.h>
+#include <string.h>
+#include <chal_pgtbl.h>
+#include <cos_chal_cpu.h>
+#include <assert.h>
 
 #define RSDP_LO_ADDRESS ((unsigned char *)(0x000E0000 + COS_MEM_KERN_START_VA))
 #define RSDP_HI_ADDRESS ((unsigned char *)(0x000FFFFF + COS_MEM_KERN_START_VA))
@@ -114,14 +116,14 @@ acpi_iterate_tbs(void)
 			e = device_map_mem((u32_t)rsdt->entry[i], 0);
 			assert(e);
 		}
-		
+
 		memcpy(name, e->head.sig, SDT_NAME_SZ - 1);
 		printk("\t%s\n", name);
 	}
 }
 
 static void *
-acpi_find_resource_flags(const char *res_name, pgtbl_flags_t flags)
+acpi_find_resource_flags(const char *res_name, pgtbl_flags_x86_t flags)
 {
 	size_t  i;
 	size_t entries = (rsdt->head.len - sizeof(struct rsdt)) / 4;
@@ -158,7 +160,7 @@ acpi_find_timer(void)
 void *
 acpi_find_apic(void)
 {
-	return acpi_find_resource_flags("APIC", PGTBL_NOCACHE);
+	return acpi_find_resource_flags("APIC", X86_PGTBL_NOCACHE);
 }
 
 /*
@@ -183,26 +185,22 @@ struct facp {
 
 #define DSDT_DEFBLK_OFFSET 36  /* offset to the "Definition Block" */
 
-void
-outw(unsigned short __val, unsigned short __port)
+static void
+__outw(unsigned short __val, unsigned short __port)
 {
-	__asm__ volatile("outw %0,%1" : : "a" (__val), "dN" (__port));
+	out16(__port, __val);
 }
 
 static void
-outb(unsigned char __val, unsigned short __port)
+__outb(unsigned char __val, unsigned short __port)
 {
-	__asm__ volatile("outb %0,%1" : : "a" (__val), "dN" (__port));
+	outb(__port, __val);
 }
 
 static unsigned short
-inw(unsigned short __port)
+__inw(unsigned short __port)
 {
-	unsigned short __val;
-
-	__asm__ volatile("inw %1,%0" : "=a" (__val) : "dN" (__port));
-
-	return __val;
+	return in16(__port);
 }
 
 static u32_t  pm1a_cnt;
@@ -217,7 +215,7 @@ static int    shutdown_ready;
 void
 acpi_shutdown_init(void)
 {
-	paddr_t facp_pa, dsdt_pa;
+	paddr_t dsdt_pa;
 	struct facp *facp = NULL;
 	struct acpi_header *dsdt = NULL;
 
@@ -301,19 +299,19 @@ acpi_shutdown(void)
 	if (!shutdown_ready) return;
 
 	/* Enable ACPI. First, check if acpi is already enabled */
-	if (!inw((unsigned int) pm1a_cnt)) {
+	if (!__inw((unsigned int) pm1a_cnt)) {
 		/* check if acpi can be enabled */
 		if (smi_cmd == 0 || acpi_enable == 0) return;
 
-		outb(acpi_enable, (unsigned int)smi_cmd); /* send acpi enable command */
+		__outb(acpi_enable, (unsigned int)smi_cmd); /* send acpi enable command */
 		/* takes up to 3 seconds time to enable acpi? */
 		for (i = 0; i < spin_until; i++) {
-			if (inw((unsigned int)pm1a_cnt) == 1) break;
+			if (__inw((unsigned int)pm1a_cnt) == 1) break;
 			//sleep(10);
 		}
 		if (pm1b_cnt != 0) {
 			for (; i < spin_until; i++ ) {
-				if (inw((unsigned int)pm1b_cnt) == 1) break;
+				if (__inw((unsigned int)pm1b_cnt) == 1) break;
 				//sleep(10);
 			}
 		}
@@ -321,9 +319,9 @@ acpi_shutdown(void)
 	}
 
 	/* Found everything we need from the dsdt, now shutdown! */
-	outw(slp_type_a | slp_en, (unsigned int)pm1a_cnt);
+	__outw(slp_type_a | slp_en, (unsigned int)pm1a_cnt);
 	if (pm1b_cnt != 0) {
-		outw(slp_type_b | slp_en, (unsigned int)pm1b_cnt);
+		__outw(slp_type_b | slp_en, (unsigned int)pm1b_cnt);
 	}
 
 	/* spin for the shutdown command to be executed */
@@ -338,15 +336,13 @@ extern unsigned long kernel_mapped_offset;
 void
 acpi_init(void)
 {
-	u32_t page;
 	void *timer;
 	void *apic;
 	int lapic_err = 1;
 	void *hpet = NULL;
 	unsigned long j = kernel_mapped_offset;
 
-	boot_state_assert(INIT_UT_MEM);
-	assert(j < PAGE_SIZE / sizeof(unsigned long));
+	assert(j < COS_PAGE_SIZE / sizeof(unsigned long));
 
 	/* FIXME: Ugly hack to get the physical page with the ACPI RSDT mapped */
 	printk("ACPI initialization\n");

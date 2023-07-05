@@ -21,6 +21,7 @@
 #define CHAL_H
 
 #include <types.h>
+#include <chal_regs.h>
 
 /*
  * Namespacing in the cHAL: chal_<family>_<operation>(...).  <family>
@@ -79,7 +80,9 @@ int          chal_cyc_usec(void);
 unsigned int chal_cyc_thresh(void);
 
 /* IPI sending */
-void chal_send_ipi(int cpu_id);
+void chal_send_ipi(coreid_t cpu_id);
+/* TODO: Should return regs */
+int chal_ipi_process(struct regs *regs);
 
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 void chal_idle(void);

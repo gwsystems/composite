@@ -1,7 +1,8 @@
 #include <string.h>
-#include <chal/shared/cos_io.h>
+#include <chal_cpu.h>
 #include <isr.h>
 #include <kernel.h>
+#include <types.h>
 
 void serial_puts(const char *s);
 
@@ -36,7 +37,7 @@ serial_puts(const char *s)
 }
 
 int
-serial_handler(struct pt_regs *r)
+serial_handler(struct regs *r)
 {
 	char serial;
 	int  preempt = 1;

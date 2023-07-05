@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cos_types.h"
 #define STATE_KERNEL_STACK_SZ 3848
 #define STATE_REGS_SZ         176
 #define STATE_GLOBALS_SZ      56
@@ -103,6 +104,12 @@ chal_percore_state(void)
 	char v;	/* variable allocated on the stack whose address we'll use */
 
 	return (struct state_percore *)(((uword_t)&v) & (~(COS_PAGE_SIZE - 1)));
+}
+
+static inline struct state_percore *
+chal_percore_state_coreid(coreid_t core)
+{
+	return &core_state[core];
 }
 
 COS_FORCE_INLINE static inline struct state *

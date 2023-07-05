@@ -56,3 +56,17 @@ memset(void *a, int c, size_t n)
 
 	return a;
 }
+
+void *
+memcpy(void *d, void *s, size_t n)
+{
+	size_t off;
+	char  *d_arr = d;
+	char  *s_arr = s;
+
+	for (off = 0; off < n; off++) {
+		d_arr[off] = s_arr[off];
+	}
+
+	return d;
+}

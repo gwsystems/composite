@@ -146,7 +146,6 @@ void
 smp_kmain(void)
 {
 	volatile cpuid_t cpu_id = coreid();
-	struct state_percore *cos_info = state();
 
 	printk("Initializing CPU %d\n", cpu_id);
 	tss_init(cpu_id);

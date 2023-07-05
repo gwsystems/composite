@@ -3,9 +3,6 @@
 #include <chal_state.h>
 #include <assert.h>
 
-struct state_percore core_state[COS_NUM_CPU];
-struct tlb_quiescence tlb_quiescence[COS_NUM_CPU] COS_CACHE_ALIGNED;
-
 void
 chal_state_init(void)
 {

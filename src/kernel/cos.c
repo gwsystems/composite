@@ -167,13 +167,12 @@
 #include <captbl.h>
 #include <pgtbl.h>
 #include <ipc.h>
-#include <state.h>
+#include <chal_state.h>
 
 /*
  * Kernel global data-structures.
  */
-struct state_percore core_state[COS_NUM_CPU];
-
+struct state_percore  core_state[COS_NUM_CPU];
 struct tlb_quiescence tlb_quiescence[COS_NUM_CPU] COS_CACHE_ALIGNED;
 
 /**
@@ -464,7 +463,7 @@ capability_create(cos_cap_type_t captype, captbl_t ct, cos_cap_t captbl_target_c
 static cos_retval_t
 captbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t capno, cos_op_bitmap_t ops)
 {
-	struct state_percore *g = state();
+	struct state *g = state();
 	captbl_t captbl = g->active_captbl;
 	struct thread *t = g->active_thread;
 	pageref_t captblref;
@@ -525,7 +524,7 @@ captbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t ca
 static cos_retval_t
 pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t capno, cos_op_bitmap_t ops)
 {
-	struct state_percore *g = state();
+	struct state *g = state();
 	captbl_t captbl = g->active_captbl;
 	struct thread *t = g->active_thread;
 
@@ -610,7 +609,7 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 COS_NEVER_INLINE static struct regs *
 capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
 {
-	struct state_percore *g = state();
+	struct state *g = state();
 	captbl_t captbl = g->active_captbl;
 	struct thread *t = g->active_thread;
 	cos_op_bitmap_t ops = regs_arg(rs, REGS_ARG_OPS);
@@ -661,7 +660,7 @@ err:
 COS_FASTPATH static inline struct regs *
 capability_activation(struct regs *rs)
 {
-	struct state_percore *g = state();
+	struct state *g = state();
 	captbl_t captbl = g->active_captbl;
 	struct thread *t = g->active_thread;
 	struct capability_generic *cap_slot;

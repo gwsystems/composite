@@ -39,8 +39,9 @@ struct tlb_quiescence {
 
 /*
  * We keep this data-structure separate from the other per-core state
- * as it might cause cache-coherency traffic, which we want to
- * guarantee will *not* happen for the core structures.
+ * as it can cause cache-coherency traffic due to multiple cores
+ * accessing different entries, which we want to guarantee will *not*
+ * happen for the core structures.
  */
 extern struct tlb_quiescence tlb_quiescence[COS_NUM_CPU] COS_CACHE_ALIGNED;
 
@@ -62,7 +63,7 @@ component_activate(struct component_ref *comp)
 	return COS_RET_SUCCESS;
 }
 
-#define PERCPU_GET(name) (&(state()->globals. name))
+#define PERCPU_GET(name) (&(state()-> name))
 
 static inline liveness_t
 liveness_now(void)

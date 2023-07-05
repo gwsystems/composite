@@ -1,3 +1,4 @@
+#include "chal_regs.h"
 #include "string.h"
 #include "kernel.h"
 
@@ -32,33 +33,39 @@ printk(const char *fmt, ...)
 }
 
 void
-print_pt_regs(struct pt_regs *regs)
+print_pt_regs(struct regs *regs)
 {
-/* Remember that %ds, %es, %fs, %gs will be ignored when saving them, thus values of them here are possible be random. */
-#if defined(__x86_64__)
+	u64_t sp, bp, ip, cx, r11, flags;
+
+	if (regs->state == REG_STATE_SYSCALL) {
+		sp = regs->clobbered.rbp_sp;
+		bp = 0;
+		cx = 0;
+		ip = regs->clobbered.rcx_ip;
+		flags = regs->clobbered.r11;
+		r11 = 0;
+	} else {
+		sp = regs->frame.sp;
+		ip = regs->frame.ip;
+		cx = regs->clobbered.rcx_ip;
+		flags = regs->frame.flags;
+		bp = regs->clobbered.rbp_sp;
+		r11 = regs->clobbered.r11;
+	}
+
 	PRINTK("Register hexdump (0x%p):\n", regs);
 	PRINTK("General->   RAX: 0x%p, RBX: 0x%p, RCX: 0x%p, RDX: 0x%p\n",
-		regs->ax, regs->bx, regs->cx, regs->dx);
+		regs->args[0], regs->args[1], cx, regs->args[2]);
 	PRINTK("General->   R8: 0x%p, R9: 0x%p, R10: 0x%p, R11: 0x%p\n",
-		regs->r8, regs->r9, regs->r10, regs->r11);
+		regs->args[5], regs->args[6], regs->args[7], r11);
 	PRINTK("General->   R12: 0x%p, R13: 0x%p, R14: 0x%p, R15: 0x%p\n",
-		regs->r12, regs->r13, regs->r14, regs->r15);
-
-	PRINTK("Segment->   CS: 0x%x, DS: 0x%x, ES: 0x%x, FS: 0x%x, GS: 0x%x, SS: 0x%x\n",
-		regs->cs, regs->ds, regs->es, regs->fs, regs->gs, regs->ss);
+		regs->args[8], regs->args[9], regs->args[10], regs->args[11]);
+	PRINTK("Segment->   CS: 0x%x, SS: 0x%x\n",
+		regs->frame.cs, regs->frame.ss);
 	PRINTK("Index->     RSI: 0x%p, RDI: 0x%p, RIP: 0x%p, RSP: 0x%p, RBP: 0x%p\n",
-		regs->si, regs->di, regs->ip, regs->sp, regs->bp);
-	PRINTK("Indicator-> RFLAGS: 0x%p\n", regs->flags);
-	PRINTK("(Exception Error Code-> ORIG_AX: 0x%x)\n", regs->orig_ax);
-#elif defined(__i386__)
-	PRINTK("Register hexdump (0x%p):\n", regs);
-	PRINTK("General->   EAX: 0x%x, EBX: 0x%x, ECX: 0x%x, EDX: 0x%x\n",
-		regs->ax, regs->bx, regs->cx, regs->dx);
-	PRINTK("Segment->   CS: 0x%x, DS: 0x%x, ES: 0x%x, FS: 0x%x, GS: 0x%x, SS: 0x%x\n",
-		regs->cs, regs->ds, regs->es, regs->fs, regs->gs, regs->ss);
-	PRINTK("Index->     ESI: 0x%x, EDI: 0x%x, EIP: 0x%x, ESP: 0x%x, EBP: 0x%x\n",
-		regs->si, regs->di, regs->ip, regs->sp, regs->bp);
-	PRINTK("Indicator-> EFLAGS: 0x%x\n", regs->flags);
-	PRINTK("(Exception Error Code-> ORIG_AX: 0x%x)\n", regs->orig_ax);
-#endif
+		regs->args[3], regs->args[4], ip, sp, bp);
+	PRINTK("Indicator-> RFLAGS: 0x%p\n", flags);
+	if (regs->state == REG_STATE_PREEMPTED) {
+		PRINTK("(Exception Error Code: 0x%x)\n", regs->frame.errcode);
+	}
 }

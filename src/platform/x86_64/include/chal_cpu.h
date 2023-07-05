@@ -7,6 +7,34 @@
 #include <arch_consts.h>
 #include <chal_state.h>
 
+/* These code below are for x86 specifically, only used in x86 chal */
+typedef enum {
+	X86_PGTBL_PRESENT    = 1,
+	X86_PGTBL_WRITABLE   = 1 << 1,
+	X86_PGTBL_USER       = 1 << 2,
+	X86_PGTBL_WT         = 1 << 3, /* write-through caching */
+	X86_PGTBL_NOCACHE    = 1 << 4, /* caching disabled */
+	X86_PGTBL_ACCESSED   = 1 << 5,
+	X86_PGTBL_MODIFIED   = 1 << 6,
+	X86_PGTBL_SUPER      = 1 << 7, /* super-page (4MB on x86-32) */
+	X86_PGTBL_GLOBAL     = 1 << 8,
+	/* Composite defined bits next*/
+	X86_PGTBL_COSFRAME   = 1 << 9,
+	X86_PGTBL_COSKMEM    = 1 << 10, /* page activated as kernel object */
+	X86_PGTBL_QUIESCENCE = 1 << 11,
+	X86_PGTBL_PKEY0      = 1ul << 59, /* MPK key bits */
+	X86_PGTBL_PKEY1      = 1ul << 60,
+	X86_PGTBL_PKEY2      = 1ul << 61,
+	X86_PGTBL_PKEY3      = 1ul << 62,
+
+	X86_PGTBL_XDISABLE   = 1ul << 63,
+	/* Flag bits done. */
+
+	X86_PGTBL_USER_DEF   = X86_PGTBL_PRESENT | X86_PGTBL_USER | X86_PGTBL_ACCESSED | X86_PGTBL_MODIFIED | X86_PGTBL_WRITABLE,
+	X86_PGTBL_INTERN_DEF = X86_PGTBL_USER_DEF,
+	X86_PGTBL_USER_MODIFIABLE = X86_PGTBL_WRITABLE | X86_PGTBL_PKEY0 | X86_PGTBL_PKEY1 | X86_PGTBL_PKEY2 | X86_PGTBL_PKEY3 | X86_PGTBL_XDISABLE,
+} pgtbl_flags_x86_t;
+
 typedef enum {
 	CR0_PE    = 1 << 0,  /* Protected Mode Enable */
 	CR0_MP    = 1 << 1,  /* Monitor co-processor */
@@ -178,6 +206,12 @@ outb(u16_t port, u8_t value)
 	__asm__ __volatile__("outb %1, %0" : : "dN"(port), "a"(value));
 }
 
+static inline void
+out16(u16_t port, u16_t val)
+{
+	__asm__ volatile("outw %0,%1" : : "a" (val), "dN" (port));
+}
+
 /**
  * Read byte from port
  */
@@ -189,6 +223,16 @@ inb(u16_t port)
 	__asm__ __volatile__("inb %1, %0" : "=a"(ret) : "dN"(port));
 
 	return ret;
+}
+
+static inline u16_t
+in16(u16_t port)
+{
+	u16_t val;
+
+	__asm__ volatile("inw %1,%0" : "=a" (val) : "dN" (port));
+
+	return val;
 }
 
 static void
@@ -358,10 +402,7 @@ static void
 chal_cpu_init(void)
 {
 	unsigned long cr4 = chal_cpu_cr4_get();
-	coreid_t cpu_id = coreid();
 	struct state_percore *s = chal_percore_state();
-
-#if defined(__x86_64__)
 	u32_t low = 0, high = 0;
 	u64_t xcr0_config = 0;
 	u32_t a = 0, b = 0, c = 0, d = 0;
