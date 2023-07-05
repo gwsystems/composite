@@ -108,6 +108,7 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 
 	kern_paging_map_init((void *)(max));
 	multiboot_output(mboot_addr, mboot_magic);
+	chal_state_init();
 
 	chal_init();
 	paging_init();

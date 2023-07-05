@@ -1,4 +1,4 @@
-#include "cos_types.h"
+#include <types.h>
 #include <kernel.h>
 #include <string.h>
 #include <isr.h>

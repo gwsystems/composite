@@ -1,36 +1,26 @@
-#include <cos_regs.h>
-#include <state.h>
+#include <chal_regs.h>
+#include <chal_state.h>
 
 /* The entire IPC path should be in __ipc_entry section. */
 .section .ipc_fastpath, "ax"
 .align 16
 .globl syscall_entry
 syscall_entry:
-	swapgs           /* activate the kernel gs */
-	movq %gs:STATE_STACK_POINTER, %rsp /* from it get the stack pointer */
+	swapgs           /* activate the kernel's gs */
+	movq %gs:0, %rsp /* from it get the stack pointer */
 	PUSH_REGS_SYSCALL
-	pushq %rsp       /* pointer to the registers to use a retval */
-	mov %rsp, %rdi   /* pointer to pointer to struct reg argument */
 	call syscall_handler
-	popq %rdi        /* retrieve the registers we're to switch to */
-	movq %rdi, %rsp  /* stack pointer now points to the top of the register structure */
-	testq %rax, %rax /* syscall_hander returned `0`? -> full register restore */
-	jne restore_all_registers /* for the syscall, this jumps forward, hopefully statically predicated to not taken */
-	POP_REGS_RET_SYSCALL
-/* we are changing thread contexts, so reload all registers */
-.align 16
-restore_all_registers:
-	POP_REGS_RET_TRAP
+1b:
+	jmp 1b           /* Return to user-level should occur in the syscall_handler */
+
 /* We're out of the fast-path now, so use the normal code segment */
 .text
 
 #define IRQPROC(fn)  			\
 	PUSH_REGS_TRAP; 		\
-	mov %rsp, %rdi; 		\
 	call fn;			\
-	testq %rax, %rax;		\
-	jne restore_all_registers;	\
-	POP_REGS_RET_SYSCALL;		\
+1b:					\
+	jmp 1b;
 
 /*
  * Convention:

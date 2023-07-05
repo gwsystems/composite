@@ -1,11 +1,11 @@
 /* Based on code from Pintos. See LICENSE.pintos for licensing information */
 
-#include "cos_compiler.h"
-#include "cos_types.h"
-#include "kernel.h"
-#include "tss.h"
-#include "chal_asm_inc.h"
-#include "chal_cpu.h"
+#include <compiler.h>
+#include <types.h>
+#include <kernel.h>
+#include <tss.h>
+#include <chal_asm_inc.h>
+#include <chal_cpu.h>
 
 struct gdt_aligned {
         u64_t seg_descs[SEL_CNT];

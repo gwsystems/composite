@@ -1,3 +1,4 @@
+#include <chal_state.h>
 #include <kernel.h>
 #include <chal_cpu.h>
 #include <assert.h>
@@ -512,7 +513,6 @@ smp_boot_all_ap(volatile int *cores_ready)
 	stackpatch  = (char **)chal_pa2va(SMP_BOOT_PATCH_ADDR + (&smpstack - &smppatchstart));
 
 	for (i = 1; i < ncpus; i++) {
-		struct cos_cpu_local_info *cli;
 		int 	j;
 		u16_t   *warm_reset_vec;
 
@@ -532,10 +532,7 @@ smp_boot_all_ap(volatile int *cores_ready)
 		printk("\nBooting AP %d with apic_id %d\n", i, apicids[i]);
 		/* Application Processor (AP) startup sequence: */
 		/* ...make sure that we pass this core's stack */
-		*stackpatch = (char *)((unsigned long)&stack + ((PAGE_SIZE * i) + (PAGE_SIZE - STK_INFO_OFF)));
-		/* ...initialize the coreid of the new processor */
-		cli         = (struct cos_cpu_local_info *)*stackpatch;
-		cli->cpuid  = i; /* the rest is initialized during the bootup process */
+		*stackpatch = (char *)((unsigned long)&state_percore + ((COS_PAGE_SIZE * i) + STATE_REGS_OFFSET));
 
 		/* Now the IPI coordination process to boot the AP: first send init ipi... */
 		lapic_ipi_send(apicids[i], LAPIC_ICR_LEVEL | LAPIC_ICR_ASSERT | LAPIC_ICR_INIT);

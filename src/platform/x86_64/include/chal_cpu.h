@@ -1,11 +1,11 @@
-#ifndef CHAL_CPU_H
-#define CHAL_CPU_H
+#pragma once
 
 #include <assert.h>
 #include <fpu.h>
 #include <chal_asm_inc.h>
 #include <tss.h>
 #include <arch_consts.h>
+#include <chal_state.h>
 
 typedef enum {
 	CR0_PE    = 1 << 0,  /* Protected Mode Enable */
@@ -65,11 +65,8 @@ static inline unsigned long
 chal_cpu_cr4_get(void)
 {
 	unsigned long config;
-#if defined(__x86_64__)
+
 	asm("movq %%cr4, %0" : "=r"(config));
-#elif defined(__i386__)
-	asm("movl %%cr4, %0" : "=r"(config));
-#endif
 
 	return config;
 }
@@ -79,11 +76,7 @@ chal_cpu_cr4_set(cr4_flags_t flags)
 {
 	unsigned long config = chal_cpu_cr4_get();
 	config |= (unsigned long)flags;
-#if defined(__x86_64__)
 	asm("movq %0, %%cr4" : : "r"(config));
-#elif defined(__i386__)
-	asm("movl %0, %%cr4" : : "r"(config));
-#endif
 }
 
 static inline u64_t
@@ -117,26 +110,15 @@ chal_cpu_eflags_init(void)
 {
 	unsigned long val;
 
-#if defined(__x86_64__)
 	asm volatile("pushfq ; popq %0" : "=r"(val));
 	val |= 3 << 12; /* iopl */
 	asm volatile("pushq %0 ; popfq" : : "r"(val));
-#elif defined(__i386__)
-	asm volatile("pushf ; popl %0" : "=r"(val));
-	val |= 3 << 12; /* iopl */
-	asm volatile("pushl %0 ; popf" : : "r"(val));
-#endif
-
 }
 
 static inline void
 chal_cpu_pgtbl_activate(uword_t pgtbl)
 {
-#if defined(__x86_64__)
 	asm volatile("movq %0, %%cr3" : : "r"(pgtbl));
-#elif defined(__i386__)
-	asm volatile("mov %0, %%cr3" : : "r"(pgtbl));
-#endif
 }
 
 #define IA32_SYSENTER_CS  0x174
@@ -146,7 +128,6 @@ chal_cpu_pgtbl_activate(uword_t pgtbl)
 #define MSR_APIC_BASE     0x1b
 #define MSR_TSC_AUX       0xc0000103
 
-#if defined(__x86_64__)
 #define MSR_IA32_EFER		0xC0000080
 #define MSR_STAR 		0xC0000081
 #define MSR_LSTAR 		0xC0000082
@@ -155,7 +136,6 @@ chal_cpu_pgtbl_activate(uword_t pgtbl)
 #define MSR_FSBASE		0xC0000100
 #define MSR_USER_GSBASE 	0xC0000101
 #define MSR_KERNEL_GSBASE 	0xC0000102
-#endif
 
 extern void sysenter_entry(void);
 
@@ -379,6 +359,7 @@ chal_cpu_init(void)
 {
 	unsigned long cr4 = chal_cpu_cr4_get();
 	coreid_t cpu_id = coreid();
+	struct state_percore *s = chal_percore_state();
 
 #if defined(__x86_64__)
 	u32_t low = 0, high = 0;
@@ -465,14 +446,7 @@ chal_cpu_init(void)
 	writemsr(MSR_LSTAR, (u32_t)((u64_t)sysenter_entry), (u32_t)((u64_t)sysenter_entry >> 32));
 	writemsr(MSR_SFMASK, 512, 0);
 	writemsr(MSR_USER_GSBASE, 0, 0);
-	writemsr(MSR_KERNEL_GSBASE, (u32_t)((u64_t)(&kernel_stack_info[cpu_id])), (u32_t)((u64_t)(&kernel_stack_info[cpu_id]) >> 32));
-
-#elif defined(__i386__)
-	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
-	writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
-	writemsr(IA32_SYSENTER_ESP, (u32_t)tss[cpu_id].esp0, 0);
-	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, 0);
-#endif
+	writemsr(MSR_KERNEL_GSBASE, (u32_t)((u64_t)(&s->gs_stack_ptr)), (u32_t)((u64_t)(&s->gs_stack_ptr) >> 32));
 
 	fpu_init();
 	chal_cpu_eflags_init();
@@ -482,11 +456,8 @@ static inline vaddr_t
 chal_cpu_fault_vaddr(struct regs *r)
 {
 	vaddr_t fault_addr;
-#if defined(__x86_64__)
+
 	asm volatile("movq %%cr2, %0" : "=r"(fault_addr));
-#elif defined(__i386__)
-	asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
-#endif
 
 	return fault_addr;
 }
@@ -507,16 +478,9 @@ chal_cpu_fault_ip(struct regs *r)
 static inline void
 chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)
 {
-#if defined(__x86_64__)
 	/* rcx = user-level ip, r12 = option, rbx = arg, rax = tid + cpuid  */
 	/* $0x3200 : enable interrupt, and iopl is set to 3, the same as user's CPL */
 	__asm__("movq $0x3200, %%r11 ; mov %%rdx, %%ds ; movq %3, %%r12 ; sysretq" : : "c"(ip), "a"(tid | (cpuid << 16)), "d"(SEL_UDSEG), "i"(0), "b"(0));
-#elif defined(__i386__)
-	/* edx = user-level ip, ecx = option, ebx = arg, eax = tid + cpuid */
-	__asm__("sti ; sysexit" : : "c"(0), "d"(ip), "b"(0), "a"(tid | (cpuid << 16)));
-#endif
 }
 
 void chal_timer_thd_init(struct thread *t);
-
-#endif /* CHAL_CPU_H */

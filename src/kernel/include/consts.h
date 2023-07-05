@@ -8,4 +8,4 @@
  * Kernel implementation constants
  */
 
-#define COS_INVSTK_SIZE      2
+#define COS_INVSTK_SIZE      16

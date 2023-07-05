@@ -24,8 +24,8 @@
 
 #define REGS_RFLAGS_DEFAULT  0x3200
 #define REGS_TRAPFRAME_SZ    0x30
-#define REGS_STATUS_ERROR_SZ 0x10
-#define REGS_ERROR_SZ        0x8
+#define REGS_STATE_ERROR_SZ  0x10 /* The size of the state/type plus the error code */
+#define REGS_STATE_SZ        0x8
 
 /*
  * Direct assembly requires single %, while inline assembly requires
@@ -72,15 +72,17 @@
 	pushq PREFIX(rax)
 
 /*
+ * The subtraction makes room for the (irrelevant, unused) trap frame.
+ *
  * The push of the `1` populates the `reg_state_t` with a value that
  * specifies we're in a system call, and the `REGS_RFLAGS_DEFAULT`
  * value populates `r11` on return with a fixed RFLAGS value.
  */
 #define PUSH_REGS_SYSCALL					\
-	addq $(REGS_TRAPFRAME_SZ + REGS_ERROR_SZ), PREFIX(rsp);	\
-	pushq $1;						\
+	subq $(REGS_TRAPFRAME_SZ), PREFIX(rsp);			\
+	pushq $(REG_STATE_SYSCALL);				\
 	pushq PREFIX(rbp);					\
-	pushq $REGS_RFLAGS_DEFAULT;				\
+	pushq PREFIX(r11);					\
 	pushq PREFIX(rcx);					\
 	PUSH_REGS_GENERAL
 
@@ -89,13 +91,15 @@
  * must be saved for future restoration. This happens in both
  * interrupts and exceptions.
  *
+ * Not shown here is the *hardware's* saving of the trap-frame.
+ *
  * We skip over saving ip/sp as the ip/sp in the trap frame should be
  * used instead, we set the register state to `0` to denote a
  * preempted state, and we avoid saving fs_base/gs_base as those will
  * be taken care of by C code.
  */
 #define PUSH_REGS_TRAP 			\
-	pushq $0;			\
+	pushq $(REG_STATE_PREEMPTED);	\
 	pushq PREFIX(rbp);		\
 	pushq PREFIX(r11);		\
 	pushq PREFIX(rcx);		\
@@ -116,10 +120,9 @@
 	popq PREFIX(r15)
 
 /*
- * This is not obvious. We're putting the rflags value (the magic
- * constant) into rflags, and then we're popping the
- * `clobbered.r11_sp` value into the stack pointer. Thus, after
- * using this macro, the stack should no longer be accessed.
+ * Restore all of the registers. Assumes that clobbered.r11 holds the
+ * rflags from the syscall. Does *not* restore the trap frame, which
+ * is ignored and left, untouched on the stack.
  *
  * We assume that "cc" is specified in the clobber list of
  * the system call, thus we don't need to restore the specific rflags
@@ -136,8 +139,8 @@
 	sysretq;
 
 /*
- * Restore registers directly, then skip over the state and error
- * code. Finally, return using iret.
+ * Restore registers directly, then (the `add`) skip over the state
+ * and error code. Finally, return using iret.
  *
  * Note that the pair of `sti; iretq` are treated as atomic within
  * x86, so there are no preemptions until we return to user-level.
@@ -152,7 +155,7 @@
 	popq PREFIX(rcx);				\
 	popq PREFIX(r11);				\
 	popq PREFIX(rbp);				\
-	addq $REGS_STATUS_ERROR_SZ, PREFIX(rsp);	\
+	addq $(REGS_STATE_ERROR_SZ), PREFIX(rsp);	\
 	swapgs;						\
 	sti;						\
 	iretq;
@@ -176,14 +179,16 @@
  */
 
 #define ASM_SYSCALL_RETURN(rs) \
-	asm volatile("lea %0, %%rsp;" EXPAND(POP_REGS_RET_SYSCALL) : : "m" (rs) : "memory" )
+	asm volatile("movq %0, %%rsp;" EXPAND(POP_REGS_RET_SYSCALL) : : "r" (rs) : "memory" )
 #define ASM_TRAP_RETURN(rs) \
-	asm volatile("lea %0, %%rsp;" EXPAND(POP_REGS_RET_TRAP) : : "m" (rs) : "memory" )
+	asm volatile("movq %0, %%rsp;" EXPAND(POP_REGS_RET_TRAP) : : "r" (rs) : "memory" )
 
 COS_STATIC_ASSERT(REGS_MAX_NUM_ARGS + REGS_GEN_ARGS_BASE == REGS_NUM_ARGS_RETS,
 		  "The relationship between REGS_MAX_NUM_ARGS, REGS_GEN_ARGS_BASE, and REGS_NUM_ARGS_RETS is not correct.");
 
 typedef uword_t        reg_state_t;       /* the state of a register set: preempted, or partially saved  */
+
+COS_STATIC_ASSERT(sizeof(reg_state_t) == REGS_STATE_SZ, "Register state size constant doesn't match size.");
 
 /*
  * The trap frame added onto the stack by interrupts/exceptions. This
@@ -209,18 +214,18 @@ struct trap_frame {
  * `rcx`/`r11`/`rbp` registers that must be fully restored.
 */
 struct regs_clobbered {
-	/* Used to hold instruction pointer on syscall/sysret */
+	/*
+	 * Used to hold instruction pointer on syscall/sysret, and rcx
+	 * on trap
+	 */
 	uword_t rcx_ip;
         /*
-	 * r11 holds rflags on `syscall`/`sysret`.
+	 * `r11` holds rflags on `syscall`/`sysret`, `r11` on trap.
 	 */
 	uword_t r11;
 	/*
-	 * Used to store stack pointer on syscall. This is the top
-	 * address of the `struct regs` structure to be restored on
-	 * system call so that the stack pointer can be restored after
-	 * restoring the rest, and directly before returning to
-	 * user-level.
+	 * Used to store stack pointer on syscall (which is in rbp via
+	 * the system call conventions), and stores `rbp` on trap.
 	 */
 	uword_t rbp_sp;
 };

@@ -1,3 +1,5 @@
+#pragma once
+
 /* Segment selectors for the GDT */
 #define SEL_RPL_USR 0x3
 
@@ -12,10 +14,4 @@
 
 #define SEL_CNT 9                      /* Number of segments. */
 
-#define STK_INFO_SZ 144                 /* sizeof(struct cos_cpu_local_info) */
-#define STK_INFO_OFF (STK_INFO_SZ + 8) /* sizeof(struct cos_cpu_local_info) + sizeof(long) */
-
 #define SMP_BOOT_PATCH_ADDR 0x70000
-
-#define KERNEL_STACK_OFFSET 0
-#define USER_STACK_OFFSET 8

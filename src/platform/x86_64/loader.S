@@ -1,6 +1,7 @@
-#include "chal/shared/cos_config.h"
-#include "chal_asm_inc.h"
-#include "multiboot2.h"
+//#include "chal/shared/cos_config.h"
+#include <chal_asm_inc.h>
+#include <multiboot2.h>
+#include <chal_state.h>
 
 /* multiboot2 header must be contained completely within the first 32768 bytes of the OS image, and must be 64-bit aligned */
 .section .text
@@ -18,12 +19,12 @@ multiboot_start:
 
 multiboot_end:
 
-/* 
+/*
  * grub enters 32-bit mode, so your first section should use 32-bit code.
  * jmp to 64 bit yourself from here.
  */
 .code32
-.global loader 
+.global loader
 loader:
 	/* save multiboot2 args first */
 	mov %eax, multiboot_magic
@@ -52,7 +53,7 @@ huge_page_enabled:
 	or $0x03, %eax
 	mov %eax, p0_pgt
 	mov %eax, (p0_pgt+0x08*256)
-	
+
 	/* set kernel paging space */
 	movl  $0x00000083, p1_pgt /* 0-1 GB vm -> 0-1 GB pm */
 
@@ -100,7 +101,7 @@ entry_64:
 	mov %rax, %ss
 
 	/* set up a kernel stack for kmain */
-	movabs $(stack + STACKSIZE - STK_INFO_OFF), %rsp
+	movabs $(core_state + STATE_REGS_OFFSET), %rsp
 	xor %rsi, %rsi
 	xor %rdi, %rdi
 	movl multiboot_magic, %esi
@@ -147,12 +148,12 @@ p0_pgt:
 p1_pgt:
 	.fill 512, 8, 0
 
-.section .data
-.set STACKSIZE, 0x1000
-.global stack
-.align 0x1000
-stack:
-.fill (STACKSIZE * NUM_CPU), 1, 0
+;; .section .data
+;; .set STACKSIZE, 0x1000
+;; .global stack
+;; .align 0x1000
+;; stack:
+;; .fill (STACKSIZE * NUM_CPU), 1, 0
 
 .section .smptext
 
@@ -247,11 +248,11 @@ smpstart32:
 	movw    %ax, %gs
 
 	mov %cr0, %eax
-	and $0xFFFB, %ax	
-	or $0x2, %ax	
+	and $0xFFFB, %ax
+	or $0x2, %ax
 	mov %eax, %cr0
 	mov %cr4, %eax
-	or $(3 << 9), %ax	
+	or $(3 << 9), %ax
 	mov %eax, %cr4
 
 	mov %cr0, %eax
@@ -291,7 +292,7 @@ smp_huge_page_enabled:
 	lgdt (%eax)
 
 .code64
-	mov $RELOCATE_ADDR(smpstack_end) ,%rsp 
+	mov $RELOCATE_ADDR(smpstack_end) ,%rsp
 	mov $RELOCATE_ADDR(smp_entry_64), %rax
 	pushq $0x08
 	pushq %rax
@@ -299,7 +300,7 @@ smp_huge_page_enabled:
 
 smp_entry_64:
 	/* flush data selectors */
-	mov $0x10, %rax	
+	mov $0x10, %rax
 	mov %rax, %ds
 	mov %rax, %es
 	mov %rax, %fs
