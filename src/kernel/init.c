@@ -157,7 +157,7 @@ kernel_init(uword_t post_constructor_offset)
 	 * script (`linker.ld`). We don't want to use a `resource_*`
 	 * API, as it initializes the associated page.
 	 */
-	for (i = constructor_offset; i < post_constructor_offset; i++) {
+	for (i = constructor_offset; (uword_t)i < post_constructor_offset; i++) {
 		page_types[i] = (struct page_type) {
 			.type = COS_PAGE_TYPE_VM,
 			.kerntype = 0,
@@ -194,13 +194,15 @@ uword_t gbl_thread_offset = 0;
 void
 kernel_core_init(coreid_t coreid)
 {
-	extern struct state_percore core_state[COS_NUM_CPU];
+	struct state_percore *s;
+
 	/* The 1 here is for the null captbl page */
 	struct thread *t = (struct thread *)&pages[gbl_thread_offset + coreid];
 	/* If this triggers, you should call `constructor_init` before this! */
 	assert(gbl_thread_offset > 0);
 
-	core_state[coreid] = (struct state_percore) {
+	s = chal_percore_state_coreid(coreid);
+	*s = (struct state_percore) {
 		.registers     = { 0 },
 		.active_thread = t,
 		.active_captbl = t->invstk.entries[0].component.captbl,

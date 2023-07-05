@@ -1,5 +1,6 @@
 #pragma once
 
+#include "resources.h"
 #include <compiler.h>
 #include <component.h>
 #include <consts.h>
@@ -94,19 +95,19 @@ captbl_lookup_type(captbl_t ct, cos_cap_t cap, cos_cap_type_t type, cos_op_bitma
 #define CAPTBL_LOOKUP_TYPE(ct, cap, type, required, cap_ret) \
 	captbl_lookup_type(ct, cap, type, required, (struct capability_generic **)&cap_ret)
 
-/* Forced inline here is meant to remove the switch's conditions */
+/*
+ * Forced inline here is meant to remove the switch's conditions in
+ * the common case that `captype` is a constant.
+ */
 COS_FORCE_INLINE static inline cos_retval_t
 captbl_lookup_cap_deref(struct capability_generic *capslot, cos_cap_type_t captype, cos_op_bitmap_t required, pageref_t *ref)
 {
-	struct weak_ref *wref;
-	struct component_ref *compref;
-
 	/* pull the resource reference out of the capability if the reference is valid */
 	switch (captype) {
 	case COS_CAP_TYPE_COMP:
-		return component_ref_deref(&((struct capability_component *)capslot)->intern.component, ref);
+		return resource_compref_deref(&((struct capability_component *)capslot)->intern.component, ref);
 	case COS_CAP_TYPE_SINV:
-		return component_ref_deref(&((struct capability_sync_inv *)capslot)->intern.component, ref);
+		return resource_compref_deref(&((struct capability_sync_inv *)capslot)->intern.component, ref);
 	case COS_CAP_TYPE_HW:	/* No page associated with hardware capabilities */
 		return -COS_ERR_WRONG_CAP_TYPE;
 	default:		/* the rest of the types have a shared capability slot structure */

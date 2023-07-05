@@ -164,7 +164,6 @@ cos_restbl_intern_offset(uword_t lvl, uword_t addr, const uword_t MAX_DEPTH, con
 		     const uword_t INTERN_ORD, const uword_t LEAF_ORD, uword_t *off_ret)
 {
 	const uword_t addrspc_max = COS_ORD2MASK(TOP_ORD + (INTERN_ORD * (MAX_DEPTH - 2)) + LEAF_ORD);
-	uword_t granularity, bits;
 
 	if (lvl > MAX_DEPTH - 1 || addr >= addrspc_max) return -COS_ERR_OUT_OF_BOUNDS;
 

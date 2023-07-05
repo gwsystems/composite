@@ -70,7 +70,6 @@ COS_FASTPATH static inline struct regs *
 sinv_return(struct thread *t, uword_t *head, struct regs *rs)
 {
 	struct invstk_entry *client;
-	uword_t ip, sp;
 	cos_retval_t r;
 
 	if (unlikely(*head == 0)) COS_THROW(r, -COS_ERR_OUT_OF_BOUNDS, err);

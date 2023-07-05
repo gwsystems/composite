@@ -212,7 +212,7 @@ captbl_cap_reserve(struct capability_generic *cap)
 	if (!liveness_quiesced(cap->liveness)) return -COS_ERR_NOT_QUIESCED;
 
 	/* Update! */
-	if (!cas16(&cap->type, COS_CAP_TYPE_FREE, COS_CAP_TYPE_RESERVED)) return -COS_ERR_ALREADY_EXISTS;
+	if (!cas32(&cap->type, COS_CAP_TYPE_FREE, COS_CAP_TYPE_RESERVED)) return -COS_ERR_ALREADY_EXISTS;
 
 	return COS_RET_SUCCESS;
 }
@@ -312,7 +312,6 @@ cos_retval_t
 capability_remove(pageref_t captblref, uword_t off)
 {
 	struct captbl_leaf *ct;
-	cos_cap_type_t t;
 
 	ref2page(captblref, (struct page **)&ct, NULL);
 
@@ -364,11 +363,9 @@ cos_retval_t
 cap_comp_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations, pageref_t comp_src_ref)
 {
 	struct capability_component_intern i;
-	struct page_type *ptype;
 	struct captbl_leaf *captbl_entry;
 	struct capability_generic *cap;
 	struct component_ref ref;
-	epoch_t epoch;
 
 	/*
 	 * Build the reference to the component. Note that this makes
@@ -416,11 +413,9 @@ cap_comp_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off,
 cos_retval_t
 cap_sinv_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, pageref_t comp_ref, vaddr_t entry_ip, inv_token_t token)
 {
-	cos_retval_t ret = COS_RET_SUCCESS;
 	struct captbl_leaf *captbl_entry;
 	struct capability_generic *cap;
 	struct component_ref ref;
-	struct page_type *ptype;
 	struct capability_sync_inv_intern i;
 
 	/* Build the reference to the server component */
@@ -466,13 +461,9 @@ cos_retval_t
 cap_thd_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations, pageref_t thd_ref)
 {
 	struct capability_resource_intern r;
-	cos_retval_t ret;
-	struct page_type *ptype;
 	struct captbl_leaf *captbl_entry;
 	struct capability_generic *cap;
 	struct weak_ref weak_ref;
-	prot_domain_tag_t pd;
-	vaddr_t entry_ip;
 
 	COS_CHECK(resource_weakref_create(thd_ref, COS_PAGE_KERNTYPE_THD, &weak_ref));
 
@@ -509,12 +500,9 @@ cos_retval_t
 cap_restbl_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, page_kerntype_t kt, cos_op_bitmap_t operations, pageref_t restbl_ref)
 {
 	struct capability_resource_intern r;
-	cos_retval_t ret;
 	struct captbl_leaf *captbl_entry;
 	struct capability_generic *cap;
 	struct weak_ref weak_ref;
-	prot_domain_tag_t pd;
-	vaddr_t entry_ip;
 
 	COS_CHECK(resource_weakref_create(restbl_ref, kt, &weak_ref));
 

@@ -304,8 +304,6 @@ thd_create(captbl_t ct, cos_cap_t schedthd_cap, cos_cap_t comp_cap, cos_op_bitma
 cos_retval_t
 restbl_create(page_kerntype_t kt, pageref_t res_ref)
 {
-	pageref_t untyped_src_ref;
-
 	if (!page_is_pgtbl(kt) && !page_is_captbl(kt)) return -COS_ERR_WRONG_INPUT_TYPE;
 
 	return resource_restbl_create(kt, res_ref);
@@ -465,7 +463,6 @@ captbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t ca
 {
 	struct state *g = state();
 	captbl_t captbl = g->active_captbl;
-	struct thread *t = g->active_thread;
 	pageref_t captblref;
 
 	COS_CHECK(resource_weakref_deref(&cap->intern.ref, &captblref));
@@ -553,7 +550,6 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 
 			return restbl_create(t, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_THD) {
-			pageref_t schedthd_ref, comp_ref;
 			cos_cap_t schedthd_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
 			cos_cap_t comp_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
 			thdid_t id = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
@@ -583,7 +579,6 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 		pgtbl_ref_t pgtblref;
 		uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
 		page_kerntype_t t;
-		uword_t pgtbl_entry_perm = 0; /* TODO: add R/W perms */
 
 		COS_CHECK(resource_weakref_deref(&cap->intern.ref, &pgtblref));
 
