@@ -163,20 +163,6 @@ cos_capfrontier_init(struct cos_compinfo *ci, capid_t cap_frontier)
 }
 
 void
-cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, int try_expand)
-{
-	if (cap_frontier <= ci->cap_frontier) return;
-
-	if (try_expand) {
-		while (cap_frontier > ci->caprange_frontier) {
-			ci->cap_frontier = ci->caprange_frontier;
-			__capid_captbl_check_expand(ci);
-		}
-	}
-
-	cos_capfrontier_init(ci, cap_frontier);
-}
-void
 cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
                   vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources)
 {
@@ -717,6 +703,104 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz, size_t align)
 	return heap_vaddr;
 }
 
+void
+missing_captbl_node_expand(struct cos_compinfo *ci)
+{
+	capid_t cap_frontier, caprange_frontier, frontier, test_cap;
+	struct cos_compinfo *root_source = __compinfo_metacap(ci);
+	int self_resource = (root_source == ci);
+	vaddr_t kmem;
+	int ret;
+
+	cap_frontier = root_source->cap_frontier;
+	caprange_frontier = root_source->caprange_frontier;
+
+	test_cap = CAPTBL_EXPAND_SZ;
+	if (self_resource) {
+		if (cap_frontier >= CAPTBL_EXPAND_SZ) {
+			// assert(0);
+			return;
+		}
+		printd("begin to expanding a root source:%d, %d\n", cap_frontier);
+
+		while (test_cap < caprange_frontier) {
+			ret = call_cap_op(root_source->captbl_cap, CAPTBL_OP_CAPCHECK, test_cap, 0, self_resource, 0);
+			if (ret) {
+				frontier = test_cap - CAPMAX_ENTRY_SZ;
+				kmem = __kmem_bump_alloc(ci);
+				assert(kmem); /* FIXME: should have a failure semantics for capids */
+
+				printd("try to expand a ROOT node: frontier:%d, test_cap:%d\n", frontier, test_cap);
+				if (call_cap_op(root_source->captbl_cap, CAPTBL_OP_CAPTBLACTIVATE, frontier, root_source->mi.pgtbl_cap, kmem, 1)) {
+					assert(0); /* race condition? */
+				}
+				/* Construct captbl */
+				if (call_cap_op(root_source->captbl_cap, CAPTBL_OP_CONS, frontier, test_cap, 0, 0)) {
+					assert(0); /* race? */
+				}
+				printd("try to expand a ROOT node: DONE once\n");
+			}
+			test_cap += CAPTBL_EXPAND_SZ * 2;
+		}
+	} else {
+		printd("cap check before:%d\n", ci->captbl_cap);
+		ret = call_cap_op(root_source->captbl_cap, CAPTBL_OP_CAPCHECK, ci->captbl_cap, 0, 1, 0);
+		// printc("after cap check:%d\n", ret);
+		/* make sure the sub captbl exists */
+		assert(!ret);
+		cap_frontier = ci->cap_frontier;
+		caprange_frontier = ci->caprange_frontier;
+		/* we make sure before expanding the missing node of sub captbl, we make sure its root captbl is in a good state */
+		printd("begin to expanding a SUB source:%d, %d\n", cap_frontier, caprange_frontier);
+		missing_captbl_node_expand(root_source);
+		while (test_cap < caprange_frontier) {
+			ret = call_cap_op(root_source->captbl_cap, CAPTBL_OP_CAPCHECK, ci->captbl_cap, test_cap, 0, 0);
+			printd("SUB ret:%d, root_source->captbl_cap:%d, ci->captbl_cap:%d\n", ret, root_source->captbl_cap, ci->captbl_cap);
+			if (ret) {
+				printd("sub try to get kmem from root source\n");
+				kmem = __kmem_bump_alloc(root_source);
+				printd("sub try to get kmem from root source, done\n");
+				assert(kmem); /* FIXME: should have a failure semantics for capids */
+				printd("sub try to get capid from root source\n");
+				frontier = __capid_bump_alloc(root_source, CAP_CAPTBL);
+				printd("sub try to get capid from root source, done\n");
+				// ret = call_cap_op(root_source->captbl_cap, CAPTBL_OP_CAPCHECK, ci->captbl_cap, test_cap, 0, 0);
+				// printc("SUB ret:%d, root_source->captbl_cap:%d, ci->captbl_cap:%d\n", ret, root_source->captbl_cap, ci->captbl_cap);
+
+				printd("try to expand a SUB node: frontier:%d, test_cap:%d\n", frontier, test_cap);
+				if (call_cap_op(root_source->captbl_cap, CAPTBL_OP_CAPTBLACTIVATE, frontier, root_source->mi.pgtbl_cap, kmem, 1)) {
+					assert(0); /* race condition? */
+				}
+				/* Construct captbl */
+				if (call_cap_op(ci->captbl_cap, CAPTBL_OP_CONS, frontier, test_cap, 0, 0)) {
+					ret = call_cap_op(root_source->captbl_cap, CAPTBL_OP_CAPCHECK, ci->captbl_cap, 384, 0, 0);
+					printc("assert ret:%d\n", ret);
+					assert(0); /* race? */
+				}
+				printd("try to expand a SUB node: DONE once\n");
+			}
+			test_cap += CAPTBL_EXPAND_SZ * 2;
+		}
+		printd("begin to expanding a SUB source:%d, %d, done\n", cap_frontier, caprange_frontier);
+	}
+}
+
+void
+cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, int try_expand)
+{
+	missing_captbl_node_expand(ci);
+	// printc("mmp???:cap_frontier:%d, ci->cap_frontier:%d, ci->caprange_frontier:%d\n", cap_frontier, ci->cap_frontier, ci->caprange_frontier);
+	if (cap_frontier <= ci->cap_frontier) return;
+
+	if (try_expand) {
+		while (cap_frontier > ci->caprange_frontier) {
+			ci->cap_frontier = ci->caprange_frontier;	
+			__capid_captbl_check_expand(ci);
+		}
+	}
+
+	cos_capfrontier_init(ci, cap_frontier);
+}
 /**************** [Liveness Allocation] ****************/
 
 /*
@@ -1063,7 +1147,7 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, inv
 	printd("cos_sinv_alloc\n");
 
 	assert(srcci && dstcomp);
-
+	missing_captbl_node_expand(srcci);
 	cap = __capid_bump_alloc(srcci, CAP_COMP);
 	if (!cap) return 0;
 	if (call_cap_op(srcci->captbl_cap, CAPTBL_OP_SINVACTIVATE, cap, dstcomp, entry, token)) BUG();

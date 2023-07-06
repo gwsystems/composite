@@ -77,7 +77,7 @@ SS_STATIC_SLAB(asnd, struct cm_asnd, MAX_NUM_THREADS);
 SS_STATIC_SLAB(page, struct mm_page, MM_NPAGES);
 SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 
-#define CONTIG_PHY_PAGES 70000
+#define CONTIG_PHY_PAGES 63550
 static void * contig_phy_pages = 0;
 
 static struct cm_comp *
@@ -853,6 +853,8 @@ cos_init(void)
 	 * after we've sealed in all initargs and sinvs. Regardless,
 	 * that is the *correct* approach.
 	 */
+	// printc("addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER):%d\n", addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER));
+	// assert(0);
 	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER), 0);
 	if (!cm_comp_self_alloc("capmgr")) BUG();
 	/* Initialize the other component's for which we're responsible */

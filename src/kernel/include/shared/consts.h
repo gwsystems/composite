@@ -47,7 +47,7 @@
  * All stack size = per_stack_size * number_of_threads, here we set it as COS_STACK_SZ * 8
  * by default
  */
-#define ALL_STACK_SZ_FLAT (COS_STACK_SZ * 16)
+#define ALL_STACK_SZ_FLAT (COS_STACK_SZ * 64)
 #define MAX_SPD_VAS_LOCATIONS 8
 
 /* a kludge:  should not use a tmp stack on a stack miss */

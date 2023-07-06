@@ -49,6 +49,31 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	if (cos_compid() == 13 && cid != 8) {
 		return;
 	}
+	if (cos_compid() == 14 && cid != 9) {
+		return;
+	}
+	if (cos_compid() == 15 && cid != 10) {
+		return;
+	}
+	if (cos_compid() == 16 && cid != 11) {
+		return;
+	}
+	if (cos_compid() == 17 && cid != 12) {
+		return;
+	}
+	if (cos_compid() == 18 && cid != 13) {
+		return;
+	}
+	if (cos_compid() == 19 && cid != 14) {
+		return;
+	}
+	if (cos_compid() == 20 && cid != 15) {
+		return;
+	}
+	if (cos_compid() == 21 && cid != 16) {
+		return;
+	}
+
 	if (init_thd != cos_thdid()) {
 		netshemem_move(init_thd, cos_thdid());
 	}
@@ -88,6 +113,30 @@ parallel_main(coreid_t cid)
 		return 0;
 	}
 	if (cos_compid() == 13 && cid != 8) {
+		return 0;
+	}
+	if (cos_compid() == 14 && cid != 9) {
+		return 0;
+	}
+	if (cos_compid() == 15 && cid != 10) {
+		return 0;
+	}
+	if (cos_compid() == 16 && cid != 11) {
+		return 0;
+	}
+	if (cos_compid() == 17 && cid != 12) {
+		return 0;
+	}
+	if (cos_compid() == 18 && cid != 13) {
+		return 0;
+	}
+	if (cos_compid() == 19 && cid != 14) {
+		return 0;
+	}
+	if (cos_compid() == 20 && cid != 15) {
+		return 0;
+	}
+	if (cos_compid() == 21 && cid != 16) {
 		return 0;
 	}
 	int ret;

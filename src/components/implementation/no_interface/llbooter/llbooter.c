@@ -20,7 +20,7 @@
 #include <addr.h>
 
 #ifndef BOOTER_MAX_SINV
-#define BOOTER_MAX_SINV 512
+#define BOOTER_MAX_SINV 1024
 #endif
 #ifndef BOOTER_MAX_SCHED
 #define BOOTER_MAX_SCHED 1
@@ -32,7 +32,7 @@
 #define INITARGS_MAX_PATHNAME 512
 #endif
 #ifndef BOOTER_CAPMGR_MB
-#define BOOTER_CAPMGR_MB 512
+#define BOOTER_CAPMGR_MB 256
 #endif
 #ifndef BOOTER_MAX_CHKPT
 #define BOOTER_MAX_CHKPT 64
