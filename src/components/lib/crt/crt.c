@@ -407,7 +407,7 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	if (id == 3) assert(SCHED_MPK_KEY == PROTDOM_MPK_KEY(protdom));
 	/* FIXME: This is a hack making every component has SCB by default. */
 	//scbcap_t scbc = cos_scb_alloc(root_ci);
-	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, protdom);
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr + COS_SCB_SIZE, root_ci, protdom);
 	assert(!ret);
 
 	tot_sz = round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz);

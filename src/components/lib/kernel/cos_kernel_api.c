@@ -709,10 +709,16 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz, size_t align)
 		if (!umem) return 0;
 
 		/* Actually map in the memory. */
-		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, PAGE_ORDER)) {
+		int p = call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, PAGE_ORDER);
+		if (p) {
+			printc("ppp: %d, %lx\n", umem);
 			assert(0);
 			return 0;
 		}
+		/*if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, PAGE_ORDER)) {
+			assert(0);
+			return 0;
+		}*/
 	}
 
 	return heap_vaddr;

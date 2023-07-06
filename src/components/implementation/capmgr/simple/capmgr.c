@@ -1008,7 +1008,7 @@ cos_init(void)
 	/* Initialize the other component's for which we're responsible */
 	capmgr_comp_init();
 
-	//reserve some continuous pages
+	/* reserve some continuous pages */
 	contig_phy_pages = crt_page_allocn(&cm_self()->comp, CONTIG_PHY_PAGES);
 	contigmem_check(cos_compid(), (vaddr_t)contig_phy_pages, CONTIG_PHY_PAGES);
 
