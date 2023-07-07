@@ -114,6 +114,7 @@ page_resolve(pageref_t offset, page_type_t type, page_kerntype_t kerntype, epoch
 	ref2page(offset, &p, &pt);
 
 	if (unlikely(pt->type != type || pt->kerntype != kerntype)) return -COS_ERR_WRONG_INPUT_TYPE;
+	if (unlikely(version != NULL && *version != pt->epoch))     return -COS_ERR_NOT_LIVE;
 
 	if (page)  *page  = p;
 	if (ptype) *ptype = pt;

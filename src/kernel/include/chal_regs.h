@@ -652,7 +652,7 @@ regs_syscall_4_4(cos_cap_t cap, cos_op_bitmap_t ops,
 COS_FORCE_INLINE static inline void
 regs_syscall_10_1(cos_cap_t cap, cos_op_bitmap_t ops,
 		  uword_t a0, uword_t a1, uword_t a2, uword_t a3, uword_t a4, uword_t a5,
-		  uword_t a6, uword_t a7, uword_t a8, uword_t a9, uword_t a10, uword_t *ret0) {
+		  uword_t a6, uword_t a7, uword_t a8, uword_t a9, uword_t *ret0) {
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS10;
 	asm volatile(REGS_SYSCALL_TEMPLATE
@@ -664,7 +664,7 @@ regs_syscall_10_1(cos_cap_t cap, cos_op_bitmap_t ops,
 COS_FORCE_INLINE static inline void
 regs_syscall_10_4(cos_cap_t cap, cos_op_bitmap_t ops,
 		  uword_t a0, uword_t a1, uword_t a2, uword_t a3, uword_t a4, uword_t a5,
-		  uword_t a6, uword_t a7, uword_t a8, uword_t a9, uword_t a10,
+		  uword_t a6, uword_t a7, uword_t a8, uword_t a9,
 		  uword_t *ret0, uword_t *ret1, uword_t *ret2, uword_t *ret3) {
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS10;
@@ -677,7 +677,7 @@ regs_syscall_10_4(cos_cap_t cap, cos_op_bitmap_t ops,
 COS_FORCE_INLINE static inline void
 regs_syscall_10_10(cos_cap_t cap, cos_op_bitmap_t ops,
 		   uword_t a0, uword_t a1, uword_t a2, uword_t a3, uword_t a4, uword_t a5,
-		   uword_t a6, uword_t a7, uword_t a8, uword_t a9, uword_t a10,
+		   uword_t a6, uword_t a7, uword_t a8, uword_t a9,
 		   uword_t *ret0, uword_t *ret1, uword_t *ret2, uword_t *ret3, uword_t *ret4,
 		   uword_t *ret5, uword_t *ret6, uword_t *ret7, uword_t *ret8, uword_t *ret9) {
 	REGS_SYSCALL_CTXT;

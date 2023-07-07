@@ -14,11 +14,7 @@
 		chal_khalt();                                    \
 	} while (0)
 
-#ifdef assert
-#error "Assert in kernel already mysteriously defined."
-#endif
-
-#if ( COS_ASSERTIONS_ACTIVE != 0 )
+#ifndef COS_ASSERTIONS_ACTIVE
 #define assert(x)                                                                                           \
 	do {                                                                                                \
 		if (unlikely(0 == (x)))                                                                     \

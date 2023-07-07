@@ -26,8 +26,6 @@ multiboot_mem_parse(struct multiboot_tag *tag)
 {
 	unsigned int i = 0;
 	multiboot_memory_map_t *mmap;
-	u8_t *                  mem_addr;
-	unsigned long long      mem_len;
 
 	for (mmap = ((struct multiboot_tag_mmap *)tag)->entries;
 	     (multiboot_uint8_t *)mmap < (multiboot_uint8_t *)tag + tag->size;
@@ -89,8 +87,6 @@ void
 kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 {
 #define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
-	int r;
-	cos_retval_t rv;
 	uword_t max;
 	uword_t post_constructor;
 	struct elf_hdr *h;
@@ -186,16 +182,19 @@ khalt(void)
 		printk("\ttry acpi shutdown...\n");
 		acpi_shutdown();
 		printk("...FAILED\n");
+		break;
 	case 1:
 		method++;
 		printk("\ttry apm shutdown...\n");
 		shutdown_apm();
 		printk("...FAILED\n");
+		break;
 	case 2:
 		method++;
 		printk("\t...try emulator magic shutdown...\n");
 		outw(0x0 | 0x2000, 0xB004);
 		printk("...FAILED\n");
+		break;
 	}
 	/* last resort */
 	printk("\t...spinning\n");

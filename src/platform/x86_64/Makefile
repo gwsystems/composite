@@ -9,13 +9,15 @@ KINCPATH := $(KINC)
 UINCPATH := $(CDIR)/lib/cos/
 INCS    := -I$(KINCPATH) -I$(KINCPATH)/chal/ -I$(UINCPATH) -I$(PLATDIR)/include/
 #  -Wno-unused-variable
-CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone -mcmodel=large -mno-sse -mno-sse2 -mgeneral-regs-only $(INCS)
+CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -ffreestanding -Wno-unused-function -nostdinc -nostdlib -fno-pic -mno-red-zone -mcmodel=large -mno-sse -mno-sse2 -mgeneral-regs-only $(INCS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img
 IMAGE  := cos.img
 
 WARNINGS += -Wall
+WARNINGS += -Wextra
+WARNINGS += -Werror
 WARNINGS += -Wcast-align
 WARNINGS += -Wformat=2
 WARNINGS += -Winit-self
@@ -31,6 +33,8 @@ WARNINGS += -Wundef
 WARNINGS += -Wvolatile-register-var
 WARNINGS += -Wwrite-strings
 WARNINGS += -Wno-address-of-packed-member
+#WARNINGS += -Wno-unused-but-set-variable
+WARNINGS += -Wno-unused-parameter
 
 CFLAGS += $(WARNINGS)
 

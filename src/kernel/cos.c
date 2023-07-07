@@ -523,7 +523,6 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 {
 	struct state *g = state();
 	captbl_t captbl = g->active_captbl;
-	struct thread *t = g->active_thread;
 
 	if (cap->type == COS_CAP_TYPE_PGTBL_LEAF) {
 		pgtbl_ref_t pgtblref;
@@ -557,13 +556,12 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 
 			return thd_create(captbl, schedthd_cap, comp_cap, ops, id, tok, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_COMP) {
-			pageref_t ct_ref, pt_ref;
 			cos_cap_t ct_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
 			cos_cap_t pt_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
 			prot_domain_tag_t tag = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
 			vaddr_t entry = regs_arg(rs, REGS_GEN_ARGS_BASE + 4);
 
-			return comp_create(captbl, ct_ref, pt_ref, tag, entry, internref);
+			return comp_create(captbl, ct_cap, pt_cap, tag, entry, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_DEALLOCATE) {
 			return poly_destroy(internref);
 		} else if (ops == COS_OP_RESTBL_CAP_COPY) {
@@ -578,23 +576,19 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 	} else if (cap->type != COS_CAP_TYPE_PGTBL_LEAF) {
 		pgtbl_ref_t pgtblref;
 		uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
-		page_kerntype_t t;
 
 		COS_CHECK(resource_weakref_deref(&cap->intern.ref, &pgtblref));
 
 		if (ops == COS_OP_RESTBL_CONSTRUCT) {
 			cos_cap_t bottom_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
 			pageref_t bottom_ref;
-			uword_t offset = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
-			uword_t perm = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
+			uword_t perm = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
 
 			COS_CHECK(captbl_lookup_type_deref(captbl, bottom_cap, cap->type + 1, ops, &bottom_ref));
 
-			return pgtbl_construct(pgtblref, offset, bottom_ref, perm);
+			return pgtbl_construct(pgtblref, off, bottom_ref, perm);
 		} else if (ops == COS_OP_RESTBL_DECONSTRUCT) {
-			uword_t offset = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
-
-			return pgtbl_deconstruct(pgtblref, offset);
+			return pgtbl_deconstruct(pgtblref, off);
 		}
 	}
 
@@ -604,9 +598,6 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 COS_NEVER_INLINE static struct regs *
 capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
 {
-	struct state *g = state();
-	captbl_t captbl = g->active_captbl;
-	struct thread *t = g->active_thread;
 	cos_op_bitmap_t ops = regs_arg(rs, REGS_ARG_OPS);
 	cos_cap_t capno = regs_arg(rs, REGS_ARG_CAP);
 	cos_retval_t r;

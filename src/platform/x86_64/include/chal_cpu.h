@@ -339,7 +339,7 @@ chal_protdom_read(void)
 	return PROTDOM_INIT(asid, mpk_key);
 }
 #else /* !MPK_ENABLE */
-static inline void wrpkru(u32_t pkru) {}
+static inline void wrpkru(u32_t pkru) { }
 static inline u32_t rdpkru(void) { return 0; }
 static inline u32_t pkru_state(prot_domain_tag_t protdom) { return 0; }
 static inline void chal_protdom_write(prot_domain_tag_t protdom) {}
