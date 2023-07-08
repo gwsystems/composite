@@ -690,6 +690,7 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz, size_t align)
 	 * atomic, so we will get a contiguous range of sz.
 	 */
 	heap_vaddr = __page_bump_valloc(ci, sz, align);
+	printc("heap_ptr: %lx\n", heap_vaddr);
 	if (unlikely(!heap_vaddr)) return 0;
 	heap_limit = heap_vaddr + sz;
 	assert(heap_limit > heap_vaddr);
@@ -711,7 +712,7 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz, size_t align)
 		/* Actually map in the memory. */
 		int p = call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, PAGE_ORDER);
 		if (p) {
-			printc("ppp: %d, %lx\n", umem);
+			printc("ppp: %d, %lx\n", p, umem);
 			assert(0);
 			return 0;
 		}

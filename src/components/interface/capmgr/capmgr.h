@@ -60,8 +60,8 @@ asndcap_t COS_STUB_DECL(capmgr_asnd_create)(spdid_t child, thdid_t t);
 asndcap_t capmgr_asnd_rcv_create(arcvcap_t rcv);
 asndcap_t COS_STUB_DECL(capmgr_asnd_rcv_create)(arcvcap_t rcv);
 
-unsigned long capmgr_ctrlblk_get(ctrlblk_t type);
-unsigned long COS_STUB_DECL(capmgr_ctrlblk_get)(ctrlblk_t type);
+vaddr_t capmgr_scb_map_ro(void);
+vaddr_t COS_STUB_DECL(capmgr_scb_map_ro)(void);
 
 asndcap_t capmgr_asnd_key_create(cos_channelkey_t key);
 asndcap_t COS_STUB_DECL(capmgr_asnd_key_create)(cos_channelkey_t key);

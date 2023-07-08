@@ -689,6 +689,6 @@ cos_init(void)
 	calculate_initialization_schedule();
 	cos_defcompinfo_init();
 
-	boot_info->scb_uaddr = capmgr_ctrlblk_get(CB_ADDR_SCB);
-	//if (capmgr_scb_mapping(0)) BUG();
+	printc("call capmgr scb map ro\n");
+	boot_info->scb_uaddr = capmgr_scb_map_ro();
 }

@@ -1512,6 +1512,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			assert(ptc);
 
 			ret = scb_ro_mapping(ct, scbc, ptc, compc, scb_uaddr);
+			printk("ret: %d\n", ret);
 			assert(!ret);
 			return ret;
 		}

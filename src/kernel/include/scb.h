@@ -93,7 +93,9 @@ scb_ro_mapping(struct captbl *ct, struct cap_scb *sc, struct cap_pgtbl *ptcin, s
 {
 	assert(sc->compc == compc || !sc->compc);
 	paddr_t pf = chal_va2pa((void *)(sc->kern_addr));
-	if (pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF, 12)) return -EINVAL;
+	int ret = pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF, 12);
+	printk("uaddrin: %lx, ret: %d\n", uaddrin, ret);
+	if (ret) return -EINVAL;
 
 	return 0;
 }

@@ -129,7 +129,6 @@ execution_init(int is_init_core)
 			struct crt_rcv *r = ss_rcv_alloc();
 
 			assert(r);
-
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, r))) BUG();
 			ss_rcv_activate(r);
 			if (is_init_core) printc("\tCreated scheduling execution for %ld\n", id);
@@ -330,6 +329,8 @@ comps_init(void)
 		assert(c);
 
 		printc("\tCapmgr %ld:\n", capmgr_id);
+		c->scb = cos_scb_alloc(cos_compinfo_get(cos_defcompinfo_curr_get()));
+		printc("\t\tCapability #%ld: scb for component %ld\n", c->scb, capmgr_id);
 		/* This assumes that all capabilities for a given component are *contiguous* */
 		for (cont2 = args_iter(&curr, &i_inner, &curr_inner) ; cont2 ; cont2 = args_iter_next(&i_inner, &curr_inner)) {
 			char    *type      = args_get_from("type", &curr_inner);

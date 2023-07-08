@@ -94,7 +94,7 @@ SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 #define MAX_DCB_NUM PAGE_SIZE/sizeof(struct cos_dcb_info)
 SS_STATIC_SLAB(dcb, struct cm_dcb, MAX_DCB_NUM);
 SS_STATIC_SLAB(dcbinfo, struct cm_dcbinfo, MAX_NUM_THREADS);
-#define CONTIG_PHY_PAGES 70000
+#define CONTIG_PHY_PAGES 1
 static void * contig_phy_pages = 0;
 
 static struct cm_comp *
@@ -582,11 +582,12 @@ capmgr_comp_sched_get(compid_t cid)
 
 #define SCHED_COMP 3
 
-unsigned long
-capmgr_ctrlblk_get(ctrlblk_t type)
+vaddr_t
+capmgr_scb_map_ro(void)
 {
 	compid_t client = (compid_t)cos_inv_token();
 	struct cm_comp *c;
+	struct cm_comp *self = cm_self();
 	struct cos_compinfo *ci;
 
 	c = ss_comp_get(client);
@@ -595,14 +596,11 @@ capmgr_ctrlblk_get(ctrlblk_t type)
 	ci = cos_compinfo_get(c->comp.comp_res);
 	assert(ci);
 
-	switch (type) {
-	case CB_ADDR_SCB:
-		return ci->scb_uaddr;
-	case CB_ADDR_DCB:
-		return 0;
-	default:
-		return 0;
-	}
+	printc("scb_uaddr: %lx\n", ci->scb_uaddr);
+	ci->scb_uaddr = crt_page_vallocn(&c->comp, 1);
+	crt_scb_map(&self->comp, &c->comp);
+
+	return ci->scb_uaddr;
 }
 
 static void
@@ -616,7 +614,7 @@ capmgr_dcb_info_init(struct cm_comp *c)
 	vaddr_t  initaddr = 0;
 	dcboff_t initoff  = 0;
 
-	initaddr = c->dcb_init_ptr + (cos_cpuid() * PAGE_SIZE);
+	initaddr = crt_page_vallocn(comp, 1);
 	assert(initaddr);
 
 	initdcb  = cos_dcb_alloc(ci, target_ci->pgtbl_cap, initaddr);
@@ -658,6 +656,8 @@ capmgr_execution_init(int is_init_core)
 			assert(r);
 
 			capmgr_dcb_info_init(cmc);
+			printc("dcb_init done\n");
+			comp->scb = cm_self()->comp.scb;
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, &r->rcv))) BUG();
 			crt_ulk_map_scb(comp);
 			ss_rcv_activate(r);
@@ -731,9 +731,9 @@ capmgr_comp_init(void)
 		if (sched_id == 0) {
 			sched_id = capmgr_comp_sched_hier_get(id);
 		}
-		comp_res.heap_ptr        = addr_get(id, ADDR_HEAP_FRONTIER) + COS_SCB_SIZE + (PAGE_SIZE * NUM_CPU);
+		//comp_res.heap_ptr        = addr_get(id, ADDR_HEAP_FRONTIER) + COS_SCB_SIZE + (PAGE_SIZE * NUM_CPU);
+		comp_res.heap_ptr        = addr_get(id, ADDR_HEAP_FRONTIER);
 		comp_res.captbl_frontier = addr_get(id, ADDR_CAPTBL_FRONTIER);
-		comp_res.scb_uaddr       = addr_get(id, ADDR_SCB);
 
 		snprintf(id_serialized, 20, "names/%ld", id);
 		name = args_get(id_serialized);
@@ -747,6 +747,9 @@ capmgr_comp_init(void)
 
 	/* Create ULK memory region for UL sinvs and map it into comps that need it */
 	ret = crt_ulk_init();
+	assert(!ret);
+
+	ret = crt_scb_init(&cm_self()->comp);
 	assert(!ret);
     
 	u32_t vas_id = 0;
@@ -1012,6 +1015,7 @@ cos_init(void)
 	contig_phy_pages = crt_page_allocn(&cm_self()->comp, CONTIG_PHY_PAGES);
 	contigmem_check(cos_compid(), (vaddr_t)contig_phy_pages, CONTIG_PHY_PAGES);
 
+	printc("capmgr cos init done\n");
 	return;
 }
 

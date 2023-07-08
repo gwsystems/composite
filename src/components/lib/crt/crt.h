@@ -211,6 +211,7 @@ int crt_thd_create_with(struct crt_thd *t, struct crt_comp *c, struct crt_thd_re
 int crt_thd_alias_in(struct crt_thd *t, struct crt_comp *c, struct crt_thd_resources *res);
 
 void *crt_page_allocn(struct crt_comp *c, u32_t n_pages);
+void *crt_page_vallocn(struct crt_comp *c, u32_t n_pages);
 int crt_page_aliasn_in(void *pages, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr);
 int crt_page_aliasn_aligned_in(void *pages, unsigned long align, u32_t n_pages, struct crt_comp *self, struct crt_comp *c_in, vaddr_t *map_addr);
 
@@ -230,6 +231,8 @@ int crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c);
 dcbcap_t crt_dcb_create_in(struct crt_comp *c, vaddr_t *dcb_addr);
 
 int crt_ulk_init(void);
+int crt_scb_init(struct crt_comp *comp);
+int crt_scb_map(struct crt_comp *c, struct crt_comp *target);
 int crt_ulk_map_in(struct crt_comp *c);
 int crt_ulk_map_scb(struct crt_comp *comp);
 int crt_ulk_map_dcb(struct crt_comp *comp);

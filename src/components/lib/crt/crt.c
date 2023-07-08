@@ -109,10 +109,37 @@ crt_chkpt_restore(struct crt_chkpt *chkpt, struct crt_comp *c)
 }
 
 int
+crt_scb_init(struct crt_comp *comp)
+{
+	struct cos_compinfo    *ci    = cos_compinfo_get(cos_defcompinfo_curr_get());
+	struct cos_compinfo    *target_ci  = cos_compinfo_get(comp->comp_res);
+
+	/* Allocate scbcap in the current component which should be the capmgr. */
+	comp->scb = cos_scb_alloc(ci);
+	printc("scb: %d\n", comp->scb);
+
+	return 0;
+}
+
+int
+crt_scb_map(struct crt_comp *c, struct crt_comp *target)
+{
+	struct cos_compinfo    *ci     = cos_compinfo_get(cos_defcompinfo_curr_get());
+	struct cos_compinfo *target_ci = cos_compinfo_get(target->comp_res);
+	assert(c->scb);
+	if (cos_scb_ro_map(ci, ci->comp_cap, ci->pgtbl_cap, c->scb, ci->scb_uaddr)) BUG();
+
+	return 0;
+}
+
+int
 crt_ulk_init()
 {
-	cos_ulk_info_init(cos_compinfo_get(cos_defcompinfo_curr_get()));
-	cos_ulk_map_in(cos_compinfo_get(cos_defcompinfo_curr_get())->pgtbl_cap);
+	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
+	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
+
+	cos_ulk_info_init(ci);
+	cos_ulk_map_in(ci->pgtbl_cap);
 
 	return 0;
 }
@@ -1135,7 +1162,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 	}
 
 	if (ctxt->flags & CRT_COMP_SCHED) {
-		printc("protkey: %d\n", PROTDOM_MPK_KEY(c->protdom));
+		//printc("protkey: %d\n", PROTDOM_MPK_KEY(c->protdom));
 		//assert(PROTDOM_MPK_KEY(c->protdom) == SCHED_MPK_KEY);
 		struct crt_rcv_resources rcvres;
 		struct crt_rcv *r;
@@ -1154,9 +1181,12 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		 * fail. Thus, add a lock to prevent this temporarilily
 		 */
 		ps_lock_take(&_lock);
-		c->scb = cos_scb_alloc(ci);
-		target_ci->scb_uaddr = (vaddr_t)cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
-		if (cos_scb_ro_map(target_ci, target_ci->comp_cap, target_ci->pgtbl_cap, c->scb, target_ci->scb_uaddr)) BUG();
+		//c->scb = cos_scb_alloc(ci);
+		//target_ci->scb_uaddr = (vaddr_t)crt_page_allocn(c, 1);
+		//target_ci->scb_uaddr = (vaddr_t)cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
+		//printc("scb: %lx,scb: %d, pgtblcap: %d\n", target_ci->scb_uaddr, c->scb, target_ci->pgtbl_cap);
+		//if (cos_scb_ro_map(target_ci, target_ci->comp_cap, target_ci->pgtbl_cap, c->scb, target_ci->scb_uaddr)) BUG();
+		//assert(0);
 
 		if (crt_rcv_create_in(r, c, 0, 0, 0, c->scb, &init_dcb)) BUG();
 		c->init_dcb_addr[cos_cpuid()] = init_dcb;
@@ -1242,6 +1272,14 @@ crt_page_allocn(struct crt_comp *c, u32_t n_pages)
 	assert(c);
 
 	return cos_page_bump_allocn(cos_compinfo_get(c->comp_res), n_pages * PAGE_SIZE);
+}
+
+void *
+crt_page_vallocn(struct crt_comp *c, u32_t n_pages)
+{
+	assert(c);
+
+	return cos_page_bump_intern_valloc(cos_compinfo_get(c->comp_res), n_pages * PAGE_SIZE);
 }
 
 int
