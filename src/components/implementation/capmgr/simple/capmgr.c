@@ -596,8 +596,8 @@ capmgr_scb_map_ro(void)
 	ci = cos_compinfo_get(c->comp.comp_res);
 	assert(ci);
 
-	printc("scb_uaddr: %lx\n", ci->scb_uaddr);
 	ci->scb_uaddr = crt_page_vallocn(&c->comp, 1);
+	printc("scb_uaddr: %lx\n", ci->scb_uaddr);
 	crt_scb_map(&self->comp, &c->comp);
 
 	return ci->scb_uaddr;
@@ -658,8 +658,11 @@ capmgr_execution_init(int is_init_core)
 			capmgr_dcb_info_init(cmc);
 			printc("dcb_init done\n");
 			comp->scb = cm_self()->comp.scb;
+			printc("comp->scb: %d\n", comp->scb);
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, &r->rcv))) BUG();
-			crt_ulk_map_scb(comp);
+			printc("ulk scb map\n");
+			int ret = crt_ulk_map_scb(comp);
+			printc("ulk scb map done: %d\n", ret);
 			ss_rcv_activate(r);
 			cmc->sched_rcv[cos_cpuid()] = r;
 			if (is_init_core) printc("\tCreated scheduling execution for %ld\n", id);
@@ -819,6 +822,7 @@ init_done(int parallel_init, init_main_t main_type)
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = crtcomp_get(client);
 
+	printc("capmgr init done scb: %lx\n", cos_compinfo_get(cos_defcompinfo_curr_get())->scb_uaddr);
 	crt_compinit_done(c, parallel_init, main_type);
 
 	return;

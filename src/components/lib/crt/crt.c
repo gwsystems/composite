@@ -114,9 +114,12 @@ crt_scb_init(struct crt_comp *comp)
 	struct cos_compinfo    *ci    = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct cos_compinfo    *target_ci  = cos_compinfo_get(comp->comp_res);
 
+	assert(ci == target_ci);
 	/* Allocate scbcap in the current component which should be the capmgr. */
 	comp->scb = cos_scb_alloc(ci);
 	printc("scb: %d\n", comp->scb);
+	target_ci->scb_uaddr = crt_page_vallocn(comp, 1);
+	crt_scb_map(comp, comp);
 
 	return 0;
 }
@@ -127,7 +130,7 @@ crt_scb_map(struct crt_comp *c, struct crt_comp *target)
 	struct cos_compinfo    *ci     = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct cos_compinfo *target_ci = cos_compinfo_get(target->comp_res);
 	assert(c->scb);
-	if (cos_scb_ro_map(ci, ci->comp_cap, ci->pgtbl_cap, c->scb, ci->scb_uaddr)) BUG();
+	if (cos_scb_ro_map(ci, ci->comp_cap, ci->pgtbl_cap, c->scb, target_ci->scb_uaddr)) BUG();
 
 	return 0;
 }
@@ -431,7 +434,12 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	       c->ro_addr, c->ro_addr + ro_sz, c->rw_addr, c->rw_addr + data_sz, c->rw_addr + data_sz, c->rw_addr + data_sz + bss_sz);
 
 	/* FIXME: this is a hack in order to catch an error if the protdom of the scheduler doesn't equal 0x02. */
-	if (id == 3) assert(SCHED_MPK_KEY == PROTDOM_MPK_KEY(protdom));
+	if (id == 3) {
+		if (SCHED_MPK_KEY != PROTDOM_MPK_KEY(protdom)) {
+			printc("Change SCHED_MPK_KEY to: %d\n", PROTDOM_MPK_KEY(protdom));
+			assert(0);
+		}
+	}
 	/* FIXME: This is a hack making every component has SCB by default. */
 	//scbcap_t scbc = cos_scb_alloc(root_ci);
 	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr + COS_SCB_SIZE, root_ci, protdom);

@@ -1049,7 +1049,7 @@ cos_scb_alloc(struct cos_compinfo *ci)
 int
 cos_scb_ulk_map(struct cos_compinfo *ci,  compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr)
 {
-	assert(ci->scb_uaddr);
+	assert(scb_uaddr);
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_SCB_ULK_MAP, comp, ptc, scbc, scb_uaddr)) return 1;
 
 	return 0;
@@ -1058,7 +1058,7 @@ cos_scb_ulk_map(struct cos_compinfo *ci,  compcap_t comp, pgtblcap_t ptc, scbcap
 int
 cos_scb_ro_map(struct cos_compinfo *ci,  compcap_t comp, pgtblcap_t ptc, scbcap_t scbc, vaddr_t scb_uaddr)
 {
-	assert(ci->scb_uaddr);
+	assert(scb_uaddr);
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_SCB_RO_MAP, comp, ptc, scbc, scb_uaddr)) return 1;
 
 	return 0;
