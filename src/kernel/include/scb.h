@@ -83,7 +83,7 @@ scb_ulk_mapping(struct captbl *ct, struct cap_scb *sc, struct cap_pgtbl *ptcin, 
 {
 	assert(sc->compc == compc || !sc->compc);
 	paddr_t pf = chal_va2pa((void *)(sc->kern_addr));
-	printk("\tulk_mapping: %lx\n", uaddrin);
+	//printk("\tulk_mapping: %lx\n", uaddrin);
 	if (pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF | ULK_PGTBL_FLAG, 12)) return -EINVAL;
 
 	return 0;
@@ -92,11 +92,11 @@ scb_ulk_mapping(struct captbl *ct, struct cap_scb *sc, struct cap_pgtbl *ptcin, 
 static inline int
 scb_ro_mapping(struct captbl *ct, struct cap_scb *sc, struct cap_pgtbl *ptcin, struct cap_comp *compc, vaddr_t uaddrin)
 {
-	printk("\tro_mapping: %lx\n", uaddrin);
+	//printk("\tro_mapping: %lx\n", uaddrin);
 	assert(sc->compc == compc || !sc->compc);
 	paddr_t pf = chal_va2pa((void *)(sc->kern_addr));
 	int ret = pgtbl_mapping_add(ptcin->pgtbl, uaddrin, pf, PGTBL_USER_DEF, 12);
-	printk("uaddrin: %lx, ret: %d\n", uaddrin, ret);
+	//printk("uaddrin: %lx, ret: %d\n", uaddrin, ret);
 	if (ret) return -EINVAL;
 
 	return 0;

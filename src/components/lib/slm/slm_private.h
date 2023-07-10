@@ -347,6 +347,11 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		/* TODO: error handling */
 		".align 8\n\t"                                            \
 		"3:\n\t"                                                  \
+		"movl $" STR(MPK_KEY2REG(SCHED_MPK_KEY)) ",%%eax\n\t"     \
+		"xor %%rcx, %%rcx\n\t"                                    \
+		"xor %%rdx, %%rdx\n\t"                                    \
+		/* Switch protection domain. */
+		"wrpkru\n\t"                                              \
 		"popq %%rbp\n\t"                                          \
 		:
 		: "a" (next->thd), "S" (next->tid),

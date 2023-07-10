@@ -117,7 +117,6 @@ crt_scb_init(struct crt_comp *comp)
 	assert(ci == target_ci);
 	/* Allocate scbcap in the current component which should be the capmgr. */
 	comp->scb = cos_scb_alloc(ci);
-	printc("scb: %d\n", comp->scb);
 	target_ci->scb_uaddr = crt_page_vallocn(comp, 1);
 	crt_scb_map(comp, comp);
 

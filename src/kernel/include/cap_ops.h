@@ -80,8 +80,8 @@ cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned lo
 	assert(t);
 	pgtblc = (struct cap_pgtbl *)captbl_lkup(t, cap);
 
-	if (unlikely(!pgtblc)) return -ENOENT;
-	if (unlikely(pgtblc->h.type != CAP_PGTBL || pgtblc->lvl != 0)) return -EINVAL;
+	if (unlikely(!pgtblc)) assert(0); //return -ENOENT;
+	if (unlikely(pgtblc->h.type != CAP_PGTBL || pgtblc->lvl != 0)) assert(0); //return -EINVAL;
 	if ((ret = pgtbl_kmem_act(pgtblc->pgtbl, addr & PGTBL_FRAME_MASK, (unsigned long *)kern_addr, pte_ret)))
 		return ret;
 

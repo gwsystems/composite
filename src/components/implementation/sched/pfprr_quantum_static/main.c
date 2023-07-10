@@ -653,7 +653,6 @@ parallel_main(coreid_t cid)
 void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
-	printc("parallel init\n");
 	struct slm_thd_container *t;
 	struct cos_dcb_info *dcb;
 	struct slm_thd *r;
@@ -678,7 +677,6 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	if (!r) BUG();
 	sched_thd_param_set(ipitid, sched_param_pack(SCHEDP_PRIO, SLM_IPI_THD_PRIO));
 	ck_ring_init(&ipi_data->ring, PAGE_SIZE / sizeof(struct slm_ipi_event));
-	printc("parallel_init done\n");
 }
 
 void
@@ -691,7 +689,5 @@ cos_init(void)
 	calculate_initialization_schedule();
 	cos_defcompinfo_init();
 
-	printc("sched: call capmgr scb map ro\n");
 	boot_info->scb_uaddr = capmgr_scb_map_ro();
-	printc("sched: scb map done\n");
 }

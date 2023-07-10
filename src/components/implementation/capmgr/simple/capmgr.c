@@ -597,7 +597,7 @@ capmgr_scb_map_ro(void)
 	assert(ci);
 
 	ci->scb_uaddr = crt_page_vallocn(&c->comp, 1);
-	printc("scb_uaddr: %lx\n", ci->scb_uaddr);
+	//printc("scb_uaddr: %lx\n", ci->scb_uaddr);
 	crt_scb_map(&self->comp, &c->comp);
 
 	return ci->scb_uaddr;
@@ -636,7 +636,7 @@ capmgr_execution_init(int is_init_core)
 	/* Create execution in the relevant components */
 	ret = args_get_entry("execute", &exec_entries);
 	assert(!ret);
-	if (is_init_core) printc("Capmgr: %d components that need execution\n", args_len(&exec_entries));
+	//if (is_init_core) printc("Capmgr: %d components that need execution\n", args_len(&exec_entries));
 	for (cont = args_iter(&exec_entries, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct cm_comp    *cmc;
 		struct crt_comp   *comp;
@@ -656,13 +656,13 @@ capmgr_execution_init(int is_init_core)
 			assert(r);
 
 			capmgr_dcb_info_init(cmc);
-			printc("dcb_init done\n");
+			//printc("dcb_init done\n");
 			comp->scb = cm_self()->comp.scb;
-			printc("comp->scb: %d\n", comp->scb);
+			//printc("comp->scb: %d\n", comp->scb);
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, &r->rcv))) BUG();
-			printc("ulk scb map\n");
-			int ret = crt_ulk_map_scb(comp);
-			printc("ulk scb map done: %d\n", ret);
+			//printc("ulk scb map\n");
+			//int ret = crt_ulk_map_scb(comp);
+			//printc("ulk scb map done: %d\n", ret);
 			ss_rcv_activate(r);
 			cmc->sched_rcv[cos_cpuid()] = r;
 			if (is_init_core) printc("\tCreated scheduling execution for %ld\n", id);
@@ -754,6 +754,8 @@ capmgr_comp_init(void)
 
 	ret = crt_scb_init(&cm_self()->comp);
 	assert(!ret);
+	ret = crt_ulk_map_scb(&cm_self()->comp);
+	assert(!ret);
     
 	u32_t vas_id = 0;
 	ret = args_get_entry("addrspc_shared", &ases);
@@ -822,7 +824,7 @@ init_done(int parallel_init, init_main_t main_type)
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = crtcomp_get(client);
 
-	printc("capmgr init done scb: %lx\n", cos_compinfo_get(cos_defcompinfo_curr_get())->scb_uaddr);
+	//printc("capmgr init done scb: %lx\n", cos_compinfo_get(cos_defcompinfo_curr_get())->scb_uaddr);
 	crt_compinit_done(c, parallel_init, main_type);
 
 	return;
@@ -1019,7 +1021,6 @@ cos_init(void)
 	contig_phy_pages = crt_page_allocn(&cm_self()->comp, CONTIG_PHY_PAGES);
 	contigmem_check(cos_compid(), (vaddr_t)contig_phy_pages, CONTIG_PHY_PAGES);
 
-	printc("capmgr cos init done\n");
 	return;
 }
 

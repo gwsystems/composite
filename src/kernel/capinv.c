@@ -672,6 +672,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	int          ret;
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
+		//printk("%d\n", __userregs_getip(regs)-thd->dcbinfo->ip);
 		assert(__userregs_getip(regs) == thd->dcbinfo->ip + DCB_IP_KERN_OFF);
 		assert(__userregs_getsp(regs) == thd->dcbinfo->sp);
 	}
@@ -927,6 +928,7 @@ timer_process(struct pt_regs *regs)
 	thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &comp);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	assert(comp);
+	//printk("-");
 	int ret = expended_process(regs, thd_curr, comp, cos_info, 1);
 	return ret;
 }
@@ -1092,7 +1094,6 @@ composite_syscall_handler(struct pt_regs *regs)
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	case CAP_ARCV:
-		assert(cap != 56);
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
 		if (ret < 0) cos_throw(done, ret);
 
@@ -1259,12 +1260,12 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd, &pte);
-			if (unlikely(ret)) cos_throw(err, ret);
+			if (unlikely(ret)) assert(0); //cos_throw(err, ret);
 			assert(thd && pte);
 
 			if (ulk_cap) {
 				ulkc = (struct cap_ulk *)captbl_lkup(ct, ulk_cap);
-				if (!CAP_TYPECHK(ulkc, CAP_ULK)) cos_throw(err, -EINVAL);
+				if (!CAP_TYPECHK(ulkc, CAP_ULK)) assert(0); //cos_throw(err, -EINVAL);
 				ulstk = &((struct ulk_invstk *)(ulkc->kern_addr))[tid % ULK_STACKS_PER_PAGE];
 			}
 			
@@ -1512,7 +1513,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			assert(ptc);
 
 			ret = scb_ro_mapping(ct, scbc, ptc, compc, scb_uaddr);
-			printk("ret: %d\n", ret);
+			//printk("ret: %d\n", ret);
 			assert(!ret);
 			return ret;
 		}
