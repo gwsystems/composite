@@ -3,7 +3,10 @@
 
 /* clang-format off */
 #define COS_ASM_GET_STACK_BASIC							\
-	movabs $cos_static_stack, %rsp;						\
+	movabs $1f, %rcx;							\
+.globl custom_acquire_stack;							\
+	jmp custom_acquire_stack;						\ 
+1:										\
 	/* ax holds cpuid and thread id*/					\
 	/* rax[0:15]=tid, rax[16:31]=cpuid */					\
 	movq %rax, %rdx;							\

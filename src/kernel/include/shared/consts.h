@@ -18,6 +18,7 @@
 #ifndef __ASM__
 #include "../chal/shared/chal_consts.h"
 #endif
+#include "../chal/shared/cos_config.h" 
 #define MAX_PA_LIMIT     (1ULL << 32)
 #define PAGE_ORDER 12
 #define SUPER_PAGE_ORDER 22
@@ -29,12 +30,12 @@
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS (64 * NUM_CPU)
+#define MAX_NUM_THREADS (20 * NUM_CPU)
 
 /*
  * A single thread's stack size is 2^17 = 128kb by default
  */
-#define MAX_STACK_SZ_BYTE_ORDER 17
+#define MAX_STACK_SZ_BYTE_ORDER 13
 /* Stack size in bytes */
 #define COS_STACK_SZ (1 << MAX_STACK_SZ_BYTE_ORDER)
 /* Stack size in words */
@@ -47,7 +48,7 @@
  * All stack size = per_stack_size * number_of_threads, here we set it as COS_STACK_SZ * 8
  * by default
  */
-#define ALL_STACK_SZ_FLAT (COS_STACK_SZ * 64)
+#define ALL_STACK_SZ_FLAT (COS_STACK_SZ * MAX_NUM_THREADS) //less than 12 cores, use 32, or use 64
 #define MAX_SPD_VAS_LOCATIONS 8
 
 /* a kludge:  should not use a tmp stack on a stack miss */

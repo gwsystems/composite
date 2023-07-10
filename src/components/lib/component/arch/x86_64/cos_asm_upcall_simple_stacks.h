@@ -7,13 +7,14 @@
 
 #define COS_STATIC_STACK				\
 /* .bss declaration must be put at the beginning */	\
-.bss;							\
 .align COS_STACK_SZ;					\
+.weak cos_static_stack;					\
 .globl cos_static_stack;				\
 cos_static_stack:					\
 	.rep ALL_STACK_SZ_FLAT;				\
-	.8byte 0	;				\
+	.byte 0	;					\
 	.endr ;						\
+.weak cos_static_stack_end;				\
 .globl cos_static_stack_end;				\
 cos_static_stack_end:
 
@@ -58,3 +59,13 @@ __cosrt_upcall_entry:			\
 #define COS_ATOMIC_USER4_END		\
 	movl $0, %eax;			\
 	movl (%eax), %eax;
+
+
+#define COS_DEFAULT_STACK_ACQUIRE	\
+.text;					\
+.align 16;				\
+.weak custom_acquire_stack;		\
+.globl custom_acquire_stack;		\
+custom_acquire_stack:			\
+	movabs $cos_static_stack, %rsp;	\
+	jmpq *%rcx;
