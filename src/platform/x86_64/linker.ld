@@ -76,8 +76,8 @@ SECTIONS {
     initial_component_end = .;
 
     /* Move to the end of the retypable page array */
-    . = . + ((NUM_RETYPABLE_PAGES * COS_PAGE_SIZE) - (COS_PAGE_SIZE + initial_component_end - initial_component_start))
-    kernel_end_va = .
+    . = . + ((NUM_RETYPABLE_PAGES * COS_PAGE_SIZE) - (COS_PAGE_SIZE + initial_component_end - initial_component_start));
+    kernel_end_va = .;
 
     /DISCARD/ : {
         *(.comment)

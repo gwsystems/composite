@@ -1,106 +1,37 @@
-#include "chal_asm_inc.h"
-
-/* Composite pt_regs save/restore */
-#define SAVE_REGS_GENERAL 	\
-	pushq %rax;		\
-	pushq %rbp;		\
-	pushq %rdi;		\
-	pushq %rsi;		\
-	pushq %rdx;		\
-	pushq %rcx;		\
-	pushq %rbx;		\
-	pushq %r8;		\
-	pushq %r9;		\
-	pushq %r10;		\
-	pushq %r11;		\
-	pushq %r12;		\
-	pushq %r13;		\
-	pushq %r14;		\
-	pushq %r15;		\
-
-#define SAVE_REGS_ALL 		\
-	subq $0x30, %rsp;	\
-	SAVE_REGS_GENERAL;	\
-	subq $0x20, %rsp;	\
-
-/* When return to user: ecx => sp, edx => ip. */
-#define RESTORE_REGS_GENERAL	\
-	popq %r15;		\
-	popq %r14;		\
-	popq %r13;		\
-	popq %r12;		\
-	popq %r11;		\
-	popq %r10;		\
-	popq %r9;		\
-	popq %r8;		\
-	popq %rbx;		\
-	popq %rcx;		\
-	popq %rdx;		\
-	popq %rsi;		\
-	popq %rdi;		\
-	popq %rbp;		\
-	popq %rax;		\
-
-#define RESTORE_REGS_ALL	\
-	addq $0x20, %rsp;	\
-	RESTORE_REGS_GENERAL; 	\
-	addq $30, %rsp
-
-#define RET_TO_USER \
-	movq %rbp, %rsp; \
-	sysretq
+#include <chal_regs.h>
+#include <chal_state.h>
 
 /* The entire IPC path should be in __ipc_entry section. */
-.section __ipc_entry, "ax"
+.section .ipc_fastpath, "ax"
 .align 16
-.globl sysenter_entry
-sysenter_entry:
-	swapgs
-	movq %gs:KERNEL_STACK_OFFSET, %rsp
-	SAVE_REGS_ALL
-	movq %rsp, %rdi /* pt_reg */
-	call composite_syscall_handler
+.globl syscall_entry
+syscall_entry:
+	swapgs           /* activate the kernel's gs */
+	movq %gs:0, %rsp /* from it get the stack pointer */
+	PUSH_REGS_SYSCALL
+	call syscall_handler
+	jmp .           /* Return to user-level should occur in the syscall_handler */
 
-	swapgs
-	testq %rax, %rax
-	jne restore_from_thd
+/* We're out of the fast-path now, so use the normal code segment */
+.text
 
-	RESTORE_REGS_ALL
-	RET_TO_USER
-/* we are changing thread contexts, reload all registers */
-
-/* on restoring path, only the %ds will be taken care of. */
-.align 16
-restore_from_thd:
-	/* %ds is constant, and %es, %fs, %gs are not used because they cannot be modified by user space and kernel also does not modify them, thus we just add 0x20 to %rsp */
-	addq $0x20, %rsp
-	/* user space will only use one constant %ds selector, thus we don't push/pop it, instead we just set the value in order to save some cycles. */
-	movq $(SEL_UDSEG), %rax
-	movq %rax, %ds
-	RESTORE_REGS_GENERAL
-
-	addq $8, %rsp
-
-	sti
-	iretq
-
-/* %ds, %es, %fs, %gs are all ingored when saving. */
-#define IRQPROC(fn)  \
-	SAVE_REGS_GENERAL; 	\
-	subq $0x20, %rsp;	\
-	movq $(SEL_KDSEG), %rax;\
-	movq %rax, %ds;		\
-	movq %rsp, %rdi; 	\
-	call fn;		\
-	testq %rax, %rax;	\
-	jne restore_from_thd;	\
-	RESTORE_REGS_ALL;	\
-	RET_TO_USER
+#define IRQPROC(fn)  			\
+	PUSH_REGS_TRAP; 		\
+	call fn;			\
+	jmp .;
 
 /*
- * Convention:
- * C handler is IRQHANDLER_handler, and the irq assembly
- * routine is IRQHANDLER_irq.
+ * Some implicit assumptions and conventions about the following:
+ * The C handler is IRQHANDLER_handler, and the irq assembly
+ * routine is IRQHANDLER_irq. Note, for all of these, the
+ * trap frame for everything other than the error code has
+ * already been pushed onto the stack by the hardware. The error
+ * code of the register frame is either 0, an exception-specific
+ * code, or the ID of the interrupt, if it is an exception without
+ * a code or an IRQ for a hardcoded functionality (timer), or an
+ * interrupt without a defined function that can be bound to a
+ * device, respectively. The stack is found using the GDT entry's
+ * stack specification.
  */
 #define IRQ(fn)		 	\
 .align 16;			\
@@ -108,27 +39,26 @@ restore_from_thd:
 fn##_irq: 			\
 	cli; 			\
 	push $0;  		\
-	IRQPROC(fn##_handler)
+	IRQPROC(fn##_handler);	\
 
 #define IRQ_CODE(fn)		\
 .align 16;			\
 .global fn##_irq;		\
 fn##_irq: 			\
 	cli; 			\
-	IRQPROC(fn##_handler)
+	IRQPROC(fn##_handler);	\
 
 #define IRQ_ID(ID)		\
-.align 4;			\
+.align 16;			\
 .global handler_hw_##ID;	\
 handler_hw_##ID:		\
 	cli; 			\
 	push $(ID);		\
-	jmp irqproc
+	jmp irqproc;		\
 
 irqproc:
 	IRQPROC(hw_handler)
 
-.text
 IRQ(div_by_zero_err_fault)
 IRQ(debug_trap)
 IRQ(breakpoint_trap)
@@ -145,12 +75,12 @@ IRQ_CODE(page_fault)
 IRQ(x87_float_pt_except_fault)
 IRQ_CODE(align_check_fault)
 IRQ(machine_check_abort)
-IRQ(simd_float_pt_except_fault)
+IRQ(smid_float_pt_except_fault)
 IRQ(virtualization_except_fault)
 IRQ_CODE(security_except_fault)
 
 IRQ(periodic)
-IRQ_ID(33)
+IRQ(keyboard)
 IRQ_ID(34)
 IRQ_ID(35)
 IRQ(serial)
