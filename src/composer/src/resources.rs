@@ -15,8 +15,6 @@ enum CapRes {
     Comp(ComponentId),
 }
 
-const BOOT_CAPTBL_FREE: u32 = 52;
-
 // The equivalent of the C __captbl_cap2sz(c)
 fn cap_sz(cap: &CapRes) -> u32 {
     match cap {
@@ -45,9 +43,12 @@ struct CaptblState {
 
 impl CaptblState {
     fn new() -> CaptblState {
+        let boot_captbl_free: u32 = include_str!("boot_captbl_offset.txt")
+            .parse()
+            .expect("Cannot find boot_captbl_offset.txt file.");
         CaptblState {
             captbl: BTreeMap::new(),
-            frontier: BOOT_CAPTBL_FREE, // BOOT_CAPTBL_FREE...FIXME: currently use shell script automatically generate this, is there a more elegant way?
+            frontier: boot_captbl_free,
             prev_sz: 4,
         }
     }
@@ -248,7 +249,8 @@ fn capmgr_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
         .push(ArgsKV::new_arr("captbl".to_string(), ct_args));
     cfg.args
         .push(ArgsKV::new_arr("names".to_string(), names_args));
-    cfg.args.push(ArgsKV::new_arr("addrspc_shared".to_string(), shared_vas));
+    cfg.args
+        .push(ArgsKV::new_arr("addrspc_shared".to_string(), shared_vas));
 }
 
 fn constructor_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {

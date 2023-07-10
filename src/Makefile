@@ -9,12 +9,11 @@ default: | all
 
 all: comps plat composer
 
+TOOL_DIR=../tools/
+
 composer:
-	@CAP_FREE=`gdb platform/$(shell cat $(PLAT_FILE))/boot_comp.o --eval-command="p /d BOOT_CAPTBL_FREE" --eval-command="quit" | grep "$\\$$1" | awk -F "= " '{print $$2}'`; \
-	LINE_NUM=`cat -n composer/src/resources.rs | grep "const BOOT_CAPTBL_FREE" | awk -F " " '{print $$1}'`; \
-	LINE_NUM=`echo $$LINE_NUM`; \
-	CAP_FREE=`echo $$CAP_FREE`; \
-	sed -i "$${LINE_NUM}cconst BOOT_CAPTBL_FREE: u32 = $${CAP_FREE}$\;" composer/src/resources.rs
+	gcc $(TOOL_DIR)/offsets.c -o $(TOOL_DIR)/offsets
+	$(TOOL_DIR)/offsets | grep "BOOT_CAPTBL_FREE" | awk '{ print $$2 }' > ./composer/src/boot_captbl_offset.txt
 	cd composer/ ; cargo build
 
 component:
@@ -44,7 +43,7 @@ cpplat:
 
 clean: platclean
 	$(MAKE) $(MAKEOPTIONS) -C components clean
-
+	rm -f $(TOOLDIR)/offsets
 
 distclean: clean
 	$(MAKE) $(MAKEOPTIONS) -C components distclean

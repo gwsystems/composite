@@ -79,8 +79,8 @@ $(KERNEL): linker.ld $(OBJS) loader.o $(CONSTRUCTOR_COMP)
 
 loader.o: loader.S entry.S
 	$(info |     [AS]   Assembling $@)
-	@$(CC) -c -I$(INCPATH) entry.S
-	@$(CC) -c -I$(INCPATH) loader.S
+	$(CC) -c $(INCS) entry.S
+	$(CC) -c $(INCS) loader.S
 
 define COMPILE_OBJ_RULE
 	$(info |     [CC]   Compiling $@)

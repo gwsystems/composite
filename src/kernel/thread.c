@@ -165,9 +165,6 @@ thread_await_evt_returnvals(struct thread *t, struct regs *rs)
 struct regs *
 thread_retrieve_sched_evt_or_switch(struct thread *curr, struct thread *t, struct regs *rs)
 {
-	struct thread *evt_thd;
-	struct thd_evt *evt;
-
 	/* If there are no events, simply switch to the target thread */
 	if (thread_evt_pending(curr)) {
 		return thread_sched_returnvals(curr, rs);
@@ -303,7 +300,6 @@ thread_initialize(struct thread *thd, thdid_t id, id_token_t sched_tok, vaddr_t 
 			.execution = 0,
 			.dependency = { 0 },
 		},
-		.regs = { 0 },
 	};
 
 	/* Make sure that the scheduler thread properly understands its role. */

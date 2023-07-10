@@ -221,8 +221,6 @@ acpi_shutdown_init(void)
 
 	char  *s5_addr;
 	int    dsdt_len;
-	u8_t   acpi_disable;
-	u8_t   pm1_cnt_len;
 
 	/* ACPI details to be able to shutdown the system */
 	facp = acpi_find_resource("FACP");
@@ -273,12 +271,9 @@ acpi_shutdown_init(void)
 	smi_cmd = facp->smi_cmd;
 
 	acpi_enable  = facp->acpi_enable;
-	acpi_disable = facp->acpi_disable;
 
 	pm1a_cnt = facp->pm1a_cnt_blk;
 	pm1b_cnt = facp->pm1b_cnt_blk;
-
-	pm1_cnt_len = facp->pm1_cnt_len;
 
 	slp_en = 1<<13;
 

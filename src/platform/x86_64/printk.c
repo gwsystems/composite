@@ -21,10 +21,10 @@ printk(const char *fmt, ...)
 {
 	char         buffer[PRINTK_BUFFER];
 	va_list      args;
-	unsigned int l, i;
+	unsigned int i;
 
 	va_start(args, fmt);
-	l = vsprintf(buffer, fmt, args);
+	vsprintf(buffer, fmt, args);
 	va_end(args);
 
 	for (i = 0; i < num_handlers; i++) {

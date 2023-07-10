@@ -278,12 +278,12 @@ lapic_find_localaddr(void *l)
 void
 lapic_init(void)
 {
-	u32_t version;
+	/*  u32_t version; */
 
 	assert(lapic);
 	lapic_write_reg(LAPIC_SIV_REG, LAPIC_SIV_ENABLE | HW_LAPIC_SPURIOUS);
 
-	version = lapic_read_reg(LAPIC_VERSION_REG);
+	/* version = lapic_read_reg(LAPIC_VERSION_REG); */
 	/* don't want to deal with booting up using CMOS */
 	/* assert((version & 0xFF) >= 0x10); */
 	/* lapic_write_reg(LAPIC_LINT0, LAPIC_INT_MASKED); */

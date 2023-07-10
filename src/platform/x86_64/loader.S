@@ -148,12 +148,12 @@ p0_pgt:
 p1_pgt:
 	.fill 512, 8, 0
 
-;; .section .data
-;; .set STACKSIZE, 0x1000
-;; .global stack
-;; .align 0x1000
-;; stack:
-;; .fill (STACKSIZE * NUM_CPU), 1, 0
+// .section .data
+// .set STACKSIZE, 0x1000
+// .global stack
+// .align 0x1000
+// stack:
+// .fill (STACKSIZE * NUM_CPU), 1, 0
 
 .section .smptext
 

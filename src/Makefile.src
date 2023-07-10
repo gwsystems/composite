@@ -2,6 +2,7 @@ include Makefile.cosconfig
 
 # the directory this file is in
 TOP_DIR=$(CODE_DIR)
+TOOL_DIR=$(CODE_DIR)/tools/
 KDIR=$(TOP_DIR)/kernel/
 KINC=$(TOP_DIR)/kernel/include/
 SHAREDINC=$(TOP_DIR)/kernel/include/shared/

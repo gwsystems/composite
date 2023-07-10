@@ -7,6 +7,7 @@
 #include <compiler.h>
 #include <chal_types.h>
 #include <cos_restbl.h>
+#include <cos_bitmath.h>
 #include <assert.h>
 
 #include <resources.h>
@@ -122,6 +123,8 @@ kernel_init(uword_t post_constructor_offset)
 	struct captbl_leaf *captbl_null;
 	uword_t constructor_offset;
 
+	chal_state_init();
+
 	/*
 	 * This set of blocks calculates the *layout* of the resources
 	 * for all threads, resource tables, the component, etc...
@@ -192,18 +195,17 @@ uword_t gbl_thread_offset = 0;
  * - the `struct state_percore` in `core_state`
  */
 void
-kernel_core_init(coreid_t coreid)
+kernel_core_init(coreid_t core)
 {
 	struct state_percore *s;
 
 	/* The 1 here is for the null captbl page */
-	struct thread *t = (struct thread *)&pages[gbl_thread_offset + coreid];
+	struct thread *t = (struct thread *)&pages[gbl_thread_offset + core];
 	/* If this triggers, you should call `constructor_init` before this! */
 	assert(gbl_thread_offset > 0);
 
-	s = chal_percore_state_coreid(coreid);
-	*s = (struct state_percore) {
-		.registers     = { 0 },
+	s = chal_percore_state_coreid(core);
+	s->globals = (struct state) {
 		.active_thread = t,
 		.active_captbl = t->invstk.entries[0].component.captbl,
 		.sched_thread  = t,
@@ -236,8 +238,7 @@ cos_retval_t
 constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 		 uword_t ro_off, uword_t ro_sz, uword_t data_off, uword_t data_sz, uword_t zero_sz)
 {
-	int i, lvl;
-	struct captbl_leaf *captbl_null;
+	uword_t i, lvl;
 	uword_t constructor_offset, constructor_size, thread_offset, component_offset, captbl_offset, captbl_lower, captbl_iter;
 	uword_t pgtbl_offset, pgtbl_leaf_off, pgtbl_iter, res_pgtbl_offset, zeroed_page_offset, frontier;
 	uword_t captbl_num, pgtbl_num, mappings_num, res_pgtbl_num;

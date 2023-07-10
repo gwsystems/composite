@@ -461,7 +461,6 @@ cos_retval_t
 resource_weakref_create(pageref_t resource_ref, page_kerntype_t expected_kerntype, struct weak_ref *wr)
 {
 	struct page_type *t;
-	struct page *p;
 	epoch_t epoch;
 
 	/* First take a snapshot of the epoch... */
@@ -646,7 +645,7 @@ resource_comp_destroy(pageref_t compref)
 cos_retval_t
 resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref, thdid_t id, vaddr_t entry_ip, id_token_t sched_token, pageref_t untyped_src_ref)
 {
-	struct page_type *ptype, *sched_ptype, *comp_ptype;
+	struct page_type *ptype, *sched_ptype;
 	struct page *thd_page;
 	struct component_ref ref;
 	struct thread *thd;
@@ -681,7 +680,7 @@ resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref, thdid_t id, vad
 cos_retval_t
 resource_thd_destroy(pageref_t thdref)
 {
-	struct page_type *thd_ptype, *sched_ptype, *tcap_ptype, *comp_ptype;
+	struct page_type *thd_ptype, *sched_ptype;
 	struct thread *t, *n, *p;
 
 	COS_CHECK(page_resolve(thdref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, NULL, (struct page **)&t, &thd_ptype));
@@ -715,7 +714,6 @@ resource_restbl_create(page_kerntype_t kt, pageref_t untyped_src_ref)
 {
 	struct page_type *ptype;
 	struct page *p;
-	int i;
 
 	ref2page(untyped_src_ref, &p, &ptype);
         /*

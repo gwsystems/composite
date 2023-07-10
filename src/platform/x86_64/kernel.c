@@ -30,9 +30,6 @@ multiboot_mem_parse(struct multiboot_tag *tag)
 	for (mmap = ((struct multiboot_tag_mmap *)tag)->entries;
 	     (multiboot_uint8_t *)mmap < (multiboot_uint8_t *)tag + tag->size;
 	     mmap = (multiboot_memory_map_t *)((unsigned long)mmap + ((struct multiboot_tag_mmap *)tag)->entry_size)) {
-
-		mem_addr = chal_pa2va((paddr_t)mmap->addr);
-		mem_len  = mmap->len; /* maximum allowed */
 		printk("\t- %d (%s): [%08llx, %08llx) sz = %ldMB + %ldKB\n", i,
 			mmap->type == 1 ? "Available" : "Reserved ",
 			mmap->addr, mmap->addr + mmap->len,
@@ -87,6 +84,8 @@ void
 kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 {
 #define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
+	int r;
+	cos_retval_t rv;
 	uword_t max;
 	uword_t post_constructor;
 	struct elf_hdr *h;

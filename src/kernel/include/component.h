@@ -1,11 +1,7 @@
 #pragma once
 
-#include <cos_error.h>
-#include <chal_types.h>
 #include <types.h>
-#include <compiler.h>
-#include <resources.h>
-#include <cos_consts.h>
+#include <consts.h>
 
 struct component {
 	pgtbl_ref_t          pgtbl;

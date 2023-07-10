@@ -190,7 +190,7 @@ cos_restbl_intern_offset(uword_t lvl, uword_t addr, const uword_t MAX_DEPTH, con
 	static inline uword_t						\
 	cos_##name##_num_nodes(uword_t addr_lower, uword_t addr_max_num) \
 	{								\
-		uword_t off_ret;					\
+		uword_t off_ret = 0;					\
 		cos_restbl_node_offset(max_depth - 1, addr_lower + addr_max_num - 1, addr_lower, \
 				       addr_max_num, max_depth, top_ord, intern_ord, leaf_ord, &off_ret); \
 		return off_ret;						\

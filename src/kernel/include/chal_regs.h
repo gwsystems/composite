@@ -131,7 +131,7 @@
  * FIXME: restoring IOPL 3 into rflags. Remove this access.
  */
 #define POP_REGS_RET_SYSCALL			\
-	POP_REGS_GENERAL			\
+	POP_REGS_GENERAL;			\
 	popq PREFIX(rcx);			\
 	popq PREFIX(r11);			\
 	popq PREFIX(rsp);			\

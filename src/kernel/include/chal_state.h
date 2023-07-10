@@ -1,6 +1,5 @@
 #pragma once
 
-#include "cos_types.h"
 #define STATE_KERNEL_STACK_SZ 3848
 #define STATE_REGS_SZ         176
 #define STATE_GLOBALS_SZ      56

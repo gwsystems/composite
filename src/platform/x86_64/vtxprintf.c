@@ -39,8 +39,8 @@ unsigned int do_div64(unsigned long long *num, int base)
 {
 	unsigned int mod = 0;
 	mod = *num % base;
-	*num = *num / base; 
-	return mod;	
+	*num = *num / base;
+	return mod;
 }
 #endif
 
@@ -276,6 +276,8 @@ vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args)
 
 		case 'X':
 			flags |= LARGE;
+			base = 16;
+			break;
 		case 'x':
 			base = 16;
 			break;
