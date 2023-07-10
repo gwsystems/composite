@@ -15,3 +15,5 @@
 #define SEL_CNT 9                      /* Number of segments. */
 
 #define SMP_BOOT_PATCH_ADDR 0x70000
+
+#define COS_MEM_KERN_START_VA (0xffff800000000000)

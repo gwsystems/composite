@@ -1,5 +1,6 @@
 #pragma once
 
+#include <compiler.h>
 #include <assert.h>
 #include <fpu.h>
 #include <chal_asm_inc.h>
@@ -348,7 +349,7 @@ static inline prot_domain_tag_t chal_protdom_read(void) { return 0; }
 
 struct cpu_tlb_asid_map {
 	pgtbl_t mapped_pt[NUM_ASID_MAX];
-} CACHE_ALIGNED;
+} COS_CACHE_ALIGNED;
 
 extern struct cpu_tlb_asid_map tlb_asid_map[COS_NUM_CPU];
 

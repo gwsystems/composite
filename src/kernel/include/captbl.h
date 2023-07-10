@@ -27,8 +27,6 @@ cos_retval_t captbl_deconstruct(captbl_ref_t top, uword_t offset);
 void         captbl_leaf_initialize(struct captbl_leaf *ct);
 void         captbl_intern_initialize(struct captbl_internal *ct);
 int          page_is_captbl(page_kerntype_t type);
-cos_retval_t captbl_lookup_type(captbl_t ct, cos_cap_t cap, cos_cap_type_t type, cos_op_bitmap_t required,
-                                struct capability_generic **cap_ret);
 struct capability_generic *captbl_leaf_lookup(struct captbl_leaf *captbl, uword_t leaf_off);
 
 /**
@@ -83,7 +81,7 @@ captbl_cap_typecheck(struct capability_generic* c, cos_cap_type_t type, cos_op_b
  * pointer might be populated even in the case of an error, in which
  * case you should ignore the value.
  */
-cos_retval_t
+COS_FORCE_INLINE static inline cos_retval_t
 captbl_lookup_type(captbl_t ct, cos_cap_t cap, cos_cap_type_t type, cos_op_bitmap_t required, struct capability_generic **cap_ret)
 {
 	*cap_ret = captbl_lookup(ct, cap);
