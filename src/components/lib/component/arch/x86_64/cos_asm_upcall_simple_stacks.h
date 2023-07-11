@@ -7,6 +7,7 @@
 
 #define COS_STATIC_STACK				\
 /* .bss declaration must be put at the beginning */	\
+.data;							\
 .align COS_STACK_SZ;					\
 .weak cos_static_stack;					\
 .globl cos_static_stack;				\
@@ -61,11 +62,28 @@ __cosrt_upcall_entry:			\
 	movl (%eax), %eax;
 
 
-#define COS_DEFAULT_STACK_ACQUIRE	\
-.text;					\
-.align 16;				\
-.weak custom_acquire_stack;		\
-.globl custom_acquire_stack;		\
-custom_acquire_stack:			\
-	movabs $cos_static_stack, %rsp;	\
-	jmpq *%rcx;
+/* This is a very critical path used by both the upcall and synchronous IPC, thus make sure you fully understand it and change it */
+/* Be very very careful of the registers used here, you only would want to use ax and dx and don't change other registers as they could possibly be used by upcall and IPC */
+#define COS_DEFAULT_STACK_ACQUIRE						\
+.text;										\
+.align 16;									\
+.weak custom_acquire_stack;							\
+.globl custom_acquire_stack;							\
+custom_acquire_stack:								\
+	/* ax holds cpuid and thread id*/					\
+	/* rax[0:15]=tid, rax[16:31]=cpuid */					\
+	movq %rax, %rdx;							\
+	movabs $cos_static_stack, %rsp;						\
+	/*rax hols coreid and thread id, do not use other registers! */		\
+	/* get the tid by masking rax[0:15] */					\
+	andq $0xffff, %rax;							\
+	/* simple math: this thread's stack offset = stack_size * tid */	\
+	shl $MAX_STACK_SZ_BYTE_ORDER, %rax;					\
+	/* add the stack offset to the base to get the current thread's stack*/	\
+	add %rax, %rsp;								\
+	/* restore the tid in order to save it on the stack*/			\
+	shr $MAX_STACK_SZ_BYTE_ORDER, %rax;					\
+	/* get the cpuid by right shifting the lower 16 bits*/			\
+	shr $16, %rdx;								\
+	/* on the return, rax is thread id, rdx is core id */ 			\
+	jmpq %rcx;

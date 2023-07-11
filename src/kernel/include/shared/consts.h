@@ -30,7 +30,7 @@
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS (20 * NUM_CPU)
+#define MAX_NUM_THREADS (25 * NUM_CPU)
 
 /*
  * A single thread's stack size is 2^17 = 128kb by default
@@ -48,7 +48,7 @@
  * All stack size = per_stack_size * number_of_threads, here we set it as COS_STACK_SZ * 8
  * by default
  */
-#define ALL_STACK_SZ_FLAT (COS_STACK_SZ * MAX_NUM_THREADS) //less than 12 cores, use 32, or use 64
+#define ALL_STACK_SZ_FLAT (COS_STACK_SZ * MAX_NUM_THREADS)
 #define MAX_SPD_VAS_LOCATIONS 8
 
 /* a kludge:  should not use a tmp stack on a stack miss */
