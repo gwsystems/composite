@@ -141,7 +141,7 @@
 //#define ULK_INVSTK_ADDR	(ULK_BASE_ADDR + PAGE_SIZE)
 
 /* for callgate assembly... size verified at compile-time in cos_sched.h */
-#define COS_SCB_INFO_SIZE 448
+#define COS_SCB_INFO_SIZE 384
 #define COS_SCB_THDCAP_OFFSET 8
 #define COS_SCB_TID_OFFSET 0
 #define COS_DCB_INFO_SIZE 32

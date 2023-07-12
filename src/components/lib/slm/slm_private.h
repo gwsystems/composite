@@ -281,9 +281,13 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		"movabs $" STR(ULK_SCB_ADDR) ", %%rcx\n\t"                \
 		"addq %%rcx, %%rax\n\t"                                   \
 		/* Update tid in scb */
-		"movq %%r12, " STR(COS_SCB_TID_OFFSET) "(%%rax)\n\t"      \
+		"shl $16 , %%r11\n\t"                                     \
+		"movq %%r11, %%rcx\n\t"                                   \
+		"or %%rcx, %%r12\n\t"                                     \
+		"movq %%r12, (%%rax)\n\t"                                 \
+		/*"movq %%r12, " STR(COS_SCB_TID_OFFSET) "(%%rax)\n\t"      \*/
 		/* Update thdcap in scb */
-		"movq %%r11, " STR(COS_SCB_THDCAP_OFFSET) "(%%rax)\n\t"   \
+		/*"movq %%r11, " STR(COS_SCB_THDCAP_OFFSET) "(%%rax)\n\t"   \*/
 		/* Return to scheduler's protection domain. */
 		"movl $" STR(MPK_KEY2REG(SCHED_MPK_KEY)) ",%%eax\n\t"     \
 		"xor %%rcx, %%rcx\n\t"                                    \

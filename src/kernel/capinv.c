@@ -81,9 +81,9 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 	if (unlikely(!thd->scb_cached)) goto done;
 	scb_core = (thd->scb_cached + get_cpuid());
 	assert(scb_core);
-	ultc     = scb_core->curr_thd;
+	ultc     = (scb_core->thdpack) >> 16;
 
-	scb_core->curr_thd = 0;
+	scb_core->thdpack &= 0xFFFF;
 	if (!ultc && !interrupt) {
 		goto done;
 	}
@@ -97,7 +97,9 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 			regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
 			regs->sp = thd->dcbinfo->sp;
 			regs->dx = 0; /* sched token is in edx! */
+#if defined (__PROTECTED_DISPATCH__)
 			chal_protdom_write(SCHED_MPK_KEY);
+#endif
 			thd->dcbinfo->sp = 0;
 		}
 	}
@@ -462,11 +464,15 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 		pgtbl_update(next_pt);
 	}
 
+#if defined (__PROTECTED_DISPATCH__)
 	if (next->dcbinfo && next->dcbinfo->sp) {
 		chal_protdom_write(SCHED_MPK_KEY);
 	} else {
 		chal_protdom_write(next_protdom);
 	}
+#else
+	chal_protdom_write(next_protdom);
+#endif
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
 	if (next->tls != curr->tls) chal_tls_update(next->tls);
@@ -480,8 +486,8 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	/* if there is cached scb, update tid in the cached scb. */
 	if (next->scb_cached) scb_core = next->scb_cached + get_cpuid();
 	assert(scb_core);
-	assert(scb_core->curr_thd == 0);
-	scb_core->tid = next->tid;
+	assert((scb_core->thdpack >> 16) == 0);
+	scb_core->thdpack = next->tid;
 
 	return preempt;
 }

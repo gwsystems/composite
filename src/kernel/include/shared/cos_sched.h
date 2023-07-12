@@ -27,16 +27,13 @@ struct cos_sched_ring {
 
 /* FIXME: priority... */
 struct cos_scb_info {
-	thdid_t               tid;
-	capid_t               curr_thd;
+	u32_t                 thdpack;
 	tcap_time_t           timer_pre;
 	sched_tok_t           sched_tok;
 	struct cos_sched_ring sched_events;
 } CACHE_ALIGNED;
 
 COS_STATIC_ASSERT(COS_SCB_INFO_SIZE == sizeof(struct cos_scb_info), "Update COS_SCB_INFO_SIZE with sizeof struct cos_scb_info");
-COS_STATIC_ASSERT(COS_SCB_THDCAP_OFFSET == offsetof(struct cos_scb_info, curr_thd), "Update COS_SCB_THDCAP_OFFSET with the offset of curr_thd in the SCB");
-COS_STATIC_ASSERT(COS_SCB_TID_OFFSET == offsetof(struct cos_scb_info, tid), "Update COS_SCB_TID_OFFSET with the offset of tid in the SCB");
 
 struct cos_dcb_info {
 	unsigned long ip;

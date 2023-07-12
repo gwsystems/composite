@@ -596,8 +596,7 @@ capmgr_scb_map_ro(void)
 	ci = cos_compinfo_get(c->comp.comp_res);
 	assert(ci);
 
-	ci->scb_uaddr = crt_page_vallocn(&c->comp, 1);
-	//printc("scb_uaddr: %lx\n", ci->scb_uaddr);
+	ci->scb_uaddr = (vaddr_t)crt_page_vallocn(&c->comp, 1);
 	crt_scb_map(&self->comp, &c->comp);
 
 	return ci->scb_uaddr;
@@ -614,7 +613,7 @@ capmgr_dcb_info_init(struct cm_comp *c)
 	vaddr_t  initaddr = 0;
 	dcboff_t initoff  = 0;
 
-	initaddr = crt_page_vallocn(comp, 1);
+	initaddr = (vaddr_t)crt_page_vallocn(comp, 1);
 	assert(initaddr);
 
 	initdcb  = cos_dcb_alloc(ci, target_ci->pgtbl_cap, initaddr);

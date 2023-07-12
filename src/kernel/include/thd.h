@@ -351,19 +351,19 @@ thd_current(struct cos_cpu_local_info *cos_info)
 	sched_thd  = thread->scheduler_thread;
 	/* We assume sched_thread is always created in the scheduler component. */
 	scb_core   = thread->scb_cached + get_cpuid();
-	curr       = scb_core->curr_thd;
+	curr       = (scb_core->thdpack) >> 16;
 
 	if (curr) {
 		sched_comp = &(sched_thd->invstk[0].comp_info);
 		tc = (struct cap_thd *)captbl_lkup(sched_comp->captbl, curr);
 		if (unlikely(!tc || tc->h.type != CAP_THD)) assert(0);
 		curr_thd = tc->t;
-		//assert(scb_core->tid == curr_thd->tid);
+		assert((scb_core->thdpack & 0xFFFF) == curr_thd->tid);
 		thd_current_update(curr_thd, thread, cos_info);
 
 		return curr_thd;
 	}
-	scb_core->tid = thread->tid;
+	scb_core->thdpack = thread->tid;
 
 	return thread;
 

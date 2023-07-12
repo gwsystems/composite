@@ -226,6 +226,7 @@ __cosrt_fast_callgate_##name:					\
 	addq    %r13, %rax;					\
 	/* get thread id out of per-core scb info */		\
 	movq    (%rax), %r13;					\
+	andq    $0xFFFF, %r13;                \
 	shl	$16, %rdx;					\
 	or	%rdx, %r13;					\
 	COS_ULINV_GET_INVSTK					\
@@ -255,6 +256,7 @@ srv_call_ret_##name:						\
 	addq    %r13, %rax;					\
 	/* get thread id out of per-core scb info */		\
 	movq    (%rax), %r13;					\
+	andq    $0xFFFF, %r13;                \
 	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_POP_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
@@ -322,6 +324,7 @@ __cosrt_fast_callgate_##name:					\
 	addq    %r13, %rax;					\
 	/* get thread id out of per-core scb info */		\
 	movq    (%rax), %r13;					\
+	andq    $0xFFFF, %r13;                \
 	shl	$16, %rdx;					\
 	or	%rdx, %r13;					\
 	COS_ULINV_GET_INVSTK					\
@@ -351,6 +354,7 @@ srv_call_ret_##name:						\
 	addq    %r13, %rax;					\
 	/* get thread id out of per-core scb info */		\
 	movq    (%rax), %r13;					\
+	andq    $0xFFFF, %r13;                \
 	COS_ULINV_GET_INVSTK					\
 	COS_ULINV_POP_INVSTK					\
 	COS_ULINV_SWITCH_DOMAIN(0xfffffffe)			\
