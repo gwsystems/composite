@@ -1359,7 +1359,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 
 		if (initcore) {
 			thdcap = crt_comp_thdcap_get(comp);
-			printc("Initializing component %lu (executing cos_init).\n", comp->id);
+			printc("Initializing component %lu (executing cos_init). %d\n", comp->id);
 		} else {
 			/* wait for the init core's thread to initialize */
 			while (ps_load(&comp->init_state) == CRT_COMP_INIT_COS_INIT) ;
@@ -1477,7 +1477,7 @@ crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type)
 	}
 
 	if (c->init_core == cos_cpuid()) {
-		printc("Component %lu initialization complete%s.\n", c->id, (c->main_type > 0 ? ", awaiting main execution": ""));
+		//printc("Component %lu initialization complete%s.\n", c->id, (c->main_type > 0 ? ", awaiting main execution": ""));
 	}
 
 	/* switch back to the booter's thread in execute() */

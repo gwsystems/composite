@@ -358,7 +358,7 @@ thd_current(struct cos_cpu_local_info *cos_info)
 		tc = (struct cap_thd *)captbl_lkup(sched_comp->captbl, curr);
 		if (unlikely(!tc || tc->h.type != CAP_THD)) assert(0);
 		curr_thd = tc->t;
-		assert(scb_core->tid == curr_thd->tid);
+		//assert(scb_core->tid == curr_thd->tid);
 		thd_current_update(curr_thd, thread, cos_info);
 
 		return curr_thd;

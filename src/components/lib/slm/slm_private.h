@@ -306,6 +306,13 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		 */
 		".align 8\n\t"                                            \
 		"1:\n\t"                                                  \
+		"movl $" STR(MPK_KEY2REG(SCHED_MPK_KEY)) ",%%eax\n\t"     \
+		"xor %%rcx, %%rcx\n\t"                                    \
+		"xor %%rdx, %%rdx\n\t"                                    \
+		"wrpkru\n\t"                                              \
+		"movabs $0xdeadbeefdeadbeef, %%r10\n\t"                   \
+		"cmp %%r10, %%r15\n\t"                                    \
+		/* TODO: error handling */
 		/* Kernel path starts from here. */
 		"movabs $3f, %%r8\n\t"                                    \
 		/* Mov thdcap of next thread to rax. */
@@ -347,11 +354,9 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		/* TODO: error handling */
 		".align 8\n\t"                                            \
 		"3:\n\t"                                                  \
-		"movl $" STR(MPK_KEY2REG(SCHED_MPK_KEY)) ",%%eax\n\t"     \
 		"xor %%rcx, %%rcx\n\t"                                    \
 		"xor %%rdx, %%rdx\n\t"                                    \
-		/* Switch protection domain. */
-		"wrpkru\n\t"                                              \
+		"rdpkru\n\t"                                              \
 		"popq %%rbp\n\t"                                          \
 		:
 		: "a" (next->thd), "S" (next->tid),

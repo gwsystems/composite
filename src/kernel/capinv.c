@@ -97,7 +97,7 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 			regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
 			regs->sp = thd->dcbinfo->sp;
 			regs->dx = 0; /* sched token is in edx! */
-
+			chal_protdom_write(SCHED_MPK_KEY);
 			thd->dcbinfo->sp = 0;
 		}
 	}
@@ -672,7 +672,6 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 	int          ret;
 	if (thd_cap->cpuid != get_cpuid() || thd_cap->cpuid != next->cpuid) return -EINVAL;
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
-		//printk("%d\n", __userregs_getip(regs)-thd->dcbinfo->ip);
 		assert(__userregs_getip(regs) == thd->dcbinfo->ip + DCB_IP_KERN_OFF);
 		assert(__userregs_getsp(regs) == thd->dcbinfo->sp);
 	}
@@ -928,7 +927,6 @@ timer_process(struct pt_regs *regs)
 	thd_curr = cap_ulthd_lazyupdate(regs, cos_info, 1, &comp);
 	assert(thd_curr && thd_curr->cpuid == get_cpuid());
 	assert(comp);
-	//printk("-");
 	int ret = expended_process(regs, thd_curr, comp, cos_info, 1);
 	return ret;
 }
@@ -1513,7 +1511,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			assert(ptc);
 
 			ret = scb_ro_mapping(ct, scbc, ptc, compc, scb_uaddr);
-			//printk("ret: %d\n", ret);
 			assert(!ret);
 			return ret;
 		}

@@ -30,7 +30,7 @@ rcv_spiner()
 {
 	int i = 0;
 	while (!spin_thd[1]) ;
-	while (i < TEST_ITERS) {
+	while (1) {
 		//printc("*************spiner1**************: %ld\n\n", spin_thd[0]);
 		i++;
 		sched_thd_yield_to(spin_thd[1]);
