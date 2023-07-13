@@ -174,7 +174,7 @@ idt_init(const coreid_t cpu_id)
 	idt_set_gate(HW_ID30, (unsigned long)handler_hw_61, 0x08, 0x8E);
 	idt_set_gate(HW_ID31, (unsigned long)handler_hw_62, 0x08, 0x8E);
 	idt_set_gate(HW_LAPIC_SPURIOUS, (unsigned long)lapic_spurious_irq, 0x08, 0x8E);
-	idt_set_gate(HW_LAPIC_IPI_ASND, (unsigned long)lapic_ipi_asnd_irq, 0x08, 0x8E);
+	idt_set_gate(HW_LAPIC_IPI_ASND, (unsigned long)lapic_ipi_irq, 0x08, 0x8E);
 	idt_set_gate(HW_LAPIC_TIMER, (unsigned long)lapic_timer_irq, 0x08, 0x8E);
 
 flush_idt:

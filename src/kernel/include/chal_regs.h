@@ -264,6 +264,15 @@ COS_STATIC_ASSERT((sizeof(struct regs) - (sizeof(reg_state_t) + sizeof(struct tr
 COS_STATIC_ASSERT(sizeof(struct trap_frame) == REGS_TRAPFRAME_SZ,
 		  "Trap frame register structure of incorrect size.");
 
+#define COS_REGS_PRINT_ARGS(r)                                                                                     \
+	"ip: %lx, sp: %lx\n"                                                                                       \
+	"bp: %lx, a: %lx, b: %lx, c: %lx, d: %lx, si: %lx, di: %lx\n"                                              \
+	"8: %lx, 9: %lx, 10: %lx, 11: %lx, 12: %lx, 13: %lx, 14: %lx, 15: %lx\n",                                  \
+	  (r->state == REG_STATE_SYSCALL) ? r->clobbered.rcx_ip : r->frame.ip,                                     \
+	  (r->state == REG_STATE_SYSCALL ? r->clobbered.rbp_sp : r->frame.sp), r->clobbered.rbp_sp, r->args[0],    \
+	  r->args[1], r->clobbered.rcx_ip, r->args[2], r->args[3], r->args[4], r->args[5], r->args[6], r->args[7], \
+	  r->clobbered.r11, r->args[8], r->args[9], r->args[10], r->args[11]
+
 /*
  * `userlevel_eager_return_syscall` returns back to user-level
  * immediately, under the assumption that the registers have `state ==
@@ -289,8 +298,8 @@ userlevel_eager_return(struct regs *rs)
 {
 	struct regs *end_of_struct = &(rs[1]);
 
-	if (rs->state == 0)      ASM_TRAP_RETURN(end_of_struct);
-	else if (rs->state == 1) ASM_SYSCALL_RETURN(end_of_struct);
+	if (rs->state == REG_STATE_PREEMPTED)    ASM_TRAP_RETURN(end_of_struct);
+	else if (rs->state == REG_STATE_SYSCALL) ASM_SYSCALL_RETURN(end_of_struct);
 
 	while (1) ;
 }

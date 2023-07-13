@@ -20,7 +20,7 @@
  */
 #include <chal_consts.h>
 #include <chal_regs.h>
-#include <chal_timer.h>
+#include <chal.h>
 
 #include <cos_types.h>
 #include <cos_error.h>
@@ -228,3 +228,4 @@ thread_scheduler_update(cos_op_bitmap_t *ops, struct thread *t, struct regs *rs)
 struct regs *thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs);
 void         thread_initialize(struct thread *thd, thdid_t id, id_token_t sched_tok, vaddr_t entry_ip,
                                struct component_ref *compref, pageref_t schedthd_ref, pageref_t thisref);
+struct regs *thread_timer_activation(struct regs *rs);

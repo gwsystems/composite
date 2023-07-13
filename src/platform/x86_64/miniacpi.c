@@ -334,7 +334,6 @@ acpi_init(void)
 	void *timer;
 	void *apic;
 	int lapic_err = 1;
-	void *hpet = NULL;
 	unsigned long j = kernel_mapped_offset;
 
 	assert(j < COS_PAGE_SIZE / sizeof(unsigned long));
@@ -353,10 +352,8 @@ acpi_init(void)
 
 	timer = acpi_find_timer();
 	if (timer) {
-		hpet = timer_initialize_hpet(timer);
-	}
-	if (!hpet) {
-		printk("Could not initialize HPET.\n");
+		printk("Found timer, but foregoing using HPET.\n");
+		//hpet = timer_initialize_hpet(timer);
 	}
 
 	apic = acpi_find_apic();

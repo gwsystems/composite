@@ -82,12 +82,11 @@ unsigned int chal_cyc_thresh(void);
 /* IPI sending */
 void chal_send_ipi(coreid_t cpu_id);
 /* TODO: Should return regs */
-int chal_ipi_process(struct regs *regs);
+struct regs *ipi_process(struct regs *regs);
 
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 void chal_idle(void);
-void chal_timer_set(cos_cycles_t cycles);
-void chal_timer_disable(void);
+void chal_timer_program(cos_time_t timeout);
 
 void chal_init(void);
 
@@ -100,5 +99,6 @@ void chal_init(void);
 
 extern void printk(const char *fmt, ...);
 void        chal_khalt(void) __attribute__((noreturn));
+
 
 #endif /* CHAL_H */

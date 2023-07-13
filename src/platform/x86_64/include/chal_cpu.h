@@ -166,7 +166,7 @@ chal_cpu_pgtbl_activate(uword_t pgtbl)
 #define MSR_USER_GSBASE 	0xC0000101
 #define MSR_KERNEL_GSBASE 	0xC0000102
 
-extern void sysenter_entry(void);
+extern void syscall_entry(void);
 
 static inline void
 writemsr(u32_t reg, u32_t low, u32_t high)
@@ -485,7 +485,7 @@ chal_cpu_init(void)
 	writemsr(MSR_IA32_EFER,low | 0x1, high);
 
 	writemsr(MSR_STAR, 0, SEL_KCSEG | ((SEL_UCSEG - 16) << 16));
-	writemsr(MSR_LSTAR, (u32_t)((u64_t)sysenter_entry), (u32_t)((u64_t)sysenter_entry >> 32));
+	writemsr(MSR_LSTAR, (u32_t)((u64_t)syscall_entry), (u32_t)((u64_t)syscall_entry >> 32));
 	writemsr(MSR_SFMASK, 512, 0);
 	writemsr(MSR_USER_GSBASE, 0, 0);
 	writemsr(MSR_KERNEL_GSBASE, (u32_t)((u64_t)(&s->gs_stack_ptr)), (u32_t)((u64_t)(&s->gs_stack_ptr) >> 32));

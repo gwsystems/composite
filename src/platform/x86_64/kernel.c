@@ -1,3 +1,6 @@
+#include <chal_regs.h>
+#include <chal_state.h>
+#include <chal_cpu.h>
 #include <types.h>
 #include <consts.h>
 #include <cos_error.h>
@@ -109,7 +112,6 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	paging_init();
 	acpi_init();
 	lapic_init();
-	timer_init();
 
 	post_constructor = ((uword_t)&_binary_constructor_end - (uword_t)pages) / COS_PAGE_SIZE;
 	kernel_init(post_constructor);
@@ -160,41 +162,27 @@ smp_kmain(void)
 	while(1) ;
 }
 
-extern void shutdown_apm(void);
-extern void outw(unsigned short __val, unsigned short __port);
+/*
+ * Who could have known that shutdown is such a pain?
+ * http://wiki.osdev.org/Shutdown
+ * http://stackoverflow.com/questions/21463908/x86-instructions-to-power-off-computer-in-real-mode
+ * http://stackoverflow.com/questions/678458/shutdown-the-computer-using-assembly
+ * http://stackoverflow.com/questions/3145569/how-to-power-down-the-computer-from-a-freestanding-environment
+ */
 
 __attribute__((noreturn)) void
 khalt(void)
 {
-	static int method = 0;
+	struct regs *rs = current_registers();
 
-	if (method == 0) printk("Shutting down...\n");
+	printk("Attempting to shut down...\n");
 
-	/*
-	 * Use the case statement as we shutdown in the fault handler,
-	 * thus faults on shutdown require that we bypass faulty
-	 * shutdown handlers.
-	 */
-	switch(method) {
-	case 0:
-		method++;
-		printk("\ttry acpi shutdown...\n");
-		acpi_shutdown();
-		printk("...FAILED\n");
-		break;
-	case 1:
-		method++;
-		printk("\ttry apm shutdown...\n");
-		shutdown_apm();
-		printk("...FAILED\n");
-		break;
-	case 2:
-		method++;
-		printk("\t...try emulator magic shutdown...\n");
-		outw(0x0 | 0x2000, 0xB004);
-		printk("...FAILED\n");
-		break;
-	}
+	printk(COS_REGS_PRINT_ARGS(rs));
+
+	printk("\ttry acpi shutdown...\n");
+	acpi_shutdown();
+
+	printk("...FAILED\n");
 	/* last resort */
 	printk("\t...spinning\n");
 	while (1) ;

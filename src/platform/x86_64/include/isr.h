@@ -117,7 +117,7 @@ extern void handler_hw_60(struct regs *);
 extern void handler_hw_61(struct regs *);
 extern void handler_hw_62(struct regs *);
 extern void lapic_spurious_irq(struct regs *);
-extern void lapic_ipi_asnd_irq(struct regs *);
+extern void lapic_ipi_irq(struct regs *);
 extern void lapic_timer_irq(struct regs *);
 
 #endif /* ISR_H */

@@ -1,3 +1,5 @@
+#include <chal_regs.h>
+#include <chal.h>
 #include <chal_state.h>
 #include <kernel.h>
 #include <chal_cpu.h>
@@ -91,8 +93,6 @@ volatile int apicids[COS_NUM_CPU];
 
 #define LAPIC_ONESHOT_THRESH (1 << 12)
 #define LAPIC_TSCDEADLINE_THRESH 0
-
-extern int timer_process(struct regs *regs);
 
 enum lapic_timer_type
 {
@@ -342,6 +342,12 @@ lapic_set_timer(int timer_type, cos_time_t deadline)
 	lapic_is_disabled[coreid()] = 0;
 }
 
+void
+chal_timer_program(cos_time_t deadline)
+{
+	lapic_set_timer(lapic_timer_mode, deadline);
+}
+
 u32_t
 lapic_get_ccr(void)
 {
@@ -391,6 +397,7 @@ lapic_timer_init(void)
 
 	if (!lapic_tscdeadline_supported()) {
 		printk("\tLAPIC: TSC-Deadline Mode not supported! Configuring Oneshot Mode!\n");
+		panic("We require TSC-Deadline hardware. Panic.\n");
 
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_ONESHOT_MODE);
@@ -447,34 +454,35 @@ lapic_asnd_ipi_send(const coreid_t cpu_id)
 	return;
 }
 
-int
-lapic_spurious_handler(struct regs *regs)
+/*
+ * Low level handlers for interrupts due to spurious, IPI, and timer
+ * sources.
+ */
+
+struct regs *
+lapic_spurious_fn(struct regs *regs)
 {
-	return 1;
+	printk("Spurious lapic handler.\n");
+
+	return regs;
 }
 
-int
-lapic_ipi_asnd_handler(struct regs *regs)
+struct regs *
+lapic_ipi_fn(struct regs *regs)
 {
-	int preempt = 1;
-
-	preempt = chal_ipi_process(regs);
+	regs = ipi_process(regs);
 
 	lapic_ack();
 
-	return preempt;
+	return regs;
 }
 
-int
-lapic_timer_handler(struct regs *regs)
+struct regs *
+lapic_timer_fn(struct regs *regs)
 {
-	int preempt = 1;
-
 	lapic_ack();
 
-	preempt = timer_process(regs);
-
-	return preempt;
+	return thread_timer_activation(regs);
 }
 
 /* HACK: assume that the HZ of the processor is equivalent to that on the computer used for compilation. */

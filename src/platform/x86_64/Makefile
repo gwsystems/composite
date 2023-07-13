@@ -53,6 +53,7 @@ KERNEL_CFILES += chal.c
 KERNEL_CFILES += miniacpi.c
 KERNEL_CFILES += exception.c
 KERNEL_CFILES += lapic.c
+KERNEL_CFILES += chal_state.c
 # KERNEL_CFILES += chal_pgtbl.c
 # KERNEL_CFILES += fpu.c
 # KERNEL_CFILES += ulinv.c
@@ -72,8 +73,8 @@ all: $(KERNEL)
 $(KERNEL): linker.ld $(OBJS) loader.o $(CONSTRUCTOR_COMP)
 	$(if $(CONSTRUCTOR_COMP), $(info |     [LD]   Linking in the constructor component $@))
 	$(if $(CONSTRUCTOR_COMP), cp $(CONSTRUCTOR_COMP) constructor; $(LD) -r -b binary constructor -o constructor.o; objcopy --rename-section .data=.initial_component constructor.o;)
-	$(info |     [LD]   Linking $@)
-	$(LD) -T linker.ld loader.o entry.o $(OBJS) $(if $(CONSTRUCTOR_COMP), constructor.o) -o $@
+	$(if $(KERNEL_OUTPUT), $(info |     [LD]   Linking $@))
+	$(if $(KERNEL_OUTPUT), $(LD) -T linker.ld loader.o entry.o $(OBJS) $(if $(CONSTRUCTOR_COMP), constructor.o) -o $@)
 	$(if $(KERNEL_OUTPUT), $(info |     [CP]   Copying $@ into $(KERNEL_OUTPUT)))
 	$(if $(KERNEL_OUTPUT), cp $@ $(KERNEL_OUTPUT))
 

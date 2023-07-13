@@ -36,45 +36,14 @@ serial_puts(const char *s)
 	for (; *s != '\0'; s++) serial_send(*s);
 }
 
-int
-serial_handler(struct regs *r)
+struct regs *
+serial_fn(struct regs *r)
 {
-	char serial;
-	int  preempt = 1;
-
 	ack_irq(HW_SERIAL);
 
-	serial = serial_recv();
+	printk("Serial: %d\n", serial_recv());
 
-	/*
-	 * Fix the serial input assuming it is ascii
-	 */
-	switch (serial) {
-	case '\0':
-		return preempt;
-	case 127:
-		serial = 0x08;
-		break;
-	case 13:
-		serial = '\n';
-		break;
-	case 3: /* FIXME: Obviously remove this once we have working components */
-		die("Break\n");
-	case 'o':
-		timer_set(TIMER_ONESHOT, 50000000);
-		timer_set(TIMER_ONESHOT, 50000000);
-		break;
-	case 'p':
-		timer_set(TIMER_PERIODIC, 100000000);
-		timer_set(TIMER_PERIODIC, 100000000);
-		break;
-	default:
-		break;
-	}
-
-	printk("Serial: %d\n", serial);
-	// printk("%c", serial);
-	return preempt;
+	return r;
 }
 
 void

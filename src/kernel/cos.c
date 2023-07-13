@@ -706,17 +706,19 @@ capability_activation(struct regs *rs)
 	return capability_activation_slowpath(rs, cap_slot);
 }
 
-COS_FASTPATH_SECTION
-reg_state_t
-syscall_handler(struct regs **rs)
+COS_FASTPATH_SECTION void
+syscall_handler(void)
 {
-	struct regs *ret_regs = capability_activation(*rs);
+	struct regs *rs = current_registers();
+	struct regs *ret_regs = capability_activation(rs);
 
-        /*
-	 * Here we return a pointer to the *top* of the registers to
-         * enable restores via a sequence of pop instructions.
-	 */
-        *rs = &ret_regs[1];
+	userlevel_eager_return(ret_regs);
+	/* Should never get here: we're returning to user-level in the previous line */
+	while (1) ;
+}
 
-	return (*rs)->state;
+struct regs *
+ipi_process(struct regs *regs)
+{
+	return regs;
 }

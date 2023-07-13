@@ -7,9 +7,11 @@
 /* A not so nice way of oopsing */
 #define die(fmt, ...)                                            \
 	do {                                                     \
-		printk("(%d) " fmt, coreid(), ##__VA_ARGS__);	 \
+		printk("(%d)" fmt, coreid(), ##__VA_ARGS__);	 \
 		chal_khalt();                                    \
 	} while (0)
+
+#define panic(msg) die(" %s", msg)
 
 #define assert(x)							\
 	do {								\
