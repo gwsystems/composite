@@ -41,11 +41,14 @@ struct CaptblState {
     prev_sz: u32,
 }
 
+static BOOT_CAPTBL_FREE: &'static str = include_str!("boot_captbl_offset.txt");
+
 impl CaptblState {
     fn new() -> CaptblState {
-        let boot_captbl_free: u32 = include_str!("boot_captbl_offset.txt")
+        let boot_captbl_free: u32 = BOOT_CAPTBL_FREE
+            .trim()
             .parse()
-            .expect("Cannot find boot_captbl_offset.txt file.");
+            .expect("Static file boot_captbl_offset.txt does not contain integer free offset.");
         CaptblState {
             captbl: BTreeMap::new(),
             frontier: boot_captbl_free,
