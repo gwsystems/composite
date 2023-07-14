@@ -70,6 +70,7 @@ SECTIONS {
     /* Initial image is in pages that will be directly mapped into the constructor */
     initial_component_start = .;
     .initial_component : AT(KERN_PHYS + (initial_component - code)) {
+    	initial_component = .;
         *(.initial_component)
     }
     . = ALIGN(4096);
