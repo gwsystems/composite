@@ -35,9 +35,7 @@ struct idt_entry {
 	u8_t  zero;    // Must always be zero
 	u8_t  flags;   // flags
 	u16_t base_hi; // Upper 16 bits of addres to jump too
-	#if defined(__x86_64__)
 	u64_t base_hi_64; //x64
-	#endif
 } __attribute__((packed));
 
 struct idt_ptr {
@@ -61,9 +59,7 @@ idt_set_gate(u8_t num, unsigned long base, u16_t sel, u8_t flags)
 {
 	idt_entries[num].base_lo = base & 0xFFFF;
 	idt_entries[num].base_hi = (base >> 16) & 0xFFFF;
-#if defined(__x86_64__)
 	idt_entries[num].base_hi_64 = (base >> 32) & 0x00000000ffffffff;
-#endif
 	idt_entries[num].sel  = sel;
 	idt_entries[num].zero = 0;
 

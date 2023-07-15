@@ -3,6 +3,7 @@
 #include <chal_state.h>
 #include <assert.h>
 
+/* Note: printks not enabled here. */
 void
 chal_state_init(void)
 {

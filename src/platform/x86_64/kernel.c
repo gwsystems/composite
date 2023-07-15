@@ -97,6 +97,7 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	size_t ro_sz = 0, data_sz = 0, bss_sz = 0;
 	char *ro_src = NULL, *data_src = NULL;
 
+	chal_state_init();
 	tss_init(INIT_CORE);
 	gdt_init(INIT_CORE);
 	idt_init(INIT_CORE);
@@ -106,7 +107,8 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 
 	kern_paging_map_init((void *)(max));
 	multiboot_output(mboot_addr, mboot_magic);
-	chal_state_init();
+
+	printk("Stack address %lx\nRegisters %lx (post %lx, constant %lx, val %lx)\nPage %lx\n", &r, current_registers(), &(current_registers()[1]), STATE_STACK_OFFSET, *(uword_t *)&current_registers()[1], &core_state[0]);
 
 	chal_init();
 	paging_init();
@@ -182,8 +184,6 @@ khalt(void)
 	printk("\ttry acpi shutdown...\n");
 	acpi_shutdown();
 
-	printk("...FAILED\n");
-	/* last resort */
-	printk("\t...spinning\n");
+	printk("\t...FAILED, fallback to spinning.\n");
 	while (1) ;
 }

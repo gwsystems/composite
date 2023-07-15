@@ -45,7 +45,7 @@ SECTIONS {
 	. = ALIGN(4096);
         *(.ipc_fastpath)
         . = ALIGN(4096);
-        *(.rodata)
+        *(.rodata*)
         . = ALIGN(4096);
     }
 

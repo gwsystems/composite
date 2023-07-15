@@ -26,9 +26,13 @@ name(void)						\
 	userlevel_eager_return(rs);			\
 }
 
-struct regs *
+static struct regs *
 error_handler(struct regs *rs, const char *err_msg)
 {
+	int r;
+
+	printk("Stack address %lx\nRegisters %lx (post %lx, constant %lx, val %lx)\nPage %lx\n", &r, current_registers(), &(current_registers()[1]), STATE_STACK_OFFSET, *(uword_t *)&current_registers()[1], &core_state[0]);
+
 	panic(err_msg);
 
 	return rs;
@@ -61,7 +65,6 @@ struct regs *lapic_timer_fn(struct regs *regs);
 TRAP_C_HANDLER(lapic_spurious_handler, lapic_spurious_fn);
 TRAP_C_HANDLER(lapic_ipi_handler, lapic_ipi_fn);
 TRAP_C_HANDLER(lapic_timer_handler, lapic_timer_fn);
-
 
 struct regs *
 page_fault_fn(struct regs *regs)
