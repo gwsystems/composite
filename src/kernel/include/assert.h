@@ -1,17 +1,21 @@
 #pragma once
 
+#include <chal_regs.h>
 #include <chal.h>
 #include <compiler.h>
-#include <state.h>
+#include <chal_state.h>
 
 /* A not so nice way of oopsing */
-#define die(fmt, ...)                                            \
+#define die_reg(reg, fmt, ...)					 \
 	do {                                                     \
 		printk("(%d)" fmt, coreid(), ##__VA_ARGS__);	 \
-		chal_khalt();                                    \
+		printk(COS_REGS_PRINT_ARGS(reg));		 \
+		chal_khalt();					 \
 	} while (0)
 
-#define panic(msg) die(" %s", msg)
+#define die(fmt, ...) die_reg(current_registers(), fmt, ##__VA_ARGS__)
+
+#define panic(msg, reg) die_reg(reg, " %s", msg)
 
 #define assert(x)							\
 	do {								\

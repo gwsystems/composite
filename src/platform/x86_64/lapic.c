@@ -397,7 +397,7 @@ lapic_timer_init(void)
 
 	if (!lapic_tscdeadline_supported()) {
 		printk("\tLAPIC: TSC-Deadline Mode not supported! Configuring Oneshot Mode!\n");
-		panic("We require TSC-Deadline hardware. Panic.\n");
+		panic("We require TSC-Deadline hardware. Panic.\n", current_registers());
 
 		/* Set the mode and vector */
 		lapic_write_reg(LAPIC_TIMER_LVT_REG, HW_LAPIC_TIMER | LAPIC_ONESHOT_MODE);

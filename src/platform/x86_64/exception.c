@@ -7,21 +7,27 @@
 #include <chal_cpu.h>
 #include <chal_regs.h>
 #include <chal_state.h>
+#include <cos_compiler.h>
+
+static void
+trap_error_check(const char *name, struct regs *r)
+{
+	/* Is the trap not coming from user-level? Bomb out. */
+	if ((r->frame.cs & 3) != 0) die_reg(r, "KERNEL FAULT %s", name);
+}
 
 #define TRAP_C_HANDLER(name, fn)		\
-int						\
-name(void)					\
+void name(struct regs *r)			\
 {						\
-	struct regs *r = current_registers();	\
+	trap_error_check(EXPAND(name), r);	\
 	r = fn(r);				\
 	userlevel_eager_return(r);		\
 }
 
 #define TRAP_C_ERR_HANDLER(name, msg)			\
-int							\
-name(void)						\
+void							\
+name(struct regs *rs)					\
 {							\
-	struct regs *rs = current_registers();		\
 	rs = error_handler(rs, msg);			\
 	userlevel_eager_return(rs);			\
 }
@@ -31,9 +37,9 @@ error_handler(struct regs *rs, const char *err_msg)
 {
 	int r;
 
-	printk("Stack address %lx\nRegisters %lx (post %lx, constant %lx, val %lx)\nPage %lx\n", &r, current_registers(), &(current_registers()[1]), STATE_STACK_OFFSET, *(uword_t *)&current_registers()[1], &core_state[0]);
+	printk("Stack address %lx\nTrap registers %lx\nRegisters %lx (post %lx, constant %lx, val %lx)\nPage %lx\n", &r, rs, current_registers(), &(current_registers()[1]), STATE_STACK_OFFSET, *(uword_t *)&current_registers()[1], &core_state[0]);
 
-	panic(err_msg);
+	panic(err_msg, rs);
 
 	return rs;
 }

@@ -1,3 +1,4 @@
+#include <chal_state.h>
 #include <chal.h>
 #include <types.h>
 #include <kernel.h>

@@ -707,9 +707,8 @@ capability_activation(struct regs *rs)
 }
 
 COS_FASTPATH_SECTION void
-syscall_handler(void)
+syscall_handler(struct regs *rs)
 {
-	struct regs *rs = current_registers();
 	struct regs *ret_regs = capability_activation(rs);
 
 	userlevel_eager_return(ret_regs);

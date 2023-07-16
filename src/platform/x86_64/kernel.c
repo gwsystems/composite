@@ -175,12 +175,7 @@ smp_kmain(void)
 __attribute__((noreturn)) void
 khalt(void)
 {
-	struct regs *rs = current_registers();
-
-	printk("Attempting to shut down...\n");
-
-	printk(COS_REGS_PRINT_ARGS(rs));
-
+	printk("Attempting to shut down:\n");
 	printk("\ttry acpi shutdown...\n");
 	acpi_shutdown();
 

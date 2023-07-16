@@ -9,6 +9,7 @@ syscall_entry:
 	swapgs           /* activate the kernel's gs */
 	movq %gs:0, %rsp /* from it get the stack pointer */
 	PUSH_REGS_SYSCALL
+	movq %rsp, %rdi
 	call syscall_handler
 	jmp .           /* Return to user-level should occur in the syscall_handler */
 
@@ -17,6 +18,7 @@ syscall_entry:
 
 #define IRQPROC(fn)  			\
 	PUSH_REGS_TRAP; 		\
+	movq %rsp, %rdi; 		\
 	call fn;			\
 	jmp .;
 
