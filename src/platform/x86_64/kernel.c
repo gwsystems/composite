@@ -86,10 +86,8 @@ volatile vaddr_t entry_address;
 void
 kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 {
-#define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
 	int r;
 	cos_retval_t rv;
-	uword_t max;
 	uword_t post_constructor;
 	struct elf_hdr *h;
 
@@ -103,15 +101,12 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	idt_init(INIT_CORE);
 	serial_init();
 
-	max = MAX((unsigned long)chal_va2pa((void*)mboot_addr), (unsigned long)(chal_va2pa(&kernel_end_va)));
-
-	kern_paging_map_init((void *)(max));
+	kern_paging_map_init();
 	multiboot_output(mboot_addr, mboot_magic);
-
-	printk("Stack address %lx\nRegisters %lx (post %lx, constant %lx, val %lx)\nPage %lx\n", &r, current_registers(), &(current_registers()[1]), STATE_STACK_OFFSET, *(uword_t *)&current_registers()[1], &core_state[0]);
 
 	chal_init();
 	paging_init();
+	chal_cpu_init();
 	acpi_init();
 	lapic_init();
 

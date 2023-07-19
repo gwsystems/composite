@@ -326,17 +326,12 @@ acpi_shutdown(void)
 	}
 }
 
-extern unsigned long kernel_mapped_offset;
-
 void
 acpi_init(void)
 {
 	void *timer;
 	void *apic;
 	int lapic_err = 1;
-	unsigned long j = kernel_mapped_offset;
-
-	assert(j < COS_PAGE_SIZE / sizeof(unsigned long));
 
 	/* FIXME: Ugly hack to get the physical page with the ACPI RSDT mapped */
 	printk("ACPI initialization\n");

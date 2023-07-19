@@ -36,7 +36,7 @@ void  acpi_init(void);
 void *acpi_find_rsdt(void);
 void *acpi_find_timer(void);
 void  acpi_set_rsdt_page(u32_t);
-void  kern_paging_map_init(void *pa);
+void  kern_paging_map_init(void);
 
 void *acpi_find_apic(void);
 void  acpi_shutdown(void);

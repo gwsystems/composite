@@ -13,7 +13,7 @@ static void
 trap_error_check(const char *name, struct regs *r)
 {
 	/* Is the trap not coming from user-level? Bomb out. */
-	if ((r->frame.cs & 3) != 0) die_reg(r, "KERNEL FAULT %s", name);
+	if ((r->frame.cs & 3) != 3) die_reg(r, "KERNEL FAULT %s", name);
 }
 
 #define TRAP_C_HANDLER(name, fn)		\

@@ -409,20 +409,22 @@ chal_cpu_init(void)
 	u32_t a = 0, b = 0, c = 0, d = 0;
 	word_t cr0;
 
+	printk("Initializing CPU features.\n");
+
 	a = 0x07;
 	c = 0;
 	chal_cpuid(&a, &b, &c, &d);
 	if (c & (1 << 3)) {
 		cr4 |= CR4_PKE;
-		printk("CPU supports MPK: enabling.\n");
+		printk("\tCPU supports MPK: enabling.\n");
 #ifndef MPK_ENABLE
-		printk("ERROR: CPU supports MPK, but not enabled in build system. Please set MPK_ENABLE.\n");
+		printk("\tERROR: CPU supports MPK, but not enabled in build system. Please set MPK_ENABLE.\n");
 		assert(0);
 #endif
 	} else {
-		printk("CPU does NOT support MPK: not enabling.\n");
+		printk("\tCPU does NOT support MPK: not enabling.\n");
 #ifdef MPK_ENABLE
-		printk("ERROR: MPK not supported by hardware, but enabled in build system. Please unset MPK_ENABLE.");
+		printk("\tERROR: MPK not supported by hardware, but enabled in build system. Please unset MPK_ENABLE.");
 		assert(0);
 #endif
 	}
@@ -436,8 +438,8 @@ chal_cpu_init(void)
 	/* Check if the CPU support XSAVE and AVX */
 	a = 0x01;
 	chal_cpuid(&a, &b, &c, &d);
-	/* bit 26 is XSAVE, bit 28 is AVX */
-	assert((c & (1 << 26)) && (c & (1 << 28)));
+	/* bit 26 is XSAVE, bit 27 is OS-activated OSXSAVE, and bit 28 is AVX */
+	assert((c & (1 << 26)) && (c & (1 << 27)) && (c & (1 << 28)));
 	/* Check if SSE3 and SSE4 is supported */
 	assert((c & (1 << 0)) && (c & (1 << 9)) && (c & (1 << 19)) && (c & (1 << 20)));
 	/* Check if AVX2 is supported */
@@ -445,27 +447,27 @@ chal_cpu_init(void)
 	c = 0;
 	chal_cpuid(&a, &b, &c, &d);
 	assert(b & (1 < 5));
-	printk("The CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE\n");
+	printk("\tThe CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE\n");
 
 	/* Check if the CPU suppor XSAVEOPT, XSAVEC and XSAVES instructions*/
 	a = 0x0d;
 	c = 1;
 	chal_cpuid(&a, &b, &c, &d);
 	assert((a & (1 << 0)) && (a & (1 << 1)) && (a & (1 << 3)));
-	printk("The CPU supports XSAVEOPT, XSAVEC and XSAVES instructions\n");
+	printk("\tThe CPU supports XSAVEOPT, XSAVEC and XSAVES instructions\n");
 
 	/* Get the maximum size of XSAVE area of available XCR0 features */
 	a = 0x0d;
 	c = 0;
 	chal_cpuid(&a, &b, &c, &d);
 	assert(c > 0);
-	printk("The CPU maximum XSAVE area is: %u\n", c);
+	printk("\tThe CPU maximum XSAVE area is: %u\n", c);
 
 	/* Check the AVX state component offset from the beginning of XSAVE Area*/
 	a = 0x0d;
 	c = 2;
 	chal_cpuid(&a, &b, &c, &d);
-	printk("The AVX area offset is: %u\n", b);
+	printk("\tThe AVX area offset is: %u\n", b);
 
 	/* Now enable SSE and AVX in XCR0, so that XSAVE features can be used */
 
@@ -474,12 +476,17 @@ chal_cpu_init(void)
 	cr0 &= ~((word_t)(CR0_EM)); /* clear EM bit*/
 	cr0 |= (word_t)(CR0_MP);    /* set MP bit */
 	chal_cpu_cr0_set(cr0);
-	chal_cpu_cr4_set(CR4_OSFXSR);
+	/* Note that we are no longer enabling SSE with CR4_OSFXSR as that seems to trip up avx */
+
+	a = 0x01;
+	chal_cpuid(&a, &b, &c, &d);
+	assert(c & (1 << 27));
 
 	/* 2. Enable AVX */
 	xcr0_config = chal_cpu_xgetbv(XCR0);
 	xcr0_config |= XCR0_x87 | XCR0_SSE | XCR0_AVX;
 	chal_cpu_xsetbv(XCR0, xcr0_config);
+	printk("\tAVX enabled\n");
 
 	readmsr(MSR_IA32_EFER, &low, &high);
 	writemsr(MSR_IA32_EFER,low | 0x1, high);
@@ -489,6 +496,7 @@ chal_cpu_init(void)
 	writemsr(MSR_SFMASK, 512, 0);
 	writemsr(MSR_USER_GSBASE, 0, 0);
 	writemsr(MSR_KERNEL_GSBASE, (u32_t)((u64_t)(&s->gs_stack_ptr)), (u32_t)((u64_t)(&s->gs_stack_ptr) >> 32));
+	printk("\tSegments and syscall entry points initialized.\n");
 
 	fpu_init();
 	chal_cpu_eflags_init();

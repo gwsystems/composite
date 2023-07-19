@@ -268,7 +268,7 @@ COS_STATIC_ASSERT(sizeof(struct trap_frame) == REGS_TRAPFRAME_SZ,
  * Provides the format string, and arguments for printing out a register set.
  */
 #define COS_REGS_PRINT_ARGS(r)                                                                                     \
-	"%s registers. ip: %lx, sp: %lx\n"				                                           \
+	"%s registers - ip: %lx, sp: %lx\n"				                                           \
 	"bp: %lx, a: %lx, b: %lx, c: %lx, d: %lx, si: %lx, di: %lx\n"                                              \
 	"8: %lx, 9: %lx, 10: %lx, 11: %lx, 12: %lx, 13: %lx, 14: %lx, 15: %lx\n"                                   \
 	"cs: %lx, ss: %lx, flags: %lx\n",									   \
