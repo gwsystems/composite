@@ -1,3 +1,4 @@
+#include "cos_chal_consts.h"
 #include <chal_consts.h>
 #include <chal_regs.h>
 #include <cos_error.h>
@@ -275,6 +276,17 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	thread_offset      = component_offset + 1;
 	gbl_thread_offset  = thread_offset;
 	frontier           = thread_offset + COS_NUM_CPU;
+
+	printk("Constructor capability layout:\n");
+	printk("\t- [0, 1) - 1 captbl nil node.\n");
+	printk("\t- [1, %d) - %d constructor image pages.\n", post_constructor_offset, post_constructor_offset + 1);
+	printk("\t- [%d, %d) - %d constructor BSS (zeroed data) pages.\n", post_constructor_offset, res_pgtbl_offset, cos_round_up_to_pow2(zero_sz, COS_PAGE_SIZE) / COS_PAGE_SIZE);
+	printk("\t- [%d, %d) - %d page-table nodes for retypeable memory.\n", res_pgtbl_offset, pgtbl_offset, res_pgtbl_num);
+	printk("\t- [%d, %d) - %d page-table nodes for constructor.\n", pgtbl_offset, captbl_offset, pgtbl_num);
+	printk("\t- [%d, %d) - %d cap-table nodes for constructor.\n", captbl_offset, component_offset, captbl_num);
+	printk("\t- [%d, %d) - 1 component page for constructor.\n", component_offset, thread_offset);
+	printk("\t- [%d, %d) - %d threads in constructor.\n", thread_offset, frontier, COS_NUM_CPU);
+	printk("\t- [%d, %d) - %d remaining untyped pages.\n", frontier, COS_NUM_RETYPEABLE_PAGES, COS_NUM_RETYPEABLE_PAGES - frontier);
 
 	/*
 	 * Create the leaf-level page-table nodes, and store

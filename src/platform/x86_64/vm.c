@@ -12,14 +12,8 @@
 
 #define KERN_INIT_PGD_IDX ((COS_MEM_KERN_START_VA & COS_MEM_KERN_HIGH_ADDR_VA_PGD_MASK) >> (PGD_SHIFT))
 
-u64_t boot_comp_pgd[COS_PAGE_SIZE / sizeof(u64_t)] COS_PAGE_ALIGNED = {0};
-
-u64_t boot_comp_pgt1[COS_PAGE_SIZE / sizeof(u64_t)] COS_PAGE_ALIGNED = {0};
-
-u64_t boot_ap_pgd[COS_PAGE_SIZE / sizeof(u64_t)] COS_PAGE_ALIGNED = {
-	[0]                 = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
-	[KERN_INIT_PGD_IDX] = 0 | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER,
-};
+u64_t boot_comp_pgt1[PGT1_PER_PTBL] COS_PAGE_ALIGNED = {0};
+u64_t boot_comp_pgd[PGD_PER_PTBL] COS_PAGE_ALIGNED = {0};
 
 void *
 device_pa2va(paddr_t dev_addr)

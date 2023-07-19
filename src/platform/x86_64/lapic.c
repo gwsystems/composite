@@ -512,6 +512,7 @@ smp_boot_all_ap(volatile int *cores_ready)
 	u32_t ret;
 	char **stackpatch;
 
+	printk("Booting up other cores.\n");
 	/*
 	 * Set up the processor boot-up code.  Use SMC to create the
 	 * smp loader code with the stack address inlined into it at
@@ -533,11 +534,11 @@ smp_boot_all_ap(volatile int *cores_ready)
 		warm_reset_vec[1] = SMP_BOOT_PATCH_ADDR >> 4;
 
 		ret = lapic_read_reg(LAPIC_ESR);
-		if (ret) printk("SMP Bootup: LAPIC error status register is %x\n", ret);
+		if (ret) printk("\tSMP Bootup: LAPIC error status register is %x\n", ret);
 		lapic_write_reg(LAPIC_ESR, 0);
 		lapic_read_reg(LAPIC_ESR);
 
-		printk("\nBooting AP %d with apic_id %d\n", i, apicids[i]);
+		printk("\tBooting AP %d with apic_id %d\n", i, apicids[i]);
 		/* Application Processor (AP) startup sequence: */
 		/* ...make sure that we pass this core's stack */
 		*stackpatch = (char *)&chal_percore_state_coreid(i)->registers;
@@ -560,7 +561,7 @@ smp_boot_all_ap(volatile int *cores_ready)
 		while(*(volatile int *)(cores_ready + i) == 0) ;
 	}
 	ret = lapic_read_reg(LAPIC_ESR);
-	if (ret) printk("SMP Bootup: LAPIC error status register is %x\n", ret);
+	if (ret) printk("\tSMP Bootup: LAPIC error status register is %x\n", ret);
 	lapic_write_reg(LAPIC_ESR, 0);
 	lapic_read_reg(LAPIC_ESR);
 }

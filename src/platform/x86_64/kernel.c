@@ -105,8 +105,8 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	multiboot_output(mboot_addr, mboot_magic);
 
 	chal_init();
-	paging_init();
 	chal_cpu_init();
+	paging_init();
 	acpi_init();
 	lapic_init();
 
