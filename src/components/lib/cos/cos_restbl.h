@@ -121,22 +121,22 @@ cos_restbl_node_offset(uword_t lvl, uword_t addr, uword_t addr_lower, uword_t ad
 	const uword_t addrspc_max = COS_ORD2MASK(TOP_ORD + (INTERN_ORD * (MAX_DEPTH - 2)) + LEAF_ORD);
 	/* Maximum address within the slice of the namespace defined by the arguments. */
 	const uword_t max_addr = addr_lower + addr_max_num - 1;
+	uword_t c = (lvl == 1)? addr: max_addr;
 
 	if (lvl > MAX_DEPTH - 1 ||
 	    addr_max_num + addr_lower >= addrspc_max ||
 	    (addr < addr_lower || addr >= addr_lower + addr_max_num)) return -COS_ERR_OUT_OF_BOUNDS;
 
-	for (i = 0; i <= lvl; i++) {
+	*off_ret = 0;
+	if (lvl == 0) return COS_RET_SUCCESS;
+	off = 1;		/* top node always uses one */
+	/* level 1 logic uses the order of the top node */
+	off += cos_restbl_num_nodes(c, addr_lower, TOP_ORD, LEAF_ORD + ((MAX_DEPTH - 2) * INTERN_ORD));
+	for (i = 2; i <= lvl; i++) {
 		/* For previous levels, assume max allocations; for the target level, lookup the addr */
 		uword_t c = (i == lvl)? addr: max_addr;
 
-		if (i == 0) {        /* only a single top node */
-			off += 1;
-		} else if (i == 1) { /* second level uses the top-level's properties */
-			off += cos_restbl_num_nodes(c, addr_lower, TOP_ORD, LEAF_ORD + ((MAX_DEPTH - 2) * INTERN_ORD));
-		} else {	     /* the rest of the levels... */
-			off += cos_restbl_num_nodes(c, addr_lower, INTERN_ORD, LEAF_ORD + ((MAX_DEPTH - i - 1) * INTERN_ORD));
-		}
+		off += cos_restbl_num_nodes(c, addr_lower, INTERN_ORD, LEAF_ORD + ((MAX_DEPTH - i - 1) * INTERN_ORD));
 	}
 	*off_ret = off - 1; 	/* -1 here as at `lvl`, we counted past the node */
 
@@ -191,9 +191,10 @@ cos_restbl_intern_offset(uword_t lvl, uword_t addr, const uword_t MAX_DEPTH, con
 	cos_##name##_num_nodes(uword_t addr_lower, uword_t addr_max_num) \
 	{								\
 		uword_t off_ret = 0;					\
-		cos_restbl_node_offset(max_depth - 1, addr_lower + addr_max_num - 1, addr_lower, \
-				       addr_max_num, max_depth, top_ord, intern_ord, leaf_ord, &off_ret); \
-		return off_ret;						\
+		cos_retval_t r = cos_restbl_node_offset(max_depth - 1, addr_lower + addr_max_num - 1, addr_lower, \
+							addr_max_num, max_depth, top_ord, intern_ord, leaf_ord, &off_ret); \
+		if (r != COS_RET_SUCCESS) return 0;			\
+		return off_ret + 1;					\
 	}
 
 COS_RESTBL_NODE_OFFSET_GEN(captbl, COS_CAPTBL_MAX_DEPTH, COS_CAPTBL_INTERNAL_ORD, COS_CAPTBL_INTERNAL_ORD, COS_CAPTBL_LEAF_ORD)

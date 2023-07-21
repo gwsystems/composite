@@ -252,7 +252,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	constructor_size = ro_sz + data_sz + zero_sz;
 	zeroed_page_offset = post_constructor_offset;
 
-	res_pgtbl_offset   = zeroed_page_offset + cos_round_up_to_pow2(zero_sz, COS_PAGE_SIZE);
+	res_pgtbl_offset   = zeroed_page_offset + cos_round_up_to_pow2(zero_sz, COS_PAGE_SIZE) / COS_PAGE_SIZE;
 	/* The number of pgtbl leaf nodes necessary to track all memory */
 	res_pgtbl_num      = cos_round_up_to_pow2(COS_NUM_RETYPEABLE_PAGES, COS_PGTBL_LEAF_NENT) / COS_PGTBL_LEAF_NENT;
 
@@ -266,11 +266,12 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	 *
 	 * - the empty slot for the return capability,
 	 * - the hardware capability,
+	 * - self component capability,
 	 * - threads (though not populated),
 	 * - pgtbl nodes, and
 	 * - empty spaces for captbl nodes to expand for future allocations
 	 */
-	captbl_num         = captbl_num_nodes_initial(1 + 1 + COS_NUM_CPU + res_pgtbl_num);
+	captbl_num         = captbl_num_nodes_initial(1 + 1 + 1 + COS_NUM_CPU + res_pgtbl_num + pgtbl_num);
 	captbl_offset      = pgtbl_offset + pgtbl_num;
 	component_offset   = captbl_offset + captbl_num;
 	thread_offset      = component_offset + 1;
@@ -278,7 +279,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	frontier           = thread_offset + COS_NUM_CPU;
 
 	printk("Constructor capability layout:\n");
-	printk("\t- [0, 1) - 1 captbl nil node.\n");
+	printk("\t- [0, 1) - 1 (inaccessible) captbl nil node.\n");
 	printk("\t- [1, %d) - %d constructor image pages.\n", post_constructor_offset, post_constructor_offset - 1);
 	printk("\t- [%d, %d) - %d constructor BSS (zeroed data) pages.\n", post_constructor_offset, res_pgtbl_offset, cos_round_up_to_pow2(zero_sz, COS_PAGE_SIZE) / COS_PAGE_SIZE);
 	printk("\t- [%d, %d) - %d page-table nodes for retypeable memory.\n", res_pgtbl_offset, pgtbl_offset, res_pgtbl_num);
@@ -299,9 +300,12 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	for (i = res_pgtbl_offset; i < res_pgtbl_offset + res_pgtbl_num; i++) {
 		COS_CHECK(resource_restbl_create(COS_PAGE_KERNTYPE_PGTBL_LEAF, i));
 	}
+	printk("Finished untyped memory page-table allocation.\n");
+
 	for (i = 1; i < COS_NUM_RETYPEABLE_PAGES; i++) {
 		COS_CHECK(pgtbl_map(res_pgtbl_offset + (i / COS_PGTBL_LEAF_NENT), i % COS_PGTBL_LEAF_NENT, i, 0));
 	}
+	printk("Finished mapping of untyped memory.\n");
 
 	/*
 	 * Page tables for the constructor component to hold all of
@@ -318,6 +322,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 		}
 		pgtbl_iter = max + 1;
 	}
+	printk("Finished page-table creation for constructor.\n");
 
 	/*
 	 * Capability tables to hold all page-tables, and the rest of
@@ -333,6 +338,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 		}
 		captbl_iter = max + 1;
 	}
+	printk("Finished cap-table creation for constructor.\n");
 
 	/*
 	 * Component wrapping together the page and capability tables.
@@ -340,6 +346,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	 * is the top.
 	 */
 	COS_CHECK(resource_comp_create(captbl_offset, pgtbl_offset, 0, constructor_entry, component_offset));
+	printk("Finished component creation for constructor.\n");
 
 	/*
 	 * Initialize the initial threads, one per core. Had to wait
@@ -350,6 +357,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 		COS_CHECK(resource_thd_create(i, component_offset, i - thread_offset + 1, constructor_entry, 0, i));
 		page_types[i].coreid = i - thread_offset;
 	}
+	printk("Finished thread creation for constructor.\n");
 
 	/*
 	 * All of the resources are created, and we understand their

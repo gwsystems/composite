@@ -113,7 +113,12 @@ pgtbl_map(pgtbl_ref_t pt, uword_t offset, pageref_t page, uword_t perm)
 	if (pt_type->type != COS_PAGE_TYPE_KERNEL || pt_type->kerntype != COS_PAGE_KERNTYPE_PGTBL_LEAF) return -COS_ERR_WRONG_PAGE_TYPE;
 	if (!pgtbl_arch_entry_empty(pt_node->next[offset])) return -COS_ERR_ALREADY_EXISTS;
 
-        COS_CHECK(page_resolve(page, COS_PAGE_TYPE_VM, 0, NULL, &mem_node, &mem_type));
+	/* If this is a kernel resource, then perm == 0 */
+	if (perm == 0) {
+		ref2page(page, &mem_node, &mem_type);
+	} else {
+		COS_CHECK(page_resolve(page, COS_PAGE_TYPE_VM, 0, NULL, &mem_node, &mem_type));
+	}
 
 	/* Updates! */
 	if (!cas64(&pt_node->next[offset], 0, pgtbl_arch_entry_pack(page, perm))) return -COS_ERR_ALREADY_EXISTS;

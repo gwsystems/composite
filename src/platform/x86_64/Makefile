@@ -8,8 +8,9 @@ AS := as --64 -g
 KINCPATH := $(KINC)
 UINCPATH := $(CDIR)/lib/cos/
 INCS    := -I$(KINCPATH) -I$(KINCPATH)/chal/ -I$(UINCPATH) -I$(PLATDIR)/include/
+DEBUG_FLAGS := -DCOS_CHECK_PRINTFN=printk
 #  -Wno-unused-variable
-CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -ffreestanding -Wno-unused-function -nostdinc -nostdlib -fno-pic -mno-red-zone -mcmodel=large -mno-sse -mno-sse2 -mgeneral-regs-only $(INCS)
+CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -ffreestanding -Wno-unused-function -nostdinc -nostdlib -fno-pic -mno-red-zone -mcmodel=large -mno-sse -mno-sse2 -mgeneral-regs-only $(INCS) $(DEBUG_FLAGS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img

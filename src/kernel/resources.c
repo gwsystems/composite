@@ -111,6 +111,7 @@
  *    cache-line access on the fast-paths.
  */
 
+#include <chal.h>
 #include <compiler.h>
 #include <component.h>
 #include <consts.h>
@@ -278,7 +279,7 @@ page_retype_from_untyped_reserve(struct page_type *t, struct page *p, page_type_
 {
 	if (!page_type_valid_active(type, ktype)) return -COS_ERR_WRONG_INPUT_TYPE;
 	if (t->type != COS_PAGE_TYPE_UNTYPED)     return -COS_ERR_WRONG_PAGE_TYPE;
-	if (t->refcnt != 1)                       return -COS_ERR_STILL_REFERENCED;
+	if (t->refcnt > 1)                        return -COS_ERR_STILL_REFERENCED;
 	/* TODO: check quiescence */
 
 	/* This ensures that we are the only core able to perform this retype */

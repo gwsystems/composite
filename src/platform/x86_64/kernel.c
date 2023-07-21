@@ -1,3 +1,4 @@
+#include <chal.h>
 #include <chal_regs.h>
 #include <chal_state.h>
 #include <chal_cpu.h>

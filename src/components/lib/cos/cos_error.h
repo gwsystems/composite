@@ -55,10 +55,20 @@ typedef word_t         cos_retval_t;
  * `COS_CHECK`: If the function does not return COS_RET_SUCCESS, then
  * return its error value.
  */
+#ifdef COS_CHECK_PRINTFN
+#define COS_CHECK(fn) do {						\
+	cos_retval_t ___chk_ret = fn;					\
+		if (unlikely(___chk_ret != COS_RET_SUCCESS)) {		\
+			COS_CHECK_PRINTFN("%s:%d: check failed with %d.\n", __FILE__, __LINE__, ___chk_ret); \
+			return ___chk_ret;				\
+		}							\
+	} while (0)
+#else
 #define COS_CHECK(fn) do {						\
 		cos_retval_t ___chk_ret = fn;				\
 		if (unlikely(___chk_ret != COS_RET_SUCCESS)) return ___chk_ret; \
 	} while (0)
+#endif
 
 /*
  * `COS_THROW`: place a return value into a pre-existing return

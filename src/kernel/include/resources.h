@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chal.h>
 #include <cos_error.h>
 #include <cos_consts.h>
 #include <types.h>
