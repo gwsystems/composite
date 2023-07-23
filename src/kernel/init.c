@@ -242,7 +242,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	uword_t i, lvl;
 	uword_t constructor_offset, constructor_size, thread_offset, component_offset, captbl_offset, captbl_lower;
 	uword_t pgtbl_offset, pgtbl_leaf_off, res_pgtbl_offset, zeroed_page_offset, frontier;
-	uword_t captbl_num, pgtbl_num, mappings_num, res_pgtbl_num;
+	uword_t captbl_num, pgtbl_num, caps_needed, mappings_num, res_pgtbl_num;
 
 	/*
 	 * This set of blocks calculates the *layout* of the resources
@@ -271,7 +271,8 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	 * - pgtbl nodes, and
 	 * - empty spaces for captbl nodes to expand for future allocations
 	 */
-	captbl_num         = captbl_num_nodes_initial(1 + 1 + 1 + COS_NUM_CPU + res_pgtbl_num + pgtbl_num);
+	caps_needed        = 1 + 1 + 1 + COS_NUM_CPU + res_pgtbl_num + pgtbl_num;
+	captbl_num         = captbl_num_nodes_initial(caps_needed);
 	captbl_offset      = pgtbl_offset + pgtbl_num;
 	component_offset   = captbl_offset + captbl_num;
 	thread_offset      = component_offset + 1;
@@ -332,8 +333,8 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	for (lvl = 0; lvl < COS_CAPTBL_MAX_DEPTH; lvl++) {
 		uword_t min, max;
 
-		COS_CHECK(cos_captbl_node_offset(lvl, 0, 0, frontier, &min));
-		COS_CHECK(cos_captbl_node_offset(lvl, frontier - 1, 0, frontier, &max));
+		COS_CHECK(cos_captbl_node_offset(lvl, 0, 0, caps_needed, &min));
+		COS_CHECK(cos_captbl_node_offset(lvl, caps_needed - 1, 0, caps_needed, &max));
 		for (i = min; i <= max; i++) {
 			COS_CHECK(resource_restbl_create(COS_PAGE_KERNTYPE_CAPTBL_0 + lvl, i + captbl_offset));
 		}
