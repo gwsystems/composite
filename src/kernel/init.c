@@ -1,4 +1,3 @@
-#include "cos_chal_consts.h"
 #include <consts.h>
 #include <chal_regs.h>
 #include <cos_error.h>
@@ -318,8 +317,8 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 		uword_t upper_page = constructor_lower_page + mappings_num;
 
 		/* Find the lower and upper (min/max) offsets into the page-table nodes */
-		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_page, constructor_lower_page, upper_page, &min));
-		COS_CHECK(cos_pgtbl_node_offset(lvl, upper_page, constructor_lower_page, upper_page, &max));
+		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_page, constructor_lower_page, mappings_num, &min));
+		COS_CHECK(cos_pgtbl_node_offset(lvl, upper_page, constructor_lower_page, mappings_num, &max));
 		for (i = min; i <= max; i++) {
 			COS_CHECK(resource_restbl_create(COS_PAGE_KERNTYPE_PGTBL_0 + lvl, i + pgtbl_offset));
 		}
@@ -375,19 +374,27 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 		uword_t bottom_upper, bottom_lower; /* bottom node, upper and lower addresses */
 		uword_t bottom_off, nentries, cons_off;
 
-		/* Where are the top nodes? */
-		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &top_off));
-		COS_CHECK(cos_pgtbl_intern_offset(lvl, constructor_lower_vaddr, &cons_off));
+		uword_t constructor_lower_page = constructor_lower_vaddr / COS_PAGE_SIZE;
+		uword_t upper_page = constructor_lower_page + mappings_num;
 
-		/* ...and the next level? */
-		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &bottom_lower));
-		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_lower_vaddr + constructor_size - 1, constructor_lower_vaddr, constructor_size, &bottom_upper));
+		/* Where are the top nodes? */
+		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_page, constructor_lower_page, mappings_num, &top_off));
+		COS_CHECK(cos_pgtbl_intern_offset(lvl, constructor_lower_page, &cons_off));
+
+		/* ...and the next level nodes to cons into the top? */
+		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_lower_page, constructor_lower_page, mappings_num, &bottom_lower));
+		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, upper_page, constructor_lower_page, mappings_num, &bottom_upper));
 
 		nentries = (lvl == 0)? COS_PGTBL_TOP_NENT: COS_PGTBL_INTERNAL_NENT;
-		for (bottom_off = bottom_lower; bottom_off < bottom_upper; bottom_off++, cons_off = (cons_off + 1) % nentries) {
+		/* Now cons the next level nodes into their previous level */
+		for (bottom_off = bottom_lower; bottom_off <= bottom_upper; bottom_off++, cons_off = (cons_off + 1) % nentries) {
 			COS_CHECK(pgtbl_construct(pgtbl_offset + top_off, cons_off, pgtbl_offset + bottom_off, 0));
 
-			/* roll over onto the next top-level node */
+			/*
+			 * Have we done all of the conses for this
+			 * top-level node? If so, roll over onto the
+			 * next top-level node
+			 */
 			if (cons_off == nentries - 1) top_off++;
 		}
 	}

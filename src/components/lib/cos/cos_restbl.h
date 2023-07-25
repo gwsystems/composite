@@ -121,20 +121,20 @@ cos_restbl_node_offset(uword_t lvl, uword_t addr, uword_t addr_lower, uword_t ad
 	const uword_t addrspc_max = COS_ORD2MASK(TOP_ORD + (INTERN_ORD * (MAX_DEPTH - 2)) + LEAF_ORD);
 	/* Maximum address within the slice of the namespace defined by the arguments. */
 	const uword_t max_addr = addr_lower + addr_max_num - 1;
-	uword_t c = (lvl == 1)? addr: max_addr;
+	uword_t c;
 
-	if (lvl > MAX_DEPTH - 1 ||
-	    addr_max_num + addr_lower >= addrspc_max ||
-	    (addr < addr_lower || addr >= addr_lower + addr_max_num)) return -COS_ERR_OUT_OF_BOUNDS;
+	if (lvl > MAX_DEPTH - 1 || addr_max_num + addr_lower >= addrspc_max ||
+	    addr < addr_lower || addr > addr_lower + addr_max_num) return -COS_ERR_OUT_OF_BOUNDS;
 
 	*off_ret = 0;
 	if (lvl == 0) return COS_RET_SUCCESS;
 	off = 1;		/* top node always uses one */
 	/* level 1 logic uses the order of the top node */
+	c = (lvl == 1)? addr: max_addr;
 	off += cos_restbl_num_nodes(c, addr_lower, TOP_ORD, LEAF_ORD + ((MAX_DEPTH - 2) * INTERN_ORD));
 	for (i = 2; i <= lvl; i++) {
 		/* For previous levels, assume max allocations; for the target level, lookup the addr */
-		uword_t c = (i == lvl)? addr: max_addr;
+		c = (i == lvl)? addr: max_addr;
 
 		off += cos_restbl_num_nodes(c, addr_lower, INTERN_ORD, LEAF_ORD + ((MAX_DEPTH - i - 1) * INTERN_ORD));
 	}
