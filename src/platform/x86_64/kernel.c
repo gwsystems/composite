@@ -112,7 +112,8 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	lapic_init();
 
 	post_constructor = ((uword_t)&_binary_constructor_end - (uword_t)pages) / COS_PAGE_SIZE;
-	kernel_init(post_constructor);
+	rv = kernel_init(post_constructor);
+	assert(rv == COS_RET_SUCCESS);
 
 	h = (void *)&_binary_constructor_start;
 	r = elf_load_info(h, &ro_addr, &ro_sz, &ro_src, &rw_addr, &data_sz, &data_src, &bss_sz);

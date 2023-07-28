@@ -111,6 +111,7 @@
  *    cache-line access on the fast-paths.
  */
 
+#include "cos_consts.h"
 #include <chal.h>
 #include <compiler.h>
 #include <component.h>
@@ -748,6 +749,27 @@ resource_restbl_destroy(pageref_t restblref)
 	if (ptype->type != COS_PAGE_TYPE_KERNEL || !(page_is_captbl(ptype->kerntype) || page_is_pgtbl(ptype->kerntype))) return -COS_ERR_WRONG_PAGE_TYPE;
 
 	COS_CHECK(page_retype_to_untyped(restblref));
+
+	return COS_RET_SUCCESS;
+}
+
+cos_retval_t
+resource_vm_create(pageref_t vmref)
+{
+	COS_CHECK(page_retype_from_untyped(vmref, COS_PAGE_TYPE_VM, 0));
+
+	return COS_RET_SUCCESS;
+}
+
+cos_retval_t
+resource_vm_destroy(pageref_t vmref)
+{
+	struct page_type *ptype;
+
+	ref2page(vmref, NULL, &ptype);
+	if (ptype->type != COS_PAGE_TYPE_VM) return -COS_ERR_WRONG_PAGE_TYPE;
+
+	COS_CHECK(page_retype_to_untyped(vmref));
 
 	return COS_RET_SUCCESS;
 }

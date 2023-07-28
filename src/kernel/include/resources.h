@@ -31,6 +31,9 @@ cos_retval_t resource_thd_destroy(pageref_t thdref);
 cos_retval_t resource_restbl_create(page_kerntype_t kt, pageref_t untyped_src_ref);
 cos_retval_t resource_restbl_destroy(pageref_t restblref);
 
+cos_retval_t resource_vm_create(pageref_t vmref);
+cos_retval_t resource_vm_destroy(pageref_t vmref);
+
 /*
  * Faster paths for type checking, and resource dereferencing that
  * likely want to be inlined (to remove quite a bit of the code based

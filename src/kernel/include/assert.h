@@ -8,7 +8,7 @@
 /* A not so nice way of oopsing */
 #define die_reg(reg, fmt, ...)					 \
 	do {                                                     \
-		printk("(%d)" fmt, coreid(), ##__VA_ARGS__);	 \
+		printk("(%d) " fmt, coreid(), ##__VA_ARGS__);	 \
 		printk(COS_REGS_PRINT_ARGS(reg));		 \
 		chal_khalt();					 \
 	} while (0)

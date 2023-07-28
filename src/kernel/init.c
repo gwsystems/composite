@@ -1,3 +1,4 @@
+#include "cos_chal_consts.h"
 #include <consts.h>
 #include <chal_regs.h>
 #include <cos_error.h>
@@ -134,24 +135,23 @@ kernel_init(uword_t post_constructor_offset)
 	/*
 	 * Initialize the null captbl node:
 	 */
+	printk("Initializing typed memory.\n\tCapability-table NULL nodes...\n");
+	page_types[0] = (struct page_type) {
+		.type     = COS_PAGE_TYPE_KERNEL,
+		.kerntype = COS_PAGE_KERNTYPE_CAPTBL_LEAF,
+		.refcnt   = 1,
+		.coreid   = 0,
+		.liveness = 0,
+	};
 	captbl_null = (struct captbl_leaf *)&pages[0];
 	for (i = 0; i < COS_CAPTBL_LEAF_NENT; i++) {
-		struct capability_generic *cap = &captbl_null->capabilities[i];
-
-		*cap = (struct capability_generic) {
+		captbl_null->capabilities[i] = (struct capability_generic) {
 			.type = COS_CAP_TYPE_NIL, /* Can never be used for anything */
 			.liveness = 0,
 			.intern = 0,
 			.operations = COS_OP_NIL,
 		};
 	}
-	page_types[0] = (struct page_type) {
-		.type = COS_PAGE_TYPE_KERNEL,
-		.kerntype = COS_PAGE_KERNTYPE_CAPTBL_LEAF,
-		.refcnt = 1,
-		.coreid = 0,
-		.liveness = 0,
-	};
 
 	/*
 	 * Initialize the page-types for the pages devoted to the
@@ -160,12 +160,13 @@ kernel_init(uword_t post_constructor_offset)
 	 * script (`linker.ld`). We don't want to use a `resource_*`
 	 * API, as it initializes the associated page.
 	 */
+	printk("\tConstructor virtual memory...\n");
 	for (i = constructor_offset; (uword_t)i < post_constructor_offset; i++) {
 		page_types[i] = (struct page_type) {
-			.type = COS_PAGE_TYPE_VM,
+			.type     = COS_PAGE_TYPE_VM,
 			.kerntype = 0,
-			.refcnt = 1,
-			.coreid = 0,
+			.refcnt   = 1,
+			.coreid   = 0,
 			.liveness = 0,
 		};
 	}
@@ -175,11 +176,15 @@ kernel_init(uword_t post_constructor_offset)
 	 * of the pages. Assume that the `pgtbl_offset` is post the
 	 * captbl nil page and the component's elf image.
 	 */
+	printk("\tInitializing remaining memory to untyped...\n");
 	for (i = post_constructor_offset; i < COS_NUM_RETYPEABLE_PAGES; i++) {
 		page_zero(&pages[i]);
 		page_types[i] = (struct page_type) {
-			.type = COS_PAGE_TYPE_UNTYPED,
+			.type     = COS_PAGE_TYPE_UNTYPED,
 			.kerntype = 0,
+			.liveness = 0,
+			.epoch    = 0,
+			.refcnt   = 0,
 		};
 	}
 
@@ -238,10 +243,11 @@ cos_retval_t
 constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 		 uword_t ro_off, uword_t ro_sz, uword_t data_off, uword_t data_sz, uword_t zero_sz)
 {
-	uword_t i, lvl;
+	uword_t i, j, lvl;
 	uword_t constructor_offset, constructor_size, thread_offset, component_offset, captbl_offset, captbl_lower;
 	uword_t pgtbl_offset, pgtbl_leaf_off, res_pgtbl_offset, zeroed_page_offset, frontier;
 	uword_t captbl_num, pgtbl_num, caps_needed, mappings_num, res_pgtbl_num;
+	uword_t constructor_lower_page, constructor_upper_page;
 
 	/*
 	 * This set of blocks calculates the *layout* of the resources
@@ -250,6 +256,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	constructor_offset = 1;
 	constructor_size = cos_round_up_to_page(ro_sz) + cos_round_up_to_page(data_sz) + cos_round_up_to_page(zero_sz);
 	zeroed_page_offset = post_constructor_offset;
+	constructor_lower_page = constructor_lower_vaddr / COS_PAGE_SIZE;
 
 	res_pgtbl_offset   = zeroed_page_offset + cos_round_up_to_pow2(zero_sz, COS_PAGE_SIZE) / COS_PAGE_SIZE;
 	/* The number of pgtbl leaf nodes necessary to track all memory */
@@ -259,6 +266,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	/* Have to map all untyped pages and *also* vaddrs */
 	mappings_num       = constructor_size / COS_PAGE_SIZE;
 	pgtbl_num          = cos_pgtbl_num_nodes(constructor_lower_vaddr / COS_PAGE_SIZE, mappings_num);
+	constructor_upper_page = (constructor_lower_vaddr / COS_PAGE_SIZE) + mappings_num;
 
 	/*
 	 * How many captbl nodes do we need? This includes:
@@ -297,38 +305,37 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	 * user-accessible, so we can retype them later in this
 	 * function without complication.
 	 */
+	printk("Initializing kernel structures for constructor component.\n\tUntyped memory page-table allocation...\n");
 	for (i = res_pgtbl_offset; i < res_pgtbl_offset + res_pgtbl_num; i++) {
 		COS_CHECK(resource_restbl_create(COS_PAGE_KERNTYPE_PGTBL_LEAF, i));
 	}
-	printk("Finished untyped memory page-table allocation.\n");
 
+	printk("\tMapping of untyped memory...\n");
 	for (i = 1; i < COS_NUM_RETYPEABLE_PAGES; i++) {
 		COS_CHECK(pgtbl_map(res_pgtbl_offset + (i / COS_PGTBL_LEAF_NENT), i % COS_PGTBL_LEAF_NENT, i, 0));
 	}
-	printk("Finished mapping of untyped memory.\n");
 
 	/*
 	 * Page tables for the constructor component to hold all of
 	 * the initial pages and the pages for all of the resources.
 	 */
+	printk("\tPage-table creation...\n");
 	for (lvl = 0; lvl < COS_PGTBL_MAX_DEPTH; lvl++) {
 		uword_t min, max;
-		uword_t constructor_lower_page = constructor_lower_vaddr / COS_PAGE_SIZE;
-		uword_t upper_page = constructor_lower_page + mappings_num;
 
 		/* Find the lower and upper (min/max) offsets into the page-table nodes */
 		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_page, constructor_lower_page, mappings_num, &min));
-		COS_CHECK(cos_pgtbl_node_offset(lvl, upper_page, constructor_lower_page, mappings_num, &max));
+		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_upper_page, constructor_lower_page, mappings_num, &max));
 		for (i = min; i <= max; i++) {
 			COS_CHECK(resource_restbl_create(COS_PAGE_KERNTYPE_PGTBL_0 + lvl, i + pgtbl_offset));
 		}
 	}
-	printk("Finished page-table creation for constructor.\n");
 
 	/*
 	 * Capability tables to hold all page-tables, and the rest of
 	 * the resources.
 	 */
+	printk("\tCap-table creation...\n");
 	for (lvl = 0; lvl < COS_CAPTBL_MAX_DEPTH; lvl++) {
 		uword_t min, max;
 
@@ -338,26 +345,25 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 			COS_CHECK(resource_restbl_create(COS_PAGE_KERNTYPE_CAPTBL_0 + lvl, i + captbl_offset));
 		}
 	}
-	printk("Finished cap-table creation for constructor.\n");
 
 	/*
 	 * Component wrapping together the page and capability tables.
 	 * Assumes that the first entry of the pgtbl and captbl arrays
 	 * is the top.
 	 */
+	printk("\tComponent resource creation...\n");
 	COS_CHECK(resource_comp_create(captbl_offset, pgtbl_offset, 0, constructor_entry, component_offset));
-	printk("Finished component creation for constructor.\n");
 
 	/*
 	 * Initialize the initial threads, one per core. Had to wait
 	 * for the component to be created first, which required the
 	 * resource tables.
 	 */
+	printk("\tThread creation...\n");
 	for (i = thread_offset; i < COS_NUM_CPU; i++) {
 		COS_CHECK(resource_thd_create(i, component_offset, i - thread_offset + 1, constructor_entry, 0, i));
 		page_types[i].coreid = i - thread_offset;
 	}
-	printk("Finished thread creation for constructor.\n");
 
 	/*
 	 * All of the resources are created, and we understand their
@@ -369,13 +375,11 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	 *
 	 * ...
 	 */
+	printk("\tPage-table construction...\n");
 	for (lvl = 0; lvl < COS_PGTBL_MAX_DEPTH - 1; lvl++) {
 		uword_t top_off;         /* top nodes to iterate through */
 		uword_t bottom_upper, bottom_lower; /* bottom node, upper and lower addresses */
 		uword_t bottom_off, nentries, cons_off;
-
-		uword_t constructor_lower_page = constructor_lower_vaddr / COS_PAGE_SIZE;
-		uword_t upper_page = constructor_lower_page + mappings_num;
 
 		/* Where are the top nodes? */
 		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_page, constructor_lower_page, mappings_num, &top_off));
@@ -383,7 +387,7 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 
 		/* ...and the next level nodes to cons into the top? */
 		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_lower_page, constructor_lower_page, mappings_num, &bottom_lower));
-		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, upper_page, constructor_lower_page, mappings_num, &bottom_upper));
+		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_upper_page, constructor_lower_page, mappings_num, &bottom_upper));
 
 		nentries = (lvl == 0)? COS_PGTBL_TOP_NENT: COS_PGTBL_INTERNAL_NENT;
 		/* Now cons the next level nodes into their previous level */
@@ -400,37 +404,41 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	}
 
 	/* ...Second, lets add the constructor's virtual memory into the page-tables... */
-	COS_CHECK(cos_pgtbl_node_offset(COS_PGTBL_MAX_DEPTH - 1, constructor_lower_vaddr, constructor_lower_vaddr, constructor_size, &pgtbl_leaf_off));
-	for (i = 0; i < constructor_size / COS_PAGE_SIZE; i++) {
-		uword_t offset = ((constructor_lower_vaddr / COS_PAGE_SIZE) + i) % COS_PGTBL_LEAF_NENT;
-		uword_t vm_page, perm;
+	printk("\tVirtual memory mapping...read-only...");
+	COS_CHECK(cos_pgtbl_node_offset(COS_PGTBL_MAX_DEPTH - 1, constructor_lower_page, constructor_lower_page, mappings_num, &pgtbl_leaf_off));
+	for (i = 0; i < ro_sz / COS_PAGE_SIZE; i++) {
+		uword_t offset = (constructor_lower_page + i) % COS_PGTBL_LEAF_NENT;
+		uword_t vm_page = constructor_offset + (ro_off / COS_PAGE_SIZE) + i;
 
-		/*
-		 * Find the page-we're mapping in, and its
-		 * permissions. This depends on if the page is in the
-		 * read-only section, the read-write (data) section,
-		 * or in the zeroed-memory section (bss).
-		 */
-		if (i < ro_sz / COS_PAGE_SIZE) { /* read-only section */
-			vm_page = constructor_offset + (ro_off / COS_PAGE_SIZE) + i;
-			perm = COS_PGTBL_PERM_VM_EXEC;
-		} else if (i < (data_sz + ro_sz) / COS_PAGE_SIZE) { /* read-write section */
-			vm_page = constructor_offset + (data_off / COS_PAGE_SIZE) + i - (ro_sz / COS_PAGE_SIZE);
-			perm = COS_PGTBL_PERM_VM_RW;
-		} else if (i < (data_sz + ro_sz + zero_sz) / COS_PAGE_SIZE) { /* bss/zero-data section */
-			vm_page = zeroed_page_offset + i - ((ro_sz + data_sz) / COS_PAGE_SIZE);
-			perm = COS_PGTBL_PERM_VM_RW;
-		} else {	/* this should never happen... */
-			return -COS_ERR_OUT_OF_BOUNDS;
-		}
+		COS_CHECK(pgtbl_map(pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_EXEC));
 
-		COS_CHECK(pgtbl_map(pgtbl_offset + pgtbl_leaf_off, offset, vm_page, perm));
+		/* If we've reached the end of a page-table node, move on to the next */
+		if (offset == (COS_PGTBL_LEAF_NENT - 1)) pgtbl_leaf_off++;
+	}
+	printk("RW initialized data...");
+	for (j = 0; j < data_sz / COS_PAGE_SIZE; i++, j++) {
+		uword_t offset = (constructor_lower_page + i) % COS_PGTBL_LEAF_NENT;
+		uword_t vm_page = constructor_offset + (data_off / COS_PAGE_SIZE) + j;
+
+		COS_CHECK(pgtbl_map(pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_RW));
+
+		/* If we've reached the end of a page-table node, move on to the next */
+		if (offset == (COS_PGTBL_LEAF_NENT - 1)) pgtbl_leaf_off++;
+	}
+	printk("RW zeroed data...\n");
+	for (j = 0; j < zero_sz / COS_PAGE_SIZE; i++, j++) {
+		uword_t offset = (constructor_lower_page + i) % COS_PGTBL_LEAF_NENT;
+		uword_t vm_page = zeroed_page_offset + j;
+
+		COS_CHECK(resource_vm_create(vm_page));
+		COS_CHECK(pgtbl_map(pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_RW));
 
 		/* If we've reached the end of a page-table node, move on to the next */
 		if (offset == (COS_PGTBL_LEAF_NENT - 1)) pgtbl_leaf_off++;
 	}
 
 	/* ...Third, construct the capability table for the constructor... */
+	printk("\tCaptbl construction...\n");
 	for (lvl = 0; lvl < COS_CAPTBL_MAX_DEPTH - 1; lvl++) {
 		uword_t top_off;         /* top nodes to iterate through */
 		uword_t bottom_upper, bottom_lower; /* bottom node, upper and lower addresses */
@@ -453,10 +461,11 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	}
 
 	/* ...Finally, populate the capability-tables */
+	printk("\tCapability-table population...\n");
 	COS_CHECK(cos_captbl_node_offset(COS_CAPTBL_MAX_DEPTH - 1, 1, 1, captbl_num, &captbl_lower));
 	/* TODO: HW cap in slot 1 */
 	for (i = 0; i < captbl_num; i++) {
-		uword_t ct  = captbl_lower + captbl_offset + (i / COS_CAPTBL_LEAF_NENT);
+		uword_t ct  = captbl_offset + captbl_lower + (i / COS_CAPTBL_LEAF_NENT);
 		uword_t off = (i + 2) % COS_CAPTBL_LEAF_NENT; /* offset by two for the return and HW capability */
 
 		COS_CHECK(cap_restbl_create(ct, off, COS_PAGE_KERNTYPE_PGTBL_LEAF, COS_OP_ALL, res_pgtbl_offset + i));

@@ -76,5 +76,5 @@ static inline int
 liveness_quiesced(liveness_t past)
 {
 	/* TODO: actual liveness. */
-	return liveness_now() > past;
+	return 1;//liveness_now() > past;
 }
