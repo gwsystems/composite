@@ -82,7 +82,7 @@ multiboot_output(unsigned long mboot_addr, unsigned long mboot_magic)
 	multiboot_tag_parse(mboot_addr);
 }
 
-volatile vaddr_t entry_address;
+struct kernel_init_state init_state;
 
 void
 kmain(unsigned long mboot_addr, unsigned long mboot_magic)
@@ -112,7 +112,7 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	lapic_init();
 
 	post_constructor = ((uword_t)&_binary_constructor_end - (uword_t)pages) / COS_PAGE_SIZE;
-	rv = kernel_init(post_constructor);
+	rv = kernel_init(post_constructor, &init_state);
 	assert(rv == COS_RET_SUCCESS);
 
 	h = (void *)&_binary_constructor_start;
@@ -120,19 +120,16 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	assert(r == 0);
 	/* Linker script should have placed the elf object at offset 1 in the page array */
 	assert(((uword_t)&_binary_constructor_start - (uword_t)pages) == COS_PAGE_SIZE);
-	rv = constructor_init(post_constructor,
-			      ro_addr, elf_entry_addr(h),
+	rv = constructor_init(ro_addr, elf_entry_addr(h),
 			      (uword_t)ro_src - (uword_t)h, ro_sz,
 			      (uword_t)data_src - (uword_t)h, data_sz,
-			      bss_sz);
+			      bss_sz, &init_state);
 	assert(rv == COS_RET_SUCCESS);
-	kernel_core_init(INIT_CORE);
+	kernel_cores_init(&init_state);
 
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
-	entry_address = elf_entry_addr(h);
-
-	constructor_core_execute(0, entry_address);
+	constructor_core_execute(0, &init_state);
 
 	/* should not get here... */
 	khalt();
@@ -156,7 +153,7 @@ smp_kmain(void)
 	/* waiting for all cores to boot */
 	while(cores_ready[INIT_CORE] == 0);
 
-	constructor_core_execute(cpu_id, entry_address);
+	constructor_core_execute(cpu_id, &init_state);
 
 	while(1) ;
 }

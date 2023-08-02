@@ -1,5 +1,6 @@
 #include "chal_regs.h"
 #include "consts.h"
+#include "cos_types.h"
 #include "types.h"
 #include <cos_consts.h>
 #include <cos_error.h>
@@ -270,8 +271,9 @@ thread_calculate_returnvals(struct thread *t)
 }
 
 void
-thread_initialize(struct thread *thd, thdid_t id, id_token_t sched_tok, vaddr_t entry_ip, struct component_ref *compref, pageref_t schedthd_ref, pageref_t thisref)
+thread_initialize(struct thread *thd, thdid_t id, coreid_t coreid, id_token_t sched_tok, vaddr_t entry_ip, struct component_ref *compref, pageref_t schedthd_ref, pageref_t thisref)
 {
+	/* Note: sched might be equal to thd */
 	struct thread *sched = (struct thread *)ref2page_ptr(schedthd_ref);
 
 	*thd = (struct thread) {
@@ -306,7 +308,7 @@ thread_initialize(struct thread *thd, thdid_t id, id_token_t sched_tok, vaddr_t 
 	sched->sched_thd = schedthd_ref;
 
 	thd->regs.state = REG_STATE_SYSCALL;
-	regs_prepare_upcall(&thd->regs, entry_ip, coreid(), id, 0);
+	regs_prepare_upcall(&thd->regs, entry_ip, coreid, id, 0);
 }
 
 /**

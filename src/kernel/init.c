@@ -1,4 +1,4 @@
-#include "cos_chal_consts.h"
+#include <state.h>
 #include <consts.h>
 #include <chal_regs.h>
 #include <cos_error.h>
@@ -118,11 +118,15 @@ captbl_num_nodes_initial(uword_t const_caps)
  * - `@return` - normal return error, should be `COS_RET_SUCCESS`.
  */
 cos_retval_t
-kernel_init(uword_t post_constructor_offset)
+kernel_init(uword_t post_constructor_offset, struct kernel_init_state *s)
 {
 	int i;
 	struct captbl_leaf *captbl_null;
 	uword_t constructor_offset;
+
+	*s = (struct kernel_init_state) { 0 };
+	/* For usage in later APIs */
+	s->post_constructor_offset = post_constructor_offset;
 
 	chal_state_init();
 
@@ -191,30 +195,32 @@ kernel_init(uword_t post_constructor_offset)
 	return COS_RET_SUCCESS;
 }
 
-uword_t gbl_thread_offset = 0;
-
 /**
- * `kernel_core_init()` initializes per-core, global kernel
- * data-structures. These include:
- *
- * - the `struct state_percore` in `core_state`
+ * `kernel_cores_init()` initializes per-core, global kernel
+ * data-structures. These center around the `struct state_percore` in
+ * `core_state`.
  */
 void
-kernel_core_init(coreid_t core)
+kernel_cores_init(struct kernel_init_state *state)
 {
+	coreid_t core;
 	struct state_percore *s;
 
-	/* The 1 here is for the null captbl page */
-	struct thread *t = (struct thread *)&pages[gbl_thread_offset + core];
-	/* If this triggers, you should call `constructor_init` before this! */
-	assert(gbl_thread_offset > 0);
+	for (core = 0; core < COS_NUM_CPU; core++) {
+		/*
+		 * Find the thread, assuming the threads exist one per core,
+		 * starting at the thread offset.
+		 */
+		struct thread *t = (struct thread *)&pages[state->thread_offset + core];
 
-	s = chal_percore_state_coreid(core);
-	s->globals = (struct state) {
-		.active_thread = t,
-		.active_captbl = t->invstk.entries[0].component.captbl,
-		.sched_thread  = t,
-	};
+		s = chal_percore_state_coreid(core);
+		s->globals = (struct state) {
+			.active_thread = t,
+			.active_captbl = t->invstk.entries[0].component.captbl,
+			.sched_thread  = t,
+			.invstk_head   = 0,
+		};
+	}
 }
 
 /**
@@ -240,14 +246,17 @@ kernel_core_init(coreid_t core)
  * - `@return` - normal return value, error implies significant failure
  */
 cos_retval_t
-constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
-		 uword_t ro_off, uword_t ro_sz, uword_t data_off, uword_t data_sz, uword_t zero_sz)
+constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
+		 uword_t ro_off, uword_t ro_sz, uword_t data_off, uword_t data_sz, uword_t zero_sz, struct kernel_init_state *s)
+
 {
 	uword_t i, j, lvl;
-	uword_t constructor_offset, constructor_size, thread_offset, component_offset, captbl_offset, captbl_lower;
+	uword_t constructor_offset, post_constructor_offset, constructor_size, thread_offset, component_offset, captbl_offset, captbl_lower;
 	uword_t pgtbl_offset, pgtbl_leaf_off, res_pgtbl_offset, zeroed_page_offset, frontier;
 	uword_t captbl_num, pgtbl_num, caps_needed, mappings_num, res_pgtbl_num;
 	uword_t constructor_lower_page, constructor_upper_page;
+
+	post_constructor_offset = s->post_constructor_offset;
 
 	/*
 	 * This set of blocks calculates the *layout* of the resources
@@ -283,8 +292,10 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	captbl_offset      = pgtbl_offset + pgtbl_num;
 	component_offset   = captbl_offset + captbl_num;
 	thread_offset      = component_offset + 1;
-	gbl_thread_offset  = thread_offset;
 	frontier           = thread_offset + COS_NUM_CPU;
+
+	/* To be used in future APIs */
+	s->thread_offset   = thread_offset;
 
 	printk("Constructor capability layout:\n");
 	printk("\t- [0, 1) - 1 (inaccessible) captbl nil node.\n");
@@ -360,9 +371,10 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 	 * resource tables.
 	 */
 	printk("\tThread creation...\n");
-	for (i = thread_offset; i < COS_NUM_CPU; i++) {
-		COS_CHECK(resource_thd_create(i, component_offset, i - thread_offset + 1, constructor_entry, 0, i));
-		page_types[i].coreid = i - thread_offset;
+	for (i = 0; i < COS_NUM_CPU; i++) {
+		pageref_t thread_ref = i + thread_offset;
+
+		COS_CHECK(resource_thd_create(thread_ref, component_offset, i + 1, i, 0, thread_ref));
 	}
 
 	/*
@@ -477,13 +489,16 @@ constructor_init(uword_t post_constructor_offset, vaddr_t constructor_lower_vadd
 /**
  * `constructor_core_execute()` begins execution of the constructor on
  * this specific core.
+ *
+ * - `@coreid` - Which core is kickstarting execution? Assume that the
+ *   corresponding thread id is the core plus one.
+ * - `@entry_ip`  - The virtual address at which to start execution.
  */
 COS_NO_RETURN void
-constructor_core_execute(coreid_t coreid, vaddr_t entry_ip)
+constructor_core_execute(coreid_t coreid, struct kernel_init_state *s)
 {
-	struct regs rs = { 0 };
+	struct thread *t = (struct thread *)&pages[s->thread_offset + coreid];
+	struct regs *rs = &t->regs;
 
-	regs_prepare_upcall(&rs, entry_ip, coreid, coreid + 1, 0);
-
-	userlevel_eager_return_syscall(&rs);
+	userlevel_eager_return_syscall(rs);
 }

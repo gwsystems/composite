@@ -23,7 +23,8 @@ cos_static_stack_end:
 .type __cosrt_upcall_entry, @function;	\
 .align 16;				\
 __cosrt_upcall_entry:			\
-	COS_ASM_GET_STACK		\
+1:      jmp 1b;				\
+        COS_ASM_GET_STACK		\
 	push $0;			\
 	mov %rsp, -16(%rsp);		\
 	push $0;			\

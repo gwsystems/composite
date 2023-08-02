@@ -638,21 +638,24 @@ resource_comp_destroy(pageref_t compref)
  * - `@comp_ref` - the component reference in which to start the thread
  * - `@epoch` - the component's epoch in the component capability (possibly outdated)
  * - `@id` - the desired thread id of the thread
- * - `@entry_ip` - the instruction pointer to use for thread creation
- *   in the component
+ * - `@coreid` - the core on which the thread executes
  * - `@sched_token` - the value that will be passed to the scheduler with events for this thread.
  * - `@untyped_src_ref` - the untyped memory to use for the component
  * - `@return` - normal return value denoting error (negative values), or success (zero)
  */
 cos_retval_t
-resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref, thdid_t id, vaddr_t entry_ip, id_token_t sched_token, pageref_t untyped_src_ref)
+resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref, thdid_t id, coreid_t coreid, id_token_t sched_token, pageref_t untyped_src_ref)
 {
 	struct page_type *ptype, *sched_ptype;
 	struct page *thd_page;
 	struct component_ref ref;
+	struct component *comp;
 	struct thread *thd;
 
-	COS_CHECK(page_resolve(sched_thd_ref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, NULL, NULL, &sched_ptype));
+	if (untyped_src_ref != sched_thd_ref) {
+		COS_CHECK(page_resolve(sched_thd_ref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_THD, NULL, NULL, &sched_ptype));
+	}
+	COS_CHECK(page_resolve(comp_ref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_COMP, NULL, (struct page **)&comp, NULL));
 	COS_CHECK(resource_compref_create(comp_ref, &ref));
 
 	ref2page(untyped_src_ref, &thd_page, &ptype);
@@ -667,11 +670,12 @@ resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref, thdid_t id, vad
          * don't take a reference on the component, instead using
          * `epoch` to determine liveness using the component_ref.
 	 */
-	faa(&sched_ptype->refcnt, 1);
+	if (untyped_src_ref != sched_thd_ref) faa(&sched_ptype->refcnt, 1);
 
 	thd = (struct thread *)thd_page;
 	/* Update the component structure in recently retyped page */
-	thread_initialize(thd, id, sched_token, entry_ip, &ref, sched_thd_ref, untyped_src_ref);
+	thread_initialize(thd, id, coreid, sched_token, comp->entry_ip, &ref, sched_thd_ref, untyped_src_ref);
+	ptype->coreid = coreid;
 
 	/* Make the kernel resource accessible as a thread */
 	page_retype_from_untyped_commit(ptype, thd_page, COS_PAGE_TYPE_KERNEL);
