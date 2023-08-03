@@ -135,6 +135,22 @@ slm_thd_normal(struct slm_thd *t)
 	return t != &g->idle_thd && t != &g->sched_thd;
 }
 
+static inline u32_t
+slm_rdpkru(void)
+{
+	u32_t pkru;
+	asm volatile(
+		"xor %%rcx, %%rcx\n\t"
+		"xor %%rdx, %%rdx\n\t"
+		"rdpkru"
+		: "=a" (pkru)
+		:
+		: "rcx", "rdx"
+	);
+
+	return pkru;
+}
+
 /*
  * If the current thread is the scheduler or idle thread, return that
  * slm_thd. That thread should generally never be used
@@ -380,12 +396,13 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		"mov %%rsp, 8(%%rax)\n\t"       \
 		"cmp $0, 8(%%rsi)\n\t"          \
 		"je 1f\n\t"                     \
-		"mov %%rdx, %%rax\n\t"          \
-		"and $0xFFFF, %%rax\n\t"        \
-		"mov %%rax, -8(%%rcx)\n\t"      \
-		"shr $16, %%rdx\n\t"            \
-		"mov %%rdx, (%%rcx)\n\t"        \
-		"mov 8(%%rsi), %%rsp\n\t"       \
+		/* "mov %%rdx, %%rax\n\t"          \ */
+		/* "and $0xFFFF, %%rax\n\t"        \ */
+		/* "mov %%rax, -8(%%rcx)\n\t"      \ */
+		/* "shr $16, %%rdx\n\t"            \ */
+		/* "mov %%rdx, (%%rcx)\n\t"        \ */
+		/* "mov 8(%%rsi), %%rsp\n\t"       \ */
+		"mov %%rdx, (%%rcx)"
 		"jmp *(%%rsi)\n\t"              \
 		".align 8\n\t"                  \
 		"1:\n\t"                        \
@@ -408,7 +425,7 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		: "=b" (pre_tok)
 		: "a" (cd), "S" (nd),
 		  "b" (tok), "D" (timeout),
-		  "c" (&(scb->curr_thd)), "d" (thdpack)
+		  "c" (&(scb->thdpack)), "d" (thdpack)
 		: "memory", "cc", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");
 #endif
 	scb = slm_scb_info_core();
@@ -447,6 +464,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 			return ret;
 		}
 	}
+#if defined (__SLITE___)
 	if (!cd || !nd || (curr->vasid != t->vasid)) {
 		if (scb->timer_pre < timeout) {
 			scb->timer_pre = timeout;
@@ -455,6 +473,9 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 	} else {
 		ret = cos_ulswitch(curr, t, cd, nd, prio, timeout, tok);
 	}
+#else
+	ret = cos_defswitch(t->thd, prio, timeout, tok);
+#endif
 
 	if (unlikely(ret == -EPERM && !slm_thd_normal(t))) {
 		/*

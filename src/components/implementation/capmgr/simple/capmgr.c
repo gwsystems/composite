@@ -94,7 +94,7 @@ SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 #define MAX_DCB_NUM PAGE_SIZE/sizeof(struct cos_dcb_info)
 SS_STATIC_SLAB(dcb, struct cm_dcb, MAX_DCB_NUM);
 SS_STATIC_SLAB(dcbinfo, struct cm_dcbinfo, MAX_NUM_THREADS);
-#define CONTIG_PHY_PAGES 1
+#define CONTIG_PHY_PAGES 70000
 static void * contig_phy_pages = 0;
 
 static struct cm_comp *
@@ -635,7 +635,7 @@ capmgr_execution_init(int is_init_core)
 	/* Create execution in the relevant components */
 	ret = args_get_entry("execute", &exec_entries);
 	assert(!ret);
-	//if (is_init_core) printc("Capmgr: %d components that need execution\n", args_len(&exec_entries));
+	if (is_init_core) printc("Capmgr: %d components that need execution\n", args_len(&exec_entries));
 	for (cont = args_iter(&exec_entries, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		struct cm_comp    *cmc;
 		struct crt_comp   *comp;
@@ -655,13 +655,8 @@ capmgr_execution_init(int is_init_core)
 			assert(r);
 
 			capmgr_dcb_info_init(cmc);
-			//printc("dcb_init done\n");
 			comp->scb = cm_self()->comp.scb;
-			//printc("comp->scb: %d\n", comp->scb);
 			if (crt_comp_exec(comp, crt_comp_exec_sched_init(&ctxt, &r->rcv))) BUG();
-			//printc("ulk scb map\n");
-			//int ret = crt_ulk_map_scb(comp);
-			//printc("ulk scb map done: %d\n", ret);
 			ss_rcv_activate(r);
 			cmc->sched_rcv[cos_cpuid()] = r;
 			if (is_init_core) printc("\tCreated scheduling execution for %ld\n", id);
@@ -823,7 +818,6 @@ init_done(int parallel_init, init_main_t main_type)
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = crtcomp_get(client);
 
-	//printc("capmgr init done scb: %lx\n", cos_compinfo_get(cos_defcompinfo_curr_get())->scb_uaddr);
 	crt_compinit_done(c, parallel_init, main_type);
 
 	return;

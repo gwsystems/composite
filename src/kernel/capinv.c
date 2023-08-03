@@ -1262,7 +1262,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			struct ulk_invstk *ulstk = NULL;
 			struct cap_ulk    *ulkc;
 
-
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd, &pte);
 			if (unlikely(ret)) assert(0); //cos_throw(err, ret);
 			assert(thd && pte);

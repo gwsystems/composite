@@ -215,10 +215,8 @@ __cosrt_fast_callgate_##name:					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)		\
 	/* thread ID and cpu ID */				\
-	rdtscp ;						\
-	movq    %rcx, %rax;                 \
-	andq    $0xFFF, %rax;                \
-	movq    %rax, %r10;                                   \
+	rdpid   %rdx;						\
+	movq    %rdx, %rax;                 \
 	/* get per-core scb info */				\
 	movabs  $COS_SCB_INFO_SIZE, %r13;			\
 	imulq   %r13, %rax;	  				\
@@ -313,10 +311,8 @@ __cosrt_fast_callgate_##name:					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)		\
 	/* thread ID and cpu ID */				\
-	rdtscp ;						\
-	movq    %rcx, %rax;                                   \
-	andq    $0xFFF, %rax;                                 \
-	movq    %rax, %r10;                                   \
+	rdpid   %rdx;						\
+	movq    %rdx, %rax;                                   \
 	/* get per-core scb info */				\
 	movabs  $COS_SCB_INFO_SIZE, %r13;			\
 	imulq   %r13, %rax;	  				\

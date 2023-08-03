@@ -639,12 +639,15 @@ slm_ipi_process(void *d)
 	return;
 }
 
-static coreid_t _init_core_id = 0;
+coreid_t _init_core_id = 0;
 
 void
 parallel_main(coreid_t cid)
 {
-	if (cid == _init_core_id) printc("Starting scheduler loop...\n");
+	if (cid == _init_core_id) {
+		printc("Starting scheduler loop...: %d\n", _init_core_id);
+	}
+
 	slm_sched_loop_nonblock();
 }
 
@@ -658,7 +661,7 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	thdid_t tid, ipitid;
 	if (init_core) {
 		_init_core_id = cid;
-	} 
+	}
 	struct slm_ipi_percore *ipi_data = slm_ipi_percore_get(cos_cpuid());
 
 	cos_defcompinfo_sched_init();

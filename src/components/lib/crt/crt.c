@@ -129,7 +129,7 @@ crt_scb_map(struct crt_comp *c, struct crt_comp *target)
 	struct cos_compinfo    *ci     = cos_compinfo_get(cos_defcompinfo_curr_get());
 	struct cos_compinfo *target_ci = cos_compinfo_get(target->comp_res);
 	assert(c->scb);
-	if (cos_scb_ro_map(ci, ci->comp_cap, ci->pgtbl_cap, c->scb, target_ci->scb_uaddr)) BUG();
+	if (cos_scb_ro_map(target_ci, target_ci->comp_cap, target_ci->pgtbl_cap, c->scb, target_ci->scb_uaddr)) BUG();
 
 	return 0;
 }
@@ -435,13 +435,13 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	/* FIXME: this is a hack in order to catch an error if the protdom of the scheduler doesn't equal 0x02. */
 	if (id == 3) {
 		if (SCHED_MPK_KEY != PROTDOM_MPK_KEY(protdom)) {
-			printc("Change SCHED_MPK_KEY to: %d\n", PROTDOM_MPK_KEY(protdom));
-			assert(0);
+			printc("Change SCHED_MPK_KEY to: 0x%x\n", PROTDOM_MPK_KEY(protdom));
+			BUG();
 		}
 	}
 	/* FIXME: This is a hack making every component has SCB by default. */
 	//scbcap_t scbc = cos_scb_alloc(root_ci);
-	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr + COS_SCB_SIZE, root_ci, protdom);
+	ret = cos_compinfo_alloc(ci, c->ro_addr, BOOT_CAPTBL_FREE, c->entry_addr, root_ci, protdom);
 	assert(!ret);
 
 	tot_sz = round_up_to_page(round_up_to_page(ro_sz) + data_sz + bss_sz);
@@ -1169,8 +1169,6 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 	}
 
 	if (ctxt->flags & CRT_COMP_SCHED) {
-		//printc("protkey: %d\n", PROTDOM_MPK_KEY(c->protdom));
-		//assert(PROTDOM_MPK_KEY(c->protdom) == SCHED_MPK_KEY);
 		struct crt_rcv_resources rcvres;
 		struct crt_rcv *r;
 		vaddr_t init_dcb;
@@ -1409,7 +1407,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 		if (ps_load(&comp->init_state) == CRT_COMP_INIT_PASSIVE ||
 		    (comp->main_type == INIT_MAIN_SINGLE && !initcore)) continue;
 
-		if (initcore) printc("Switching to main in component %lu.%d\n", comp->id, comp->flags & CRT_COMP_SCHED);
+		if (initcore) printc("Switching to main in component %lu.%d, initcore: %d\n", comp->id, comp->flags & CRT_COMP_SCHED, initcore);
 
 		if (comp->flags & CRT_COMP_SCHED) {
 			struct cos_defcompinfo *compci     = comp->comp_res;
@@ -1477,7 +1475,7 @@ crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type)
 	}
 
 	if (c->init_core == cos_cpuid()) {
-		//printc("Component %lu initialization complete%s.\n", c->id, (c->main_type > 0 ? ", awaiting main execution": ""));
+		printc("Component %lu initialization complete%s.\n", c->id, (c->main_type > 0 ? ", awaiting main execution": ""));
 	}
 
 	/* switch back to the booter's thread in execute() */

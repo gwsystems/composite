@@ -77,6 +77,7 @@ cos_dcb_info_alloc(struct cos_dcbinfo_data *cdi, dcboff_t *dcboff, vaddr_t *dcba
 		return 0;
 	}
 	if (cdi->curr_cap_off >= COS_DCB_PERPG_MAX) {
+		assert(0);
 		int ret;
 		unsigned short curr_off = cdi->curr_cap;
 

@@ -28,9 +28,13 @@
 #endif
 #endif
 
-#ifndef __PROTECTED_DISPATCH__
-#define __PROTECTED_DISPATCH__
+#ifndef __SLITE__
+#define __SLITE__
 #endif
+
+//#ifndef __PROTECTED_DISPATCH__
+//#define __PROTECTED_DISPATCH__
+//#endif
 
 #define MAX_SERVICE_DEPTH 31
 #define MAX_NUM_THREADS (64 * NUM_CPU)

@@ -42,6 +42,9 @@ struct cos_dcb_info {
 	unsigned long vas_id;
 } __attribute__((packed));
 
+#define DCB_INFO_PER_PAGE PAGE_SIZE / sizeof(struct cos_dcb_info)
+#define DCB_INFO_PAGE_NUM      (MAX_NUM_THREADS / DCB_INFO_PER_PAGE) + 1
+
 COS_STATIC_ASSERT(COS_DCB_INFO_SIZE == sizeof(struct cos_dcb_info), "Update COS_DCB_INFO_SIZE with sizeof struct cos_scb_info");
 COS_STATIC_ASSERT(COS_DCB_IP_OFFSET == offsetof(struct cos_dcb_info, ip), "Update COS_DCB_IP_OFFSET with the offset of ip in the dcb");
 COS_STATIC_ASSERT(COS_DCB_SP_OFFSET == offsetof(struct cos_dcb_info, sp), "Update COS_DCB_SP_OFFSET with the offset of sp in the dcb");

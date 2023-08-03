@@ -72,7 +72,7 @@ component_initialize_next(compid_t cid)
 {
 	struct schedinit_status *s;
 
-	//printc("\tSched %ld: %ld is the %ldth component to initialize\n", cos_compid(), cid, init_schedule_off);
+	printc("\tSched %ld: %ld is the %ldth component to initialize\n", cos_compid(), cid, init_schedule_off);
 	init_schedule[init_schedule_off] = cid;
 	init_schedule_off++;
 	s = &initialization_state[cid];
@@ -97,7 +97,7 @@ calculate_initialization_schedule(void)
 
 	ret = args_get_entry("execute", &exec_entries);
 	assert(!ret);
-	//printc("\tSched %ld: %d components that need execution\n", cos_compid(), args_len(&exec_entries));
+	printc("\tSched %ld: %d components that need execution\n", cos_compid(), args_len(&exec_entries));
 	for (cont = args_iter(&exec_entries, &i, &curr) ; cont ; cont = args_iter_next(&i, &curr)) {
 		int      keylen;
 		compid_t id        = atoi(args_key(&curr, &keylen));
@@ -116,6 +116,7 @@ calculate_initialization_schedule(void)
 }
 
 struct slm_thd *slm_thd_current_extern(void);
+extern coreid_t _init_core_id;
 
 static __attribute__((noreturn)) void
 exit_init_thd(void)
@@ -124,7 +125,7 @@ exit_init_thd(void)
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 	struct slm_thd *current = slm_thd_current_extern();
 
-	if (cos_coreid() == 1) printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), (compid_t)cos_inv_token());
+	if (cos_coreid() == _init_core_id) printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), (compid_t)cos_inv_token());
 
 	slm_cs_enter(current, SLM_CS_NONE);
 	slm_thd_deinit(current);		/* I'm out! */
@@ -228,7 +229,7 @@ slm_comp_init_loop(void)
 	struct cos_defcompinfo *defci = cos_defcompinfo_curr_get();
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 
-	if (cos_coreid() == 1) printc("Scheduler %ld: Running initialization thread.\n", cos_compid());
+	if (cos_coreid() == _init_core_id) printc("Scheduler %ld: Running initialization thread.\n", cos_compid());
 	/* If there are more components to initialize */
 	while (init_schedule_current != ps_load(&init_schedule_off)) {
 		/* Which is the next component to initialize? */
@@ -241,6 +242,7 @@ slm_comp_init_loop(void)
 		param[1] = 0;
 
 		/* Create the thread for initialization of the next component */
+		struct cos_scb_info *scb = slm_scb_info_core();
 		extern struct slm_thd *thd_alloc_in(compid_t id, thdclosure_index_t idx, sched_param_t *parameters, int reschedule);
 		t = thd_alloc_in(client, 0, param, 1);
 		assert(t);
@@ -248,7 +250,7 @@ slm_comp_init_loop(void)
 		n = &initialization_state[client];
 		init_schedule_current++;
 
-		if (cos_coreid() == 1)	printc("\tScheduler %ld: initializing component %ld with thread %ld.\n", cos_compid(), client, t->tid);
+		if (cos_coreid() == _init_core_id)	printc("\tScheduler %ld: initializing component %ld with thread %ld.\n", cos_compid(), client, t->tid);
 		/*
 		 * This waits till init_done effective runs before
 		 * moving on. We need to be highest-priority, so that
@@ -265,7 +267,7 @@ slm_comp_init_loop(void)
 		}
  	}
 
-	if (cos_coreid() == 1) printc("Scheduler %ld, initialization completed.\n", cos_compid());
+	if (cos_coreid() == _init_core_id) printc("Scheduler %ld, initialization completed.\n", cos_compid());
 
 	/*
 	 * We want to *atomically* awaken all of the threads that will

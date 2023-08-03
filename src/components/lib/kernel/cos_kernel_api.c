@@ -690,7 +690,6 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz, size_t align)
 	 * atomic, so we will get a contiguous range of sz.
 	 */
 	heap_vaddr = __page_bump_valloc(ci, sz, align);
-	printc("heap_ptr: %lx\n", heap_vaddr);
 	if (unlikely(!heap_vaddr)) return 0;
 	heap_limit = heap_vaddr + sz;
 	assert(heap_limit > heap_vaddr);
@@ -781,18 +780,33 @@ cos_thd_id_alloc(void)
 struct {
 	pgtblcap_t toplvl;      /* for page allocation */
 	pgtblcap_t secondlvl;   /* for pgtbl mapping */
-	ulkcap_t   curr_pg;     /* current ulk page to alloc stacks in */
-	vaddr_t    pg_frontier; /* vaddr of next page to alloc */
-	dcbcap_t   dcbcap;      /* dcb cap for secured thread dispatch */
+	//ulkcap_t   curr_pg;     /* current ulk page to alloc stacks in */
+	//vaddr_t    pg_frontier; /* vaddr of next page to alloc */
+	ulkcap_t   ulk_page[ULK_STACK_PAGE_NUM];
+#if defined (__PROTECTED_DISPATCH__)
+	dcbcap_t   dcbcap[DCB_INFO_PAGE_NUM];      /* dcb cap for secured thread dispatch */
+#endif
 } __cos_ulk_info;
 
 void
 cos_ulk_info_init(struct cos_compinfo *ci)
 {
+	unsigned long i;
+
 	__cos_ulk_info.toplvl = cos_ulk_pgtbl_create(ci, &__cos_ulk_info.secondlvl);
-	__cos_ulk_info.pg_frontier = round_to_page(ULK_INVSTK_ADDR + __thdid_alloc * sizeof(struct ulk_invstk));
-	__cos_ulk_info.dcbcap = cos_dcb_alloc(ci, __cos_ulk_info.toplvl, ULK_DCB_ADDR);
 	assert(__cos_ulk_info.toplvl);
+	//__cos_ulk_info.pg_frontier = round_to_page(ULK_INVSTK_ADDR + __thdid_alloc * sizeof(struct ulk_invstk));
+#if defined (__PROTECTED_DISPATCH__)
+	for (i = 0; i < DCB_INFO_PAGE_NUM; i++) {
+		__cos_ulk_info.dcbcap[i] = cos_dcb_alloc(ci, __cos_ulk_info.toplvl, ULK_DCB_ADDR + i * PAGE_SIZE);
+	}
+#endif
+
+	for ( i = 0; i < ULK_STACK_PAGE_NUM; i++) {
+		__cos_ulk_info.ulk_page[i] = cos_ulk_page_alloc(ci, __cos_ulk_info.toplvl, ULK_INVSTK_ADDR + i * PAGE_SIZE);
+	}
+
+	return;
 }
 
 int
@@ -866,13 +880,17 @@ __cos_thd_ulk_page_alloc(struct cos_compinfo *ci, thdid_t tid)
 {	
 	if (!__cos_ulk_info.toplvl) return 0;
 
-	if (!__cos_ulk_info.curr_pg || tid % ULK_STACKS_PER_PAGE == 0) {
+	/*if (!__cos_ulk_info.curr_pg || tid % ULK_STACKS_PER_PAGE == 0) {
 		__cos_ulk_info.curr_pg = cos_ulk_page_alloc(ci, __cos_ulk_info.toplvl, __cos_ulk_info.pg_frontier);
 		assert(__cos_ulk_info.curr_pg);
 		__cos_ulk_info.pg_frontier += PAGE_SIZE;
 	}
 	
-	return __cos_ulk_info.curr_pg;
+	return __cos_ulk_info.curr_pg;*/
+	ulkcap_t ret = __cos_ulk_info.ulk_page[tid / ULK_STACKS_PER_PAGE];
+	assert(ret);
+
+	return ret;
 }
 
 static thdcap_t
@@ -892,7 +910,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 
 #if defined(__PROTECTED_DISPATCH__)
 	assert(tid < PAGE_SIZE / sizeof(struct cos_dcb_info));
-	dc = __cos_ulk_info.dcbcap;
+	dc = __cos_ulk_info.dcbcap[tid / DCB_INFO_PER_PAGE];
 	off = tid;
 #endif
 

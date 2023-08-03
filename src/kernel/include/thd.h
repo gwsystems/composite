@@ -361,6 +361,7 @@ thd_current(struct cos_cpu_local_info *cos_info)
 		assert((scb_core->thdpack & 0xFFFF) == curr_thd->tid);
 		thd_current_update(curr_thd, thread, cos_info);
 
+		assert(curr_thd->cpuid == get_cpuid());
 		return curr_thd;
 	}
 	scb_core->thdpack = thread->tid;
@@ -705,7 +706,6 @@ thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp
 	} else {
 		ci = &curr->comp_info;
 	}
-
 	*ip = curr->ip;
 	*sp = curr->sp;
 

@@ -81,7 +81,6 @@ cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned lo
 	pgtblc = (struct cap_pgtbl *)captbl_lkup(t, cap);
 
 	if (unlikely(!pgtblc)) {
-		printk("cap: %d\n", cap);
 		assert(0); //return -ENOENT;
 	}
 	if (unlikely(pgtblc->h.type != CAP_PGTBL || pgtblc->lvl != 0)) assert(0); //return -EINVAL;

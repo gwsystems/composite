@@ -103,7 +103,6 @@ thd_alloc_in(compid_t id, thdclosure_index_t idx, sched_param_t *parameters, int
 		current = slm_thd_special();
 		assert(current);
 	}
-
 	t = slm_thd_alloc_in(id, idx, &thdcap, &tid, &vasid);
 	if (!t) ERR_THROW(NULL, done);
 

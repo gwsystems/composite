@@ -540,6 +540,7 @@ struct ulk_invstk {
 };
 
 #define ULK_STACKS_PER_PAGE (PAGE_SIZE / sizeof(struct ulk_invstk))
+#define ULK_STACK_PAGE_NUM  (MAX_NUM_THREADS / ULK_STACKS_PER_PAGE) + 1
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;
