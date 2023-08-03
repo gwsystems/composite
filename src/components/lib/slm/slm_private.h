@@ -464,7 +464,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 			return ret;
 		}
 	}
-#if defined (__SLITE___)
+#if defined (__SLITE__)
 	if (!cd || !nd || (curr->vasid != t->vasid)) {
 		if (scb->timer_pre < timeout) {
 			scb->timer_pre = timeout;
