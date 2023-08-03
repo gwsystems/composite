@@ -1,3 +1,4 @@
+#include "chal_state.h"
 #include <state.h>
 #include <consts.h>
 #include <chal_regs.h>
@@ -495,10 +496,18 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
  * - `@entry_ip`  - The virtual address at which to start execution.
  */
 COS_NO_RETURN void
-constructor_core_execute(coreid_t coreid, struct kernel_init_state *s)
+constructor_core_execute(coreid_t core, struct kernel_init_state *s)
 {
-	struct thread *t = (struct thread *)&pages[s->thread_offset + coreid];
+	struct thread *t = (struct thread *)&pages[s->thread_offset + core];
 	struct regs *rs = &t->regs;
+
+	assert(s->thread_offset != 0);
+	assert(!regs_preempted(rs));
+
+	printk("User IP %x, rflags %x\n", rs->clobbered.rcx_ip, rs->clobbered.r11);
+//	asm volatile("movq $0xdeadbeef, %%r9; movq %0, %%rcx; movq %1, %%r11; swapgs; sysretq;\n" : : "r" (rs->clobbered.rcx_ip), "r" (rs->clobbered.r11): "memory", "r11", "rcx");
+
+	printk("Upcall: stack var %x, regs %x\n", &t, current_registers());
 
 	userlevel_eager_return_syscall(rs);
 }

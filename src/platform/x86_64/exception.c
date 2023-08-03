@@ -76,6 +76,8 @@ page_fault_fn(struct regs *regs)
 	struct thread *curr = ci->active_thread;
 	thdid_t       thdid = curr->id;
 
+	printk("Fault: stack var %x, regs %x\n", &fault_addr, regs);
+
 	fault_addr = chal_cpu_fault_vaddr(regs);
 	errcode    = chal_cpu_fault_errcode(regs);
 	ip         = chal_cpu_fault_ip(regs);

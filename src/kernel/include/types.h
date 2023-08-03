@@ -21,7 +21,7 @@ typedef u8_t           page_kerntype_t;
 
 typedef u32_t          cos_cap_type_t;    /* tag for each capability's type */
 
-/*
+/**
  * A versioned reference to a resource. Needs to be checked for
  * validity before dereference (i.e. checking that the epoch here
  * matches that of the resource). These weak references are used

@@ -4,6 +4,7 @@
 #include <chal.h>
 #include <compiler.h>
 #include <chal_state.h>
+#include <state.h>
 
 /* A not so nice way of oopsing */
 #define die_reg(reg, fmt, ...)					 \

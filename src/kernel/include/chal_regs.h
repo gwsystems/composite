@@ -29,7 +29,8 @@
 
 /*
  * Direct assembly requires single %, while inline assembly requires
- * %%.
+ * %%. We need these macros to make the following code generic across
+ * both.
  */
 #ifdef __ASSEMBLER__
 #define PREFIX(r) %r
@@ -75,8 +76,12 @@
  * The subtraction makes room for the (irrelevant, unused) trap frame.
  *
  * The push of the `1` populates the `reg_state_t` with a value that
- * specifies we're in a system call, and the `REGS_RFLAGS_DEFAULT`
- * value populates `r11` on return with a fixed RFLAGS value.
+ * specifies we're in a system call.
+ *
+ * Note that `r11` should hold the rflags value, and the `rcx` holds
+ * the instruction pointer to return to. For details, see the
+ * `syscall` instruction documentation. The `rbp` register holds stack
+ * context for user-level, and should be restored exactly.
  */
 #define PUSH_REGS_SYSCALL					\
 	subq $(REGS_TRAPFRAME_SZ), PREFIX(rsp);			\
@@ -230,6 +235,8 @@ struct regs_clobbered {
 	uword_t rbp_sp;
 };
 
+/* push decreases sp, pop increases it */
+
 /*
  * The register set for a thread. This structure exists one
  * per-thread, and once on each core's stack.
@@ -285,9 +292,7 @@ COS_STATIC_ASSERT(sizeof(struct trap_frame) == REGS_TRAPFRAME_SZ,
 COS_FASTPATH COS_NO_RETURN static inline void
 userlevel_eager_return_syscall(struct regs *rs)
 {
-	struct regs *end_of_struct = &(rs[1]);
-
-	ASM_SYSCALL_RETURN(end_of_struct);
+	ASM_SYSCALL_RETURN(rs);
 
 	while (1) ;
 }
@@ -300,10 +305,8 @@ userlevel_eager_return_syscall(struct regs *rs)
 COS_FASTPATH COS_NO_RETURN static inline void
 userlevel_eager_return(struct regs *rs)
 {
-	struct regs *end_of_struct = &(rs[1]);
-
-	if (rs->state == REG_STATE_PREEMPTED)    ASM_TRAP_RETURN(end_of_struct);
-	else if (rs->state == REG_STATE_SYSCALL) ASM_SYSCALL_RETURN(end_of_struct);
+	if (rs->state == REG_STATE_PREEMPTED)    ASM_TRAP_RETURN(rs);
+	else if (rs->state == REG_STATE_SYSCALL) ASM_SYSCALL_RETURN(rs);
 
 	while (1) ;
 }
@@ -482,7 +485,7 @@ regs_prepare_upcall(struct regs *rs, vaddr_t entry_ip, coreid_t coreid, thdid_t 
 	rs->args[2] = tok;
 	rs->clobbered = (struct regs_clobbered) {
 		.rcx_ip = entry_ip,
-		.r11    = 0,
+		.r11    = REGS_RFLAGS_DEFAULT,
 		.rbp_sp = 0
 	};
 
@@ -550,7 +553,7 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct frame_ctx, bp),
 
 /*
  * The `syscall` instruction saves the instruction pointer after the
- * `syscall` into `r11`, and the `rflags` into `r11`. This assembly
+ * `syscall` into `rcx`, and the `rflags` into `r11`. This assembly
  * assumes that incoming 1. `rcx` holds a pointer to the `struct
  * frame_ctxt` we'll use to save sp/bp, 2. that we cannot include
  * `rbp` in any of the inline-assembly input/output/clobber lists, so
@@ -617,7 +620,7 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct frame_ctx, bp),
 	REGS_SYSCALL_ARG4, "r" (r9), "r" (r10), "r" (r12), "r" (r13), "r" (r14), "r" (r15)
 
 #define REGS_SYSCALL_CLOBBER_BASE		\
-	"memory", "cc"
+	"memory", "rcx", "r11"
 
 #define REGS_SYSCALL_CLOBBER4						\
 	REGS_SYSCALL_CLOBBER_BASE, "r9", "r10", "r12", "r13", "r14", "r15"
