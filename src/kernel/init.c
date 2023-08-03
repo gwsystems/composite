@@ -503,10 +503,5 @@ constructor_core_execute(coreid_t core, struct kernel_init_state *s)
 	assert(s->thread_offset != 0);
 	assert(!regs_preempted(rs));
 
-	printk("User IP %x, rflags %x\n", rs->clobbered.rcx_ip, rs->clobbered.r11);
-//	asm volatile("movq $0xdeadbeef, %%r9; movq %0, %%rcx; movq %1, %%r11; swapgs; sysretq;\n" : : "r" (rs->clobbered.rcx_ip), "r" (rs->clobbered.r11): "memory", "r11", "rcx");
-
-	printk("Upcall: stack var %x, regs %x\n", &t, current_registers());
-
 	userlevel_eager_return_syscall(rs);
 }
