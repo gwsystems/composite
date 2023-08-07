@@ -384,11 +384,9 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		  "d" (curr->tid)
 		: "memory", "cc", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");
 
-	//printc("pkru: %lx\n", pkru);
 #else
 	u64_t thdpack = (next->thd << 16) | next->tid;
 	__asm__ __volatile__ (
-		"pushq %%rbx\n\t"               \
 		"pushq %%rbp\n\t"               \
 		"mov %%rsp, %%rbp\n\t"          \
 		"movabs $2f, %%r8\n\t"          \
@@ -401,8 +399,8 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		/* "mov %%rax, -8(%%rcx)\n\t"      \ */
 		/* "shr $16, %%rdx\n\t"            \ */
 		/* "mov %%rdx, (%%rcx)\n\t"        \ */
-		/* "mov 8(%%rsi), %%rsp\n\t"       \ */
-		"mov %%rdx, (%%rcx)"
+		"mov %%rdx, (%%rcx)\n\t"        \
+		"mov 8(%%rsi), %%rsp\n\t"       \
 		"jmp *(%%rsi)\n\t"              \
 		".align 8\n\t"                  \
 		"1:\n\t"                        \
@@ -422,7 +420,7 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		".align 8\n\t"                  \
 		"3:\n\t"                        \
 		"popq %%rbp\n\t"                \
-		: "=b" (pre_tok)
+		:
 		: "a" (cd), "S" (nd),
 		  "b" (tok), "D" (timeout),
 		  "c" (&(scb->thdpack)), "d" (thdpack)

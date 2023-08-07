@@ -464,7 +464,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 		pgtbl_update(next_pt);
 	}
 
-#if defined (__PROTECTED_DISPATCH__)
+#if defined (__SLITE__)
 	if (next->dcbinfo && next->dcbinfo->sp) {
 		chal_protdom_write(SCHED_MPK_KEY);
 	} else {
