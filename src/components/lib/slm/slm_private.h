@@ -287,8 +287,11 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		"mov (%%rsi), %%r13\n\t"                                  \
 		/* Update current active thread in the scb. */
 		/* Get core ID */
-		"rdpid %%rdx\n\t"                                         \
-		"movq %%rdx, %%rax\n\t"                                   \
+		/* "rdpid %%rdx\n\t"                                      \ */
+		/* "movq %%rdx, %%rax\n\t"                                \ */
+		"rdtscp\n\t"                                              \
+		"movq %%rcx, %%rax\n\t"                                   \
+		"andq $0xFFF, %%rax\n\t"                                  \
 		/* Get per-core scb info */
 		/* Hardcoded size of scb_info. */
 		"movabs $" STR(COS_SCB_INFO_SIZE) ", %%rcx\n\t"           \

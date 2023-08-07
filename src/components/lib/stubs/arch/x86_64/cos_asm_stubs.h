@@ -215,8 +215,11 @@ __cosrt_fast_callgate_##name:					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)		\
 	/* thread ID and cpu ID */				\
-	rdpid   %rdx;						\
-	movq    %rdx, %rax;                 \
+	/* rdpid   %rdx; */				        \
+	/* movq    %rdx, %rax; */                               \
+	rdtscp ;                                                \
+	movq    %rcx, %rax;                                     \
+	andq    $0xFFF, %rax;                                   \
 	/* get per-core scb info */				\
 	movabs  $COS_SCB_INFO_SIZE, %r13;			\
 	imulq   %r13, %rax;	  				\
@@ -224,7 +227,7 @@ __cosrt_fast_callgate_##name:					\
 	addq    %r13, %rax;					\
 	/* get thread id out of per-core scb info */		\
 	movq    (%rax), %r13;					\
-	andq    $0xFFFF, %r13;                \
+	andq    $0xFFFF, %r13;                                  \
 	shl	$16, %rdx;					\
 	or	%rdx, %r13;					\
 	COS_ULINV_GET_INVSTK					\
@@ -243,10 +246,13 @@ srv_call_ret_##name:						\
 	movq	%rax, %r8;					\
 	/* save server authentication token */			\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
-	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)				\
+	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)		\
 	/* core ID */						\
-	rdpid   %rdx;						\
-	movq    %rdx, %rax;					\
+	/* rdpid   %rdx; */					\
+	/* movq    %rdx, %rax; */				\
+	rdtscp ;                                                \
+	movq    %rcx, %rax;                                     \
+	andq    $0xFFF, %rax;                                   \
 	/* get per-core scb info */				\
 	movabs  $COS_SCB_INFO_SIZE, %r13;			\
 	imulq   %r13, %rax;	  				\
@@ -311,8 +317,11 @@ __cosrt_fast_callgate_##name:					\
 	movq    $0xdeadbeefdeadbeef, %r15; 			\
 	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)		\
 	/* thread ID and cpu ID */				\
-	rdpid   %rdx;						\
-	movq    %rdx, %rax;                                   \
+	/* rdpid   %rdx; */				        \
+	/* movq    %rdx, %rax; */                               \
+	rdtscp ;                                                \
+	movq    %rcx, %rax;                                     \
+	andq    $0xFFF, %rax;                                   \
 	/* get per-core scb info */				\
 	movabs  $COS_SCB_INFO_SIZE, %r13;			\
 	imulq   %r13, %rax;	  				\
@@ -320,7 +329,7 @@ __cosrt_fast_callgate_##name:					\
 	addq    %r13, %rax;					\
 	/* get thread id out of per-core scb info */		\
 	movq    (%rax), %r13;					\
-	andq    $0xFFFF, %r13;                \
+	andq    $0xFFFF, %r13;                                  \
 	shl	$16, %rdx;					\
 	or	%rdx, %r13;					\
 	COS_ULINV_GET_INVSTK					\
@@ -339,10 +348,13 @@ srv_call_ret_##name:						\
 	movq	%rax, %r8;					\
 	/* save server authentication token */			\
 	movq    $0xdeadbeefdeadbeef, %r15;			\
-	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)				\
+	COS_ULINV_SWITCH_DOMAIN(UL_KERNEL_MPK_KEY)		\
 	/* core ID */						\
-	rdpid   %rdx;						\
-	movq    %rdx, %rax;					\
+	/* rdpid   %rdx; */					\
+	/* movq    %rdx, %rax; */ 				\
+	rdtscp ;                                                \
+	movq    %rcx, %rax;                                     \
+	andq    $0xFFF, %rax;                                   \
 	/* get per-core scb info */				\
 	movabs  $COS_SCB_INFO_SIZE, %r13;			\
 	imulq   %r13, %rax;	  				\
