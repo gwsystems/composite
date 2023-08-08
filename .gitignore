@@ -60,3 +60,4 @@ src/components/lib/libc/musl-1.2.0/include/sys/queue.h
 src/kernel/include/shared/cpu_ghz.h
 src/composer/src/boot_captbl_offset.txt
 tools/offsets
+compile_flags.txt

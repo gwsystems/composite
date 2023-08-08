@@ -18,11 +18,9 @@
  *   corresponds to a system call.
  * - `@return` - the registers to activate on return
  */
-#include <chal_consts.h>
-#include <chal_regs.h>
+#include <cos_regs.h>
 #include <chal.h>
 
-#include <cos_types.h>
 #include <cos_error.h>
 
 #include <compiler.h>

@@ -1,4 +1,4 @@
-#include <chal_regs.h>
+#include <cos_regs.h>
 #include <consts.h>
 #include <chal_state.h>
 #include <assert.h>

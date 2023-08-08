@@ -4,8 +4,6 @@
 #include <kernel.h>
 #include <types.h>
 
-void serial_puts(const char *s);
-
 enum serial_ports
 {
 	SERIAL_PORT_A = 0x3F8,
@@ -22,7 +20,7 @@ serial_recv(void)
 }
 
 static inline void
-serial_send(char out)
+serial_putc(char out)
 {
 	while ((inb(SERIAL_PORT_A + 5) & 0x20) == 0) {
 		/* wait for port to be ready to send */
@@ -30,10 +28,25 @@ serial_send(char out)
 	outb(SERIAL_PORT_A, out);
 }
 
-void
+int
+putc_try(char c)
+{
+	if ((inb(SERIAL_PORT_A + 5) & 0x20) == 0) return -1;
+	outb(SERIAL_PORT_A, c);
+
+	return 0;
+}
+
+static inline void
 serial_puts(const char *s)
 {
-	for (; *s != '\0'; s++) serial_send(*s);
+	for (; *s != '\0'; s++) serial_putc(*s);
+}
+
+void
+puts(const char *s)
+{
+	serial_puts(s);
 }
 
 struct regs *
@@ -50,7 +63,6 @@ void
 serial_init(void)
 {
 	printk("Enabling serial I/O\n");
-	printk_register_handler(serial_puts);
 
 	/* We will initialize the first serial port */
 	outb(SERIAL_PORT_A + 1, 0x00);

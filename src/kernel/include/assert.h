@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chal_regs.h>
+#include <cos_regs.h>
 #include <chal.h>
 #include <compiler.h>
 #include <chal_state.h>

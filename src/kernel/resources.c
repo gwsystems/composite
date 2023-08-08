@@ -118,7 +118,7 @@
 #include <consts.h>
 #include <cos_error.h>
 #include <chal_atomics.h>
-#include <chal_regs.h>
+#include <cos_regs.h>
 
 #include <resources.h>
 #include <thread.h>

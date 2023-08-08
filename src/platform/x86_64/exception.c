@@ -5,7 +5,7 @@
 #include <string.h>
 #include <isr.h>
 #include <chal_cpu.h>
-#include <chal_regs.h>
+#include <cos_regs.h>
 #include <chal_state.h>
 #include <cos_compiler.h>
 

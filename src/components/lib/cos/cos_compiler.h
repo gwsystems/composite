@@ -20,6 +20,7 @@
 #define COS_NEVER_INLINE  __attribute__((noinline))
 /* This function will never return */
 #define COS_NO_RETURN     __attribute__((noreturn))
+#define COS_WEAK          __attribute__((weak))
 
 #ifndef COS_STATIC_ASSERT
 #ifndef __cplusplus

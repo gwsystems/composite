@@ -152,12 +152,9 @@
  *        between components.
  */
 
-#include <cos_types.h>
+#include "cos_chal_regs.h"
 #include <cos_error.h>
-#include <cos_consts.h>
-#include <chal_consts.h>
-#include <chal_types.h>
-#include <chal_regs.h>
+#include <cos_regs.h>
 #include <types.h>
 #include <consts.h>
 
@@ -168,6 +165,7 @@
 #include <pgtbl.h>
 #include <ipc.h>
 #include <chal_state.h>
+#include <kernel.h>
 
 /*
  * Kernel global data-structures.
@@ -595,6 +593,31 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 	return -COS_ERR_NO_OPERATION;
 }
 
+static cos_retval_t
+hw_activation(struct regs *rs, struct capability_hw *cap, cos_cap_t capno, cos_op_bitmap_t ops)
+{
+	if (ops == COS_OP_HW_PRINT) {
+		unsigned int i;
+		unsigned int len = regs_arg(rs, REGS_GEN_ARGS_BASE);
+		unsigned int max_len = sizeof(uword_t) * (REGS_MAX_NUM_ARGS - 1);
+
+		if (len > max_len) len = max_len;
+
+		for (i = 0; i < len; i++) {
+			uword_t r = regs_arg(rs, REGS_GEN_ARGS_BASE + 1 + (i / sizeof(uword_t)));
+
+			if (putc_try(((char *)&r)[i % sizeof(uword_t)])) break;
+		}
+
+		/* How many bytes did we end up writing? */
+		regs_retval(rs, REGS_RETVAL_BASE + 1, i);
+	} else {
+		return -COS_ERR_NO_OPERATION;
+	}
+
+	return COS_RET_SUCCESS;
+}
+
 COS_NEVER_INLINE static struct regs *
 capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
 {
@@ -632,7 +655,7 @@ capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
 	} else if (capability_is_pgtbl(cap->type)) {
 		r = pgtbl_activation(rs, (struct capability_resource *)cap, capno, ops);
 	} else if (cap->type == COS_CAP_TYPE_HW) {
-		;
+		r = hw_activation(rs, (struct capability_hw *)cap, capno, ops);
 	} else if (cap->type == COS_CAP_TYPE_SINV) {
 		;
 	}

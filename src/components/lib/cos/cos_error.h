@@ -51,6 +51,13 @@ typedef word_t         cos_retval_t;
  */
 #define COS_WRAP(off, bound) ((off) & ((bound) - 1))
 
+static inline int
+cos_retval_error(cos_retval_t r)
+{
+	if (r < 0) return 1;
+	return 0;
+}
+
 /*
  * `COS_CHECK`: If the function does not return COS_RET_SUCCESS, then
  * return its error value.

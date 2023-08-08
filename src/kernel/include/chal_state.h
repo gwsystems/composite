@@ -10,7 +10,7 @@
 #ifndef __ASSEMBLER__
 
 #include <types.h>
-#include <chal_regs.h>
+#include <cos_regs.h>
 #include <consts.h>
 #include <state.h>
 #include <compiler.h>

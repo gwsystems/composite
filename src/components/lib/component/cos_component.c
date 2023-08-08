@@ -4,20 +4,23 @@
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  */
-#include <stdio.h>
 
+#include <stdio.h>
 #include <sys/auxv.h>
 
-#include <consts.h>
+#include <cos_regs.h>
+#include <cos_error.h>
+#include <cos_types.h>
+#include <cos_compiler.h>
+
 #include <cos_component.h>
 #include <cos_debug.h>
 #include <cos_kernel_api.h>
+#include <consts.h>
 
 #include <init.h>
 
 #include <ps.h>
-
-CWEAKSYMB int cos_sched_notifications;
 
 /*
  * __crt_main is just used to identify if the user has defined their
@@ -30,7 +33,7 @@ __crt_main(void)
 }
 COS_FN_WEAKALIAS(main, __crt_main);
 
-CWEAKSYMB void
+COS_WEAK void
 cos_init()
 {
 	return;
@@ -70,24 +73,24 @@ cos_main(void)
 }
 
 /* Intended to be implement by libraries */
-CWEAKSYMB void
+COS_WEAK void
 pre_syscall_default_setup()
 {
 }
 
 /* Intended to be overriden by components */
-CWEAKSYMB void
+COS_WEAK void
 pre_syscall_setup()
 {
 	pre_syscall_default_setup();
 }
 
-CWEAKSYMB void
+COS_WEAK void
 syscall_emulation_setup()
 {
 }
 
-CWEAKSYMB long
+COS_WEAK long
 cos_syscall_handler(int syscall_num, long a, long b, long c, long d, long e, long f, long g)
 {
 	printc("Default syscall handler called (syscall: %d, first arg: %ld), faulting!", syscall_num, a);
@@ -101,17 +104,17 @@ __cos_syscall(int syscall_num, long a, long b, long c, long d, long e, long f, l
 	return cos_syscall_handler(syscall_num, a, b, c, d, e, f, g);
 }
 
-CWEAKSYMB void
+COS_WEAK void
 libc_initialization_handler()
 {
 }
 
-CWEAKSYMB void
+COS_WEAK void
 libc_posixcap_initialization_handler()
 {
 }
 
-CWEAKSYMB void
+COS_WEAK void
 libc_posixsched_initialization_handler()
 {
 }
@@ -150,57 +153,61 @@ libc_init()
 	__init_libc(envp, program_name);
 }
 
-CWEAKSYMB void
+COS_WEAK void
 cos_upcall_exec(void *arg)
 {
 }
 
-CWEAKSYMB int
+COS_WEAK int
 cos_async_inv(struct usr_inv_cap *ucap, int *params)
 {
 	return 0;
 }
 
-CWEAKSYMB int
+COS_WEAK int
 cos_thd_entry_static(u32_t idx)
 {
 	assert(0);
 	return 0;
 }
 
-CWEAKSYMB int
-cos_print_str(char *s, int len)
+/*
+ * Print a string of a given length to the debugging (i.e. serial)
+ * output. Will return the number of bytes written (which must be less
+ * than or equal to `len`). This will often make many system calls,
+ * many of which polling serial availability.
+ */
+COS_WEAK int
+cos_print_str(char *s, uword_t len)
 {
-	int written = 0;
+	uword_t written = 0;
 
 	while (written < len) {
-		u32_t *s_ints = (u32_t *)&s[written];
-		int ret;
+		cos_retval_t ret;
+		uword_t max_amnt = (REGS_MAX_NUM_ARGS - 1) * sizeof(uword_t);
+		uword_t left = len - written;
+		uword_t as[REGS_MAX_NUM_ARGS - 1];
+		uword_t amnt;
+		int i;
 
-		ret = call_cap(PRINT_CAP_TEMP, s_ints[0], s_ints[1], s_ints[2], len - written);
-		/* Bomb out. Can't use a print out here as we must avoid recursion. */
-		if (ret < 0) written = *(int *)NULL;
-		written += ret;
+		if (left > max_amnt) {
+			amnt = max_amnt;
+		} else {
+			amnt = left;
+		}
+
+		memcpy(as, s + written, amnt);
+
+		cos_syscall_9_4(COS_CAPTBL_DEFAULT_HW, COS_OP_HW_PRINT,
+				amnt, as[0], as[1], as[2], as[3], as[4], as[5], as[6], as[7],
+				(uword_t *)&ret, &amnt, NULL, NULL);
+
+		written += amnt;
+
+		if (cos_retval_error(ret)) break;
 	}
 
 	return written;
-}
-
-
-const char *cos_print_lvl[PRINT_LEVEL_MAX] = {
-	"ERR:",
-	"WARN:",
-	"DBG:",
-};
-
-int cos_print_level   = PRINT_ERROR;
-int cos_print_lvl_str = 0;
-
-CWEAKSYMB void
-cos_print_level_set(cos_print_level_t lvl, int print_str)
-{
-	cos_print_level   = lvl;
-	cos_print_lvl_str = print_str;
 }
 
 /*
@@ -280,7 +287,7 @@ start_execution(coreid_t cid, int init_core, int ncores)
 }
 
 #if defined(__arm__)
-CWEAKSYMB vaddr_t
+COS_WEAK vaddr_t
 cos_inv_cap_set(struct usr_inv_cap *uc)
 {
 	set_stk_data(INVCAP_OFFSET, (long)uc);
@@ -289,7 +296,7 @@ cos_inv_cap_set(struct usr_inv_cap *uc)
 }
 #endif
 
-CWEAKSYMB void
+COS_WEAK void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	static int first = 1;
@@ -315,7 +322,6 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 			__cosrt_comp_info.cos_heap_ptr = round_up_to_page((vaddr_t)&__crt_static_heap_ptr);
 		}
 
-		cos_print_level_set(PRINT_DEBUG, 1);
 		/* The syscall enumlator might need something to be setup before it can work */
 		pre_syscall_setup();
 		/* libc needs syscall emulation to work */
@@ -339,41 +345,31 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		perfcntr_init();
 	}
 
-	switch (t) {
-        /* New thread creation method passes in this option. */
-	case COS_UPCALL_THD_CREATE:
-	{
-		/* A new thread is created in this comp. */
+	assert(t == COS_UPCALL_THD_CREATE);
+	/* A new thread is created in this comp. */
 
-		/* arg1 is the thread init data. 0 means
-		 * bootstrap. */
-		if (arg1 == 0) {
-			static unsigned long first_core = 1;
+	/* arg1 is the thread init data. 0 means bootstrap. */
+	if (arg1 == 0) {
+		static unsigned long first_core = 1;
 
-			/* FIXME: assume that core 0 is the initial core for now */
-			start_execution(cos_coreid(), ps_cas(&first_core, 1, 0), init_parallelism());
+		/* FIXME: assume that core 0 is the initial core for now */
+		start_execution(cos_coreid(), ps_cas(&first_core, 1, 0), init_parallelism());
+	} else {
+		word_t idx = (word_t)arg1 - 1;
+		if (idx >= COS_THD_INIT_REGION_SIZE) {
+			/* This means static defined entry */
+			cos_thd_entry_static(idx - COS_THD_INIT_REGION_SIZE);
 		} else {
-			word_t idx = (word_t)arg1 - 1;
-			if (idx >= COS_THD_INIT_REGION_SIZE) {
-				/* This means static defined entry */
-				cos_thd_entry_static(idx - COS_THD_INIT_REGION_SIZE);
-			} else {
-				/* Execute dynamic allocated entry. */
-				cos_thd_entry_exec(idx);
-			}
+			/* Execute dynamic allocated entry. */
+			cos_thd_entry_exec(idx);
 		}
-		break;
-	}
-	default:
-		/* fault! */
-		assert(0);
 	}
 	assert(0); 		/* should *not* return from threads */
 
 	return;
 }
 
-CWEAKSYMB void *
+COS_WEAK void *
 cos_get_vas_page(void)
 {
 	char *h;
@@ -385,7 +381,7 @@ cos_get_vas_page(void)
 	return h;
 }
 
-CWEAKSYMB void
+COS_WEAK void
 cos_release_vas_page(void *p)
 {
 	cos_set_heap_ptr_conditional(p + PAGE_SIZE, p);
@@ -398,7 +394,7 @@ extern const vaddr_t __cosrt_upcall_entry;
 
 extern const vaddr_t cos_ainv_entry;
 
-CWEAKSYMB vaddr_t ST_user_caps;
+COS_WEAK vaddr_t ST_user_caps;
 
 /*
  * Much of this is either initialized at load time, or passed to the
@@ -420,8 +416,8 @@ struct cos_component_information __cosrt_comp_info =
 	  .cos_poly = {0,}
 	};
 
-CWEAKSYMB long _binary_tar_binary_start = 0;
-CWEAKSYMB long _binary_tar_binary_end = 0;
+COS_WEAK long _binary_tar_binary_start = 0;
+COS_WEAK long _binary_tar_binary_end = 0;
 
 char *
 cos_initargs_tar(void)

@@ -73,7 +73,7 @@
 #define COS_OP_THD_CALL                 524288
 #define COS_OP_THD_REPLY_WAIT           1048576
 #define COS_OP_THD_SCHEDULE             2097152
-#define COS_OP_HW                       4194304
+#define COS_OP_HW_PRINT                 4194304
 #define COS_OP_CAP_COPY                 8388608
 #define COS_OP_ALL                      16777215
 
@@ -153,3 +153,5 @@
 #define COS_THD_STATE_EVT_TRIGGERED  6   /* after calling await_asnd */
 
 #define COS_ASSERTIONS_ACTIVE 1
+
+#define COS_CAPTBL_DEFAULT_HW 1

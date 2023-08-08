@@ -21,7 +21,7 @@
 #define CHAL_H
 
 #include <types.h>
-#include <chal_regs.h>
+#include <cos_regs.h>
 
 /*
  * Namespacing in the cHAL: chal_<family>_<operation>(...).  <family>

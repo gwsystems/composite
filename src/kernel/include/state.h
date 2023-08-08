@@ -2,7 +2,7 @@
 
 #include <types.h>
 #include <consts.h>
-#include <chal_regs.h>
+#include <cos_regs.h>
 
 #include <compiler.h>
 #include <component.h>

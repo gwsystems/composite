@@ -1,27 +1,28 @@
 #pragma once
 
+#define REG_STATE_PREEMPTED 0 /* The registers must be fully restored as they represent preempted state */
+#define REG_STATE_SYSCALL   1 /* The registers don't require full restoration, and can use fastpaths */
+
 /***
  * First, the kernel utilities to store registers, map them between
  * the assembly that saves them, and the structures that organizes
  * them, and the meta-data that tracks their state.
  */
 
-#define REG_STATE_PREEMPTED 0 /* The registers must be fully restored as they represent preempted state */
-#define REG_STATE_SYSCALL   1 /* The registers don't require full restoration, and can use `sysret` */
-
 #define REGS_NUM_ARGS_RETS  12	/* # general purpose registers - clobbered registers are part of the syscall (i.e. 2) */
 #define REGS_RETVAL_BASE    0
 #define REGS_MAX_NUM_ARGS   9 	/* REGS_NUM_ARGS_RETS - 3 (for sinv: coreid/thdid/token or call: thdid/epid/token) */
-#define REGS_GEN_ARGS_BASE  3	/* where the general purpose arguments begin */
+#define REGS_GEN_ARGS_BASE  3    /* where the general purpose arguments begin */
 
 /* Arguments to capability activations/system calls */
 #define REGS_ARG_CAP        0
 #define REGS_ARG_OPS        1
-/* Arguments passed on upcalls (e.g. synchronous invocations) */
+/* Arguments passed on upcalls (e.g. synchronous invocations): */
 #define REGS_ARG_COREID     0
 #define REGS_ARG_THDID      1
-#define REGS_ARG_TOKEN      2
+#define REGS_ARG_TOKEN      2 	/* invocation token for invocation, endpoint for sync RPC */
 
+/* rflags value during upcalls */
 #define REGS_RFLAGS_DEFAULT  0x3200
 #define REGS_TRAPFRAME_SZ    0x30
 #define REGS_STATE_ERROR_SZ  0x10 /* The size of the state/type plus the error code */
@@ -57,6 +58,13 @@
  *
  * Note that the last push of the `1` sets the register state so
  * that the calling convention is for a system call.
+ */
+
+/*
+ * x86_64 calling conventions pass arguments in `rdi`, `rsi`, `rdx`,
+ * `rcx`, `r8`, `r9`, and return value in `rax`. So we want arguments
+ * to be naturally placed in registers so that the receiving end of an
+ * invocation can easily call the corresponding function.
  */
 #define PUSH_REGS_GENERAL	\
 	pushq PREFIX(r15);	\
@@ -167,11 +175,11 @@
 
 #ifndef __ASSEMBLER__
 
-#include <compiler.h>
+#include <cos_compiler.h>
 #include <cos_consts.h>
 #include <cos_types.h>
-#include <chal_consts.h>
-#include <chal_types.h>
+#include <cos_consts.h>
+#include <cos_types.h>
 
 /***
  * Kernel-level register manipulation functions. Used to define the
@@ -305,8 +313,8 @@ userlevel_eager_return_syscall(struct regs *rs)
 COS_FASTPATH COS_NO_RETURN static inline void
 userlevel_eager_return(struct regs *rs)
 {
-	if (rs->state == REG_STATE_PREEMPTED)    ASM_TRAP_RETURN(rs);
-	else if (rs->state == REG_STATE_SYSCALL) ASM_SYSCALL_RETURN(rs);
+	if (likely(rs->state == REG_STATE_SYSCALL)) ASM_SYSCALL_RETURN(rs);
+	else if (rs->state == REG_STATE_PREEMPTED)  ASM_TRAP_RETURN(rs);
 
 	while (1) ;
 }
@@ -378,14 +386,9 @@ struct fpu_regs {
  * Conventions for these arguments when we're making a typical system
  * call include:
  *
- * - `0`: the capability activated with the system call
- * - `1` - `REGS_NUM_ARGS_RETS`: Activation arguments
- *
- * Conventions for returning from a synchronous invocation or
- * calling `reply_and_wait` include:
- *
- * - `0` - normal function return value
- * - `1` - `REGS_NUM_ARGS_RETS` - additional return values
+ * - `REGS_ARG_CAP`: the capability activated with the system call
+ * - `REGS_ARG_OPS`: the operation for the invocation
+ * - [`REGS_GEN_ARGS_BASE`, `REGS_GEN_ARGS_BASE` + `REGS_NUM_ARGS_RETS`): General arguments
  */
 COS_FORCE_INLINE static inline uword_t
 regs_arg(struct regs *rs, int argno)
@@ -529,12 +532,12 @@ regs_prepare_ipc_retvals(struct regs *rs, thdid_t thdid, id_token_t ep_id, inv_t
  * with the push %rbp/%rsp. That means, the push might corrupt some
  * stack local variables. Thus, instead of using push instruction, we
  * use mov instruction to first save them to a stack local
- * position(frame_ctx) and then pass the address of the frame_ctx to
- * the kernel rather than the sp. When the syscall returns, the kernel
- * will restore the sp to the address of frame_ctx, thus we can simply
- * use two pops to restore the original bp and sp.
+ * position(regs_frame_ctx) and then pass the address of the frame_ctx
+ * to the kernel rather than the sp. When the syscall returns, the
+ * kernel will restore the sp to the address of regs_frame_ctx, thus
+ * we can simply use two pops to restore the original bp and sp.
  */
-struct frame_ctx {
+struct regs_frame_ctx {
 	uword_t bp;
 	uword_t sp;
 };
@@ -542,20 +545,20 @@ struct frame_ctx {
 #define REGS_CTXT_BP_OFF 0
 #define REGS_CTXT_SP_OFF 8
 
-COS_STATIC_ASSERT(REGS_CTXT_SP_OFF == offsetof(struct frame_ctx, sp),
+COS_STATIC_ASSERT(REGS_CTXT_SP_OFF == offsetof(struct regs_frame_ctx, sp),
 		  "Offset for stack pointer in system call context is inconsistent");
-COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct frame_ctx, bp),
+COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct regs_frame_ctx, bp),
 		  "Offset for base pointer in system call context is inconsistent");
 
 #define REGS_SYSCALL_CTXT						\
-	struct frame_ctx frame_ctx;					\
+	struct regs_frame_ctx frame_ctx;				\
 	register uword_t r11_ctx __asm__("r11") = (uword_t)&frame_ctx
 
 /*
  * The `syscall` instruction saves the instruction pointer after the
  * `syscall` into `rcx`, and the `rflags` into `r11`. This assembly
  * assumes that incoming 1. `rcx` holds a pointer to the `struct
- * frame_ctxt` we'll use to save sp/bp, 2. that we cannot include
+ * regs_frame_ctx` we'll use to save sp/bp, 2. that we cannot include
  * `rbp` in any of the inline-assembly input/output/clobber lists, so
  * we need to manually save/restore that.
  */
@@ -576,57 +579,74 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct frame_ctx, bp),
  * this way, we'll do it this way.
  * https://git.musl-libc.org/cgit/musl/tree/arch/x86_64/syscall_arch.h
  */
+
+/* Rest of the args are in the input inline asm list */
 #define REGS_SYSCALL_DECL_ARGS4				\
-	register uword_t r8 __asm__("r8")   = a3
+	uword_t filler;					\
+	register uword_t r8 __asm__("r8")   = a2
 
-#define REGS_SYSCALL_DECL_ARGS10			\
+#define REGS_SYSCALL_DECL_ARGS9				\
 	REGS_SYSCALL_DECL_ARGS4;			\
-	register uword_t r9  __asm__("r9")  = a4;	\
-	register uword_t r10 __asm__("r10") = a5;	\
-	register uword_t r12 __asm__("r12") = a6;	\
-	register uword_t r13 __asm__("r13") = a7;	\
-	register uword_t r14 __asm__("r14") = a8;	\
-	register uword_t r15 __asm__("r15") = a9
+	register uword_t r9  __asm__("r9")  = a3;	\
+	register uword_t r10 __asm__("r10") = a4;	\
+	register uword_t r12 __asm__("r12") = a5;	\
+	register uword_t r13 __asm__("r13") = a6;	\
+	register uword_t r14 __asm__("r14") = a7;	\
+	register uword_t r15 __asm__("r15") = a8
 
-#define REGS_SYSCALL_DECL_RETS10			\
-	register uword_t rr4  __asm__("r9");		\
-	register uword_t rr5 __asm__("r10");		\
-	register uword_t rr6 __asm__("r12");		\
-	register uword_t rr7 __asm__("r13");		\
-	register uword_t rr8 __asm__("r14");		\
-	register uword_t rr9 __asm__("r15")
+#define REGS_SYSCALL_DECL_RETS4				\
+	register uword_t rr2 __asm__("r8");		\
+	register uword_t rr3 __asm__("r9");
 
-#define REGS_SYSCALL_DECL_POSTRETS10			\
+#define REGS_SYSCALL_DECL_RETS9				\
+	REGS_SYSCALL_DECL_RETS4;			\
+	register uword_t rr4 __asm__("r10");		\
+	register uword_t rr5 __asm__("r12");		\
+	register uword_t rr6 __asm__("r13");		\
+	register uword_t rr7 __asm__("r14");		\
+	register uword_t rr8 __asm__("r15")
+
+#define REGS_SYSCALL_DECL_POSTRETS4			\
+	*ret2 = rr2;					\
+	*ret3 = rr3
+
+#define REGS_SYSCALL_DECL_POSTRETS9			\
+	REGS_SYSCALL_DECL_POSTRETS4;			\
 	*ret4 = rr4;					\
 	*ret5 = rr5;					\
 	*ret6 = rr6;					\
 	*ret7 = rr7;					\
-	*ret8 = rr8;					\
-	*ret9 = rr9
+	*ret8 = rr8
 
 #define REGS_SYSCALL_RET1			\
-	"=a" (*ret0)
+	"=S" (*ret0)
 
 #define REGS_SYSCALL_RET4					\
-	REGS_SYSCALL_RET1, "=b" (*ret1), "=d" (*ret2), "=S" (*ret3)
+	REGS_SYSCALL_RET1, "=D" (*ret1), "=r" (rr2), "=r" (rr3)
 
-#define REGS_SYSCALL_RET10					\
-	REGS_SYSCALL_RET4, "=r" (rr4), "=r" (rr5), "=r" (rr6), "=r" (rr7), "=r" (rr8), "=r" (rr9)
+#define REGS_SYSCALL_RET9						\
+	REGS_SYSCALL_RET4, "=r" (rr4), "=r" (rr5), "=r" (rr6), "=r" (rr7), "=r" (rr8)
 
 #define REGS_SYSCALL_ARG4						\
-	"r" (r11_ctx), "a" (cap), "b" (ops), "d" (a0), "S" (a1), "D" (a2), "r" (r8)
+	"r" (r11_ctx), "a" (cap), "b" (ops), "d" (filler), "S" (a0), "D" (a1), "r" (r8)
 
-#define REGS_SYSCALL_ARG10						\
+#define REGS_SYSCALL_ARG9						\
 	REGS_SYSCALL_ARG4, "r" (r9), "r" (r10), "r" (r12), "r" (r13), "r" (r14), "r" (r15)
 
 #define REGS_SYSCALL_CLOBBER_BASE		\
-	"memory", "rcx", "r11"
+	"memory", "cc"
 
 #define REGS_SYSCALL_CLOBBER4						\
-	REGS_SYSCALL_CLOBBER_BASE, "r9", "r10", "r12", "r13", "r14", "r15"
+	REGS_SYSCALL_CLOBBER_BASE, "r10", "r12", "r13", "r14", "r15"
 
-#define REGS_SYSCALL_CLOBBER10						\
+#define REGS_SYSCALL_CLOBBER9						\
 	REGS_SYSCALL_CLOBBER_BASE
+
+#define REGS_SYSCALL_FN_ARGS4 uword_t a0, uword_t a1, uword_t a2, uword_t a3
+#define REGS_SYSCALL_FN_ARGS9 REGS_SYSCALL_FN_ARGS4, uword_t a4, uword_t a5, uword_t a6, uword_t a7, uword_t a8
+#define REGS_SYSCALL_FN_RETS1 uword_t *ret0
+#define REGS_SYSCALL_FN_RETS4 REGS_SYSCALL_FN_RETS1, uword_t *ret1, uword_t *ret2, uword_t *ret3
+#define REGS_SYSCALL_FN_RETS9 REGS_SYSCALL_FN_RETS4, uword_t *ret4, uword_t *ret5, uword_t *ret6, uword_t *ret7, uword_t *ret8
 
 /**
  * The `regs_syscall_x_y` functions make a system call, passing `x`
@@ -643,7 +663,7 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct frame_ctx, bp),
  */
 
 COS_FORCE_INLINE static inline void
-regs_syscall_4_1(cos_cap_t cap, cos_op_bitmap_t ops, uword_t a0, uword_t a1, uword_t a2, uword_t a3, uword_t *ret0) {
+cos_syscall_4_1(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS4, REGS_SYSCALL_FN_RETS1) {
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS4;
 
@@ -654,56 +674,51 @@ regs_syscall_4_1(cos_cap_t cap, cos_op_bitmap_t ops, uword_t a0, uword_t a1, uwo
 }
 
 COS_FORCE_INLINE static inline void
-regs_syscall_4_4(cos_cap_t cap, cos_op_bitmap_t ops,
-		 uword_t a0, uword_t a1, uword_t a2, uword_t a3,
-		 uword_t *ret0, uword_t *ret1, uword_t *ret2, uword_t *ret3) {
+cos_syscall_4_4(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS4, REGS_SYSCALL_FN_RETS4) {
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS4;
+	REGS_SYSCALL_DECL_RETS4;
 	asm volatile(REGS_SYSCALL_TEMPLATE
 		     : REGS_SYSCALL_RET4
 		     : REGS_SYSCALL_ARG4
 		     : REGS_SYSCALL_CLOBBER4);
+	REGS_SYSCALL_DECL_POSTRETS4;
 }
 
 COS_FORCE_INLINE static inline void
-regs_syscall_10_1(cos_cap_t cap, cos_op_bitmap_t ops,
-		  uword_t a0, uword_t a1, uword_t a2, uword_t a3, uword_t a4, uword_t a5,
-		  uword_t a6, uword_t a7, uword_t a8, uword_t a9, uword_t *ret0) {
+cos_syscall_9_1(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, REGS_SYSCALL_FN_RETS1) {
 	REGS_SYSCALL_CTXT;
-	REGS_SYSCALL_DECL_ARGS10;
+	REGS_SYSCALL_DECL_ARGS9;
 	asm volatile(REGS_SYSCALL_TEMPLATE
 		     : REGS_SYSCALL_RET1
-		     : REGS_SYSCALL_ARG10
-		     : REGS_SYSCALL_CLOBBER10);
+		     : REGS_SYSCALL_ARG9
+		     : REGS_SYSCALL_CLOBBER9);
 }
 
 COS_FORCE_INLINE static inline void
-regs_syscall_10_4(cos_cap_t cap, cos_op_bitmap_t ops,
-		  uword_t a0, uword_t a1, uword_t a2, uword_t a3, uword_t a4, uword_t a5,
-		  uword_t a6, uword_t a7, uword_t a8, uword_t a9,
-		  uword_t *ret0, uword_t *ret1, uword_t *ret2, uword_t *ret3) {
+cos_syscall_9_4(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, REGS_SYSCALL_FN_RETS4)
+{
 	REGS_SYSCALL_CTXT;
-	REGS_SYSCALL_DECL_ARGS10;
+	REGS_SYSCALL_DECL_ARGS9;
+	REGS_SYSCALL_DECL_RETS4;
 	asm volatile(REGS_SYSCALL_TEMPLATE
 		     : REGS_SYSCALL_RET4
-		     : REGS_SYSCALL_ARG10
-		     : REGS_SYSCALL_CLOBBER10);
+		     : REGS_SYSCALL_ARG9
+		     : REGS_SYSCALL_CLOBBER9);
+	REGS_SYSCALL_DECL_POSTRETS4;
 }
 
 COS_FORCE_INLINE static inline void
-regs_syscall_10_10(cos_cap_t cap, cos_op_bitmap_t ops,
-		   uword_t a0, uword_t a1, uword_t a2, uword_t a3, uword_t a4, uword_t a5,
-		   uword_t a6, uword_t a7, uword_t a8, uword_t a9,
-		   uword_t *ret0, uword_t *ret1, uword_t *ret2, uword_t *ret3, uword_t *ret4,
-		   uword_t *ret5, uword_t *ret6, uword_t *ret7, uword_t *ret8, uword_t *ret9) {
+cos_syscall_9_9(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, REGS_SYSCALL_FN_RETS9)
+{
 	REGS_SYSCALL_CTXT;
-	REGS_SYSCALL_DECL_ARGS10;
-	REGS_SYSCALL_DECL_RETS10;
+	REGS_SYSCALL_DECL_ARGS9;
+	REGS_SYSCALL_DECL_RETS9;
 	asm volatile(REGS_SYSCALL_TEMPLATE
-		     : REGS_SYSCALL_RET10
-		     : REGS_SYSCALL_ARG10
-		     : REGS_SYSCALL_CLOBBER10);
-	REGS_SYSCALL_DECL_POSTRETS10;
+		     : REGS_SYSCALL_RET9
+		     : REGS_SYSCALL_ARG9
+		     : REGS_SYSCALL_CLOBBER9);
+	REGS_SYSCALL_DECL_POSTRETS9;
 }
 
 #endif	/* !__ASSEMBLER__ */

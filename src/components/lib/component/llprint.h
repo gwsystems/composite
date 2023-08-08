@@ -9,12 +9,12 @@
 #include <cos_serial.h>
 
 static void
-cos_llprint(char *s, int len)
+cos_llprint(char *s, uword_t len)
 {
 	cos_serial_putb(s, len);
 }
 
-int cos_print_str(char *s, int len);
+int cos_print_str(char *s, uword_t len);
 
 static int
 prints(char *s)
@@ -32,31 +32,13 @@ printc(char *fmt, ...)
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, 180, fmt, arg_ptr);
 	va_end(arg_ptr);
-	ret = cos_print_str(s, ret);
+	ret = cos_print_str(s, (uword_t)ret);
 
 	return ret;
 }
 
-typedef enum {
-	PRINT_ERROR = 0, /* print only error messages */
-	PRINT_WARN,	 /* print errors and warnings */
-	PRINT_DEBUG,	 /* print errors, warnings and debug messages */
-	PRINT_LEVEL_MAX
-} cos_print_level_t;
-
-extern int         cos_print_level;
-extern int         cos_print_lvl_str;
-extern const char *cos_print_lvl[];
-
 /* Prints with current (cpuid, thdid, spdid) */
 #define PRINTC(format, ...) printc("(%ld,%lu,%lu) " format, cos_cpuid(), cos_thdid(), cos_compid(), ## __VA_ARGS__)
-/* Prints only if @level is <= cos_print_level */
-#define PRINTLOG(level, format, ...)                                                          \
-	{                                                                                     \
-		if (level <= cos_print_level) {                                               \
-			PRINTC("%s" format,                                                   \
-			       cos_print_lvl_str ? cos_print_lvl[level] : "", ##__VA_ARGS__); \
-		}                                                                             \
-	}
+#define PRINTLOG(level, format, ...) PRINTC(format, ##__VA_ARGS__)
 
 #endif /* LLPRINT_H */

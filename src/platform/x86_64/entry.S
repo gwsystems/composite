@@ -1,4 +1,4 @@
-#include <chal_regs.h>
+#include <cos_regs.h>
 #include <chal_state.h>
 
 /* The entire IPC path should be in __ipc_entry section. */

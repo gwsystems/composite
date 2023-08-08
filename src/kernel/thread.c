@@ -1,7 +1,6 @@
-#include "chal_regs.h"
-#include "consts.h"
-#include "cos_types.h"
-#include "types.h"
+#include <cos_regs.h>
+#include <consts.h>
+#include <types.h>
 #include <cos_consts.h>
 #include <cos_error.h>
 #include <resources.h>

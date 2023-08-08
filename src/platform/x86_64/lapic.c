@@ -1,12 +1,12 @@
-#include <chal_regs.h>
+#include <cos_regs.h>
 #include <chal.h>
 #include <chal_state.h>
 #include <kernel.h>
 #include <chal_cpu.h>
 #include <assert.h>
 #include <isr.h>
-#include <cos_types.h>
-#include <cos_consts.h>
+#include <types.h>
+#include <consts.h>
 #include <cos_system.h>
 
 #define APIC_DEFAULT_PHYS 0xfee00000
