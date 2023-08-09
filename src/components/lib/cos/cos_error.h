@@ -14,7 +14,7 @@
  */
 
 #include <cos_types.h>
-#include <compiler.h>
+#include <cos_compiler.h>
 
 /* Nominal and error return values */
 #define COS_RET_SUCCESS                  0  /* Successful operation! */
@@ -41,7 +41,7 @@
  * COS_ERR_* values. Other values are either COS_RET_SUCCESS, or a
  * non-negative return value.
  */
-typedef word_t         cos_retval_t;
+typedef sword_t         cos_retval_t;
 
 /*
  * `COS_WRAP`: Wrap an offset into a fixed-size, power of two-sized

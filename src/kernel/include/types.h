@@ -14,7 +14,7 @@ typedef pageref_t      pgtbl_ref_t;       /* indirect reference to a page-table 
 typedef pageref_t      captbl_ref_t;      /* indirect reference to a capability-table */
 typedef u64_t          liveness_t;        /* liveness value to determine if there are parallel references */
 typedef u64_t          epoch_t;	          /* epoch to be used for versioned pointers */
-typedef u64_t          refcnt_t;          /* type of a specific reference counter */
+typedef u32_t          refcnt_t;          /* type of a specific reference counter */
 
 typedef u8_t           page_type_t;       /* tag for each page's type+kerntype used for retyping */
 typedef u8_t           page_kerntype_t;

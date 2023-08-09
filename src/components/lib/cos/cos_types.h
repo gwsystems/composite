@@ -14,15 +14,26 @@
 
 /* Utility types */
 
-typedef unsigned long  u64_t;
-typedef unsigned int   u32_t;
-typedef unsigned short u16_t;
-typedef unsigned char  u8_t;
-/* We're assuming here that `long` is 4 bytes (8 bytes) on 32 (64)-bit architectures */
+typedef unsigned long long u64_t;
+typedef unsigned int       u32_t;
+typedef unsigned short     u16_t;
+typedef unsigned char      u8_t;
+typedef signed long long   s64_t;
+typedef signed int         s32_t;
+typedef signed short       s16_t;
+typedef signed char        s8_t;
+/*
+ * We're assuming here that `long` is 4 bytes (8 bytes) on 32 (64)-bit
+ * architectures. This is *not* true on Windows, but should be
+ * everywhere else. We don't have plans of running Windows code
+ * outside of a VM, so this should not be prohibitive. Be wary of this
+ * if you try and port Windows libraries.
+ */
 typedef unsigned long  uword_t;	          /* Unsigned machine word */
-typedef long           word_t;	          /* Signed machine word */
+typedef uword_t        word_t;            /* Alias for uword_t. Please be explicit and use uword_t instead. */
+typedef long           sword_t;	          /* Signed machine word */
 
-typedef u16_t          coreid_t;          /* A specific core. */
+typedef u16_t          coreid_t; /* A specific core. */
 typedef uword_t        thdid_t;	          /* A thread's id. */
 
 typedef uword_t        inv_token_t;       /* the token passed to a server when synchronously invoked */
@@ -62,3 +73,14 @@ struct ulk_invstk {
 
 COS_STATIC_ASSERT(ULK_INVSTK_SZ == sizeof(struct ulk_invstk),
 	"User-level invocation stack");
+
+/*
+ * A temporary hack to maintain the old types. The goal here is to
+ * transition all code that depends on this to the new APIs, then to
+ * remove that old code. All code in the previous `shared/`
+ * directories (shared between user and kernel-code) should be
+ * removed, and replaced with the `components/lib/cos/` logic.
+ */
+#ifndef __KERNEL__
+#include "cos_types_deprecated.h"
+#endif

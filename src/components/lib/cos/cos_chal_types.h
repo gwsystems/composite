@@ -1,4 +1,10 @@
+/*
+ * Do NOT include this file. Instead, include cos_types.h.
+ */
+
 #pragma once
+
+
 
 /* x86_64 prot_domain_t bits:
  *

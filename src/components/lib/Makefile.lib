@@ -16,7 +16,7 @@ SOURCE_DEPENDENCIES +=$(CFILES:%.c=%.d)
 
 .PHONY: all clean init distclean print
 
-all: print $(SHLIB_FILE) $(SHLIB_BIN) compile_flags.txt
+all: compile_flags.txt print $(SHLIB_FILE) $(SHLIB_BIN)
 
 print:
 	$(info Building library files in $(LIBNAME))
@@ -35,7 +35,7 @@ $(SHLIB_FILE): $(OBJS)
 
 %.o:%.c
 	$(info |     [CC]   Compiling C file $< into $@)
-	@$(CC) $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $<
+	$(CC) $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $<
 
 compile_flags.txt:
 	echo $(DEPENDENCY_INCPATH) | tr " " "\n" > $@

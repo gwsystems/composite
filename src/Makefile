@@ -17,7 +17,7 @@ composer:
 	$(info ************ Building the Composer ************)
 	$(info ***********************************************)
 	$(info )
-	@gcc $(TOOL_DIR)/offsets.c -o $(TOOL_DIR)/offsets
+	@gcc -D__KERNEL__ $(TOOL_DIR)/offsets.c -o $(TOOL_DIR)/offsets
 	@$(TOOL_DIR)/offsets | grep "BOOT_CAPTBL_FREE" | awk '{ print $$2 }' > ./composer/src/boot_captbl_offset.txt
 	cd composer/ ; cargo build
 

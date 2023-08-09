@@ -152,7 +152,6 @@
  *        between components.
  */
 
-#include "cos_chal_regs.h"
 #include <cos_error.h>
 #include <cos_regs.h>
 #include <types.h>

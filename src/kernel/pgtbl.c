@@ -40,7 +40,7 @@ pgtbl_construct(pgtbl_ref_t top, uword_t offset, pgtbl_ref_t bottom, uword_t per
 		if (top_node->next[offset]) return -COS_ERR_ALREADY_EXISTS;
 
 		/* Updates! */
-		if (!cas64(&top_node->next[offset], 0, pgtbl_arch_entry_pack(bottom, perm))) return -COS_ERR_ALREADY_EXISTS;
+		if (!cas_w(&top_node->next[offset], 0, pgtbl_arch_entry_pack(bottom, perm))) return -COS_ERR_ALREADY_EXISTS;
 	} else {
 		struct pgtbl_internal *top_node;
 
@@ -49,11 +49,11 @@ pgtbl_construct(pgtbl_ref_t top, uword_t offset, pgtbl_ref_t bottom, uword_t per
 		if (top_node->next[offset]) return -COS_ERR_ALREADY_EXISTS;
 
 		/* Updates! */
-		if (!cas64(&top_node->next[offset], 0, pgtbl_arch_entry_pack(bottom, perm))) return -COS_ERR_ALREADY_EXISTS;
+		if (!cas_w(&top_node->next[offset], 0, pgtbl_arch_entry_pack(bottom, perm))) return -COS_ERR_ALREADY_EXISTS;
 	}
 
-	faa(&top_type->refcnt, 1);
-	faa(&bottom_type->refcnt, 1);
+	faa32(&top_type->refcnt, 1);
+	faa32(&bottom_type->refcnt, 1);
 
 	return COS_RET_SUCCESS;
 }
@@ -84,9 +84,9 @@ pgtbl_deconstruct(pgtbl_ref_t top, uword_t offset)
 	ref2page(bottom, NULL, &bottom_type);
 
 	/* updates! */
-	if (!cas64(&top_node->next[offset], entry, PGTBL_ARCH_ENTRY_NULL)) return -COS_ERR_NO_MATCH;
-	faa(&top_type->refcnt, -1);
-	faa(&bottom_type->refcnt, -1);
+	if (!cas_w(&top_node->next[offset], entry, PGTBL_ARCH_ENTRY_NULL)) return -COS_ERR_NO_MATCH;
+	faa32(&top_type->refcnt, -1);
+	faa32(&bottom_type->refcnt, -1);
 
 	return COS_RET_SUCCESS;
 }
@@ -121,9 +121,9 @@ pgtbl_map(pgtbl_ref_t pt, uword_t offset, pageref_t page, uword_t perm)
 	}
 
 	/* Updates! */
-	if (!cas64(&pt_node->next[offset], 0, pgtbl_arch_entry_pack(page, perm))) return -COS_ERR_ALREADY_EXISTS;
-	faa(&pt_type->refcnt, 1);
-	faa(&mem_type->refcnt, 1);
+	if (!cas_w(&pt_node->next[offset], 0, pgtbl_arch_entry_pack(page, perm))) return -COS_ERR_ALREADY_EXISTS;
+	faa32(&pt_type->refcnt, 1);
+	faa32(&mem_type->refcnt, 1);
 
 	return COS_RET_SUCCESS;
 }
@@ -152,9 +152,9 @@ pgtbl_unmap(pgtbl_ref_t pt, uword_t offset)
 	/* TODO: if the target page is untyped (or maybe a kernel type), we shouldn't unmap if this is the last ref. */
 
 	/* Updates! */
-	if (!cas64(&pt_node->next[offset], entry, PGTBL_ARCH_ENTRY_NULL)) return -COS_ERR_RESOURCE_NOT_FOUND;
-	faa(&pt_type->refcnt, -1);
-	faa(&mem_type->refcnt, -1);
+	if (!cas_w(&pt_node->next[offset], entry, PGTBL_ARCH_ENTRY_NULL)) return -COS_ERR_RESOURCE_NOT_FOUND;
+	faa32(&pt_type->refcnt, -1);
+	faa32(&mem_type->refcnt, -1);
 
 	return COS_RET_SUCCESS;
 }
@@ -228,8 +228,8 @@ pgtbl_copy(pgtbl_ref_t pgtbl_from, uword_t pgtbl_off_from, pgtbl_ref_t pgtbl_to,
 	ent_from = pgtbl_arch_entry_pack(from_ref, from_perm & perm);
 
 	/* Update! */
-	if (!cas64(ent_to_addr, ent_to, ent_from)) return -COS_ERR_CONTENTION;
-	faa(&page->refcnt, 1);
+	if (!cas_w(ent_to_addr, ent_to, ent_from)) return -COS_ERR_CONTENTION;
+	faa32(&page->refcnt, 1);
 
 	return COS_RET_SUCCESS;
 }

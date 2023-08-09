@@ -40,6 +40,6 @@ int
 main(void)
 {
 	/* It should never come here*/
-	assert(0); 
+	assert(0);
 	return 0;
 }

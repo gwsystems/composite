@@ -34,7 +34,7 @@ call_cap_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word
 	/*
 	 * We use this frame ctx to save bp(frame pointer) and sp(stack pointer)
 	 * before it goes into the kernel through syscall.
-	 * 
+	 *
 	 * We cannot use a push %rbp/%rsp because the compiler doesn't know
 	 * the inline assembly code changes the stack pointer. Thus, in some
 	 * cases the compiler might do some optimizations which could conflict
@@ -85,7 +85,7 @@ call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t ar
 	/*
 	 * We use this frame ctx to save bp(frame pointer) and sp(stack pointer)
 	 * before it goes into the kernel through syscall.
-	 * 
+	 *
 	 * We cannot use a push %rbp/%rsp because the compiler doesn't know
 	 * the inline assembly code changes the stack pointer. Thus, in some
 	 * cases the compiler might do some optimizations which could conflict
@@ -136,7 +136,7 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	/*
 	 * We use this frame ctx to save bp(frame pointer) and sp(stack pointer)
 	 * before it goes into the kernel through syscall.
-	 * 
+	 *
 	 * We cannot use a push %rbp/%rsp because the compiler doesn't know
 	 * the inline assembly code changes the stack pointer. Thus, in some
 	 * cases the compiler might do some optimizations which could conflict
@@ -210,7 +210,7 @@ cos_sinv(struct usr_inv_cap *uc, word_t arg1, word_t arg2, word_t arg3, word_t a
 {
 	word_t r1, r2;
 
-	if (likely(uc->alt_fn)) return (uc->alt_fn)(arg1, arg2, arg3, arg4, &r1, &r2);
+	if (likely(uc->alt_fn != NULL)) return (uc->alt_fn)(arg1, arg2, arg3, arg4, &r1, &r2);
 
 	return call_cap_op(uc->cap_no, 0, arg1, arg2, arg3, arg4);
 }
@@ -218,7 +218,7 @@ cos_sinv(struct usr_inv_cap *uc, word_t arg1, word_t arg2, word_t arg3, word_t a
 static inline int
 cos_sinv_2rets(struct usr_inv_cap *uc, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2)
 {
-	if (likely(uc->alt_fn)) return (uc->alt_fn)(arg1, arg2, arg3, arg4, ret1, ret2);
+	if (likely(uc->alt_fn != NULL)) return (uc->alt_fn)(arg1, arg2, arg3, arg4, ret1, ret2);
 
 	return call_cap_2retvals_asm(uc->cap_no, 0, arg1, arg2, arg3, arg4, ret1, ret2);
 }

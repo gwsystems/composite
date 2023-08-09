@@ -84,9 +84,9 @@ captbl_construct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset)
 	offset = COS_WRAP(offset, COS_CAPTBL_INTERNAL_NENT);
 
 	/* Updates! */
-	if (!cas64(&top_node->next[offset], COS_CAPTBL_0_ENT_NULL, (u64_t)leaf_node)) return -COS_ERR_ALREADY_EXISTS;
-	faa(&top_type->refcnt, 1);
-	faa(&leaf_type->refcnt, 1);
+	if (!cas_w(&top_node->next[offset], COS_CAPTBL_0_ENT_NULL, (u64_t)leaf_node)) return -COS_ERR_ALREADY_EXISTS;
+	faa32(&top_type->refcnt, 1);
+	faa32(&leaf_type->refcnt, 1);
 
 	return COS_RET_SUCCESS;
 }
@@ -115,9 +115,9 @@ captbl_deconstruct(captbl_ref_t top, uword_t offset)
 	/* assert: leaf must be proper type */
 
 	/* Updates! */
-	if (!cas64(&top_node->next[offset], leaf, COS_CAPTBL_0_ENT_NULL)) return -COS_ERR_CONTENTION;
-	faa(&top_type->refcnt, -1);
-	faa(&leaf_type->refcnt, -1);
+	if (!cas_w(&top_node->next[offset], leaf, COS_CAPTBL_0_ENT_NULL)) return -COS_ERR_CONTENTION;
+	faa32(&top_type->refcnt, -1);
+	faa32(&leaf_type->refcnt, -1);
 
 	return COS_RET_SUCCESS;
 }

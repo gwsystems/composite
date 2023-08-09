@@ -1,3 +1,4 @@
+#include <cos_types.h>
 #include <print.h>
 
 /*
@@ -7,9 +8,9 @@
  * instead write to this interface.
  */
 int
-cos_print_str(char *s, int len)
+cos_print_str(char *s, uword_t len)
 {
-	int written = 0;
+	uword_t written = 0;
 
 	while (written < len) {
 		u32_t *s_ints = (u32_t *)&s[written];

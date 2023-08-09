@@ -1,3 +1,7 @@
+/*
+ * Do NOT include this file. Instead, include cos_consts.h.
+ */
+
 #pragma once
 
 #define COS_PAGE_SIZE             4096

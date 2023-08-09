@@ -45,13 +45,13 @@ __cos_noret(void)
 #define SPIN() __cos_noret()
 #endif
 
-#define assert(node)                                  \
-	do {                                              \
-		if (unlikely(!(node))) {                      \
+#define assert(node)						  \
+	do {							  \
+		if (unlikely(!(node))) {			  \
 			debug_print("FIXME: assert error in @ "); \
 			*volatile_null_ptr = 0;                   \
 			__cos_noret();                            \
-		}                                             \
+		}						  \
 	} while (0)
 #endif /* ifndef assert */
 

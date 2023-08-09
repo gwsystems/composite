@@ -176,7 +176,7 @@ epoch_copy(struct page_type *pt)
 static inline epoch_t
 epoch_update(struct page_type *pt)
 {
-	return (epoch_t)faa(&pt->epoch, 1);
+	return (epoch_t)faa64(&pt->epoch, 1);
 }
 
 /***
@@ -569,8 +569,8 @@ resource_comp_create(captbl_ref_t captbl_ref, pgtbl_ref_t pgtbl_ref, prot_domain
 	COS_CHECK(page_retype_from_untyped_reserve(ptype, c_page, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_COMP));
 
 	/* Take the references for the component's constituent captbl/pgtbl */
-	faa(&pt_ptype->refcnt, 1);
-	faa(&ct_ptype->refcnt, 1);
+	faa32(&pt_ptype->refcnt, 1);
+	faa32(&ct_ptype->refcnt, 1);
 
 	c = (struct component *)c_page;
 	/* Update the component structure in recently retyped page */
@@ -618,8 +618,8 @@ resource_comp_destroy(pageref_t compref)
         /* These pointers are refcounted so chasing them can't fail */
 	ref2page(c->pgtbl, NULL, &pt_ptype);
 	ref2page(c->captbl, NULL, &ct_ptype);
-	faa(&pt_ptype->refcnt, -1);
-	faa(&ct_ptype->refcnt, -1);
+	faa32(&pt_ptype->refcnt, -1);
+	faa32(&ct_ptype->refcnt, -1);
 
 	return COS_RET_SUCCESS;
 }
@@ -670,7 +670,7 @@ resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref, thdid_t id, cor
          * don't take a reference on the component, instead using
          * `epoch` to determine liveness using the component_ref.
 	 */
-	if (untyped_src_ref != sched_thd_ref) faa(&sched_ptype->refcnt, 1);
+	if (untyped_src_ref != sched_thd_ref) faa32(&sched_ptype->refcnt, 1);
 
 	thd = (struct thread *)thd_page;
 	/* Update the component structure in recently retyped page */
@@ -701,7 +701,7 @@ resource_thd_destroy(pageref_t thdref)
 
         /* These pointers are refcounted so chasing them can't fail */
 	ref2page(t->sched_thd, NULL, &sched_ptype);
-	faa(&sched_ptype->refcnt, -1);
+	faa32(&sched_ptype->refcnt, -1);
 
 	return COS_RET_SUCCESS;
 }

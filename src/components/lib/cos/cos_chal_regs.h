@@ -1,9 +1,13 @@
+/*
+ * Do NOT include this file. Instead, include chal_regs.h.
+ */
+
 #pragma once
 
 #define REG_STATE_PREEMPTED 0 /* The registers must be fully restored as they represent preempted state */
 #define REG_STATE_SYSCALL   1 /* The registers don't require full restoration, and can use fastpaths */
 
-/***
+/*
  * First, the kernel utilities to store registers, map them between
  * the assembly that saves them, and the structures that organizes
  * them, and the meta-data that tracks their state.
@@ -582,7 +586,6 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct regs_frame_ctx, bp),
 
 /* Rest of the args are in the input inline asm list */
 #define REGS_SYSCALL_DECL_ARGS4				\
-	uword_t filler;					\
 	register uword_t r8 __asm__("r8")   = a2
 
 #define REGS_SYSCALL_DECL_ARGS9				\
@@ -628,7 +631,7 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct regs_frame_ctx, bp),
 	REGS_SYSCALL_RET4, "=r" (rr4), "=r" (rr5), "=r" (rr6), "=r" (rr7), "=r" (rr8)
 
 #define REGS_SYSCALL_ARG4						\
-	"r" (r11_ctx), "a" (cap), "b" (ops), "d" (filler), "S" (a0), "D" (a1), "r" (r8)
+	"r" (r11_ctx), "a" (cap), "b" (ops), "d" (0), "S" (a0), "D" (a1), "r" (r8)
 
 #define REGS_SYSCALL_ARG9						\
 	REGS_SYSCALL_ARG4, "r" (r9), "r" (r10), "r" (r12), "r" (r13), "r" (r14), "r" (r15)
