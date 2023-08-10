@@ -428,7 +428,6 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 		ret = dcb_thd_ref(dc, thd);
 		if (ret) goto err; /* TODO: cleanup captbl slot */
 		thd->dcbinfo = (struct cos_dcb_info *)(dc->kern_addr + (dcboff * sizeof(struct cos_dcb_info)));
-		thd->dcbinfo->ip = thd->tid;
 		memset(thd->dcbinfo, 0, sizeof(struct cos_dcb_info));
 	}
 	thd->ulk_invstk                       = ulinvstk;
@@ -798,11 +797,15 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		 * tcap, then curr_thd == next_thd and state will be RCVING.
 		 */
 	}
+
+	if (issame && preempt == 0) {
+		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
+	}
+
 	if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
 		assert(preempt == 0);
 		memset(regs, 0, sizeof(struct pt_regs));
 		__userregs_set(regs, 0, thd->dcbinfo->sp, thd->dcbinfo->ip + DCB_IP_KERN_OFF);
-#if defined(__x86_64__)
 		/*
 		 * This considers a third type of state of a thread when using slite besides
 		 * THD_STATE_PREEMPTED and THD_STATE_RCVING. If there's valid sp in the dcb of
@@ -812,13 +815,8 @@ thd_switch_update(struct thread *thd, struct pt_regs *regs, int issame)
 		 * in the kernel can be the last time it has been preempted.
 		 */
 		regs->r11 = 0x3200;
-#endif
 		thd->dcbinfo->sp = 0;
 	}
-	if (issame && preempt == 0) {
-		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-	}
-
 	return preempt;
 }
 
