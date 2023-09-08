@@ -40,7 +40,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	cos_info->cpuid          = cpu_id;
 	cos_info->invstk_top     = 0;
 	cos_info->overflow_check = 0xDEADBEEF;
-	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0, LLBOOT_CAPTBL_SCB, 0, 0, tid++, NULL, 0);
+	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), thd_mem, BOOT_CAPTBL_SELF_COMP, 0, BOOT_CAPTBL_SCB, 0, 0, tid++, NULL, 0);
 	assert(!ret);
 
 	/* on x86 we store coreid in MSR_TSC_AUX for user-level access */
@@ -63,6 +63,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 
 	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE_CPU(cpu_id), BOOT_CAPTBL_SELF_COMP,
 	                    BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpu_id), BOOT_CAPTBL_SELF_INITTCAP_BASE_CPU(cpu_id), 0, 1);
+
 	assert(!ret);
 
 	/* switching to boot component's PGD using component capability */
@@ -337,7 +338,7 @@ kern_boot_comp(const cpuid_t cpu_id)
 
 	/* Shut off further bump allocations */
 	glb_memlayout.allocs_avail = 0;
-	if (scb_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, LLBOOT_CAPTBL_SCB, scb_kaddr, 0)) assert(0);
+	if (scb_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SCB, scb_kaddr, 0)) assert(0);
 
 	if (comp_activate(glb_boot_ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT,
 	                  0, 0, (vaddr_t)mem_bootc_entry(), 0))

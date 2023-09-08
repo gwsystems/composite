@@ -307,10 +307,11 @@ enum
 	BOOT_CAPTBL_SELF_UNTYPED_PT = 20,
 	BOOT_CAPTBL_PHYSM_PTE       = 24,
 	BOOT_CAPTBL_KM_PTE          = 28,
+	BOOT_CAPTBL_SCB             = 36,
 
-	BOOT_CAPTBL_SINV_CAP           = 32,
-	BOOT_CAPTBL_SELF_INITHW_BASE   = 36,
-	BOOT_CAPTBL_SELF_INITTHD_BASE  = 40,
+	BOOT_CAPTBL_SINV_CAP           = 40,
+	BOOT_CAPTBL_SELF_INITHW_BASE   = 44,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 52,
 	/*
 	 * NOTE: kernel doesn't support sharing a cache-line across cores,
 	 *       so optimize to place INIT THD/TCAP on same cache line and bump by 64B for next CPU
@@ -320,7 +321,7 @@ enum
 
 	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU * CAP64B_IDSZ,
 	/* round up to next entry */
-	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP+CAPMAX_ENTRY_SZ, CAPMAX_ENTRY_SZ)
+	BOOT_CAPTBL_FREE               = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP + CAPMAX_ENTRY_SZ, CAPMAX_ENTRY_SZ)
 };
 
 #define BOOT_CAPTBL_SELF_INITTHD_BASE_CPU(cpuid) (BOOT_CAPTBL_SELF_INITTHD_BASE + cpuid * CAP16B_IDSZ)

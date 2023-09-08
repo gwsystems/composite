@@ -152,7 +152,7 @@
 #define COS_DCB_SP_OFFSET 8
 
 #define ULK_MPK_KEY 0x01
-#define SCHED_MPK_KEY 0x0
+#define SCHED_MPK_KEY 0x02
 #define MPK_KEY2REG(k) ((~(0b11 << (k * 2))) & 0xFFFFFFFC)
 
 /* We save information on the user level stack for fast access. The

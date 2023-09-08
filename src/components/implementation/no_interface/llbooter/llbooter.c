@@ -355,6 +355,7 @@ comps_init(void)
 				comp_res.ctc = capno;
 				alias_flags |= CRT_COMP_ALIAS_CAPTBL;
 			} else if (!strcmp(type, "comp")) {
+				printc("capno: %d, frontier: %d\n", capno, cos_compinfo_get(target->comp_res)->cap_frontier);
 				comp_res.compc = capno;
 				alias_flags |= CRT_COMP_ALIAS_COMP;
 			} else {
@@ -433,8 +434,8 @@ comps_init(void)
 		/* TODO: generalize. Give the capmgr 64MB for now. */
 		size_t mem = BOOTER_CAPMGR_MB * 1024 * 1024;
 
-		printc("Capability manager memory delegation (%d capmgrs): %ld bytes.\n",
-		       args_len(&comps), (unsigned long)mem);
+		printc("Capability manager memory delegation (%d capmgrs): %ld MB.\n",
+		       args_len(&comps), (unsigned long)mem / (1024 * 1024));
 
 		c = boot_comp_get(atoi(args_key(&curr, &keylen)));
 		assert(c);
@@ -565,7 +566,7 @@ booter_init(void)
 	cos_defcompinfo_init();
 	//scbcap_t scbcap = cos_scb_alloc(boot_info);
 	boot_info->scb_uaddr = (vaddr_t)cos_page_bump_intern_valloc(boot_info, PAGE_SIZE);
-	if (cos_scb_ro_map(boot_info, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_PT, LLBOOT_CAPTBL_SCB, boot_info->scb_uaddr)) BUG();
+	if (cos_scb_ro_map(boot_info, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SCB, boot_info->scb_uaddr)) BUG();
 	cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 }
 
@@ -625,7 +626,6 @@ init_done(int parallel_init, init_main_t main_type)
 	assert(client > 0 && client <= MAX_NUM_COMPS);
 	c = boot_comp_get(client);
 
-	//printc("[llbooter init done]\n");
 	crt_compinit_done(c, parallel_init, main_type);
 
 #ifdef ENABLE_CHKPT
@@ -664,7 +664,6 @@ cos_parallel_init(coreid_t cid, int is_init_core, int ncores)
 void
 cos_init(void)
 {
-	printc("booter_init\n");
 	booter_init();
 	cos_defcompinfo_sched_init();
 	comps_init();

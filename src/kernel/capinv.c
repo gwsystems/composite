@@ -1194,6 +1194,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			}
 
 			ret = captbl_activate(ct, cap, newcaptbl_cap, (struct captbl *)kmem_addr, captbl_lvl);
+
 			if (ret) kmem_unalloc(pte);
 
 			break;
@@ -1609,7 +1610,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			vaddr_t dest_addr   = __userregs_get3(regs);
 
 			ret = cap_move(ct, dest_pt, dest_addr, source_pt, source_addr);
-
 			break;
 		}
 		case CAPTBL_OP_CONS: {

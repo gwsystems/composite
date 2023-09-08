@@ -711,12 +711,10 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz, size_t align)
 		/* Actually map in the memory. */
 		int p = call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, PAGE_ORDER);
 		if (p) {
-			printc("ppp: %d, %lx\n", p, umem);
 			assert(0);
 			return 0;
 		}
 		/*if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, PAGE_ORDER)) {
-			assert(0);
 			return 0;
 		}*/
 	}
@@ -792,7 +790,6 @@ void
 cos_ulk_info_init(struct cos_compinfo *ci)
 {
 	unsigned long i;
-
 	__cos_ulk_info.toplvl = cos_ulk_pgtbl_create(ci, &__cos_ulk_info.secondlvl);
 	assert(__cos_ulk_info.toplvl);
 	//__cos_ulk_info.pg_frontier = round_to_page(ULK_INVSTK_ADDR + __thdid_alloc * sizeof(struct ulk_invstk));
@@ -1171,7 +1168,9 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_fronti
 	compc = cos_comp_alloc(ci_resources, ctc, ptc, entry, protdom);
 	assert(compc);
 
-	cos_compinfo_init(ci, ptc, ctc, compc, 0, heap_ptr, cap_frontier, ci_resources);
+	cos_compinfo_init(ci, ptc, ctc, compc, 0, heap_ptr, CAPTBL_EXPAND_SZ, ci_resources);
+	/* Try to expand to BOOT_CAPTBL_FREE. */
+	cos_comp_capfrontier_update(ci, cap_frontier, 1);
 
 	ci->mi.second_lvl_pgtbl_cap  = __bump_mem_expand_intern(__compinfo_metacap(ci), ci->pgtbl_cap, heap_ptr, 0, 0);
 	ci->mi.second_lvl_pgtbl_addr = heap_ptr;
