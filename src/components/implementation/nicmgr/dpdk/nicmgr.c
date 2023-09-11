@@ -37,7 +37,6 @@ pkt_ring_buf_init(struct pkt_ring_buf *pkt_ring_buf, size_t ringbuf_num, size_t 
 {
 	struct ck_ring *buf_addr;
 
-	// buf_addr = (struct ck_ring *)malloc(ringbuf_sz);
 	/* prevent multiple thread from contending memory */
 	assert(cos_thdid() < NIC_MAX_SESSION);
 	buf_addr = (struct ck_ring *)&ring_buffers[cos_thdid()];
@@ -91,14 +90,6 @@ nic_get_a_packet(u16_t *pkt_len)
 	// 	printc("tenant %u(%u) is to dequeue\n", ntohs(session->port), thd);
 	// }
 	session->blocked_loops_begin++;
-	// while (1)
-	// {
-	// 	/* code */
-	// 	printc("#\n");
-	// 	sync_sem_take(&session->sem);
-	// 	printc("*\n");
-	// }
-	// memset(&buf, 0, sizeof(buf));
 	
 	sync_sem_take(&session->sem);
 	session->blocked_loops_end++;
@@ -110,19 +101,12 @@ nic_get_a_packet(u16_t *pkt_len)
 
 	char *pkt = cos_get_packet(buf.pkt, &len);
 	assert(len < PKT_BUF_SIZE);
-	// u16_t* tenant_port = (u16_t*)(pkt + 14 + 20 + 2);
-	// if(ntohs(*tenant_port) != ((u16_t)cos_inv_token())) {
-	// 	printc("tenant:0x%x, dst:0x%x, tag:%d\n", htons((u16_t)cos_inv_token()),*tenant_port, buf.tent_id);
-	// 	assert(0);
-	// }
 
 	obj = shm_bm_alloc_net_pkt_buf(session->shemem_info.shm, &objid);
 	assert(obj);
 
 	memcpy(obj->data, pkt, len);
-	// for (int t = 0; t < len; t++){
-	// 	obj->data[t] = pkt[t];
-	// }
+
 #if USE_CK_RING_FREE_MBUF
 	while (!pkt_ring_buf_enqueue(&g_free_ring, &buf));
 #else

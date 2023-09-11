@@ -27,8 +27,6 @@ struct pkt_buf {
 	char   *pkt;
 	u64_t   paddr;
 	int     pkt_len;
-	// int     tent_id;
-	// int     srcid;
 };
 
 struct pkt_ring_buf {
