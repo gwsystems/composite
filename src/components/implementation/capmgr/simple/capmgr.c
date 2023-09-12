@@ -1004,6 +1004,8 @@ cos_init(void)
 	 * after we've sealed in all initargs and sinvs. Regardless,
 	 * that is the *correct* approach.
 	 */
+	// printc("addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER):%d\n", addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER));
+	// assert(0);
 	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER), 0);
 	if (!cm_comp_self_alloc("capmgr")) BUG();
 

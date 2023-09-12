@@ -2,24 +2,15 @@
 #define COS_ASM_SIMPLE_STACKS_X86_64_H
 
 /* clang-format off */
-#define COS_ASM_GET_STACK_BASIC							\
-	movabs $cos_static_stack, %rsp;						\
-	/* ax holds cpuid and thread id*/					\
-	/* rax[0:15]=tid, rax[16:31]=cpuid */					\
-	movq %rax, %rdx;							\
-	/* get the tid by masking rax[0:15] */					\
-	andq $0xffff, %rax;							\
-	/* simple math: this thread's stack offset = stack_size * tid */	\
-	shl $MAX_STACK_SZ_BYTE_ORDER, %rax;					\
-	/* add the stack offset to the base to get the current thread's stack*/	\
-	add %rax, %rsp;								\
-	/* restore the tid in order to save it on the stack*/			\
-	shr $MAX_STACK_SZ_BYTE_ORDER, %rax;					\
-	/* get the cpuid by right shifting the lower 16 bits*/			\
-	shr $16, %rdx;								\
-	/* save the cpuid on the top of the thread stack */			\
-	pushq %rdx;								\
-	/* save the tid followed by the cpuid */				\
+#define COS_ASM_GET_STACK_BASIC									\
+	/* we save the return position to rcx for custom stack acquisition code to return */ 	\
+	movabs $1f, %rcx;									\
+	/* jump to stack acquisition code */ 							\
+	jmp custom_acquire_stack;								\ 
+1:												\
+	/* save the cpuid on the top of the thread stack */					\
+	pushq %rdx;										\
+	/* save the tid followed by the cpuid */						\
 	pushq %rax;
 
 #define COS_ASM_GET_STACK       \

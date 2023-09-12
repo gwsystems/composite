@@ -7,7 +7,7 @@
 #include <ck_ring.h>
 #include <sync_sem.h>
 
-#define NIC_MAX_SESSION 64
+#define NIC_MAX_SESSION 512
 #define NIC_MAX_SHEMEM_REGION 3
 
 #define NIC_SHMEM_RX 0
@@ -27,8 +27,6 @@ struct pkt_buf {
 	char   *pkt;
 	u64_t   paddr;
 	int     pkt_len;
-	// int     tent_id;
-	// int     srcid;
 };
 
 struct pkt_ring_buf {

@@ -178,7 +178,8 @@ parallel_main(coreid_t cid)
 			shm_bm_free_net_pkt_buf(rx_obj);
 			continue;
 		}
-		data_len = mc_process_command(fd, objid, data_offset, data_len);
+
+		data_len = 100 + cos_compid();
 		udp_stack_shmem_write(objid, netshmem_get_data_offset(), data_len, remote_addr, remote_port);
 	}
 }

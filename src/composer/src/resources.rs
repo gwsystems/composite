@@ -15,7 +15,7 @@ enum CapRes {
     Comp(ComponentId),
 }
 
-const BOOT_CAPTBL_FREE: u32 = 144;
+const BOOT_CAPTBL_FREE: u32 = 152;
 
 // The equivalent of the C __captbl_cap2sz(c)
 fn cap_sz(cap: &CapRes) -> u32 {

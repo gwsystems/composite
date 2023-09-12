@@ -275,6 +275,44 @@ err:
 	return ret;
 }
 
+static inline int
+cap_check(struct captbl *t, capid_t root_captbl, capid_t root_cap, capid_t second_lvl_cap, int self_resource)
+{
+	struct cap_header *root_captbl_hdr,  *p;
+	int                sz, ret;
+	cap_t              cap_type;
+
+	root_captbl_hdr = captbl_lkup(t, root_captbl);
+	if (unlikely(!root_captbl_hdr)) {
+		return -ENOENT;
+	}
+
+	cap_type = root_captbl_hdr->type;
+	assert(cap_type == CAP_CAPTBL);
+
+	/* this time the root_captbl_hdr can be either any entry in the root captbl, or the pointer to second lvl cap tbl */
+	p = __captbl_lkupan(((struct cap_captbl *)root_captbl_hdr)->captbl, root_cap, CAPTBL_DEPTH, NULL);
+	if (self_resource) {
+		if (!p)  return -ENOENT;
+	}
+	root_captbl_hdr = captbl_lkup(((struct cap_captbl *)root_captbl_hdr)->captbl, root_cap);	
+	
+	if (unlikely(!root_captbl_hdr)) {
+		return -ENOENT;
+	}
+
+	if (!self_resource) {
+		cap_type = root_captbl_hdr->type;
+		assert(cap_type == CAP_CAPTBL);
+
+		p = __captbl_lkupan(((struct cap_captbl *)root_captbl_hdr)->captbl, second_lvl_cap, CAPTBL_DEPTH, NULL);
+		if (unlikely(!p)) {
+			return -ENOENT;
+		}
+	}
+
+	return 0;
+}
 /*
  * Copy a capability from a location in one captbl/pgtbl to a location
  * in the other.  Fundamental operation used to delegate capabilities.
@@ -1430,6 +1468,21 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			ret = cap_decons(ct, cap, capin, decons_addr, lvl);
 
+			break;
+		}
+		case CAPTBL_OP_CAPCHECK: {
+			capid_t root_captbl, root_cap;
+			capid_t second_lvl_cap;
+
+			int self_resource = __userregs_get3(regs);
+			root_captbl = cap;
+			root_cap = __userregs_get1(regs);
+
+			if (!self_resource) {
+				second_lvl_cap = __userregs_get2(regs);
+			}
+
+			ret = cap_check(ct, root_captbl, root_cap, second_lvl_cap, self_resource);
 			break;
 		}
 		case CAPTBL_OP_INTROSPECT: {
