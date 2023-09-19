@@ -396,24 +396,24 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 
 	memset(thd, 0, sizeof(struct thread));
 	compc = (struct cap_comp *)captbl_lkup(t, compcap);
-	if (unlikely(!compc || compc->h.type != CAP_COMP)) assert(0);//return -EINVAL;
+	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
 	if (likely(dcbcap)) {
 		dc = (struct cap_dcb *)captbl_lkup(t, dcbcap);
-		if (unlikely(!dc || dc->h.type != CAP_DCB)) assert(0); //return -EINVAL;
-		if (dcboff > PAGE_SIZE / sizeof(struct cos_dcb_info)) assert(0); //return -EINVAL;
+		if (unlikely(!dc || dc->h.type != CAP_DCB)) return -EINVAL;
+		if (dcboff > PAGE_SIZE / sizeof(struct cos_dcb_info)) return -EINVAL;
 	}
 	if (likely(scbcap)) {
 		sc = (struct cap_scb *)captbl_lkup(t, scbcap);
-		if (unlikely(!sc || sc->h.type != CAP_SCB)) assert(0); //return -EINVAL;
+		if (unlikely(!sc || sc->h.type != CAP_SCB)) return -EINVAL;
 		thd->scb_cached = (struct cos_scb_info *)(sc->kern_addr);
 	}
 	if (likely(sched_cap)) {
 		stc = (struct cap_thd *)captbl_lkup(t, sched_cap);
-		if (unlikely(!stc || stc->h.type != CAP_THD)) assert(0); //return -EINVAL;
+		if (unlikely(!stc || stc->h.type != CAP_THD)) return -EINVAL;
 	}
 
 	tc = (struct cap_thd *)__cap_capactivate_pre(t, cap, capin, CAP_THD, &ret);
-	if (!tc) assert(0); //return ret;
+	if (!tc) return ret;
 
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
@@ -451,7 +451,6 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	return 0;
 
 err:
-	assert(0);
 	return ret;
 }
 
@@ -528,7 +527,7 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 	if (thd->refcnt == 1) {
 		if (!root) cos_throw(err, -EINVAL);
 		/* last ref cannot be removed if bound to arcv cap */
-		if (thd_bound2rcvcap(thd)) assert(0); cos_throw(err, -EBUSY);
+		if (thd_bound2rcvcap(thd)) cos_throw(err, -EBUSY);
 		/*
 		 * Last reference. Require pgtbl and cos_frame cap to
 		 * release the kmem page.

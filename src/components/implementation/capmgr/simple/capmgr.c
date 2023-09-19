@@ -728,7 +728,6 @@ capmgr_comp_init(void)
 		if (sched_id == 0) {
 			sched_id = capmgr_comp_sched_hier_get(id);
 		}
-		//comp_res.heap_ptr        = addr_get(id, ADDR_HEAP_FRONTIER) + COS_SCB_SIZE + (PAGE_SIZE * NUM_CPU);
 		comp_res.heap_ptr        = addr_get(id, ADDR_HEAP_FRONTIER);
 		comp_res.captbl_frontier = addr_get(id, ADDR_CAPTBL_FRONTIER);
 
@@ -1004,8 +1003,6 @@ cos_init(void)
 	 * after we've sealed in all initargs and sinvs. Regardless,
 	 * that is the *correct* approach.
 	 */
-	// printc("addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER):%d\n", addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER));
-	// assert(0);
 	cos_comp_capfrontier_update(ci, addr_get(cos_compid(), ADDR_CAPTBL_FRONTIER), 0);
 	if (!cm_comp_self_alloc("capmgr")) BUG();
 

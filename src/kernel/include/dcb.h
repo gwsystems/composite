@@ -88,9 +88,7 @@ static inline int
 dcb_thd_ref(struct cap_dcb *dc, struct thread *thd)
 {
 	if (dc->refcnt >= DCB_ENTRIES_MAX_PER_PAGE) return -EINVAL;
-	/*if (dc->cpuid != thd->cpuid) {
-		return -EINVAL;
-	}*/
+	if (dc->cpuid != thd->cpuid) return -EINVAL;
 	if (!ltbl_isalive(&dc->liveness)) return -EPERM;
 
 	dc->refcnt++;

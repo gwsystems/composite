@@ -176,6 +176,7 @@ cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, int t
 
 	cos_capfrontier_init(ci, cap_frontier);
 }*/
+
 void
 cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap, vaddr_t scb_uaddr,
                   vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources)
@@ -709,14 +710,9 @@ __page_bump_alloc(struct cos_compinfo *ci, size_t sz, size_t align)
 		if (!umem) return 0;
 
 		/* Actually map in the memory. */
-		int p = call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, PAGE_ORDER);
-		if (p) {
-			assert(0);
+		if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, PAGE_ORDER)) {
 			return 0;
 		}
-		/*if (call_cap_op(meta->mi.pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem, ci->pgtbl_cap, heap_cursor, PAGE_ORDER)) {
-			return 0;
-		}*/
 	}
 
 	return heap_vaddr;
@@ -808,7 +804,6 @@ void
 cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, int try_expand)
 {
 	missing_captbl_node_expand(ci);
-	// printc("mmp???:cap_frontier:%d, ci->cap_frontier:%d, ci->caprange_frontier:%d\n", cap_frontier, ci->cap_frontier, ci->caprange_frontier);
 	if (cap_frontier <= ci->cap_frontier) return;
 
 	if (try_expand) {
@@ -1031,7 +1026,6 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 	ret = call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, ((u64_t)init_data) << 32 | spack,
 			  __compinfo_metacap(ci)->mi.pgtbl_cap << 32 | cpack, kmem, (u64_t)hi << 32 | lo);
 #endif
-	//printc("ret: %d, dcb: %d, %d\n", ret, dc, __compinfo_metacap(ci)->mi.pgtbl_cap);
 	if (ret) BUG();
 
 	return cap;
