@@ -1188,13 +1188,6 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		 * fail. Thus, add a lock to prevent this temporarilily
 		 */
 		ps_lock_take(&_lock);
-		//c->scb = cos_scb_alloc(ci);
-		//target_ci->scb_uaddr = (vaddr_t)crt_page_allocn(c, 1);
-		//target_ci->scb_uaddr = (vaddr_t)cos_page_bump_intern_valloc(target_ci, PAGE_SIZE);
-		//printc("scb: %lx,scb: %d, pgtblcap: %d\n", target_ci->scb_uaddr, c->scb, target_ci->pgtbl_cap);
-		//if (cos_scb_ro_map(target_ci, target_ci->comp_cap, target_ci->pgtbl_cap, c->scb, target_ci->scb_uaddr)) BUG();
-		//assert(0);
-
 		if (crt_rcv_create_in(r, c, 0, 0, 0, c->scb, &init_dcb)) BUG();
 		c->init_dcb_addr[cos_cpuid()] = init_dcb;
 
@@ -1203,6 +1196,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 			.thd = BOOT_CAPTBL_SELF_INITTHD_CPU_BASE,
 			.rcv = BOOT_CAPTBL_SELF_INITRCV_CPU_BASE,
 		};
+
 		if (crt_rcv_alias_in(r, c, &rcvres, CRT_RCV_ALIAS_RCV | CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP)) BUG();
 		ps_lock_release(&_lock);
 
@@ -1359,7 +1353,7 @@ crt_compinit_execute(comp_get_fn_t comp_get)
 
 		if (initcore) {
 			thdcap = crt_comp_thdcap_get(comp);
-			printc("Initializing component %lu (executing cos_init). %d\n", comp->id);
+			printc("Initializing component %lu (executing cos_init).\n", comp->id);
 		} else {
 			/* wait for the init core's thread to initialize */
 			while (ps_load(&comp->init_state) == CRT_COMP_INIT_COS_INIT) ;

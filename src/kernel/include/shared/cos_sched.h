@@ -30,10 +30,11 @@ struct cos_scb_info {
 	u32_t                 thdpack;
 	tcap_time_t           timer_pre;
 	sched_tok_t           sched_tok;
-	struct cos_sched_ring sched_events;
+	//struct cos_sched_ring sched_events;
 } CACHE_ALIGNED;
 
-COS_STATIC_ASSERT(COS_SCB_INFO_SIZE == sizeof(struct cos_scb_info), "Update COS_SCB_INFO_SIZE with sizeof struct cos_scb_info");
+COS_STATIC_ASSERT(COS_SCB_INFO_SIZE == sizeof(struct cos_scb_info), "Update COS_SCB_INFO_SIZE with sizeof struct cos_scb_info.");
+COS_STATIC_ASSERT(PAGE_SIZE >= (sizeof(struct cos_scb_info) * NUM_CPU), "Require more memory for SCBs.");
 
 struct cos_dcb_info {
 	unsigned long ip;
@@ -45,9 +46,9 @@ struct cos_dcb_info {
 #define DCB_INFO_PER_PAGE PAGE_SIZE / sizeof(struct cos_dcb_info)
 #define DCB_INFO_PAGE_NUM      (MAX_NUM_THREADS / DCB_INFO_PER_PAGE) + 1
 
-COS_STATIC_ASSERT(COS_DCB_INFO_SIZE == sizeof(struct cos_dcb_info), "Update COS_DCB_INFO_SIZE with sizeof struct cos_scb_info");
-COS_STATIC_ASSERT(COS_DCB_IP_OFFSET == offsetof(struct cos_dcb_info, ip), "Update COS_DCB_IP_OFFSET with the offset of ip in the dcb");
-COS_STATIC_ASSERT(COS_DCB_SP_OFFSET == offsetof(struct cos_dcb_info, sp), "Update COS_DCB_SP_OFFSET with the offset of sp in the dcb");
+COS_STATIC_ASSERT(COS_DCB_INFO_SIZE == sizeof(struct cos_dcb_info), "Update COS_DCB_INFO_SIZE with sizeof struct cos_scb_info.");
+COS_STATIC_ASSERT(COS_DCB_IP_OFFSET == offsetof(struct cos_dcb_info, ip), "Update COS_DCB_IP_OFFSET with the offset of ip in the dcb.");
+COS_STATIC_ASSERT(COS_DCB_SP_OFFSET == offsetof(struct cos_dcb_info, sp), "Update COS_DCB_SP_OFFSET with the offset of sp in the dcb.");
 
 /*
  * This is the "ip" the kernel uses to update the thread when it sees that the

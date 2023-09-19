@@ -72,7 +72,6 @@ kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem, const cpuid_t cp
 	assert(cap_comp->info.pgtblinfo.pgtbl);
 	pgtbl_update(&cap_comp->info.pgtblinfo);
 
-
 	printk("\tCreating initial threads, tcaps, and rcv end-points in boot-component.\n");
 }
 

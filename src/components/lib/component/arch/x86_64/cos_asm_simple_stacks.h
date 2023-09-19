@@ -4,9 +4,10 @@
 /* clang-format off */
 #define COS_ASM_GET_STACK_BASIC									\
 	/* we save the return position to rcx for custom stack acquisition code to return */ 	\
-	movabs $1f, %rcx;									\
+	/* Make sure %r13 is not used for other purpose. */                                     \
+	movabs $1f, %r13;									\
 	/* jump to stack acquisition code */ 							\
-	jmp custom_acquire_stack;								\ 
+	jmp custom_acquire_stack;								\
 1:												\
 	/* save the cpuid on the top of the thread stack */					\
 	pushq %rdx;										\
