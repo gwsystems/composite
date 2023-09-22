@@ -53,6 +53,8 @@ struct cap_pgtbl {
 	u64_t             frozen_ts; /* timestamp when frozen is set. */
 } __attribute__((packed));
 
+#ifdef MPK_ENABLE
+
 static inline void
 wrpkru(u32_t pkru)
 {
@@ -114,6 +116,15 @@ chal_protdom_read(void)
 
 	return PROTDOM_INIT(asid, mpk_key);
 }
+
+#else /* !MPK_ENABLE */
+static inline void wrpkru(u32_t pkru) {}
+static inline u32_t rdpkru(void) { return 0; }
+static inline u32_t pkru_state(prot_domain_t protdom) { return 0; }
+static inline void chal_protdom_write(prot_domain_t protdom) {}
+static inline prot_domain_t chal_protdom_read(void) { return 0; }
+#endif /* MPK_ENABLE */
+
 
 struct cpu_tlb_asid_map {
 	pgtbl_t mapped_pt[NUM_ASID_MAX];
