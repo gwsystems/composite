@@ -1302,12 +1302,12 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			struct cap_ulk    *ulkc;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd, &pte);
-			if (unlikely(ret)) assert(0); //cos_throw(err, ret);
+			if (unlikely(ret)) cos_throw(err, ret);
 			assert(thd && pte);
 
 			if (ulk_cap) {
 				ulkc = (struct cap_ulk *)captbl_lkup(ct, ulk_cap);
-				if (!CAP_TYPECHK(ulkc, CAP_ULK)) assert(0); //cos_throw(err, -EINVAL);
+				if (!CAP_TYPECHK(ulkc, CAP_ULK)) cos_throw(err, -EINVAL);
 				ulstk = &((struct ulk_invstk *)(ulkc->kern_addr))[tid % ULK_STACKS_PER_PAGE];
 			}
 			

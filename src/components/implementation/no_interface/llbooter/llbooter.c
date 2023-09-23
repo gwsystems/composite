@@ -355,7 +355,6 @@ comps_init(void)
 				comp_res.ctc = capno;
 				alias_flags |= CRT_COMP_ALIAS_CAPTBL;
 			} else if (!strcmp(type, "comp")) {
-				printc("capno: %d, frontier: %d\n", capno, cos_compinfo_get(target->comp_res)->cap_frontier);
 				comp_res.compc = capno;
 				alias_flags |= CRT_COMP_ALIAS_COMP;
 			} else {

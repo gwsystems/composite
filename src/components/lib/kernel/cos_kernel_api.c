@@ -1001,7 +1001,8 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t init
 #if defined(__PROTECTED_DISPATCH__)
 	assert(tid < PAGE_SIZE / sizeof(struct cos_dcb_info));
 	dc = __cos_ulk_info.dcbcap[tid / DCB_INFO_PER_PAGE];
-	off = tid;
+	off = tid % DCB_INFO_PER_PAGE;
+	assert(off < DCB_INFO_PER_PAGE);
 #endif
 
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;

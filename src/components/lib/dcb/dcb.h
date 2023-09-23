@@ -12,7 +12,7 @@ struct cos_dcbinfo_data {
 	dcbcap_t dcbcaps[COS_DCB_MAX_CAPS];
 	vaddr_t  dcbaddr[COS_DCB_MAX_CAPS];
 	dcboff_t curr_cap_off;
-	unsigned short curr_cap;
+	unsigned long curr_cap;
 
 	struct cos_compinfo *ci;
 } CACHE_ALIGNED;

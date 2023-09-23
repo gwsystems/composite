@@ -72,10 +72,10 @@ slm_sched_fprr_schedule(void)
 		ps_list_rem_d(t);
 		ps_list_head_append_d(&prios[i], t);
 
-//		printc("Schedule -> %ld\n", slm_thd_from_sched(t)->tid);
+		// printc("Schedule -> %ld\n", slm_thd_from_sched(t)->tid);
 		return slm_thd_from_sched(t);
 	}
-//	printc("Schedule -> idle\n");
+	// printc("Schedule -> idle\n");
 
 	return NULL;
 }

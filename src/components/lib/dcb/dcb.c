@@ -77,11 +77,10 @@ cos_dcb_info_alloc(struct cos_dcbinfo_data *cdi, dcboff_t *dcboff, vaddr_t *dcba
 		return 0;
 	}
 	if (cdi->curr_cap_off >= COS_DCB_PERPG_MAX) {
-		assert(0);
 		int ret;
-		unsigned short curr_off = cdi->curr_cap;
+		unsigned long curr_off = cdi->curr_cap;
 
-		assert(curr_off + 1 < (unsigned short)COS_DCB_MAX_CAPS && cdi->dcbcaps[curr_off + 1] == 0);
+		assert(curr_off + 1 < (unsigned long)COS_DCB_MAX_CAPS && cdi->dcbcaps[curr_off + 1] == 0);
 
 		cdi->dcbaddr[curr_off + 1] = cos_page_bump_intern_valloc(cdi->ci, PAGE_SIZE);
 		assert(cdi->dcbaddr[curr_off + 1]);
@@ -89,7 +88,7 @@ cos_dcb_info_alloc(struct cos_dcbinfo_data *cdi, dcboff_t *dcboff, vaddr_t *dcba
 							   cdi->ci->pgtbl_cap, cdi->dcbaddr[curr_off + 1]);
 
 		assert(cdi->dcbcaps[curr_off + 1]);
-		ret = ps_cas((unsigned long *)&cdi->curr_cap, curr_off, curr_off + 1);
+		ret = ps_cas((unsigned long *)&cdi->curr_cap, (unsigned long)curr_off, (unsigned long)(curr_off + 1));
 		assert(ret);
 		ret = ps_cas((unsigned long *)&cdi->curr_cap_off, cdi->curr_cap_off, 0);
 		assert(ret);

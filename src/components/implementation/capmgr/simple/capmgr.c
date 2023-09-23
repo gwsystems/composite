@@ -91,8 +91,7 @@ SS_STATIC_SLAB(asnd, struct cm_asnd, MAX_NUM_THREADS);
 SS_STATIC_SLAB(page, struct mm_page, MM_NPAGES);
 SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 
-#define MAX_DCB_NUM PAGE_SIZE/sizeof(struct cos_dcb_info)
-SS_STATIC_SLAB(dcb, struct cm_dcb, MAX_DCB_NUM);
+SS_STATIC_SLAB(dcb, struct cm_dcb, MAX_NUM_THREADS);
 SS_STATIC_SLAB(dcbinfo, struct cm_dcbinfo, MAX_NUM_THREADS);
 #define CONTIG_PHY_PAGES 70000
 static void * contig_phy_pages = 0;
@@ -218,6 +217,7 @@ struct cm_dcb *
 cm_dcb_alloc_in(struct cm_comp *sched)
 {
 	struct cm_dcb *d  = ss_dcb_alloc();
+	assert(d);
 	dcbcap_t       dcbcap = 0;
 	vaddr_t        dcbaddr = 0;
 	dcboff_t       dcboff = 0;

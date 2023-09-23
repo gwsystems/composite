@@ -44,7 +44,7 @@ parallel_main(coreid_t cid)
 	assert(compid < (1 << 16));
 	port	= (u16_t)compid;
 
-	printc("tenant id:%d\n", port);
+	//printc("tenant id:%d\n", port);
 	ret = udp_stack_udp_bind(ip, port);
 	assert(ret == 0);
 
