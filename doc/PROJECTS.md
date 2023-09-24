@@ -21,7 +21,16 @@ These labels follow.
     Perform the same file generation for components and interfaces.
 - `[build]` Remove the old-style C dependency creation with `-MMD -MP`.
 	The build system still uses `sed` to generate dependencies.
-- `[build]` Enable build system to
+- `[composer,build]` Enable the composer and build system to do a stack analysis of each component.
+	Assembly analysis knowing the entry points.
+- `[build,composer]` Generate a flame graph of the stack usage.
+- `[build,composer]` Generate a control/function flow graph picture of each component (e.g. using `graphviz`) from the assembly analysis.
+	Do the same for the kernel.
+- `[build,composer]` Enable system composition to output a graphic representation of the system graph.
+	Different versions of this output might include interfaces as intermediate nodes, and perhaps functions within those interfaces.
+	Uses `graphviz` to output the graphic.
+	Includes special annotations for scheduler, initializer, constructor, and capability manager.
+	A separate representation might depict the capability and page-tables of components.
 - `[components,design]` Design/implement protocol for resource delegation/revocation.
 	The capability manager tracks delegations of kernel resources.
 	If a delegation is performed, both components involved must agree to the operation.
