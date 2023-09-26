@@ -106,7 +106,7 @@ __shm_bm_alloc(shm_bm_t shm, shm_bm_objid_t *objid, size_t objsz, unsigned int n
 	bm = (word_t *)shm;
 	do {
 		idx = __shm_bm_next_free_word(bm, SHM_BM_BITS_TO_WORDS(nobj));
-		if (unlikely(idx == -1)) return NULL;
+		if (unlikely(idx == -1)) assert(0); //return NULL;
 		word   = bm[idx];
 		lz     = __builtin_clzl(word); 
 		offset = SHM_BM_BITMAP_BLOCK - lz - 1;

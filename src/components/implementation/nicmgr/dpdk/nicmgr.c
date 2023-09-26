@@ -110,6 +110,7 @@ nic_get_a_packet(u16_t *pkt_len)
 #if USE_CK_RING_FREE_MBUF
 	while (!pkt_ring_buf_enqueue(&g_free_ring, &buf));
 #else
+	//printc("free packet: %p\n", buf.pkt);
 	cos_free_packet(buf.pkt);
 #endif
 
@@ -122,7 +123,9 @@ static void
 ext_buf_free_callback_fn(void *addr, void *opaque)
 {
 	/* Shared mem uses borrow api, thus do not need to free it here */
+	//printc("free\n");
 	if (addr != NULL) {
+		//printc("free\n");
 		shm_bm_free_net_pkt_buf(addr);
 	} else {
 		printc("External buffer address is invalid\n");
@@ -171,6 +174,7 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	mbuf = cos_allocate_mbuf(g_tx_mp[core_id - 1]);
 	assert(mbuf);
 	ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
+	//printc("try to free buf: %d\n", USE_CK_RING_FREE_MBUF);
 	cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
 	cos_set_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len, 1);
 	tx_packets[0] = mbuf;

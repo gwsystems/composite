@@ -5,7 +5,7 @@
 #define COS_ASM_GET_STACK_BASIC									\
 	/* we save the return position to rcx for custom stack acquisition code to return */ 	\
 	/* Make sure %r13 is not used for other purpose. */                                     \
-	movabs $1f, %r13;									\
+	movabs $1f, %r8;									\
 	/* jump to stack acquisition code */ 							\
 	jmp custom_acquire_stack;								\
 1:												\

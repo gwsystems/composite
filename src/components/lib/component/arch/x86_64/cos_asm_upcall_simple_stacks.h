@@ -86,4 +86,4 @@ custom_acquire_stack:								\
 	/* get the cpuid by right shifting the lower 16 bits*/			\
 	shr $16, %rdx;								\
 	/* on the return, rax is thread id, rdx is core id */ 			\
-	jmpq %r13;
+	jmpq %r8;

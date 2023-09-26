@@ -47,7 +47,7 @@ then
 elif [ "${debug_flag}" == "enable-nic" ]
 then
 	debug_flag=""
-	nic_flag=" -netdev type=tap,id=net0,ifname=tap0,script=no,downscript=no -device e1000e,netdev=net0,mac=66:66:66:66:66:66 "
+	nic_flag=" -netdev type=tap,id=net0,ifname=tap0,script=no,downscript=no -device e1000e,netdev=net0,mac=88:88:88:88:88:88 "
 fi
 
 if [ "${arch}" == "x86_64" ]
