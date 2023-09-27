@@ -24,8 +24,12 @@ These labels follow.
 - `[composer,build]` Enable the composer and build system to do a stack analysis of each component.
 	Assembly analysis knowing the entry points.
 - `[build,composer]` Generate a flame graph of the stack usage.
+- `[composer,build]` Enable the composer and build system to do a control flow analysis of each component with the goal of doing a reachability analysis.
+	Specifically, we want to do an assembly analysis in which we know component entry points, and can generate the set of interface dependency functions reachable by each.
 - `[build,composer]` Generate a control/function flow graph picture of each component (e.g. using `graphviz`) from the assembly analysis.
 	Do the same for the kernel.
+- `[build,composer]` Generate a control/function flow graph picture of each component (e.g. using `graphviz`) from the assembly analysis demonstrating the mapping between exported interface functions, and depended on interface functions provided by depended-on components.
+	The goal is to understand the flow of data through the component, which might inform how the shared memory passed into exported functions can be managed.
 - `[build,composer]` Enable system composition to output a graphic representation of the system graph.
 	Different versions of this output might include interfaces as intermediate nodes, and perhaps functions within those interfaces.
 	Uses `graphviz` to output the graphic.
