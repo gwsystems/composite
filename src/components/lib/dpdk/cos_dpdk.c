@@ -633,7 +633,6 @@ cos_attach_external_mbuf(char *mbuf, void *buf_vaddr,
 	struct rte_mbuf *_mbuf = (struct rte_mbuf *)mbuf;
 
 	cos_pktmbuf_ext_shinfo_init_helper(ext_shinfo, ext_buf_free_cb, 0);
-	printc("attach: %p\n", mbuf);
 	rte_pktmbuf_attach_extbuf(_mbuf, buf_vaddr, buf_iova, buf_len, ext_shinfo);
 
 	return 0;

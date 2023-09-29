@@ -110,7 +110,6 @@ nic_get_a_packet(u16_t *pkt_len)
 #if USE_CK_RING_FREE_MBUF
 	while (!pkt_ring_buf_enqueue(&g_free_ring, &buf));
 #else
-	//printc("free packet: %p\n", buf.pkt);
 	cos_free_packet(buf.pkt);
 #endif
 
