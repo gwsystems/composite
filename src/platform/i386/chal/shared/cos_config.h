@@ -80,6 +80,9 @@
 #define SCHED_PRINTOUT_PERIOD 100000
 #define COMPONENT_ASSERTIONS 1 // activate assertions in components?
 
+/* Optional CPU features */
+// #define MPK_ENABLED
+
 #define FPU_ENABLED 1
 #define FPU_SUPPORT_SSE 1
 #define FPU_SUPPORT_FXSR 1 /* >0 : CPU supports FXSR. */
