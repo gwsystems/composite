@@ -7,26 +7,29 @@
 #include "isr.h"
 #include "tss.h"
 
-typedef enum {
-	CR0_PE    = 1 << 0,  /* Protected Mode Enable */
-	CR0_MP    = 1 << 1,  /* Monitor co-processor */
-	CR0_EM    = 1 << 2,  /* Emulation x87 FPU */
-	CR0_TS    = 1 << 3,  /* Task switched */
-	CR0_ET    = 1 << 4,  /* Extension type */
-	CR0_NE    = 1 << 5,  /* Numeric error */
-	CR0_WP    = 1 << 16, /* Write protect */
-	CR0_AM    = 1 << 18, /* Alignment mask */
-	CR0_NW    = 1 << 29, /* Not-write through */
-	CR0_CD    = 1 << 30, /* Cache disable */
-	CR0_PG    = 1 << 31  /* Paging */
+typedef enum
+{
+	CR0_PE = 1 << 0,  /* Protected Mode Enable */
+	CR0_MP = 1 << 1,  /* Monitor co-processor */
+	CR0_EM = 1 << 2,  /* Emulation x87 FPU */
+	CR0_TS = 1 << 3,  /* Task switched */
+	CR0_ET = 1 << 4,  /* Extension type */
+	CR0_NE = 1 << 5,  /* Numeric error */
+	CR0_WP = 1 << 16, /* Write protect */
+	CR0_AM = 1 << 18, /* Alignment mask */
+	CR0_NW = 1 << 29, /* Not-write through */
+	CR0_CD = 1 << 30, /* Cache disable */
+	CR0_PG = 1 << 31  /* Paging */
 } cr0_flags_t;
 
-typedef enum {
-	CR4_TSD        = 1 << 2,  /* time stamp (rdtsc) access at user-level disabled */
-	CR4_PSE        = 1 << 4,  /* page size extensions (superpages) */
-	CR4_PGE        = 1 << 7,  /* page global bit enabled */
-	CR4_PCE        = 1 << 8,  /* user-level access to performance counters enabled (rdpmc) */
-	CR4_OSFXSR     = 1 << 9,  /* if set, enable SSE instructions and fast FPU save & restore, or using SSE instructions will cause #UD */
+typedef enum
+{
+	CR4_TSD    = 1 << 2, /* time stamp (rdtsc) access at user-level disabled */
+	CR4_PSE    = 1 << 4, /* page size extensions (superpages) */
+	CR4_PGE    = 1 << 7, /* page global bit enabled */
+	CR4_PCE    = 1 << 8, /* user-level access to performance counters enabled (rdpmc) */
+	CR4_OSFXSR = 1 << 9, /* if set, enable SSE instructions and fast FPU save & restore, or using SSE instructions
+	                        will cause #UD */
 	CR4_OSXMMEXCPT = 1 << 10, /* Operating System Support for Unmasked SIMD Floating-Point Exceptions */
 	CR4_FSGSBASE   = 1 << 16, /* user level fs/gs access permission bit */
 	CR4_PCIDE      = 1 << 17, /* Process Context Identifiers Enable*/
@@ -36,17 +39,19 @@ typedef enum {
 	CR4_PKE        = 1 << 22  /* MPK Support */
 } cr4_flags_t;
 
-typedef enum {
-	XCR0    = 0,  /* XCR0 register */
+typedef enum
+{
+	XCR0 = 0, /* XCR0 register */
 } xcr_regs_t;
 
-typedef enum {
-	XCR0_x87      = 1 << 0,  /* X87(must be 1) */
-	XCR0_SSE      = 1 << 1,  /* SSE enable */
-	XCR0_AVX      = 1 << 2,  /* AVX enable */
+typedef enum
+{
+	XCR0_x87 = 1 << 0, /* X87(must be 1) */
+	XCR0_SSE = 1 << 1, /* SSE enable */
+	XCR0_AVX = 1 << 2, /* AVX enable */
 } xcr0_flags_t;
 
-static inline word_t 
+static inline word_t
 chal_cpu_cr0_get(void)
 {
 	word_t config;
@@ -89,12 +94,10 @@ chal_cpu_cr4_set(cr4_flags_t flags)
 static inline u64_t
 chal_cpu_xgetbv(u32_t xcr_n)
 {
-	u32_t low, high; 
+	u32_t low, high;
 	u64_t ret;
 
-	asm volatile(
-		"xgetbv\n\t"
-		:"=a"(low),"=d"(high) : "c"(xcr_n));
+	asm volatile("xgetbv\n\t" : "=a"(low), "=d"(high) : "c"(xcr_n));
 
 	ret = ((u64_t)high << 32) | low;
 	return ret;
@@ -107,9 +110,7 @@ chal_cpu_xsetbv(u32_t xcr_n, u64_t config)
 	low  = (u32_t)config;
 	high = config >> 32;
 
-	asm volatile(
-		"xsetbv\n\t" \
-		::"a"(low), "d"(high), "c"(xcr_n));
+	asm volatile("xsetbv\n\t" ::"a"(low), "d"(high), "c"(xcr_n));
 }
 
 static inline void
@@ -126,7 +127,6 @@ chal_cpu_eflags_init(void)
 	val |= 3 << 12; /* iopl */
 	asm volatile("pushl %0 ; popf" : : "r"(val));
 #endif
-
 }
 
 static inline void
@@ -139,22 +139,22 @@ chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 #endif
 }
 
-#define IA32_SYSENTER_CS  0x174
+#define IA32_SYSENTER_CS 0x174
 #define IA32_SYSENTER_ESP 0x175
 #define IA32_SYSENTER_EIP 0x176
 #define MSR_PLATFORM_INFO 0x000000ce
-#define MSR_APIC_BASE     0x1b
-#define MSR_TSC_AUX       0xc0000103
+#define MSR_APIC_BASE 0x1b
+#define MSR_TSC_AUX 0xc0000103
 
 #if defined(__x86_64__)
-#define MSR_IA32_EFER		0xC0000080
-#define MSR_STAR 		0xC0000081 
-#define MSR_LSTAR 		0xC0000082
-#define MSR_SFMASK 		0xC0000084
+#define MSR_IA32_EFER 0xC0000080
+#define MSR_STAR 0xC0000081
+#define MSR_LSTAR 0xC0000082
+#define MSR_SFMASK 0xC0000084
 
-#define MSR_FSBASE		0xC0000100
-#define MSR_USER_GSBASE 	0xC0000101
-#define MSR_KERNEL_GSBASE 	0xC0000102
+#define MSR_FSBASE 0xC0000100
+#define MSR_USER_GSBASE 0xC0000101
+#define MSR_KERNEL_GSBASE 0xC0000102
 #endif
 
 extern void sysenter_entry(void);
@@ -186,21 +186,20 @@ chal_cpu_coreid_set(u32_t coreid)
 static void
 chal_cpu_init(void)
 {
-	unsigned long cr4 = chal_cpu_cr4_get();
-	cpuid_t cpu_id = get_cpuid();
+	unsigned long cr4    = chal_cpu_cr4_get();
+	cpuid_t       cpu_id = get_cpuid();
 
 #if defined(__x86_64__)
-	u32_t low = 0, high = 0;
-	u64_t xcr0_config = 0;
-	u32_t a = 0, b = 0, c = 0, d = 0;
+	u32_t  low = 0, high = 0;
+	u64_t  xcr0_config = 0;
+	u32_t  a = 0, b = 0, c = 0, d = 0;
 	word_t cr0;
 
 	a = 0x1;
 	chal_cpuid(&a, &b, &c, &d);
 
 #ifdef MPK_ENABLED
-	if(c & CR4_PKE)
-	{
+	if (c & CR4_PKE) {
 		printk("The CPU supports PKE, enabling...\n");
 		cr4 |= CR4_PKE;
 	} else {
@@ -209,17 +208,15 @@ chal_cpu_init(void)
 	}
 #endif
 
-	if(c & CR4_PCIDE)
-	{
+	if (c & CR4_PCIDE) {
 		cr4 |= CR4_PCIDE;
 	} else {
-
-	/* 
-	 * To address the issue where INVLPG may not properly 
-	 * flush Global entries on CPUs when PCIDs are enabled, 
-	 * Linux disabled PCID for certain Intel CPUs. 
-	 * Composite does not use INVLPG feature.
-	 */
+		/*
+		 * To address the issue where INVLPG may not properly
+		 * flush Global entries on CPUs when PCIDs are enabled,
+		 * Linux disabled PCID for certain Intel CPUs.
+		 * Composite does not use INVLPG feature.
+		 */
 		printk("ERROR: PCID is not supported.\n");
 		assert(0);
 	}
@@ -269,7 +266,7 @@ chal_cpu_init(void)
 	/* Now enable SSE and AVX in XCR0, so that XSAVE features can be used */
 
 	/* 1. Enable SSE */
-	cr0  = chal_cpu_cr0_get();
+	cr0 = chal_cpu_cr0_get();
 	cr0 &= ~((word_t)(CR0_EM)); /* clear EM bit*/
 	cr0 |= (word_t)(CR0_MP);    /* set MP bit */
 	chal_cpu_cr0_set(cr0);
@@ -281,13 +278,14 @@ chal_cpu_init(void)
 	chal_cpu_xsetbv(XCR0, xcr0_config);
 
 	readmsr(MSR_IA32_EFER, &low, &high);
-	writemsr(MSR_IA32_EFER,low | 0x1, high);
+	writemsr(MSR_IA32_EFER, low | 0x1, high);
 
 	writemsr(MSR_STAR, 0, SEL_KCSEG | ((SEL_UCSEG - 16) << 16));
 	writemsr(MSR_LSTAR, (u32_t)((u64_t)sysenter_entry), (u32_t)((u64_t)sysenter_entry >> 32));
 	writemsr(MSR_SFMASK, 512, 0);
 	writemsr(MSR_USER_GSBASE, 0, 0);
-	writemsr(MSR_KERNEL_GSBASE, (u32_t)((u64_t)(&kernel_stack_info[cpu_id])), (u32_t)((u64_t)(&kernel_stack_info[cpu_id]) >> 32));
+	writemsr(MSR_KERNEL_GSBASE, (u32_t)((u64_t)(&kernel_stack_info[cpu_id])),
+	         (u32_t)((u64_t)(&kernel_stack_info[cpu_id]) >> 32));
 
 #elif defined(__i386__)
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
@@ -332,7 +330,9 @@ chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)
 #if defined(__x86_64__)
 	/* rcx = user-level ip, r12 = option, rbx = arg, rax = tid + cpuid  */
 	/* $0x3200 : enable interrupt, and iopl is set to 3, the same as user's CPL */
-	__asm__("movq $0x3200, %%r11 ; mov %%rdx, %%ds ; movq %3, %%r12 ; sysretq" : : "c"(ip), "a"(tid | (cpuid << 16)), "d"(SEL_UDSEG), "i"(0), "b"(0));
+	__asm__("movq $0x3200, %%r11 ; mov %%rdx, %%ds ; movq %3, %%r12 ; sysretq"
+	        :
+	        : "c"(ip), "a"(tid | (cpuid << 16)), "d"(SEL_UDSEG), "i"(0), "b"(0));
 #elif defined(__i386__)
 	/* edx = user-level ip, ecx = option, ebx = arg, eax = tid + cpuid */
 	__asm__("sti ; sysexit" : : "c"(0), "d"(ip), "b"(0), "a"(tid | (cpuid << 16)));
