@@ -17,18 +17,22 @@ class parser:
         with open(self.path) as f:
             contents = f.readlines()
         stacksize = 0
+        push_count = 0
+        push_maxcount = 0
         stacklist = []
         headlist = []
 
         for data in contents:
             start = re.search("<*>:", data.strip())
             if start:
-                stacklist.append(stacksize)
+                stacklist.append(max(stacksize,push_maxcount << 2))
                 headlist.append(data.strip())
-                ## print(stacksize)
                 stacksize = 0
+                push_count = 0
+                push_maxcount = 0
                 continue
             temp = data.strip().split("\t")
+            
             for inst in temp:
                 
                 ## check move rbp/ebp as dest, 
@@ -65,10 +69,9 @@ class parser:
                         for i in inst.split(" "):  ## remove the blank
                             if len(i)!=0:
                                 temp.append(i)
-
-                        inst = temp
-                        dst = inst[1].split(",")[1]
-                        src = inst[1].split(",")[0]
+                        instruction = temp
+                        dst = instruction[1].split(",")[1]
+                        src = instruction[1].split(",")[0]
                         searchexception1 = re.search("\(", dst)
                         searchexception2 = re.search("\(", src)
                         if ( not searchexception1 and not searchexception2):
@@ -76,6 +79,15 @@ class parser:
                                 size = int(src.replace("$",""), 16)
                                 stacksize = max(stacksize, size)
 
+                ## try to catch push instruction for rsp.
+                searchpush = re.match("push", inst)
+                searchpop = re.match("pop", inst)
+
+                if searchpush:
+                    push_count += 1
+                    push_maxcount = max(push_count, push_maxcount)
+                if searchpop:
+                    push_count -= 1
         stacklist.append(stacksize)
         stacklist = stacklist[1:]  ## skip the first loop.
         print(headlist)
@@ -84,6 +96,6 @@ class parser:
 
 
 if __name__ == '__main__':
-    parser = parser("a2.s")
+    parser = parser("a.s")
     parser.parseheader()
     parser.parsecontent()
