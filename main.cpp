@@ -19,10 +19,20 @@ int foocall(int i, int sum) {
     return sum;
 }
 
+int fib(int n) {
+    if (n == 1) {
+        return 1;
+    } else if (n == 2) {
+        return 1;
+    }
+    return fib(n-1) + fib(n-2);
+}
+
 
 int main(int argc, char* argv[]) {
     int i = 1;
     int sum = 0;
     sum = functioncall(i, sum);
     sum = foocall(i, sum);
+    return fib(20);
 }

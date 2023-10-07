@@ -34,7 +34,6 @@ class parser:
             temp = data.strip().split("\t")
             
             for inst in temp:
-                
                 ## check move rbp/ebp as dest, 
                 searchrbp = re.search("rbp", inst)
                 searchebp = re.search("ebp", inst)
@@ -90,12 +89,32 @@ class parser:
                     push_count -= 1
         stacklist.append(stacksize)
         stacklist = stacklist[1:]  ## skip the first loop.
-        print(headlist)
-        print(stacklist)
+        ## print(headlist)
+        ## print(stacklist)
+        content = stacklist
         f.close()
 
-
+    def parserecurrence(self):
+        stacklist = []
+        headlist = []
+        with open(self.path) as f:
+            contents = f.readlines()
+        function_name = ""
+        for data in contents:
+            start = re.search("<*>:", data.strip())
+            if start:
+                function_name = data.strip().split("<")[1].replace(">:","")
+            temp = data.strip().split("\t")
+            for inst in temp:            
+                searchcall = re.search("call", inst)
+                if (searchcall):
+                    searchrecurrsion = re.search(function_name, inst)
+                    if (searchrecurrsion):
+                        print("yes")
+                
+                
 if __name__ == '__main__':
     parser = parser("a.s")
     parser.parseheader()
     parser.parsecontent()
+    parser.parserecurrence()
