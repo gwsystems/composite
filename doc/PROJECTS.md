@@ -21,6 +21,10 @@ These labels follow.
     Perform the same file generation for components and interfaces.
 - `[build]` Remove the old-style C dependency creation with `-MMD -MP`.
 	The build system still uses `sed` to generate dependencies.
+- `[composer,build]` Perform a memory analysis of the component binaries to identify sources of memory consumption, and potential solutions.
+	This might include symbols ranked by size, and sections ranked by size.
+	This can be an analysis across all components, or each individual component.
+	If it is an analysis across all components, it have an option to focus on like-symbols between components to understand if sharing could help reduce memory.
 - `[composer,build]` Enable the composer and build system to do a stack analysis of each component.
 	Assembly analysis knowing the entry points.
 - `[build,composer]` Generate a flame graph of the stack usage.
