@@ -11,6 +11,7 @@ These labels follow.
 - `design`: Understands the user-level design of core components.
 - `kernel`: Can hack on the kernel.
 - `build`: Can understand the build system.
+- `binary`: Understand and operate on binaries, likely with [`pyelftools`](https://dev.to/icyphox/python-for-reverse-engineering-1-elf-binaries-1fo4) and [`capstone`](https://github.com/capstone-engine/capstone/blob/master/bindings/python/test_x86.py)
 - `composer`: Understand the composer.
 
 ## Projects
@@ -21,20 +22,20 @@ These labels follow.
     Perform the same file generation for components and interfaces.
 - `[build]` Remove the old-style C dependency creation with `-MMD -MP`.
 	The build system still uses `sed` to generate dependencies.
-- `[composer,build]` Perform a memory analysis of the component binaries to identify sources of memory consumption, and potential solutions.
+- `[composer,build,binary]` Perform a memory analysis of the component binaries to identify sources of memory consumption, and potential solutions.
 	This might include symbols ranked by size, and sections ranked by size.
 	This can be an analysis across all components, or each individual component.
 	If it is an analysis across all components, it have an option to focus on like-symbols between components to understand if sharing could help reduce memory.
-- `[composer,build]` Enable the composer and build system to do a stack analysis of each component.
+- `[composer,build,binary]` Enable the composer and build system to do a stack analysis of each component.
 	Assembly analysis knowing the entry points.
-- `[build,composer]` Generate a flame graph of the stack usage.
-- `[composer,build]` Enable the composer and build system to do a control flow analysis of each component with the goal of doing a reachability analysis.
+- `[build,composer,binary]` Generate a flame graph of the stack usage.
+- `[composer,build,binary]` Enable the composer and build system to do a control flow analysis of each component with the goal of doing a reachability analysis.
 	Specifically, we want to do an assembly analysis in which we know component entry points, and can generate the set of interface dependency functions reachable by each.
-- `[build,composer]` Generate a control/function flow graph picture of each component (e.g. using `graphviz`) from the assembly analysis.
+- `[build,composer,binary]` Generate a control/function flow graph picture of each component (e.g. using `graphviz`) from the assembly analysis.
 	Do the same for the kernel.
-- `[build,composer]` Generate a control/function flow graph picture of each component (e.g. using `graphviz`) from the assembly analysis demonstrating the mapping between exported interface functions, and depended on interface functions provided by depended-on components.
+- `[build,composer,binary]` Generate a control/function flow graph picture of each component (e.g. using `graphviz`) from the assembly analysis demonstrating the mapping between exported interface functions, and depended on interface functions provided by depended-on components.
 	The goal is to understand the flow of data through the component, which might inform how the shared memory passed into exported functions can be managed.
-- `[build,composer]` Enable system composition to output a graphic representation of the system graph.
+- `[build,composer,binary]` Enable system composition to output a graphic representation of the system graph.
 	Different versions of this output might include interfaces as intermediate nodes, and perhaps functions within those interfaces.
 	Uses `graphviz` to output the graphic.
 	Includes special annotations for scheduler, initializer, constructor, and capability manager.
