@@ -3,14 +3,16 @@ class parser:
     def __init__(self, path):
         self.header = []
         self.content = []
+        self.recursive = []
         self.path = path
     def parseheader(self):
         with open(self.path) as f:
             contents = f.readlines()
         for data in contents:
-            result = re.search("<*>:", data)
-            if result:
-                self.header.append(data)
+            start = re.search("<*>:", data)
+            if start:
+                function_name = data.strip().split("<")[1].replace(">:","")
+                self.header.append(function_name)
         f.close()
 
     def parsecontent(self):
@@ -89,9 +91,7 @@ class parser:
                     push_count -= 1
         stacklist.append(stacksize)
         stacklist = stacklist[1:]  ## skip the first loop.
-        ## print(headlist)
-        ## print(stacklist)
-        content = stacklist
+        self.content = stacklist
         f.close()
 
     def parserecurrence(self):
@@ -104,17 +104,21 @@ class parser:
             start = re.search("<*>:", data.strip())
             if start:
                 function_name = data.strip().split("<")[1].replace(">:","")
+                self.recursive.append("No")
             temp = data.strip().split("\t")
             for inst in temp:            
-                searchcall = re.search("call", inst)
+                searchcall = re.match("call", inst)
                 if (searchcall):
-                    searchrecurrsion = re.search(function_name, inst)
-                    if (searchrecurrsion):
-                        print("yes")
-                
+                    searchrecursive = re.search("<" + function_name + ">", inst)
+                    if (searchrecursive):
+                        self.recursive[-1] = "Yes"
+        f.close()  
                 
 if __name__ == '__main__':
-    parser = parser("a.s")
+    parser = parser("../testbench/a.s")
     parser.parseheader()
     parser.parsecontent()
     parser.parserecurrence()
+    print(parser.header)
+    print(parser.content)
+    print(parser.recursive)
