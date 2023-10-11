@@ -1,4 +1,5 @@
 import re
+
 class parser:
     def __init__(self, path):
         self.header = []
@@ -14,6 +15,53 @@ class parser:
                 function_name = data.strip().split("<")[1].replace(">:","")
                 self.header.append(function_name)
         f.close()
+
+    def regexmov(self, inst, stacksize):
+        ## check move rbp/ebp as dest, 
+        searchrbp = re.search("rbp", inst)
+        searchebp = re.search("ebp", inst)
+        searchminus = re.search("-", inst)
+        searchmov = re.match("mov", inst)
+        ## try to catch mov instruction.
+        if (searchrbp or searchebp) and searchminus and searchmov: 
+            searchrbp = re.search("rbp", inst.split(",")[-1])  ## search the destination is rbp and ebp, dst in in the last index split string.
+            searchebp = re.search("ebp", inst.split(",")[-1])
+            if (searchrbp or searchebp):
+                val = inst.split(",")[-1].split("(")[0].replace("-", "")    ## get dst of inst. For example, mov    %r12b,-0x1(%rbp)   
+                if (re.match("0x*", val)):
+                    size = int(val, 16)
+                    stacksize = max(stacksize, size)
+                else:
+                    val = inst.split(" ")[-1].split(",")[0].split("(")[0].replace("-", "")   ## get the source of inst. For example, movzbl -0xc(%rdx),%ebp
+                    size = int(val, 16)
+                    stacksize = max(stacksize, size)
+        return stacksize
+        
+    def regexsub(self, inst, stacksize):    
+        ## try to catch sub instruction for rsp.
+        searchrbp = re.search("rbp", inst)
+        searchebp = re.search("ebp", inst)
+        searchrsp = re.search("rsp", inst)
+        searchsub = re.match("sub", inst)
+        if (searchrbp or searchebp or searchrsp) and searchsub: 
+            searchrbp = re.search("rbp", inst.split(",")[-1])  ## search the destination is rbp and ebp, dst in in the last index split string.
+            searchebp = re.search("ebp", inst.split(",")[-1])
+            searchrsp = re.search("rsp", inst.split(",")[-1])
+            if (searchrbp or searchebp or searchrsp):
+                temp = []
+                for i in inst.split(" "):  ## remove the blank
+                    if len(i)!=0:
+                        temp.append(i)
+                instruction = temp
+                dst = instruction[1].split(",")[1]
+                src = instruction[1].split(",")[0]
+                searchexception1 = re.search("\(", dst)
+                searchexception2 = re.search("\(", src)
+                if ( not searchexception1 and not searchexception2):
+                    if (re.match("\$0x*", src)):
+                        size = int(src.replace("$",""), 16)
+                        stacksize = max(stacksize, size)
+        return stacksize
 
     def parsecontent(self):
         with open(self.path) as f:
@@ -34,51 +82,10 @@ class parser:
                 push_maxcount = 0
                 continue
             temp = data.strip().split("\t")
-            
             for inst in temp:
-                ## check move rbp/ebp as dest, 
-                searchrbp = re.search("rbp", inst)
-                searchebp = re.search("ebp", inst)
-                searchminus = re.search("-", inst)
-                searchmov = re.match("mov", inst)
-                ## try to catch mov instruction.
-                if (searchrbp or searchebp) and searchminus and searchmov: 
-                    searchrbp = re.search("rbp", inst.split(",")[-1])  ## search the destination is rbp and ebp, dst in in the last index split string.
-                    searchebp = re.search("ebp", inst.split(",")[-1])
+                stacksize = max(stacksize, self.regexmov(inst, stacksize)) ## catch mov instruction
+                stacksize = max(stacksize, self.regexsub(inst, stacksize)) ## catch sub instruction
 
-                    if (searchrbp or searchebp):
-                        val = inst.split(",")[-1].split("(")[0].replace("-", "")    ## get dst of inst. For example, mov    %r12b,-0x1(%rbp)   
-                        if (re.match("0x*", val)):
-                            size = int(val, 16)
-                            stacksize = max(stacksize, size)
-                        else:
-                            val = inst.split(" ")[-1].split(",")[0].split("(")[0].replace("-", "")   ## get the source of inst. For example, movzbl -0xc(%rdx),%ebp
-                            size = int(val, 16)
-                            stacksize = max(stacksize, size)
-
-                ## try to catch sub instruction for rsp.
-                searchrbp = re.search("rbp", inst)
-                searchebp = re.search("ebp", inst)
-                searchrsp = re.search("rsp", inst)
-                searchsub = re.match("sub", inst)
-                if (searchrbp or searchebp or searchrsp) and searchsub: 
-                    searchrbp = re.search("rbp", inst.split(",")[-1])  ## search the destination is rbp and ebp, dst in in the last index split string.
-                    searchebp = re.search("ebp", inst.split(",")[-1])
-                    searchrsp = re.search("rsp", inst.split(",")[-1])
-                    if (searchrbp or searchebp or searchrsp):
-                        temp = []
-                        for i in inst.split(" "):  ## remove the blank
-                            if len(i)!=0:
-                                temp.append(i)
-                        instruction = temp
-                        dst = instruction[1].split(",")[1]
-                        src = instruction[1].split(",")[0]
-                        searchexception1 = re.search("\(", dst)
-                        searchexception2 = re.search("\(", src)
-                        if ( not searchexception1 and not searchexception2):
-                            if (re.match("\$0x*", src)):
-                                size = int(src.replace("$",""), 16)
-                                stacksize = max(stacksize, size)
 
                 ## try to catch push instruction for rsp.
                 searchpush = re.match("push", inst)
