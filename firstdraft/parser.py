@@ -3,7 +3,7 @@ import re
 class parser:
     def __init__(self, path):
         self.header = []
-        self.content = []
+        self.stack = []
         self.recursive = []
         self.path = path
     def parseheader(self):
@@ -36,7 +36,7 @@ class parser:
                     size = int(val, 16)
                     stacksize = max(stacksize, size)
         return stacksize
-        
+
     def regexsub(self, inst, stacksize):    
         ## try to catch sub instruction for rsp.
         searchrbp = re.search("rbp", inst)
@@ -62,8 +62,18 @@ class parser:
                         size = int(src.replace("$",""), 16)
                         stacksize = max(stacksize, size)
         return stacksize
+    def regexpush(self, inst, push_count, push_maxcount):
+        ## try to catch push instruction for rsp.
+        searchpush = re.match("push", inst)
+        searchpop = re.match("pop", inst)
+        if searchpush:
+            push_count += 1
+            push_maxcount = max(push_count, push_maxcount)
+        if searchpop:
+            push_count -= 1
+        return push_maxcount
 
-    def parsecontent(self):
+    def stack_analyzer(self):
         with open(self.path) as f:
             contents = f.readlines()
         stacksize = 0
@@ -85,20 +95,11 @@ class parser:
             for inst in temp:
                 stacksize = max(stacksize, self.regexmov(inst, stacksize)) ## catch mov instruction
                 stacksize = max(stacksize, self.regexsub(inst, stacksize)) ## catch sub instruction
+                push_maxcount = self.regexpush(inst, push_count, push_maxcount) ## catch push instruction
 
-
-                ## try to catch push instruction for rsp.
-                searchpush = re.match("push", inst)
-                searchpop = re.match("pop", inst)
-
-                if searchpush:
-                    push_count += 1
-                    push_maxcount = max(push_count, push_maxcount)
-                if searchpop:
-                    push_count -= 1
-        stacklist.append(stacksize)
+        stacklist.append(stacksize) ## catch the last loop.
         stacklist = stacklist[1:]  ## skip the first loop.
-        self.content = stacklist
+        self.stack = stacklist
         f.close()
 
     def parserecurrence(self):
@@ -124,8 +125,8 @@ class parser:
 if __name__ == '__main__':
     parser = parser("../testbench/a.s")
     parser.parseheader()
-    parser.parsecontent()
+    parser.stack_analyzer()
     parser.parserecurrence()
     print(parser.header)
-    print(parser.content)
+    print(parser.stack)
     print(parser.recursive)
