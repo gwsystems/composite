@@ -40,7 +40,7 @@ class parser:
         self.symbol = symbol 
         self.inst = inst
         self.stacklist = []
-
+        self.stackfunction = []
 
     def regexsub(self, inst, stacksize):    
         ## try to catch sub instruction for rbp,ebp,rsp,esp.
@@ -55,11 +55,9 @@ class parser:
             searchrsp = re.match("rsp", dst)
             if searchrsp:
                 val = src
-                print(int(val, 16))
-                print(stacksize)
                 stacksize = max(stacksize, int(val, 16))
-                
         return stacksize
+
     def regexmov(self, inst, stacksize):
         ## check move rbp/ebp as dest,
         searchrbp = re.search("rbp", inst[1])
@@ -76,21 +74,35 @@ class parser:
                 val = dst.split("-")[1].replace("]","")
                 stacksize = max(stacksize,int(val, 16))
         return stacksize
+        
+    def regexpush(self, inst, push_count, push_maxcount):
+        ## try to catch push instruction.
+        searchpush = re.match("push", inst[0])
+        searchpop = re.match("pop", inst[0])
+        if searchpush:
+            push_count += 1
+            push_maxcount = max(push_count, push_maxcount)
+        if searchpop:
+            push_count -= 1
+        return push_maxcount
 
     def stack_analyzer(self):
         stacksize = 0
+        push_count = 0
+        push_maxcount = 0
         for i in self.inst:
             if i in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
-                #print(self.symbol[i])
+                self.stackfunction.append(self.symbol[i])
                 self.stacklist.append(stacksize)
                 stacksize = 0
-            print(stacksize)
+                push_count = 0
+                push_maxcount = 0
             stacksize = max(stacksize, self.regexmov(self.inst[i], stacksize))
-            print(stacksize)
             stacksize = max(stacksize, self.regexsub(self.inst[i], stacksize))
-            print(stacksize)
+            push_maxcount = self.regexpush(self.inst[i], push_count, push_maxcount)
+            stacksize = max(stacksize, push_maxcount << 2)
         self.stacklist.append(stacksize)
-        print(self.stacklist[1:])
+        self.stacklist = self.stacklist[1:]
 
 
                 
@@ -101,3 +113,5 @@ if __name__ == '__main__':
     disassembler.disasminst()
     parser = parser(disassembler.symbol, disassembler.inst)
     parser.stack_analyzer()
+    print(parser.stackfunction)
+    print(parser.stacklist)
