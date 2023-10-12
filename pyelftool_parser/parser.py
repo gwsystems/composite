@@ -1,5 +1,40 @@
 import re
+from elftools.elf.elffile import ELFFile
+from elftools.elf.relocation import RelocationSection
+from capstone import *
 
+class disassembler:
+    def __init__(self, path):
+        self.path = path
+        self.dict = dict()
+    def disasminst(self):
+        with open(path, 'rb') as f:
+            elf = ELFFile(f)
+            code = elf.get_section_by_name('.text')
+            ops = code.data()
+            addr = code['sh_addr']
+            md = Cs(CS_ARCH_X86, CS_MODE_64)
+            for i in md.disasm(ops, addr):
+                #print(i)
+                self.dict[i.address] = (i.mnemonic, i.op_str)      
+                #print(f'0x{i.address:x}:\t{i.mnemonic}\t{i.op_str}')
+            #print(self.dict)
+
+    def disasmsymbol(self):
+        with open(self.path, 'rb') as f:
+            e = ELFFile(f)
+            code = e.get_section_by_name('.text')
+            for i in code.iter_relocations():
+                print(i)
+
+            for section in e.iter_sections():
+                if isinstance(section, RelocationSection):
+                    #print(f'{section.name}:')
+                    symbol_table = e.get_section(section['sh_link'])
+                    for relocation in section.iter_relocations():
+                        symbol = symbol_table.get_symbol(relocation['r_info_sym'])
+                        addr = hex(relocation['r_offset'])
+                    #    print(f'{symbol.name} {addr}')
 class parser:
     def __init__(self, path):
         self.header = []
@@ -123,10 +158,14 @@ class parser:
         f.close()  
                 
 if __name__ == '__main__':
-    parser = parser("../testbench/a.s")
-    parser.parseheader()
-    parser.stack_analyzer()
-    parser.parserecurrence()
-    print(parser.header)
-    print(parser.stack)
-    print(parser.recursive)
+    path = "../testbench/a.elf"
+    disassembler = disassembler(path)
+    disassembler.disasmsymbol()
+    disassembler.disasminst()
+    #parser = parser(path)
+    #parser.parseheader()
+    #parser.stack_analyzer()
+    #parser.parserecurrence()
+    #print(parser.header)
+    #print(parser.stack)
+    #print(parser.recursive)
