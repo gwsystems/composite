@@ -32,7 +32,6 @@ class disassembler:
             for section_index, section in symbol_tables:
                 for nsym, symbol in enumerate(section.iter_symbols()):
                     self.symbol[symbol['st_value']] = symbol.name
-                    #print(hex(symbol['st_value']), symbol.name)
         f.close()
 
 class parser:
