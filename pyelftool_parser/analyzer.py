@@ -65,8 +65,8 @@ class parser:
 
                 
 if __name__ == '__main__':
-    #path = "../testbench/a.elf"
-    path = "/usr/bin/gcc"
+    path = "../testbench/a.elf"
+    #path = "/usr/bin/gcc"
     
     disassembler = disassembler(path)
     disassembler.disasmsymbol()
