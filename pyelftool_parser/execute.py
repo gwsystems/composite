@@ -7,55 +7,71 @@ class execute:
         self.register = register
         self.reg = register.reg
     def exe(self, inst):
+        ## -----------------------------------------------
+        ## decode stage.
 
         (regs_read, regs_write) = inst.regs_access()
         ##  catch the rsp reg in instruction.    
-        flag = 0
-        src = []
-        dst = []
-        log(inst.address, inst.mnemonic, inst.op_str)
-        log(inst.operands)
+        flagrsp = 0
+        src =0
+        dst = 0
+        reg = []
+        readreg = []
+        writereg = []
         flagimm = 0
         flagmem = 0
+        flagptr = 0
         imm = 0
         disp = 0
+        memindex = 0
+        if "ptr" in inst.op_str:    ## early exit for ptr, I do not handle the pointer to memory yet.
+            ##log(inst.address, inst.mnemonic, inst.op_str)
+            ##log("I do not handle memory yet")
+            return 0
+        
+        if len(inst.operands) >= 2:
+            src = inst.op_str.split(",")[1].replace(" ","")
+            dst = inst.op_str.split(",")[0]
+        elif len(inst.operands) == 1:
+            dst = inst.op_str
         for i in inst.operands:
             if i.type == X86_OP_REG:
-                log("cccc")
-                log(inst.reg_name(i.reg))
+                reg.append(inst.reg_name(i.reg))
             if i.type == X86_OP_IMM:
                 imm = i.imm
                 flagimm = 1
             if i.type == X86_OP_MEM:
                 base = inst.reg_name(i.mem.base)
                 disp = i.mem.disp
+                memindex = i.mem.index
                 flagmem = 1
         for r in regs_read:  ## catch the implicity read register of stack
-            src.append(inst.reg_name(r))
-            log("bbbbb")
-            log(src)
+            readreg.append(inst.reg_name(r))
             if "rsp" in inst.reg_name(r):
-                flag = 1
+                flagrsp = 1
         for r in regs_write: ## catch the implicity write register of stack
-            dst.append(inst.reg_name(r))
-            log("aaaaa")
-            log(dst)
+            writereg.append(inst.reg_name(r))
             if "rsp" in inst.reg_name(r):
-                flag = 1
-    
-        if flag:  ## if rsp is in the instruction
+                flagrsp = 1
+        
+        ##------------------------------------------
+        ## execute stage.
+
+        if flagrsp:  ## if rsp is in the instruction
+            
             if inst.id == (X86_INS_PUSH):  ## catch push
                 self.reg["rsp"] -= 4
             elif inst.id == (X86_INS_POP):
                 self.reg["rsp"] += 4
             elif inst.id == (X86_INS_MOV):  ## catch mov instruction
-                if len(dst) == 1:
-                    self.reg[dst[0]] = self.reg[src[0]]
+                if len(writereg) == 1:
+                    self.reg[writereg[0]] = self.reg[readreg[0]]
                 else:
                     log("we have not catched this instruction")
             elif inst.id == (X86_INS_SUB):
-                if len(dst) == 1:   ## catch the immediate
-                    self.reg[dst[0]] = int(src[0], 16)
+                log(inst.address, inst.mnemonic, inst.op_str)
+                if len(writereg) == 1:
+                    self.reg[writereg[0]] = int(readreg[0], 16)
                 else:
                     log("we have not catched this instruction")
             elif inst.id == (X86_INS_ADD):
@@ -63,6 +79,7 @@ class execute:
             elif inst.id == (X86_INS_LEA):
                 i = 1
             else:
-                log(inst.address, inst.mnemonic, inst.op_str)
-                log("we have not catched this instruction")
+                #log(inst.address, inst.mnemonic, inst.op_str)
+                #log("we have not catched this instruction")
+                return 0
         
