@@ -11,30 +11,58 @@ class execute:
         (regs_read, regs_write) = inst.regs_access()
         ##  catch the rsp reg in instruction.    
         flag = 0
-        for r in regs_read:
-             if "rsp" in inst.reg_name(r):
-                 log(inst.address, inst.mnemonic, inst.op_str)
-                 flag = 1
-        for r in regs_write:
+        src = []
+        dst = []
+        log(inst.address, inst.mnemonic, inst.op_str)
+        log(inst.operands)
+        flagimm = 0
+        flagmem = 0
+        imm = 0
+        disp = 0
+        for i in inst.operands:
+            if i.type == X86_OP_REG:
+                log("cccc")
+                log(inst.reg_name(i.reg))
+            if i.type == X86_OP_IMM:
+                imm = i.imm
+                flagimm = 1
+            if i.type == X86_OP_MEM:
+                base = inst.reg_name(i.mem.base)
+                disp = i.mem.disp
+                flagmem = 1
+        for r in regs_read:  ## catch the implicity read register of stack
+            src.append(inst.reg_name(r))
+            log("bbbbb")
+            log(src)
             if "rsp" in inst.reg_name(r):
-                 log(inst.address, inst.mnemonic, inst.op_str)
-                 flag = 1
+                flag = 1
+        for r in regs_write: ## catch the implicity write register of stack
+            dst.append(inst.reg_name(r))
+            log("aaaaa")
+            log(dst)
+            if "rsp" in inst.reg_name(r):
+                flag = 1
+    
         if flag:  ## if rsp is in the instruction
             if inst.id == (X86_INS_PUSH):  ## catch push
-                log(inst.address, inst.mnemonic, inst.op_str)
+                self.reg["rsp"] -= 4
             elif inst.id == (X86_INS_POP):
-                log(inst.address, inst.mnemonic, inst.op_str)
+                self.reg["rsp"] += 4
             elif inst.id == (X86_INS_MOV):  ## catch mov instruction
-                log(inst.address, inst.mnemonic, inst.op_str)
-                dst = inst.op_str
+                if len(dst) == 1:
+                    self.reg[dst[0]] = self.reg[src[0]]
+                else:
+                    log("we have not catched this instruction")
             elif inst.id == (X86_INS_SUB):
-                log(inst.address, inst.mnemonic, inst.op_str)
-                
+                if len(dst) == 1:   ## catch the immediate
+                    self.reg[dst[0]] = int(src[0], 16)
+                else:
+                    log("we have not catched this instruction")
             elif inst.id == (X86_INS_ADD):
-                log(inst.address, inst.mnemonic, inst.op_str)
+                i = 1
             elif inst.id == (X86_INS_LEA):
-                log(inst.address, inst.mnemonic, inst.op_str)
+                i = 1
             else:
-                log("we have not catch this instruction")
                 log(inst.address, inst.mnemonic, inst.op_str)
+                log("we have not catched this instruction")
         
