@@ -58,39 +58,36 @@ class execute:
         ## execute stage.
 
         if flagrsp:  ## if rsp is in the instruction
-            
             if inst.id == (X86_INS_PUSH):  ## catch push
                 self.reg["rsp"] -= 4
-            elif inst.id == (X86_INS_POP):
+            elif inst.id == (X86_INS_POP): ## catch pop instruction
                 self.reg["rsp"] += 4
             elif inst.id == (X86_INS_MOV):  ## catch mov instruction
-                #log(inst.address, inst.mnemonic, inst.op_str)
                 if flagimm:
                     self.reg[dst] = imm
                 else:
                     self.reg[dst] = self.reg[src]
-            elif inst.id == (X86_INS_SUB):
-                #log(inst.address, inst.mnemonic, inst.op_str)
+            elif inst.id == (X86_INS_SUB):  ## catch sub instruction
                 if flagimm:
                     self.reg[dst] -= imm
                 else:
                     self.reg[dst] -= self.reg[src]
                 
-            elif inst.id == (X86_INS_ADD):
-                #log(inst.address, inst.mnemonic, inst.op_str)
+            elif inst.id == (X86_INS_ADD):  ## catch add instruction
                 if flagimm:
                     self.reg[dst] += imm
                 else:
                     self.reg[dst] += self.reg[src]
-                i = 1
-            elif inst.id == (X86_INS_LEA):
+            elif inst.id == (X86_INS_LEA):  ## catch lea instruction
                 log("LEA instruction have not yet handled")
-            elif inst.id == (X86_INS_CALL):
+            elif inst.id == (X86_INS_CALL):  ## catch call instruction
                 self.reg["rsp"] -= 4
-            elif inst.id == (X86_INS_RET):
+            elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 4
             else:
                 log(inst.address, inst.mnemonic, inst.op_str)
                 log("we have not catched this instruction")
                 return 0
-        
+        else:
+            log(inst.address, inst.mnemonic, inst.op_str)
+            log("It is not about rsp")

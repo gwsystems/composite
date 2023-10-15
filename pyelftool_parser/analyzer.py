@@ -30,10 +30,10 @@ class disassembler:
     def disasmsymbol(self):
         with open(self.path, 'rb') as f:
             e = ELFFile(f)
-            symbol_tables = [(idx, s) for idx, s in enumerate(e.iter_sections())
+            symbol_tables = [ s for s in e.iter_sections()
                          if isinstance(s, SymbolTableSection)]
-            for section_index, section in symbol_tables:
-                for nsym, symbol in enumerate(section.iter_symbols()):
+            for section in symbol_tables:
+                for symbol in section.iter_symbols():
                     self.symbol[symbol['st_value']] = symbol.name
         f.close()
 
