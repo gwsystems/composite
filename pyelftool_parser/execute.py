@@ -64,22 +64,33 @@ class execute:
             elif inst.id == (X86_INS_POP):
                 self.reg["rsp"] += 4
             elif inst.id == (X86_INS_MOV):  ## catch mov instruction
-                if len(writereg) == 1:
-                    self.reg[writereg[0]] = self.reg[readreg[0]]
+                #log(inst.address, inst.mnemonic, inst.op_str)
+                if flagimm:
+                    self.reg[dst] = imm
                 else:
-                    log("we have not catched this instruction")
+                    self.reg[dst] = self.reg[src]
             elif inst.id == (X86_INS_SUB):
-                log(inst.address, inst.mnemonic, inst.op_str)
-                if len(writereg) == 1:
-                    self.reg[writereg[0]] = int(readreg[0], 16)
+                #log(inst.address, inst.mnemonic, inst.op_str)
+                if flagimm:
+                    self.reg[dst] -= imm
                 else:
-                    log("we have not catched this instruction")
+                    self.reg[dst] -= self.reg[src]
+                
             elif inst.id == (X86_INS_ADD):
+                #log(inst.address, inst.mnemonic, inst.op_str)
+                if flagimm:
+                    self.reg[dst] += imm
+                else:
+                    self.reg[dst] += self.reg[src]
                 i = 1
             elif inst.id == (X86_INS_LEA):
-                i = 1
+                log("LEA instruction have not yet handled")
+            elif inst.id == (X86_INS_CALL):
+                self.reg["rsp"] -= 4
+            elif inst.id == (X86_INS_RET):
+                self.reg["rsp"] += 4
             else:
-                #log(inst.address, inst.mnemonic, inst.op_str)
-                #log("we have not catched this instruction")
+                log(inst.address, inst.mnemonic, inst.op_str)
+                log("we have not catched this instruction")
                 return 0
         

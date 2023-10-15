@@ -1,7 +1,7 @@
 
 class register:
     def __init__(self):
-        self.reglist = ["rax", "rbx", "rcx", "rdx","rdi" , "rsi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"]
+        self.reglist = ["rax", "rbx", "rcx", "rdx", "rdi" , "rsi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"]
         self.reg = dict()
         self.reg["pc"] = 0
         self.reg["rax"] = 0
