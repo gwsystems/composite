@@ -61,6 +61,7 @@ class execute:
             if inst.id == (X86_INS_PUSH):  ## catch push
                 self.reg["rsp"] -= 4
             elif inst.id == (X86_INS_POP): ## catch pop instruction
+                log(inst.address, inst.mnemonic, inst.op_str)
                 self.reg["rsp"] += 4
             elif inst.id == (X86_INS_MOV):  ## catch mov instruction
                 if flagimm:

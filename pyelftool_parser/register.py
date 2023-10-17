@@ -20,7 +20,8 @@ class register:
         self.reg["r13"] = 0
         self.reg["r14"] = 0
         self.reg["r15"] = 0
-    def clear(self, reg):
+        self.reg["stack"] = 0
+    def clean(self):
         self.reg["rax"] = 0
         self.reg["rbx"] = 0
         self.reg["rcx"] = 0
@@ -37,6 +38,7 @@ class register:
         self.reg["r13"] = 0
         self.reg["r14"] = 0
         self.reg["r15"] = 0
+        self.reg["stack"] = 0
     def Isreg(self, s):
         if s in self.reglist:
             return True
@@ -45,4 +47,5 @@ class register:
     def updaterip(self, key):
         if key != -1:
             self.reg["rip"] = key
-
+    def updatestackreg(self):
+        self.reg["stack"] = min(self.reg["stack"], self.reg["rsp"])  ## catch the maximum stack, but I use min because stack is negative.

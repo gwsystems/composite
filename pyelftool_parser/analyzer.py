@@ -23,7 +23,7 @@ class disassembler:
             md.detail = True
             for i in md.disasm(ops, addr):
                 #print(i)
-                self.inst[i.address] = (i)      
+                self.inst[i.address] = (i)
                 #print(f'0x{i.address:x}:\t{i.mnemonic}\t{i.op_str}')
         f.close()
 
@@ -35,6 +35,7 @@ class disassembler:
             for section in symbol_tables:
                 for symbol in section.iter_symbols():
                     self.symbol[symbol['st_value']] = symbol.name
+                    print(symbol.name)
         f.close()
 
 class parser:
@@ -55,18 +56,24 @@ class parser:
             register.reg["pc"] = key
             register.updaterip(nextinstkey[index + 1])
             index = index + 1
-            
             if key in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
                 self.stackfunction.append(self.symbol[key])
-                self.stacklist.append(stacksize)
-                stacksize = 0
+                self.stacklist.append(register.reg["stack"])
+                print(self.symbol[key])
+                print(register.reg["stack"])
+                print()
+                register.clean()
             execute.exe(self.inst[key])
+            register.updatestackreg()
 
+        self.stacklist.append(register.reg["stack"])
+        self.stacklist = self.stacklist[1:]
+        print(self.stackfunction)
+        print(self.stacklist)
 
-                
 if __name__ == '__main__':
-    #path = "../testbench/a.elf"
-    path = "/usr/bin/gcc"
+    path = "../testbench/a.elf"
+    #path = "/usr/bin/gcc"
     
     disassembler = disassembler(path)
     disassembler.disasmsymbol()
