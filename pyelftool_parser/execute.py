@@ -59,10 +59,10 @@ class execute:
 
         if flagrsp:  ## if rsp is in the instruction
             if inst.id == (X86_INS_PUSH):  ## catch push
-                self.reg["rsp"] -= 4
+                self.reg["rsp"] -= 8
             elif inst.id == (X86_INS_POP): ## catch pop instruction
-                log(inst.address, inst.mnemonic, inst.op_str)
-                self.reg["rsp"] += 4
+                #log(inst.address, inst.mnemonic, inst.op_str)
+                self.reg["rsp"] += 8
             elif inst.id == (X86_INS_MOV):  ## catch mov instruction
                 if flagimm:
                     self.reg[dst] = imm
@@ -86,9 +86,10 @@ class execute:
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 4
             else:
-                log(inst.address, inst.mnemonic, inst.op_str)
-                log("we have not catched this instruction")
+                #log(inst.address, inst.mnemonic, inst.op_str)
+                #log("we have not catched this instruction")
                 return 0
         else:
-            log(inst.address, inst.mnemonic, inst.op_str)
-            log("It is not about rsp")
+            #log(inst.address, inst.mnemonic, inst.op_str)
+            #log("It is not about rsp")
+            return 0

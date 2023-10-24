@@ -35,7 +35,7 @@ class disassembler:
             for section in symbol_tables:
                 for symbol in section.iter_symbols():
                     self.symbol[symbol['st_value']] = symbol.name
-                    print(symbol.name)
+                    #print(symbol.name)
         f.close()
 
 class parser:
