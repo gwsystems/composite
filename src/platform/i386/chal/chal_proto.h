@@ -13,7 +13,7 @@
 #define PGTBL_FLAG_MASK 0xf800000000000fff
 #define PGTBL_FRAME_MASK (~PGTBL_FLAG_MASK)
 #define NUM_ASID_BITS (12)
-#define NUM_ASID_MAX ((1<<NUM_ASID_BITS)-1)
+#define NUM_ASID_MAX ((1 << NUM_ASID_BITS) - 1)
 #define PGTBL_ASID_MASK (0xfff)
 #define CR3_NO_FLUSH (1ul << 63)
 #elif defined(__i386__)
@@ -28,11 +28,11 @@
 #endif
 
 #define PGTBL_ENTRY (1 << PGTBL_ENTRY_ORDER)
-#define SUPER_PAGE_FLAG_MASK  (0x3FFFFF)
-#define SUPER_PAGE_PTE_MASK   (0x3FF000)
+#define SUPER_PAGE_FLAG_MASK (0x3FFFFF)
+#define SUPER_PAGE_PTE_MASK (0x3FF000)
 
 /* FIXME:find a better way to do this */
-#define EXTRACT_SUB_PAGE(super) ((super) & SUPER_PAGE_PTE_MASK)
+#define EXTRACT_SUB_PAGE(super) ((super)&SUPER_PAGE_PTE_MASK)
 
 /* Page table related prototypes & structs */
 /* make it an opaque type...not to be touched */
@@ -53,18 +53,18 @@ struct cap_pgtbl {
 	u64_t             frozen_ts; /* timestamp when frozen is set. */
 } __attribute__((packed));
 
+#ifdef MPK_ENABLED
+
 static inline void
 wrpkru(u32_t pkru)
 {
-	asm volatile (
-		"xor %%rcx, %%rcx\n\t"
-		"xor %%rdx, %%rdx\n\t"
-		"mov %0,    %%eax\n\t"
-		"wrpkru\n\t"
-		: 
-		: "r" (pkru)
-		: "eax", "rcx", "rdx"
-	);
+	asm volatile("xor %%rcx, %%rcx\n\t"
+	             "xor %%rdx, %%rdx\n\t"
+	             "mov %0,    %%eax\n\t"
+	             "wrpkru\n\t"
+	             :
+	             : "r"(pkru)
+	             : "eax", "rcx", "rdx");
 }
 
 static inline u32_t
@@ -72,14 +72,12 @@ rdpkru(void)
 {
 	u32_t pkru;
 
-	asm volatile(
-		"xor %%rcx, %%rcx\n\t"
-		"xor %%rdx, %%rdx\n\t"
-		"rdpkru"
-		: "=a" (pkru) 
-		: 
-		: "rcx", "rdx"
-	);
+	asm volatile("xor %%rcx, %%rcx\n\t"
+	             "xor %%rdx, %%rdx\n\t"
+	             "rdpkru"
+	             : "=a"(pkru)
+	             :
+	             : "rcx", "rdx");
 
 	return pkru;
 }
@@ -102,7 +100,7 @@ static inline prot_domain_t
 chal_protdom_read(void)
 {
 	unsigned long cr3;
-	u16_t asid, mpk_key;
+	u16_t         asid, mpk_key;
 
 	u32_t pkru = rdpkru();
 	assert(pkru);
@@ -114,6 +112,33 @@ chal_protdom_read(void)
 
 	return PROTDOM_INIT(asid, mpk_key);
 }
+
+#else  /* !MPK_ENABLED */
+static inline void
+wrpkru(u32_t pkru)
+{
+}
+static inline u32_t
+rdpkru(void)
+{
+	return 0;
+}
+static inline u32_t
+pkru_state(prot_domain_t protdom)
+{
+	return 0;
+}
+static inline void
+chal_protdom_write(prot_domain_t protdom)
+{
+}
+static inline prot_domain_t
+chal_protdom_read(void)
+{
+	return 0;
+}
+#endif /* MPK_ENABLED */
+
 
 struct cpu_tlb_asid_map {
 	pgtbl_t mapped_pt[NUM_ASID_MAX];
@@ -131,7 +156,7 @@ chal_cached_pt_curr(prot_domain_t protdom)
 static inline void
 chal_cached_pt_update(pgtbl_t pt, prot_domain_t protdom)
 {
-	u16_t asid = PROTDOM_ASID(protdom);
+	u16_t asid                                = PROTDOM_ASID(protdom);
 	tlb_asid_map[get_cpuid()].mapped_pt[asid] = pt;
 }
 
@@ -143,7 +168,7 @@ chal_pgtbl_update(struct pgtbl_info *pt)
 
 	/* lowest 12 bits is the context identifier */
 	unsigned long cr3 = (unsigned long)pt->pgtbl | asid;
-	
+
 	/* fastpath: don't need to invalidate tlb entries; otherwise flush tlb on switch */
 	if (likely(chal_cached_pt_curr(asid) == pt->pgtbl)) {
 		cr3 |= CR3_NO_FLUSH;
@@ -166,4 +191,3 @@ chal_pgtbl_read(void)
 }
 
 #endif /* CHAL_PROTO_H */
-
