@@ -22,7 +22,7 @@ void
 slm_sched_fprr_execution(struct slm_thd *t, cycles_t cycles)
 { return; }
 
-// simply dump a core's task queue for debug usage
+/* simply dump a core's task queue for debug usage */
 static void
 debug_dump_info(void)
 {
@@ -35,13 +35,13 @@ debug_dump_info(void)
 	if (cos_cpuid() == CORE_ID) {
 		counter++;
 		if (counter > LIMIT) {
-			//iterate thread queue
+			/* iterate thread queue */
 			printc("---thread queue dump begin---\n");
 			for (int i = 0 ; i < SLM_FPRR_NPRIOS ; i++) {
 				if (ps_list_head_empty(&prios[i])) continue;
 				ps_list_foreach(&prios[i], t, list) {
 					struct slm_thd *cur = slm_thd_from_sched(t);
-					printc("thd id:%u, stage:%d\n", cur->tid, cur->state);
+					printc("thd id:%lu, stage:%d\n", cur->tid, cur->state);
 				}
 			}
 			printc("---thread queue dump end---\n");

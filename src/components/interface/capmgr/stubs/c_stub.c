@@ -24,6 +24,18 @@ COS_CLIENT_STUB(arcvcap_t, capmgr_rcv_create, thdclosure_index_t idx, int flags,
 	return ret;
 }
 
+COS_CLIENT_STUB(vaddr_t, capmgr_shared_kernel_page_create, vaddr_t *resource)
+{
+	COS_CLIENT_INVCAP;
+	word_t ret1, ret2;
+	vaddr_t ret;
+
+	ret = cos_sinv_2rets(uc, 0, 0, 0, 0, &ret1, &ret2);
+	*resource   = ret1;
+
+	return ret;
+}
+
 COS_CLIENT_STUB(thdcap_t, capmgr_initthd_create, spdid_t child, thdid_t *tid)
 {
 	COS_CLIENT_INVCAP;

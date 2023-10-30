@@ -74,7 +74,7 @@ static inline void
 sync_lock_take(struct sync_lock *l)
 {
 #if 1
-	ps_lock_take(&l->owner_blked);
+	ps_lock_take((struct ps_lock *)&l->owner_blked);
 #else
 	struct sync_blkpt_checkpoint chkpt;
 
@@ -131,7 +131,7 @@ static inline void
 sync_lock_release(struct sync_lock *l)
 {
 #if 1
-	ps_lock_release(&l->owner_blked);	
+	ps_lock_release((struct ps_lock *)&l->owner_blked);	
 #else
 	while (1) {
 		unsigned long o_b = ps_load(&l->owner_blked);

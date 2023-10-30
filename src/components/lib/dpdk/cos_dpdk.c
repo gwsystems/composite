@@ -542,7 +542,7 @@ cos_test_send(int queue, char* mp) {
 		for (int i = 0;i < BURST_NB; i++) {
 			mbuf = rte_pktmbuf_alloc((struct rte_mempool *)mp);
 			assert(mbuf);
-			tx_packets[i] = mbuf;
+			tx_packets[i] = (char *)mbuf;
 			mbuf->data_off = 128;
 
 			mbuf->data_len = PKT_SZ;
@@ -732,7 +732,7 @@ void cos_rte_flow(void)
 	struct rte_flow_action_queue queue = { .index = 0 };
 	struct rte_flow_item_ipv4 ip_spec;
 	struct rte_flow_item_ipv4 ip_mask;
-	struct rte_flow_error *error;
+	struct rte_flow_error *error = NULL;
 	int res;
 
  	memset(pattern, 0, sizeof(pattern));

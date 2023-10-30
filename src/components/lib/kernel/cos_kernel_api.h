@@ -86,7 +86,16 @@ struct cos_compinfo {
 	/* shared comp cap */
 	capid_t comp_cap_shared;
 	capid_t pgtbl_cap_shared;
+
+	u8_t comp_type;
 };
+
+#define COMP_TYPE_DEF (0)
+#define COMP_TYPE_VM (1)
+
+#define PGTBL_TYPE_DEF (0)
+#define PGTBL_TYPE_EPT (1)
+#define PGTBL_LVL_FLAG_VM (1UL << 31)
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
                        vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);/*
@@ -109,7 +118,8 @@ pgtblcap_t cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int
  * frontier as above.
  */
 int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem);
-
+vaddr_t cos_shared_kernel_page_alloc(struct cos_compinfo *ci, vaddr_t *resource);
+vaddr_t cos_shared_kernel_page_alloc_at(struct cos_compinfo *ci, vaddr_t mem_ptr);
 int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources, prot_domain_t protdom);
 
 /*
@@ -119,7 +129,7 @@ int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t en
 int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
                                struct cos_compinfo *ci_resources, prot_domain_t protdom);
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
-pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
+pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci, u8_t type);
 compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, prot_domain_t protdom);
 
 void       cos_ulk_info_init(struct cos_compinfo *ci);
@@ -132,6 +142,11 @@ void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, 
 typedef void (*cos_thd_fn_t)(void *);
 thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
 thdcap_t cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx);
+
+/* TODO: make the vm thd initialization api use capabilities to the resources */
+void cos_vm_thd_page_set(struct cos_compinfo *ci, thdcap_t thd, u32_t page_type, vaddr_t resource);
+void cos_vm_thd_exception_handler_set(struct cos_compinfo *ci, thdcap_t thd, thdcap_t handler);
+
 /* Create the initial (cos_init) thread */
 thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp);
 

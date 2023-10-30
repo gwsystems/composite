@@ -23,3 +23,9 @@ tss_init(const cpuid_t cpu_id)
 
 	kernel_stack_info[cpu_id].kernel_stack_addr = tss[cpu_id].rsp0;
 }
+
+u64_t
+get_tss_base(cpuid_t cpu_id)
+{
+	return (u64_t)&tss[cpu_id];
+}

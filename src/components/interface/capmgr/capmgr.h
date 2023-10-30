@@ -58,4 +58,18 @@ asndcap_t COS_STUB_DECL(capmgr_asnd_rcv_create)(arcvcap_t rcv);
 asndcap_t capmgr_asnd_key_create(cos_channelkey_t key);
 asndcap_t COS_STUB_DECL(capmgr_asnd_key_create)(cos_channelkey_t key);
 
+vaddr_t capmgr_shared_kernel_page_create(vaddr_t *resource);
+vaddr_t COS_STUB_DECL(capmgr_shared_kernel_page_create)(vaddr_t *resource);
+
+vaddr_t capmgr_vm_shared_kernel_page_create_at(compid_t comp_id, vaddr_t addr);
+vaddr_t COS_STUB_DECL(capmgr_vm_shared_kernel_page_create_at)(compid_t comp_id, vaddr_t addr);
+
+compid_t capmgr_vm_comp_create(u64_t mem_sz);
+compid_t COS_STUB_DECL(capmgr_vm_comp_create)(u64_t mem_sz);
+
+void capmgr_vm_thd_page_set(thdid_t tid, u32_t page_type, vaddr_t resource);
+void COS_STUB_DECL(capmgr_vm_thd_page_set)(thdid_t tid, u32_t page_type, vaddr_t resource);
+
+void capmgr_vm_thd_exception_handler_set(thdid_t tid, thdid_t handler);
+void COS_STUB_DECL(capmgr_vm_thd_exception_handler_set)(thdid_t tid, thdid_t handler);
 #endif /* CAPMGR_H */

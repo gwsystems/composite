@@ -383,7 +383,7 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, c
 	return ret;
 }
 
-static int
+int
 cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struct comp_info *ci,
                struct cos_cpu_local_info *cos_info)
 {
@@ -402,14 +402,16 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	/* FIXME: trigger fault for the next thread, for now, return error */
 	if (unlikely(!ltbl_isalive(&next_ci->liveness))) {
 		assert(!(curr->state & THD_STATE_PREEMPTED));
+		assert(curr->thd_type != THD_TYPE_VM);
 		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
 		return 0;
 	}
 
-	if (!(curr->state & THD_STATE_PREEMPTED)) {
+	if ((!(curr->state & THD_STATE_PREEMPTED)) && (curr->thd_type != THD_TYPE_VM)) {
 		copy_gp_regs(regs, &curr->regs);
 		__userregs_set(&curr->regs, 0, __userregs_getsp(&curr->regs), __userregs_getip(&curr->regs));
 	} else {
+		/*TODO: VM"s regs seem to be able to not be copied to save some overhead with the cost another if condition */
 		copy_all_regs(regs, &curr->regs);
 	}
 
@@ -418,14 +420,19 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	next_protdom = thd_invstk_protdom_curr(next);
 
 	thd_current_update(next, curr, cos_info);
-	if (likely(pgtbl_current() != next_pt->pgtbl)) {
-		pgtbl_update(next_pt);
-	}
-	
-	chal_protdom_write(next_protdom);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
 	if (next->tls != curr->tls) chal_tls_update(next->tls);
+
+	if (next->thd_type == THD_TYPE_VM) {
+		thd_vm_exec(next);
+	}
+
+	if (likely(pgtbl_current() != next_pt->pgtbl)) {
+		pgtbl_update(next_pt);
+	}
+
+	chal_protdom_write(next_protdom);
 
 	preempt = thd_switch_update(next, &next->regs, 0);
 	/* if switching to the preempted/awoken thread clear cpu local next_thdinfo */
@@ -488,7 +495,7 @@ notify_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap
  * Process the send event, and notify the appropriate end-points.
  * Return the thread that should be executed next.
  */
-static struct thread *
+struct thread *
 asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, struct tcap *tcap,
              struct tcap **tcap_next, int yield, struct cos_cpu_local_info *cos_info)
 {
@@ -648,8 +655,10 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		tcap = tcap_cap->tcap;
 		if (!tcap_rcvcap_thd(tcap)) return -EINVAL;
 		if (unlikely(!tcap_is_active(tcap))) return -EPERM;
+	} else {
+		/* If a thread has no tcap, then keep the previous timeout and do not change it. */
+		timeout = cos_info->next_timer;
 	}
-
 	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
 	if (tc && tcap_current(cos_info) == tcap) tcap_setprio(tcap, prio);
 
@@ -1205,6 +1214,47 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			/* ret is returned by the overall function */
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data, tid, ulstk);
 			if (ret) kmem_unalloc(pte);
+
+			break;
+		}
+		case CAPTBL_OP_VM_THD_PAGE_SET: {
+			capid_t pgtbl_addr            = __userregs_get1(regs);
+			u32_t   page_type             = __userregs_get2(regs);
+			capid_t pgtbl_cap             = __userregs_get3(regs);
+			capid_t thd_cap               = __userregs_get4(regs);
+
+			void              *page;
+			unsigned long     *pte = NULL;
+			struct cap_pgtbl  *pgtblc;
+			word_t            flags;
+
+			if (page_type < PAGE_SET_MAX) {
+				ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+				if (unlikely(ret)) cos_throw(err, ret);
+				assert(thd && pte);
+			} else {
+				/* Invalid case */
+				return -EINVAL;
+			}
+
+			ret = thd_vm_page_set(ct, cap, thd_cap, page_type, page);
+			if (ret) kmem_unalloc(pte);
+
+			break;
+		}
+		case CAPTBL_OP_VM_THD_EXCEPTION_HANDLER_SET: {
+			capid_t thd            = __userregs_get1(regs);
+			u32_t   handler        = __userregs_get2(regs);
+
+			struct cap_thd            *vm_thd, *handler_thd;
+			vm_thd = (struct cap_thd *)captbl_lkup(ct, thd);
+			handler_thd = (struct cap_thd *)captbl_lkup(ct, handler);
+
+			assert(vm_thd && vm_thd->t->thd_type == THD_TYPE_VM);
+			assert(handler_thd);
+
+			vm_thd->t->exception_handler = handler_thd->t;
+			ret = 0;
 
 			break;
 		}

@@ -6,7 +6,7 @@
 	/* we save the return position to rcx for custom stack acquisition code to return */ 	\
 	movabs $1f, %rcx;									\
 	/* jump to stack acquisition code */ 							\
-	jmp custom_acquire_stack;								\ 
+	jmp custom_acquire_stack;								\
 1:												\
 	/* save the cpuid on the top of the thread stack */					\
 	pushq %rdx;										\

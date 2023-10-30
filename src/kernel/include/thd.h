@@ -18,8 +18,7 @@
 #include "retype_tbl.h"
 #include "tcap.h"
 #include "list.h"
-
-
+#include <vm_vcpu_context.h>
 struct invstk_entry {
 	struct comp_info comp_info;
 	unsigned long    sp, ip;
@@ -29,6 +28,9 @@ struct invstk_entry {
 
 
 #define THD_INVSTK_MAXSZ 16
+
+#define THD_TYPE_HOST (0)
+#define THD_TYPE_VM (1)
 
 /*
  * This is the data structure embedded in threads that are associated
@@ -99,6 +101,11 @@ struct thread {
 	struct rcvcap_info rcvcap;
 	struct list        event_head; /* all events for *this* end-point */
 	struct list_node   event_list; /* the list of events for another end-point */
+
+	u8_t thd_type; /* vm thread or host thread */
+	struct vm_vcpu_context vcpu_ctx;
+	struct thread *exception_handler;
+	void *vm_vcpu_shared_region;
 } CACHE_ALIGNED;
 #include "fpu.h"
 /*
@@ -346,6 +353,19 @@ thd_scheduler_set(struct thread *thd, struct thread *sched)
 	if (unlikely(thd->scheduler_thread != sched)) thd->scheduler_thread = sched;
 }
 
+static inline void
+thd_type_init(struct thread *thd, u8_t type)
+{
+	assert(type == THD_TYPE_HOST || type == THD_TYPE_VM);
+	thd->thd_type = type;
+}
+
+static inline void
+thd_vm_exec(struct thread *thd)
+{
+	vm_thd_exec(thd);
+}
+
 static int
 thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, thdclosure_index_t init_data, thdid_t tid, struct ulk_invstk *ulinvstk)
 {
@@ -353,6 +373,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	struct cap_thd            *tc;
 	struct cap_comp           *compc;
 	int                        ret;
+	u8_t                       type;
 
 	memset(thd, 0, sizeof(struct thread));
 	compc = (struct cap_comp *)captbl_lkup(t, compcap);
@@ -360,6 +381,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 
 	tc = (struct cap_thd *)__cap_capactivate_pre(t, cap, capin, CAP_THD, &ret);
 	if (!tc) return ret;
+	type = compc->pgd->type;
 
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
@@ -370,6 +392,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->invstk_top                       = 0;
 	thd->cpuid                            = get_cpuid();
 	thd->ulk_invstk                       = ulinvstk;
+	thd->vm_vcpu_shared_region            = NULL;
 	assert(thd->tid <= MAX_NUM_THREADS);
 	thd_scheduler_set(thd, thd_current(cli));
 
@@ -378,7 +401,12 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	list_head_init(&thd->event_head);
 	list_init(&thd->event_list, thd);
 
-	thd_upcall_setup(thd, compc->entry_addr, COS_UPCALL_THD_CREATE, init_data, 0, 0);
+	thd_type_init(thd, type);
+	if (likely(type == THD_TYPE_HOST)) {
+		thd_upcall_setup(thd, compc->entry_addr, COS_UPCALL_THD_CREATE, init_data, 0, 0);
+	} else {
+		vm_thd_init(thd, chal_pa2va((paddr_t)(compc->pgd->pgtbl)));
+	}
 	tc->t     = thd;
 	tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD);
@@ -460,6 +488,23 @@ thd_tls_set(struct captbl *ct, capid_t thd_cap, vaddr_t tlsaddr, struct thread *
 	if (current == thd) chal_tls_update(tlsaddr);
 
 	return 0;
+}
+
+static int
+thd_vm_page_set(struct captbl *t, capid_t cap, capid_t capin, u32_t page_type, void *page)
+{
+	struct cap_captbl         *ct;
+	struct cap_thd            *tc;
+	int                        ret;
+	u8_t                       type;
+
+	ct = (struct cap_captbl *)captbl_lkup(t, cap);
+	if (unlikely(!ct || ct->h.type != CAP_CAPTBL)) return -EINVAL;
+
+	tc = (struct cap_thd *)captbl_lkup(ct->captbl, capin);
+	if (!tc) return -EINVAL;
+
+	return vm_thd_page_set(tc->t, page_type, page); 
 }
 
 static void

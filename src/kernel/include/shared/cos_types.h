@@ -118,6 +118,8 @@ typedef enum {
 	CAPTBL_OP_THDACTIVATE,
 	CAPTBL_OP_THDDEACTIVATE,
 	CAPTBL_OP_THDTLSSET,
+	CAPTBL_OP_VM_THD_PAGE_SET,
+	CAPTBL_OP_VM_THD_EXCEPTION_HANDLER_SET,
 	CAPTBL_OP_COMPACTIVATE,
 	CAPTBL_OP_COMPDEACTIVATE,
 	CAPTBL_OP_SINVACTIVATE,
@@ -583,5 +585,69 @@ typedef unsigned short int cos_channelkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KE
  * with too many capabilities making (1<<14) a valid slot!
  */
 #define PRINT_CAP_TEMP (BOOT_CAPTBL_PRINT_HACK)
+
+/* VM shared data structures */
+
+#define MAX_VM_EXIT_REASONS 70
+struct vm_vcpu_shared_region {
+	u64_t cr2;
+
+	u64_t r15;
+	u64_t r14;
+	u64_t r13;
+	u64_t r12;
+	u64_t r11;
+	u64_t r10;
+	u64_t r9;
+	u64_t r8;
+	u64_t bx;
+	u64_t cx;
+	u64_t dx;
+	u64_t si;
+	u64_t di;
+	u64_t bp;
+	u64_t ax;
+
+	u64_t reason;
+	u64_t qualification;
+	u16_t interrupt_status;
+
+	u64_t ip;
+	u64_t sp;
+	u64_t inst_length;
+
+	u64_t gpa;
+	u64_t efer;
+	u64_t cr0;
+	u64_t cr4;
+
+	u64_t microcode_version;
+};
+
+enum {
+	PAGE_VMCS,
+	PAGE_LAPIC,
+	PAGE_MSR_BITMAP,
+	PAGE_LAPIC_ACCESS,
+	PAGE_SHARED_REGION,
+	PAGE_SET_MAX,
+};
+
+#define VM_EXIT_REASON_EXTERNAL_INTERRUPT		1
+#define VM_EXIT_REASON_INTERRUPT_WINDOW			7
+#define VM_EXIT_REASON_CPUID				10
+#define VM_EXIT_REASON_HLT				12
+#define VM_EXIT_REASON_RDTSC				16
+#define VM_EXIT_REASON_VMCALL				18
+#define VM_EXIT_REASON_CONTROL_REGISTER_ACCESS		28
+#define VM_EXIT_REASON_IO_INSTRUCTION			30
+#define VM_EXIT_REASON_RDMSR				31
+#define VM_EXIT_REASON_WRMSR				32
+#define VM_EXIT_REASON_PAUSE				40
+#define VM_EXIT_REASON_EPT_MISCONFIG			49
+#define VM_EXIT_REASON_APIC_ACCESS			44
+#define VM_EXIT_REASON_PREEMPTION_TIMER			52
+#define VM_EXIT_REASON_XSETBV				55
+#define VM_EXIT_REASON_APIC_WRITE			56
 
 #endif /* TYPES_H */

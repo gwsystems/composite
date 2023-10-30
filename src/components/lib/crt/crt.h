@@ -29,7 +29,8 @@ typedef enum {
 	CRT_COMP_SCHED       = 1, 	/* is this a scheduler? */
 	CRT_COMP_CAPMGR      = 2,	/* does this component require delegating management capabilities to it? */
 	CRT_COMP_INITIALIZE  = 4,	/* The current component should initialize this component... */
-	CRT_COMP_BOOTER      = 8	/* Is this the current component (i.e. the booter)? */
+	CRT_COMP_BOOTER      = 8,	/* Is this the current component (i.e. the booter)? */
+	CRT_COMP_VM          = 16,	/* VM component */
 } crt_comp_flags_t;
 
 struct crt_comp_exec_context {
@@ -59,6 +60,10 @@ struct crt_sinv {
 	vaddr_t c_fn_addr, c_ucap_addr;
 	vaddr_t s_fn_addr;
 	sinvcap_t sinv_cap;
+};
+
+struct crt_vm_comp_info {
+	compid_t vmm_comp_id;
 };
 
 struct crt_comp {
@@ -93,6 +98,7 @@ struct crt_comp {
 	capid_t second_lvl_pgtbl_cap;
 	struct protdom_ns_vas *ns_vas;
 
+	struct crt_vm_comp_info vm_comp_info;
 };
 
 struct crt_comp_resources {
@@ -166,13 +172,19 @@ struct crt_sinv_resources {
 
 int crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vaddr_t info, prot_domain_t protdom);
 int crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_comp_resources *resources);
+int crt_comp_vm_create(struct crt_comp *c, char *name, compid_t id, prot_domain_t protdom);
+int crt_vm_comp_init(struct crt_comp *c, char *name, compid_t id, vaddr_t info);
+void crt_vm_thd_page_set(struct crt_comp *vm, thdcap_t thd, u32_t page_type, vaddr_t resource);
 
 int crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt);
 unsigned long crt_ncomp();
 unsigned long crt_nchkpt();
+unsigned long crt_comp_id_new(void);
 
 int crt_comp_alias_in(struct crt_comp *c, struct crt_comp *c_in, struct crt_comp_resources *res, crt_comp_alias_t flags);
 void crt_comp_captbl_frontier_update(struct crt_comp *c, capid_t capid);
+vaddr_t crt_comp_shared_kernel_page_alloc_at(struct crt_comp *c, vaddr_t mem_ptr);
+vaddr_t crt_comp_shared_kernel_page_alloc(struct crt_comp *c, vaddr_t *resource);
 int crt_booter_create(struct crt_comp *c, char *name, compid_t id, vaddr_t info);
 thdcap_t crt_comp_thdcap_get(struct crt_comp *c);
 int crt_comp_sched_delegate(struct crt_comp *child, struct crt_comp *self, tcap_prio_t prio, tcap_res_t res);

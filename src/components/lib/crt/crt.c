@@ -67,6 +67,12 @@ crt_ncomp()
 }
 
 unsigned long
+crt_comp_id_new(void)
+{
+	return ps_faa(&ncomp, 1) + 2;
+}
+
+unsigned long
 crt_nchkpt()
 {
 	return nchkpt;
@@ -429,6 +435,104 @@ crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, vadd
 	assert(ret == 0);
 
 	return 0;
+}
+
+int
+crt_vm_comp_init(struct crt_comp *c, char *name, compid_t id, vaddr_t info)
+{
+	assert(c && name);
+
+	memset(c, 0, sizeof(struct crt_comp));
+	*c = (struct crt_comp) {
+		.flags      = CRT_COMP_VM,
+		.name       = name,
+		.id         = id,
+		.elf_hdr    = 0,
+		.entry_addr = 0,
+		.comp_res   = &c->comp_res_mem,
+		.info       = info,
+		.refcnt     = CRT_REFCNT_INITVAL,
+
+		.init_state = CRT_COMP_INIT_PREINIT,
+		.main_type  = INIT_MAIN_NONE,
+		.init_core  = cos_cpuid(),
+		.barrier    = SIMPLE_BARRIER_INITVAL
+	};
+	simple_barrier_init(&c->barrier, init_parallelism());
+
+	return 0;
+}
+
+int
+crt_comp_vm_create(struct crt_comp *c, char *name, compid_t id, prot_domain_t protdom)
+{
+	struct cos_compinfo *ci, *root_ci;
+	void *mem;
+	compid_t vmm = (compid_t)cos_inv_token();
+
+	/* FIXME: the VM's memory first set up its head_ptr to be 4K just to keep legacy code path simple, should be fixed later */
+	vaddr_t heap_ptr = PAGE_SIZE_4K;
+	capid_t cap_frontier = BOOT_CAPTBL_FREE;
+	vaddr_t entry = 0;
+
+	if (crt_vm_comp_init(c, name, id, 0)) BUG();
+	ci      = cos_compinfo_get(c->comp_res);
+	root_ci = cos_compinfo_get(cos_defcompinfo_curr_get());
+
+	c->protdom = protdom;
+	c->vm_comp_info.vmm_comp_id = vmm;
+
+	assert(c->flags & CRT_COMP_VM);
+	ci->comp_type = COMP_TYPE_VM;
+
+	cos_compinfo_alloc(ci, heap_ptr, cap_frontier, entry, root_ci, protdom);
+
+	/* We would like to first map the zero page for a VM since the heap_ptr cannot be 0 */
+	mem = cos_page_bump_alloc(root_ci);
+	assert(mem);
+	memset(mem, 0, PAGE_SIZE_4K);
+	cos_mem_alias_at(ci, 0, root_ci, (vaddr_t)mem, protdom);
+
+	return 0;
+}
+
+vaddr_t
+crt_comp_shared_kernel_page_alloc_at(struct crt_comp *c, vaddr_t mem_ptr)
+{
+	struct cos_compinfo *ci = cos_compinfo_get(c->comp_res);;
+
+	cos_pgtbl_intern_alloc(ci, ci->pgtbl_cap, mem_ptr, PAGE_SIZE);
+
+	return cos_shared_kernel_page_alloc_at(ci, mem_ptr);
+}
+
+vaddr_t
+crt_comp_shared_kernel_page_alloc(struct crt_comp *c, vaddr_t *resource)
+{
+	struct cos_compinfo *ci = cos_compinfo_get(c->comp_res);
+
+	return cos_shared_kernel_page_alloc(ci, resource);
+}
+
+void
+crt_vm_thd_page_set(struct crt_comp *vm, thdcap_t thd, u32_t page_type, vaddr_t resource)
+{
+	struct cos_compinfo *vm_ci = cos_compinfo_get(vm->comp_res);
+	 
+	switch (page_type)
+	{
+	case PAGE_VMCS:
+	case PAGE_MSR_BITMAP:
+		cos_vm_thd_page_set(vm_ci->memsrc, thd, page_type, 0);
+		break;
+	case PAGE_LAPIC:
+	case PAGE_LAPIC_ACCESS:
+	case PAGE_SHARED_REGION:
+		cos_vm_thd_page_set(vm_ci->memsrc, thd, page_type, resource);
+		break;
+	default:
+		assert(0);
+	}
 }
 
 void
@@ -1185,7 +1289,7 @@ crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt)
 		if (crt_comp_alias_in(c, c, &compres, CRT_COMP_ALIAS_PGTBL | CRT_COMP_ALIAS_COMP)) BUG();
 
 		/* Set up the untyped memory in the new component */
-		utpt = cos_pgtbl_alloc(ci);
+		utpt = cos_pgtbl_alloc(ci, PGTBL_TYPE_DEF);
 		assert(utpt);
 		cos_meminfo_init(&(target_ci->mi), BOOT_MEM_KM_BASE, ctxt->memsz, utpt);
 		cos_meminfo_alloc(target_ci, BOOT_MEM_KM_BASE, ctxt->memsz);

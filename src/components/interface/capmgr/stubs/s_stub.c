@@ -15,6 +15,16 @@ COS_SERVER_3RET_STUB(arcvcap_t, capmgr_rcv_create)
 	return ret;
 }
 
+COS_SERVER_3RET_STUB(vaddr_t, capmgr_shared_kernel_page_create)
+{
+	vaddr_t resource = 0;
+	vaddr_t ret;
+
+	ret = capmgr_shared_kernel_page_create(&resource);
+	*r1 = resource;
+
+	return ret;
+}
 
 COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_create_thunk)
 {

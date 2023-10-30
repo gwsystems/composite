@@ -180,3 +180,9 @@ flush_idt:
 	/* asm volatile("lidt (%0)" : : "p"(&idtr)); */
 	idt_flush((struct idt_ptr *)&idt_ptr);
 }
+
+u64_t
+get_idt_base(void)
+{
+	return idt_ptr.base;
+}

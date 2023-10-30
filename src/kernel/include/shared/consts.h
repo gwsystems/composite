@@ -26,6 +26,7 @@
 #ifndef __KERNEL__
 #ifndef PAGE_SIZE
 #define PAGE_SIZE (1 << PAGE_ORDER)
+#define PAGE_SIZE_4K (4096)
 #endif
 #endif
 

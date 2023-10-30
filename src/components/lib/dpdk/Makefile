@@ -79,7 +79,7 @@ else
 endif
 
 $(SHLIB_FILE): build $(OBJS)
-CFLAGS+=-mfma -DCOMPOSITE_EXISTS
+CFLAGS+=-mfma -DCOMPOSITE_EXISTS -Wno-deprecated-declarations
 
 armv7a_init:
 

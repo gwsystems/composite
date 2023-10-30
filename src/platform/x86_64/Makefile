@@ -6,7 +6,7 @@ LD := ld -m elf_x86_64 --nmagic
 AS := as --64 -g
 
 INCPATH := ../../kernel/include
-INCS    := -I$(INCPATH) -I$(INCPATH)/shared/ -I$(INCPATH)/chal/
+INCS    := -I./ -I$(INCPATH) -I$(INCPATH)/shared/ -I$(INCPATH)/chal/ -Ivmx/include
 CFLAGS  := $(ARCH_CFLAGS) -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone -mcmodel=large -mno-sse -mno-sse2 -mgeneral-regs-only $(INCS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
@@ -55,6 +55,16 @@ KERNEL_CFILES += ulinv.c
 OBJS := $(KERNEL_CFILES:%.c=%.o)
 DEPS := $(KERNEL_CFILES:%.c=%.d)
 
+# kernel vmx files
+VMX_KERNEL_CFILES += vmx/vmx.c
+VMX_KERNEL_CFILES += vmx/vmx_exit.c
+VMX_KERNEL_CFILES += vmx/vm_vcpu_context.c
+
+OBJS += $(VMX_KERNEL_CFILES:vmx/%.c=%.o)
+DEPS += $(VMX_KERNEL_CFILES:vmx/%.c=%.d)
+
+OBJS += vmx_exit_asm.o
+
 # COS KERNEL_CFILES
 COS_CFILES += ../../kernel/pgtbl.c
 COS_CFILES += ../../kernel/retype_tbl.c
@@ -74,7 +84,7 @@ $(KERNEL): linker.ld $(OBJS) loader.o $(CONSTRUCTOR_COMP)
 	$(if $(CONSTRUCTOR_COMP), $(info |     [LD]   Linking in the constructor component $@))
 	$(if $(CONSTRUCTOR_COMP), cp $(CONSTRUCTOR_COMP) constructor; $(LD) -r -b binary constructor -o constructor.o; objcopy --rename-section .data=.initial_component constructor.o;)
 	$(if $(KERNEL_OUTPUT), $(info |     [LD]   Linking $@))
-	$(if $(KERNEL_OUTPUT), $(LD) -T linker.ld loader.o entry.o $(OBJS) $(if $(CONSTRUCTOR_COMP), constructor.o) -o $@)
+	$(if $(KERNEL_OUTPUT), $(LD) -T linker.ld loader.o entry.o $(OBJS) $(VMX_OBJS) $(if $(CONSTRUCTOR_COMP), constructor.o) -o $@)
 	$(if $(KERNEL_OUTPUT), $(info |     [CP]   Copying $@ into $(KERNEL_OUTPUT)))
 	$(if $(KERNEL_OUTPUT), cp $@ $(KERNEL_OUTPUT))
 
@@ -82,6 +92,10 @@ loader.o: loader.S entry.S
 	$(info |     [AS]   Assembling $@)
 	@$(CC) -c -I$(INCPATH) entry.S
 	@$(CC) -c -I$(INCPATH) loader.S
+
+vmx_exit_asm.o: vmx/vmx_exit_asm.S
+	$(info |     [AS]   Assembling $@)
+	@$(CC) -c -I$(INCPATH) vmx/vmx_exit_asm.S
 
 define COMPILE_OBJ_RULE
 	$(info |     [CC]   Compiling $@)
@@ -98,6 +112,7 @@ define COMPILE_DEP_RULE
 endef
 
 %.o:../../kernel/%.c ; $(COMPILE_OBJ_RULE)
+%.o:vmx/%.c ; $(COMPILE_OBJ_RULE)
 %.o: %.c ; $(COMPILE_OBJ_RULE)
 
 ulinv.o: ../../kernel/ulinv.c
@@ -106,6 +121,7 @@ ulinv.o: ../../kernel/ulinv.c
 
 
 %.d:../../kernel/%.c ; $(COMPILE_DEP_RULE)
+%.d:vmx/%.c ; $(COMPILE_DEP_RULE)
 %.d:%.c ; $(COMPILE_DEP_RULE)
 
 clean:

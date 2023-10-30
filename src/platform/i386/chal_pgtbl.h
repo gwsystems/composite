@@ -35,6 +35,21 @@ typedef enum {
 #endif
 } pgtbl_flags_x86_t;
 
+typedef enum {
+	x86_EPT_READ_ACCESS		= 1,
+	x86_EPT_WRITE_ACCCESS		= 1 << 1,
+	x86_EPT_INST_FETCHABLE		= 1 << 2,
+	x86_EPT_IGNORE_PAT_MEM_TYPE	= 1 << 6,
+	x86_EPT_ACCESSED		= 1 << 8,
+	x86_EPT_DIRTY			= 1 << 9,
+	x86_EPT_USR_INST_FETCHABLE	= 1 << 10,
+
+	x86_EPT_MEM_WB			= 6 << 3,
+
+	x86_EPT_INTERN_DEF		= x86_EPT_READ_ACCESS | x86_EPT_WRITE_ACCCESS | x86_EPT_INST_FETCHABLE | x86_EPT_USR_INST_FETCHABLE,
+	x86_EPT_VM_DEF			= x86_EPT_READ_ACCESS | x86_EPT_WRITE_ACCCESS | x86_EPT_INST_FETCHABLE | x86_EPT_USR_INST_FETCHABLE | x86_EPT_MEM_WB | x86_EPT_IGNORE_PAT_MEM_TYPE,
+} ept_pgtbl_flags_x86_t;
+
 /**
  * Use the passed in page, but make sure that we only use the passed
  * in page once.

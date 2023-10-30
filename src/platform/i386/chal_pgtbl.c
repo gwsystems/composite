@@ -78,6 +78,12 @@ chal_pgtbl_flag_update(unsigned long orig, pgtbl_flags_x86_t new)
 	return updated; 
 }
 
+unsigned long
+chal_vm_pgtbl_def_flag(void)
+{
+	return x86_EPT_VM_DEF;
+}
+
 int
 chal_pgtbl_kmem_act(pgtbl_t pt, vaddr_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
@@ -239,7 +245,13 @@ chal_pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pg
 
 	pt->refcnt_flags = 1;
 	pt->parent       = NULL; /* new cap has no parent. only copied cap has. */
-	pt->lvl          = lvl;
+	pt->lvl          = lvl & PGTBL_FLAG_EPT_MASK;
+
+	if (unlikely(lvl & PGTBL_FLAG_EPT)) {
+		pt->type = PGTBL_TYPE_EPT;
+	} else {
+		pt->type = PGTBL_TYPE_DEF;
+	}
 	__cap_capactivate_post(&pt->h, CAP_PGTBL);
 
 	return 0;
@@ -656,7 +668,9 @@ chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid
 	vaddr_t        kmem_addr = 0;
 	unsigned long *pte       = NULL;
 	int            ret;
+	capid_t        lvl       = pgtbl_lvl; 
 
+	pgtbl_lvl &= PGTBL_FLAG_EPT_MASK;
 	ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr, &pte);
 	if (unlikely(ret)) return ret;
 	assert(kmem_addr && pte);
@@ -669,15 +683,21 @@ chal_pgtbl_pgtblactivate(struct captbl *ct, capid_t cap, capid_t pt_entry, capid
 		curr_pt = cap_pt->pgtbl;
 		assert(curr_pt);
 
-		new_pt = pgtbl_create((void *)kmem_addr, curr_pt);
-		ret    = pgtbl_activate(ct, cap, pt_entry, new_pt, 0);
+		if (!(lvl & PGTBL_FLAG_EPT)) {
+			new_pt = pgtbl_create((void *)kmem_addr, curr_pt);
+		} else {
+			pgtbl_init_pte((void *)kmem_addr);
+			new_pt = (pgtbl_t)chal_va2pa((void *)kmem_addr);
+		}
+		
+		ret    = pgtbl_activate(ct, cap, pt_entry, new_pt, lvl);
 	} else if (pgtbl_lvl < 0 || pgtbl_lvl > 3 ) {
 		/* Not supported yet. */
 		printk("cos: warning - PGTBL level greater than 4 not supported yet. \n");
 		ret = -1;
 	} else {
 		pgtbl_init_pte((void *)kmem_addr);
-		ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, pgtbl_lvl);
+		ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, lvl);
 	}
 
 	if (ret) kmem_unalloc(pte);
@@ -707,9 +727,12 @@ chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, struct cap_pg
 	/* Cannot copy frame, or kernel entry. */
 	if (chal_pgtbl_flag_exist(old_v, PGTBL_COSFRAME) || !chal_pgtbl_flag_exist(old_v, PGTBL_USER)) return -EPERM;
 
-	/* sanitize the input flags */
-	flags = chal_pgtbl_flag_update(flags, flags_in);
-
+	if (unlikely((((struct cap_pgtbl *)ctto)->type) == PGTBL_TYPE_EPT)) {
+		flags = chal_vm_pgtbl_def_flag();
+	} else {
+		/* sanitize the input flags */
+		flags = chal_pgtbl_flag_update(flags, flags_in);
+	}
 	return pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, old_v & PGTBL_FRAME_MASK, flags, PAGE_ORDER);
 }
 
@@ -725,6 +748,7 @@ chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandi
 {
 	word_t flags = 0; 
 	u32_t  refcnt_flags, old_v;
+	u8_t type;
 	unsigned long old_pte, new_pte;
 	unsigned long *    intern;
 	int                ret = 0;
@@ -742,8 +766,17 @@ chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandi
 	if (ret != CAS_SUCCESS) return -ECASFAIL;
 
 	new_pte = (u32_t)chal_va2pa(
-	          (void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK))
-	          | X86_PGTBL_INTERN_DEF;
+	          (void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK));
+
+	type = ((struct cap_pgtbl *)ctsub)->type;
+	if (type == PGTBL_TYPE_DEF) {
+		new_pte |= X86_PGTBL_INTERN_DEF;
+	} else if (type == PGTBL_TYPE_EPT) {
+		new_pte |= x86_EPT_INTERN_DEF;
+	} else {
+		/* Some error has occured in this cap! */
+		assert(0);
+	}
 
 	ret = cos_cas(intern, old_pte, new_pte);
 	if (ret != CAS_SUCCESS) {

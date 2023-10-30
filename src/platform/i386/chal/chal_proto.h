@@ -6,6 +6,11 @@
 #define PGTBL_PAGEIDX_SHIFT (12)
 #define PGTBL_FRAME_BITS (32 - PGTBL_PAGEIDX_SHIFT)
 
+#define PGTBL_TYPE_DEF (0)
+#define PGTBL_TYPE_EPT (1)
+#define PGTBL_FLAG_EPT (0x80000000UL)
+#define PGTBL_FLAG_EPT_MASK (~PGTBL_FLAG_EPT)
+
 #if defined(__x86_64__)
 #define PGTBL_ENTRY_ADDR_MASK 0xfffffffffffff000
 #define PGTBL_DEPTH 4
@@ -51,6 +56,7 @@ struct cap_pgtbl {
 	u32_t             lvl;       /* what level are the pgtbl nodes at? */
 	struct cap_pgtbl *parent;    /* if !null, points to parent cap */
 	u64_t             frozen_ts; /* timestamp when frozen is set. */
+	u8_t              type;
 } __attribute__((packed));
 
 static inline void

@@ -50,7 +50,7 @@ static inline word_t
 chal_cpu_cr0_get(void)
 {
 	word_t config;
-	asm("mov %%cr0, %0" : "=r"(config));
+	asm volatile("mov %%cr0, %0" : "=r"(config));
 
 	return config;
 }
@@ -58,7 +58,7 @@ chal_cpu_cr0_get(void)
 static inline void
 chal_cpu_cr0_set(word_t config)
 {
-	asm("mov %0, %%cr0" : : "r"(config));
+	asm volatile("mov %0, %%cr0" : : "r"(config));
 }
 
 static inline unsigned long
@@ -66,9 +66,9 @@ chal_cpu_cr4_get(void)
 {
 	unsigned long config;
 #if defined(__x86_64__)
-	asm("movq %%cr4, %0" : "=r"(config));
+	asm volatile("movq %%cr4, %0" : "=r"(config));
 #elif defined(__i386__)
-	asm("movl %%cr4, %0" : "=r"(config));
+	asm volatile("movl %%cr4, %0" : "=r"(config));
 #endif
 
 	return config;
@@ -80,9 +80,9 @@ chal_cpu_cr4_set(cr4_flags_t flags)
 	unsigned long config = chal_cpu_cr4_get();
 	config |= (unsigned long)flags;
 #if defined(__x86_64__)
-	asm("movq %0, %%cr4" : : "r"(config));
+	asm volatile("movq %0, %%cr4" : : "r"(config));
 #elif defined(__i386__)
-	asm("movl %0, %%cr4" : : "r"(config));
+	asm volatile("movl %0, %%cr4" : : "r"(config));
 #endif
 }
 
@@ -139,9 +139,9 @@ chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 #endif
 }
 
-#define IA32_SYSENTER_CS  0x174
-#define IA32_SYSENTER_ESP 0x175
-#define IA32_SYSENTER_EIP 0x176
+#define MSR_IA32_SYSENTER_CS  0x174
+#define MSR_IA32_SYSENTER_ESP 0x175
+#define MSR_IA32_SYSENTER_EIP 0x176
 #define MSR_PLATFORM_INFO 0x000000ce
 #define MSR_APIC_BASE     0x1b
 #define MSR_TSC_AUX       0xc0000103
@@ -162,13 +162,13 @@ extern void sysenter_entry(void);
 static inline void
 writemsr(u32_t reg, u32_t low, u32_t high)
 {
-	__asm__("wrmsr" : : "c"(reg), "a"(low), "d"(high));
+	__asm__ volatile("wrmsr" : : "c"(reg), "a"(low), "d"(high));
 }
 
 static inline void
 readmsr(u32_t reg, u32_t *low, u32_t *high)
 {
-	__asm__("rdmsr" : "=a"(*low), "=d"(*high) : "c"(reg));
+	__asm__ volatile("rdmsr" : "=a"(*low), "=d"(*high) : "c"(reg));
 }
 
 static inline void
@@ -260,13 +260,14 @@ chal_cpu_init(void)
 
 #elif defined(__i386__)
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
-	writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
-	writemsr(IA32_SYSENTER_ESP, (u32_t)tss[cpu_id].esp0, 0);
-	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, 0);
+	writemsr(MSR_IA32_SYSENTER_CS, SEL_KCSEG, 0);
+	writemsr(MSR_IA32_SYSENTER_ESP, (u32_t)tss[cpu_id].esp0, 0);
+	writemsr(MSR_IA32_SYSENTER_EIP, (u32_t)sysenter_entry, 0);
 #endif
 
 	fpu_init();
 	chal_cpu_eflags_init();
+	vm_env_init();
 }
 
 static inline vaddr_t
@@ -301,10 +302,10 @@ chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)
 #if defined(__x86_64__)
 	/* rcx = user-level ip, r12 = option, rbx = arg, rax = tid + cpuid  */
 	/* $0x3200 : enable interrupt, and iopl is set to 3, the same as user's CPL */
-	__asm__("movq $0x3200, %%r11 ; mov %%rdx, %%ds ; movq %3, %%r12 ; sysretq" : : "c"(ip), "a"(tid | (cpuid << 16)), "d"(SEL_UDSEG), "i"(0), "b"(0));
+	__asm__ volatile("movq $0x3200, %%r11 ; mov %%rdx, %%ds ; movq %3, %%r12 ; sysretq" : : "c"(ip), "a"(tid | (cpuid << 16)), "d"(SEL_UDSEG), "i"(0), "b"(0));
 #elif defined(__i386__)
 	/* edx = user-level ip, ecx = option, ebx = arg, eax = tid + cpuid */
-	__asm__("sti ; sysexit" : : "c"(0), "d"(ip), "b"(0), "a"(tid | (cpuid << 16)));
+	__asm__ volatile("sti ; sysexit" : : "c"(0), "d"(ip), "b"(0), "a"(tid | (cpuid << 16)));
 #endif
 }
 
