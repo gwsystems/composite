@@ -26,6 +26,39 @@ COS_SERVER_3RET_STUB(vaddr_t, capmgr_shared_kernel_page_create)
 	return ret;
 }
 
+COS_SERVER_3RET_STUB(capid_t, capmgr_vm_lapic_create)
+{
+	vaddr_t page = 0;
+	vaddr_t ret;
+
+	ret = capmgr_vm_lapic_create(&page);
+	*r1 = page;
+
+	return ret;
+}
+
+COS_SERVER_3RET_STUB(capid_t, capmgr_vm_shared_region_create)
+{
+	vaddr_t page = 0;
+	vaddr_t ret;
+
+	ret = capmgr_vm_shared_region_create(&page);
+	*r1 = page;
+
+	return ret;
+}
+
+COS_SERVER_3RET_STUB(thdcap_t, capmgr_vm_vcpu_create)
+{
+	thdid_t retthd = 0;
+	thdcap_t ret;
+
+	ret = capmgr_vm_vcpu_create(p0, p1, &retthd);
+	*r1 = retthd;
+
+	return ret;
+}
+
 COS_SERVER_3RET_STUB(thdcap_t, capmgr_thd_create_thunk)
 {
 	thdid_t retthd = 0;
@@ -110,6 +143,23 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_aep_create_ext)
 	ret = capmgr_aep_create_ext(child, &aep, idx, owntc, key, ipiwin, ipimax, &extrcv);
 	*r1 = aep.tid | (extrcv << 16);
 	*r2 = (aep.rcv << 16) | aep.tc;
+
+	return ret;
+}
+
+COS_SERVER_3RET_STUB(capid_t, capmgr_vm_vmcb_create)
+{
+	capid_t ret;
+	capid_t dummy                 = (p0 >> 16 * 0) & 0xFFFF;
+	capid_t vmcs_cap              = (p0 >> 16 * 1) & 0xFFFF;
+	capid_t msr_bitmap_cap        = (p0 >> 16 * 2) & 0xFFFF;
+	capid_t lapic_access_cap      = (p0 >> 16 * 3) & 0xFFFF;
+	capid_t lapic_cap             = (p1 >> 16 * 0) & 0xFFFF;
+	capid_t shared_mem_cap        = (p1 >> 16 * 1) & 0xFFFF;
+	thdid_t handler_id            = (p1 >> 16 * 2) & 0xFFFF;
+	u16_t vpid                    = (p1 >> 16 * 3) & 0xFFFF;
+
+	ret = capmgr_vm_vmcb_create(vmcs_cap, msr_bitmap_cap, lapic_access_cap, lapic_cap, shared_mem_cap, handler_id, vpid);
 
 	return ret;
 }

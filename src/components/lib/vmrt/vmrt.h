@@ -18,13 +18,21 @@ struct vmrt_vm_vcpu {
 	void *vlapic;
 
 	thdid_t tid;
-	thdid_t handler_tid;
 	thdcap_t cap;
 
 	u8_t cpuid;
 	u8_t coreid;
 	struct vmrt_vm_comp *vm;
 	u64_t pending_req;
+
+	u16_t vpid;
+	vm_vmcscap_t vmcs_cap;
+	vm_msrbitmapcap_t msr_bitmap_cap;
+	vm_lapiccap_t lapic_cap;
+	vm_shared_mem_t shared_mem_cap; 
+	vm_lapicaccesscap_t lapic_access_cap;
+	vm_vmcb_t vmcb_cap;
+	thdid_t handler_tid;
 };
 
 struct vmrt_vm_comp {
@@ -32,7 +40,7 @@ struct vmrt_vm_comp {
 	void *guest_addr;
 	word_t guest_mem_sz;
 
-	u64_t lapic_access_page;
+	vm_lapicaccesscap_t lapic_access_page;
 
 	char name[VMRT_VM_NAME_SIZE];
 

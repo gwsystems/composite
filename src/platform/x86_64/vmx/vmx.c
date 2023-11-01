@@ -2,6 +2,7 @@
 #include <thd.h>
 #include <cpuid.h>
 #include <chal_asm_inc.h>
+#include <vm.h>
 #include <vmx.h>
 #include <vmx_msr.h>
 #include <vmx_logging.h>
@@ -239,15 +240,6 @@ vmx_vm_entry_ctl_init(void)
 }
 
 void
-vmx_thd_init(struct thread *thd, void *vm_pgd)
-{
-	struct vmx_vmcs *vmcs = get_vmcs(&thd->vcpu_ctx);
-
-	thd->vcpu_ctx.state = VM_THD_STATE_STOPPED;
-	vmcs->ept_pml4_base = vm_pgd;
-}
-
-void
 vmx_msr_bitmaps_init(struct thread *thd)
 {
 	/* TODO: make this code more readable, this is fine now since it is not too long */
@@ -316,54 +308,58 @@ vmx_thd_state_init(struct thread *thd)
 	return;
 }
 
-int
-vmx_thd_page_set(struct thread *thd, u32_t page_type, void *page)
-{	
+void
+vmx_thd_init(struct thread *thd, void *vm_pgd, struct cap_vm_vmcb *vmcb)
+{
+	u64_t eptp;
 	struct vmx_vmcs *vmcs = get_vmcs(&thd->vcpu_ctx);
+	void *vmcs_page = (void *)vmcb->vmcs->page;
+	void *msr_bitmap = (void *)vmcb->msr_bitmap->page;
+	void *lapic_access = (void *)vmcb->lapic_access->page;
+	void *lapic = (void *)vmcb->lapic->page;
+	void *shared_region = (void *)vmcb->shared_mem->page;
+	u16_t vpid = vmcb->vpid;
 
-	VMX_DEBUG("page set thd: 0x%p, type:%u\n", thd, thd->thd_type);
+	thd->vcpu_ctx.state = VM_THD_STATE_STOPPED;
+	vmcs->ept_pml4_base = vm_pgd;
 
-	memset(page, 0, PAGE_SIZE_4K);
-	switch (page_type)
-	{
-	case PAGE_VMCS:
-		u64_t eptp;
-		vmcs->vmcs = page;
-		*(u32_t *)page = vmx_get_revision_id();
-		load_vmcs(page);
-		VMX_DEBUG("VMCS PAGE: 0x%p\n", vmcs->vmcs);
-		/* TODO: Need to make this more readable, this is fine since the code here is simple */
-		eptp = chal_va2pa(vmcs->ept_pml4_base);
-		eptp |= 6;
-		eptp |= (4 - 1) << 3;
-		eptp |= 1 << 6;
-		vmwrite(EPTP, eptp);
+	memset(vmcs_page, 0, PAGE_SIZE_4K);
+	memset(msr_bitmap, 0, PAGE_SIZE_4K);
+	memset(lapic_access, 0, PAGE_SIZE_4K);
+	memset(lapic, 0, PAGE_SIZE_4K);
+	memset(shared_region, 0, PAGE_SIZE_4K);
 
-		/* TODO: allocate vpid for different vcpus */
-		vmcs->vpid = 1;
-		vmwrite(VPID, vmcs->vpid);
-		break;
-	case PAGE_LAPIC:
-		vmcs->vapic = page;
-		vmwrite(VAPIC_ACCESS_ADDRESS, chal_va2pa(vmcs->vapic));
-		VMX_DEBUG("VMCS VAPIC PAGE: 0x%p\n", vmcs->vapic);
-		break;
-	case PAGE_MSR_BITMAP:
-		vmcs->msr_bitmap = page;
-		vmwrite(MSR_BITMAPS_ADDRESS, chal_va2pa(vmcs->msr_bitmap));
-	case PAGE_SHARED_REGION:
-		thd->vm_vcpu_shared_region = page;
-		break;
-	case PAGE_LAPIC_ACCESS:
-		vmcs->lapic_access = page;
-		vmwrite(LAPIC_ACCESS_ADDRESS, chal_va2pa(vmcs->lapic_access));
-		VMX_DEBUG("VMCS LAPIC ACCESS PAGE: 0x%p\n", vmcs->lapic_access);
-		break;
-	default:
-		return -1;
-	}
+	vmcs->vmcs = vmcs_page;
 
-	return 0;
+	*(u32_t *)vmcs_page = vmx_get_revision_id();
+	load_vmcs(vmcs_page);
+	VMX_DEBUG("VMCS PAGE: 0x%p\n", vmcs->vmcs);
+
+	vmcs->vapic = lapic;
+	vmwrite(VAPIC_ACCESS_ADDRESS, chal_va2pa(vmcs->vapic));
+	VMX_DEBUG("VMCS VAPIC PAGE: 0x%p\n", vmcs->vapic);
+
+	vmcs->msr_bitmap = msr_bitmap;
+	vmwrite(MSR_BITMAPS_ADDRESS, chal_va2pa(vmcs->msr_bitmap));
+	VMX_DEBUG("VMCS BITMAP PAGE: 0x%p\n", vmcs->msr_bitmap);
+
+	vmcs->lapic_access = lapic_access;
+	vmwrite(LAPIC_ACCESS_ADDRESS, chal_va2pa(vmcs->lapic_access));
+	VMX_DEBUG("VMCS LAPIC ACCESS PAGE: 0x%p\n", vmcs->lapic_access);
+
+	vmcs->vpid = vpid;
+	vmwrite(VPID, vmcs->vpid);
+	VMX_DEBUG("VMCS VPID: %u\n", vmcs->vpid);
+
+	thd->vm_vcpu_shared_region = shared_region;
+	thd->exception_handler = vmcb->handler_thd->t;
+
+	/* TODO: Need to make this more readable, but this is fine now since the setting will never change, less likely to modify this */
+	eptp = chal_va2pa(vmcs->ept_pml4_base);
+	eptp |= 6;
+	eptp |= (4 - 1) << 3;
+	eptp |= 1 << 6;
+	vmwrite(EPTP, eptp);
 }
 
 static void

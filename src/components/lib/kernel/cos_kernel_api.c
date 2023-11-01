@@ -1060,35 +1060,116 @@ cos_shared_kernel_page_alloc(struct cos_compinfo *ci, vaddr_t *resource)
 	return heap_vaddr;
 }
 
-void
-cos_vm_thd_page_set(struct cos_compinfo *ci, thdcap_t thd, u32_t page_type, vaddr_t resource)
+vaddr_t
+cos_vm_kernel_page_create(struct cos_compinfo *ci)
 {
 	vaddr_t kmem = 0;
-	int ret;
 
-	if (resource) {
-		kmem = resource;
-	} else {
-		kmem = __kmem_bump_alloc(ci);
-	}
+	kmem = __kmem_bump_alloc(ci);
+	assert(kmem);
 
-	ret = call_cap_op(ci->captbl_cap, CAPTBL_OP_VM_THD_PAGE_SET, kmem, page_type, __compinfo_metacap(ci)->mi.pgtbl_cap, thd);
-
-	if (ret) {
-		BUG();
-	}
+	return kmem;
 }
 
-void
-cos_vm_thd_exception_handler_set(struct cos_compinfo *ci, thdcap_t thd, thdcap_t handler)
+capid_t
+cos_vm_vmcs_alloc(struct cos_compinfo *ci, vaddr_t kmem)
 {
-	int ret;
+	capid_t cap = 0;
 
-	ret = call_cap_op(ci->memsrc->captbl_cap, CAPTBL_OP_VM_THD_EXCEPTION_HANDLER_SET, thd, handler, 0, 0);
+	cap = __capid_bump_alloc(__compinfo_metacap(ci), CAP_VM_VMCS);
 
-	if (ret) {
-		BUG();
+	if (cap == 0 || kmem == 0) {
+		assert(0);
 	}
+
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_VM_VMCS_ACTIVATE, kmem, __compinfo_metacap(ci)->mi.pgtbl_cap, cap, 0)) BUG();
+
+	return cap;
+}
+
+capid_t
+cos_vm_msr_bitmap_alloc(struct cos_compinfo *ci, vaddr_t kmem)
+{
+	capid_t cap = 0;
+
+	cap = __capid_bump_alloc(__compinfo_metacap(ci), CAP_VM_MSR_BITMAP);
+
+	if (cap == 0 || kmem == 0) {
+		assert(0);
+	}
+
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_VM_MSR_BITMAP_ACTIVATE, kmem, __compinfo_metacap(ci)->mi.pgtbl_cap, cap, 0)) BUG();
+
+	return cap;
+}
+
+capid_t
+cos_vm_lapic_alloc(struct cos_compinfo *ci, vaddr_t kmem)
+{
+	capid_t cap = 0;
+
+	cap = __capid_bump_alloc(__compinfo_metacap(ci), CAP_VM_LAPIC);
+	if (cap == 0 || kmem == 0) {
+		assert(0);
+	}
+
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_VM_LAPIC_ACTIVATE, kmem, __compinfo_metacap(ci)->mi.pgtbl_cap, cap, 0)) BUG();
+
+	return cap;
+
+}
+
+capid_t
+cos_vm_shared_region_alloc(struct cos_compinfo *ci, vaddr_t kmem)
+{
+	capid_t cap = 0;
+
+	cap = __capid_bump_alloc(__compinfo_metacap(ci), CAP_VM_SHARED_MEM);
+	if (cap == 0 || kmem == 0) {
+		assert(0);
+	}
+
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_VM_SHARED_MEM_ACTIVATE, kmem, __compinfo_metacap(ci)->mi.pgtbl_cap, cap, 0)) BUG();
+
+	return cap;
+
+}
+
+capid_t
+cos_vm_lapic_access_alloc(struct cos_compinfo *ci, vaddr_t kmem)
+{
+	capid_t cap = 0;
+
+	cap = __capid_bump_alloc(__compinfo_metacap(ci), CAP_VM_LAPIC_ACCESS);
+	if (cap == 0 || kmem == 0) {
+		assert(0);
+	}
+
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_VM_LAPIC_ACCESS_ACTIVATE, kmem, __compinfo_metacap(ci)->mi.pgtbl_cap, cap, 0)) BUG();
+
+	return cap;
+
+}
+
+capid_t
+cos_vm_vmcb_alloc(struct cos_compinfo *ci, vm_vmcscap_t vmcs_cap, vm_msrbitmapcap_t msr_bitmap_cap, vm_lapicaccesscap_t lapic_access_cap, vm_lapiccap_t lapic_cap, vm_shared_mem_t shared_mem_cap, thdcap_t handler_cap, word_t vpid)
+{
+	capid_t cap = 0;
+	word_t arg1 = 0;
+	word_t arg2 = 0;
+
+	cap = __capid_bump_alloc(__compinfo_metacap(ci), CAP_VM_VMCB);
+	if (cap == 0) {
+		assert(0);
+	}
+
+	arg1 = cap | vmcs_cap << (16 * 1) | msr_bitmap_cap << (16 * 2) |  lapic_access_cap << (16 * 3);
+	arg2 = lapic_cap | shared_mem_cap << (16 * 1) | handler_cap << (16 * 2) | vpid << (16 * 3);
+
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_VM_VMCB_ACTIVATE, arg1, arg2, 0, 0)) BUG();
+
+	return cap;
+
 }
 
 thdcap_t

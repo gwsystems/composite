@@ -174,7 +174,6 @@ int crt_comp_create(struct crt_comp *c, char *name, compid_t id, void *elf_hdr, 
 int crt_comp_create_with(struct crt_comp *c, char *name, compid_t id, struct crt_comp_resources *resources);
 int crt_comp_vm_create(struct crt_comp *c, char *name, compid_t id, prot_domain_t protdom);
 int crt_vm_comp_init(struct crt_comp *c, char *name, compid_t id, vaddr_t info);
-void crt_vm_thd_page_set(struct crt_comp *vm, thdcap_t thd, u32_t page_type, vaddr_t resource);
 
 int crt_comp_create_from(struct crt_comp *c, char *name, compid_t id, struct crt_chkpt *chkpt);
 unsigned long crt_ncomp();
@@ -195,6 +194,13 @@ struct crt_comp_exec_context *crt_comp_exec_capmgr_init(struct crt_comp_exec_con
 int crt_comp_exec(struct crt_comp *c, struct crt_comp_exec_context *ctxt);
 struct crt_rcv *crt_comp_exec_rcv(struct crt_comp *comp);
 struct crt_thd *crt_comp_exec_thd(struct crt_comp *comp);
+
+capid_t crt_vm_vmcs_create(struct crt_comp *comp);
+capid_t crt_vm_msr_bitmap_create(struct crt_comp *comp);
+capid_t crt_vm_lapic_create(struct crt_comp *comp, vaddr_t *page);
+capid_t crt_vm_lapic_access_create(struct crt_comp *comp, vaddr_t mem);
+capid_t crt_vm_shared_region_create(struct crt_comp *comp, vaddr_t *page);
+capid_t crt_vm_vmcb_create(struct crt_comp *comp, vm_vmcscap_t vmcs_cap, vm_msrbitmapcap_t msr_bitmap_cap, vm_lapicaccesscap_t lapic_access_cap, vm_lapiccap_t lapic_cap, vm_shared_mem_t shared_mem_cap, thdcap_t handler_thd_cap, u16_t vpid);
 
 int crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_fast_callgate_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr, vaddr_t s_altfn_addr);
 int crt_sinv_create_shared(struct crt_sinv *sinv, char *name, struct crt_comp *server, struct crt_comp *client, vaddr_t c_fn_addr, vaddr_t c_ucap_addr, vaddr_t s_fn_addr);

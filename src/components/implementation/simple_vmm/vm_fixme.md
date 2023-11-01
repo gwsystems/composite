@@ -3,8 +3,6 @@ This document records some future work or potential fixes needed in the future.
 ## The right option to create a VM component
 For EPT, having a EPT cap or having a separate operation for PGTBL_CAP for EPT would be the best. And making the flags operations open to kernel api, thus different types of page tables can pass their own flags with the same code path.
 
-For VM thd, there also needs a seprate path to figure out whether it is a vcpu thread or host thread. A separate VM_THD_CAP would be better since it can then be assigned to VMM to switch to. There should also be some new capabilities to some kernel pages, so that the creation code can combine them together and make it one capability for share.
-
 However, that's not what the current code is. The current code uses a VM flag bit when creating EPT page tables within the `level` argument in order to reduce workload based on the current kernel and user level codebase.
 
 ## Linux image

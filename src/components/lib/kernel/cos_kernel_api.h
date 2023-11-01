@@ -55,6 +55,12 @@ typedef capid_t captblcap_t;
 typedef capid_t pgtblcap_t;
 typedef capid_t hwcap_t;
 typedef capid_t ulkcap_t;
+typedef capid_t vm_vmcscap_t;
+typedef capid_t vm_msrbitmapcap_t;
+typedef capid_t vm_lapicaccesscap_t;
+typedef capid_t vm_lapiccap_t;
+typedef capid_t vm_shared_mem_t;
+typedef capid_t vm_vmcb_t;
 
 /* Memory source information */
 struct cos_meminfo {
@@ -143,9 +149,7 @@ typedef void (*cos_thd_fn_t)(void *);
 thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
 thdcap_t cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx);
 
-/* TODO: make the vm thd initialization api use capabilities to the resources */
-void cos_vm_thd_page_set(struct cos_compinfo *ci, thdcap_t thd, u32_t page_type, vaddr_t resource);
-void cos_vm_thd_exception_handler_set(struct cos_compinfo *ci, thdcap_t thd, thdcap_t handler);
+vaddr_t cos_vm_kernel_page_create(struct cos_compinfo *ci);
 
 /* Create the initial (cos_init) thread */
 thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp);
@@ -153,6 +157,13 @@ thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp);
 sinvcap_t cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, invtoken_t token);
 arcvcap_t cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap, arcvcap_t enotif);
 asndcap_t cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t ctcap);
+
+capid_t cos_vm_vmcs_alloc(struct cos_compinfo *ci, vaddr_t kmem);
+capid_t cos_vm_msr_bitmap_alloc(struct cos_compinfo *ci, vaddr_t kmem);
+capid_t cos_vm_lapic_alloc(struct cos_compinfo *ci, vaddr_t kmem);
+capid_t cos_vm_shared_region_alloc(struct cos_compinfo *ci, vaddr_t kmem);
+capid_t cos_vm_lapic_access_alloc(struct cos_compinfo *ci, vaddr_t kmem);
+capid_t cos_vm_vmcb_alloc(struct cos_compinfo *ci, vm_vmcscap_t vmcs_cap, vm_msrbitmapcap_t msr_bitmap_cap, vm_lapicaccesscap_t lapic_access_cap, vm_lapiccap_t lapic_cap, vm_shared_mem_t shared_mem_cap, thdcap_t handler_cap, word_t vpid);
 
 void *cos_page_bump_alloc(struct cos_compinfo *ci);
 void *cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz);

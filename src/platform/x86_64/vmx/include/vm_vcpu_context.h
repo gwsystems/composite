@@ -14,8 +14,8 @@ struct vm_vcpu_context {
 };
 
 struct thread;
+struct cap_vm_vmcb;
 
 void vm_env_init(void);
-void vm_thd_init(struct thread *thd, void *vm_pgd);
+void vm_thd_init(struct thread *thd, void *vm_pgd, struct cap_vm_vmcb *vmcb);
 void vm_thd_exec(struct thread *thd);
-int  vm_thd_page_set(struct thread *thd, u32_t page_type, void *page);

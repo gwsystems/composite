@@ -10,6 +10,7 @@
 #include <retype_tbl.h>
 #include <component.h>
 #include <thd.h>
+#include <vm.h>
 #include <chal_plat.h>
 #include <fpu.h>
 #define ADDR_STR_LEN 8
@@ -164,6 +165,7 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	ltbl_init();
 	retype_tbl_init();
 	comp_init();
+	vm_cap_init();
 	thd_init();
 	boot_state_transition(INIT_MEM_MAP, INIT_DATA_STRUCT);
 

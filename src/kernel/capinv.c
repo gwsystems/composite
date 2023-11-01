@@ -17,6 +17,7 @@
 #include "include/hw.h"
 #include "include/chal/chal_proto.h"
 #include "include/ulk.h"
+#include "include/vm.h"
 
 
 #define COS_DEFAULT_RET_CAP 0
@@ -1217,44 +1218,108 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			break;
 		}
-		case CAPTBL_OP_VM_THD_PAGE_SET: {
+		case CAPTBL_OP_VM_VMCS_ACTIVATE: {
 			capid_t pgtbl_addr            = __userregs_get1(regs);
-			u32_t   page_type             = __userregs_get2(regs);
-			capid_t pgtbl_cap             = __userregs_get3(regs);
-			capid_t thd_cap               = __userregs_get4(regs);
+			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t vmcs_cap              = __userregs_get3(regs);
 
-			void              *page;
+			vaddr_t page;
 			unsigned long     *pte = NULL;
 			struct cap_pgtbl  *pgtblc;
 			word_t            flags;
 
-			if (page_type < PAGE_SET_MAX) {
-				ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
-				if (unlikely(ret)) cos_throw(err, ret);
-				assert(thd && pte);
-			} else {
-				/* Invalid case */
-				return -EINVAL;
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+			if (likely(!ret)) {
+				ret = vm_vmcs_activate(ct, cap, vmcs_cap, page);
 			}
-
-			ret = thd_vm_page_set(ct, cap, thd_cap, page_type, page);
 			if (ret) kmem_unalloc(pte);
 
 			break;
 		}
-		case CAPTBL_OP_VM_THD_EXCEPTION_HANDLER_SET: {
-			capid_t thd            = __userregs_get1(regs);
-			u32_t   handler        = __userregs_get2(regs);
+		case CAPTBL_OP_VM_MSR_BITMAP_ACTIVATE: {
+			capid_t pgtbl_addr            = __userregs_get1(regs);
+			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t bitmap_cap            = __userregs_get3(regs);
 
-			struct cap_thd            *vm_thd, *handler_thd;
-			vm_thd = (struct cap_thd *)captbl_lkup(ct, thd);
-			handler_thd = (struct cap_thd *)captbl_lkup(ct, handler);
+			vaddr_t page;
+			unsigned long     *pte = NULL;
+			struct cap_pgtbl  *pgtblc;
+			word_t            flags;
 
-			assert(vm_thd && vm_thd->t->thd_type == THD_TYPE_VM);
-			assert(handler_thd);
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+			if (likely(!ret)) {
+				ret = vm_msr_bitmap_activate(ct, cap, bitmap_cap, page);
+			}
+			if (ret) kmem_unalloc(pte);
 
-			vm_thd->t->exception_handler = handler_thd->t;
-			ret = 0;
+			break;
+		}
+		case CAPTBL_OP_VM_LAPIC_ACCESS_ACTIVATE: {
+			capid_t pgtbl_addr            = __userregs_get1(regs);
+			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t lapic_access_cap      = __userregs_get3(regs);
+
+			vaddr_t page;
+			unsigned long     *pte = NULL;
+			struct cap_pgtbl  *pgtblc;
+			word_t            flags;
+
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+			if (likely(!ret)) {
+				ret = vm_lapic_access_activate(ct, cap, lapic_access_cap, page);
+			}
+			if (ret) kmem_unalloc(pte);
+
+			break;
+		}
+		case CAPTBL_OP_VM_LAPIC_ACTIVATE: {
+			capid_t pgtbl_addr            = __userregs_get1(regs);
+			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t lapic_cap             = __userregs_get3(regs);
+
+			vaddr_t page;
+			unsigned long     *pte = NULL;
+			struct cap_pgtbl  *pgtblc;
+			word_t            flags;
+
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+			if (likely(!ret)) {
+				ret = vm_lapic_activate(ct, cap, lapic_cap, page);
+			}
+			if (ret) kmem_unalloc(pte);
+
+			break;
+		}
+		case CAPTBL_OP_VM_SHARED_MEM_ACTIVATE: {
+			capid_t pgtbl_addr            = __userregs_get1(regs);
+			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t shared_mem_cap        = __userregs_get3(regs);
+
+			vaddr_t page;
+			unsigned long     *pte = NULL;
+			struct cap_pgtbl  *pgtblc;
+			word_t            flags;
+
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+			if (likely(!ret)) {
+				ret = vm_shared_mem_activate(ct, cap, shared_mem_cap, page);
+			}
+			if (ret) kmem_unalloc(pte);
+
+			break;
+		}
+		case CAPTBL_OP_VM_VMCB_ACTIVATE: {
+			/* NOTE: try to wrap capid into a single word to save available syscall arguments because vmcb might be expanded in the future */
+			capid_t vmcb_cap              = (__userregs_get1(regs) >> 16 * 0) & 0xFFFF;
+			capid_t vmcs_cap              = (__userregs_get1(regs) >> 16 * 1) & 0xFFFF;
+			capid_t msr_bitmap_cap        = (__userregs_get1(regs) >> 16 * 2) & 0xFFFF;
+			capid_t lapic_access_cap      = (__userregs_get1(regs) >> 16 * 3) & 0xFFFF;
+			capid_t lapic_cap             = (__userregs_get2(regs) >> 16 * 0) & 0xFFFF;
+			capid_t shared_mem_cap        = (__userregs_get2(regs) >> 16 * 1) & 0xFFFF;
+			capid_t handler_cap           = (__userregs_get2(regs) >> 16 * 2) & 0xFFFF;
+			u16_t vpid                    = (__userregs_get2(regs) >> 16 * 3) & 0xFFFF;
+
+			ret = vm_vmcb_activate(ct, cap, vmcb_cap, vmcs_cap, msr_bitmap_cap, lapic_access_cap, lapic_cap, handler_cap, shared_mem_cap, vpid);
 
 			break;
 		}

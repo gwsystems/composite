@@ -514,25 +514,66 @@ crt_comp_shared_kernel_page_alloc(struct crt_comp *c, vaddr_t *resource)
 	return cos_shared_kernel_page_alloc(ci, resource);
 }
 
-void
-crt_vm_thd_page_set(struct crt_comp *vm, thdcap_t thd, u32_t page_type, vaddr_t resource)
+capid_t
+crt_vm_vmcs_create(struct crt_comp *comp)
 {
-	struct cos_compinfo *vm_ci = cos_compinfo_get(vm->comp_res);
-	 
-	switch (page_type)
-	{
-	case PAGE_VMCS:
-	case PAGE_MSR_BITMAP:
-		cos_vm_thd_page_set(vm_ci->memsrc, thd, page_type, 0);
-		break;
-	case PAGE_LAPIC:
-	case PAGE_LAPIC_ACCESS:
-	case PAGE_SHARED_REGION:
-		cos_vm_thd_page_set(vm_ci->memsrc, thd, page_type, resource);
-		break;
-	default:
-		assert(0);
-	}
+	vaddr_t kmem;
+	struct cos_compinfo *ci = cos_compinfo_get(comp->comp_res);
+
+	kmem = cos_vm_kernel_page_create(ci);
+
+	return cos_vm_vmcs_alloc(ci->memsrc, kmem);
+}
+
+capid_t
+crt_vm_msr_bitmap_create(struct crt_comp *comp)
+{
+	vaddr_t kmem;
+	struct cos_compinfo *ci = cos_compinfo_get(comp->comp_res);
+	
+	kmem = cos_vm_kernel_page_create(ci);
+
+	return cos_vm_msr_bitmap_alloc(ci->memsrc, kmem);
+}
+
+capid_t
+crt_vm_lapic_create(struct crt_comp *comp, vaddr_t *page)
+{
+	vaddr_t kmem;
+	struct cos_compinfo *ci = cos_compinfo_get(comp->comp_res);
+
+	*page = cos_shared_kernel_page_alloc(ci, &kmem);
+	assert(*page);
+
+	return cos_vm_lapic_alloc(ci->memsrc, kmem);
+}
+
+capid_t
+crt_vm_shared_region_create(struct crt_comp *comp, vaddr_t *page)
+{
+	vaddr_t kmem;
+	struct cos_compinfo *ci = cos_compinfo_get(comp->comp_res);
+
+	*page = cos_shared_kernel_page_alloc(ci, &kmem);
+	assert(*page);
+
+	return cos_vm_shared_region_alloc(ci->memsrc, kmem);
+}
+
+capid_t
+crt_vm_lapic_access_create(struct crt_comp *comp, vaddr_t mem)
+{
+	struct cos_compinfo *ci = cos_compinfo_get(comp->comp_res);
+
+	return cos_vm_lapic_access_alloc(ci->memsrc, mem);
+}
+
+capid_t
+crt_vm_vmcb_create(struct crt_comp *comp, vm_vmcscap_t vmcs_cap, vm_msrbitmapcap_t msr_bitmap_cap, vm_lapicaccesscap_t lapic_access_cap, vm_lapiccap_t lapic_cap, vm_shared_mem_t shared_mem_cap, thdcap_t handler_thd_cap, u16_t vpid)
+{
+	struct cos_compinfo *ci = cos_compinfo_get(comp->comp_res);
+
+	return cos_vm_vmcb_alloc(ci->memsrc, vmcs_cap, msr_bitmap_cap, lapic_access_cap, lapic_cap, shared_mem_cap, handler_thd_cap, vpid);
 }
 
 void

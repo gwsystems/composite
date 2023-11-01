@@ -1,6 +1,7 @@
 #include <vm_vcpu_context.h>
 #include <thd.h>
 #include <vmx.h>
+#include <vm.h>
 
 /* Abstraction layer for VM support */
 #ifdef CONFIG_VMX 
@@ -12,15 +13,9 @@ vm_env_init(void)
 }
 
 void
-vm_thd_init(struct thread *thd, void *vm_pgd)
+vm_thd_init(struct thread *thd, void *vm_pgd, struct cap_vm_vmcb *vmcb)
 {
-	vmx_thd_init(thd, vm_pgd);
-}
-
-int
-vm_thd_page_set(struct thread *thd, u32_t page_type, void *page)
-{
-	return vmx_thd_page_set(thd, page_type, page);
+	vmx_thd_init(thd, vm_pgd, vmcb);
 }
 
 void
@@ -32,8 +27,7 @@ vm_thd_exec(struct thread *thd)
 #else
 
 void vm_env_init(void) {}
-void vm_thd_init(struct thread *thd, void *vm_pgd) {}
-int vm_thd_page_set(struct thread *thd, u32_t page_type, void *page) {return 0;}
+void vm_thd_init(struct thread *thd, void *vm_pgd, struct cap_vm_vmcb *vmcb) {}
 void vm_thd_exec(struct thread *thd) {}
 
 #endif

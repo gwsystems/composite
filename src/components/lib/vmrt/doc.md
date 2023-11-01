@@ -5,8 +5,6 @@ A simple VM lib for Composite VMM managing virtual machines. Currently, it inclu
 
 ## VM abstraction data structure
 
-**TODO: the current vcpu and vm_comp structures don't include the new capabilities for the kernel resources, such as lapic page capability, VMM & kernel shared region capability, vm exit exception handler capability. There should be a api in the future to combine these capabilities and call to the kernel to initialize vm thread and vm component.**
-
 ```c
 struct vmrt_vm_vcpu {
 	struct vm_vcpu_shared_region *shared_region;
@@ -20,12 +18,21 @@ struct vmrt_vm_vcpu {
 	void *vlapic;
 
 	thdid_t tid;
-	thdid_t handler_tid;
 	thdcap_t cap;
 
 	u8_t cpuid;
 	u8_t coreid;
 	struct vmrt_vm_comp *vm;
+	u64_t pending_req;
+
+	u16_t vpid;
+	vm_vmcscap_t vmcs_cap;
+	vm_msrbitmapcap_t msr_bitmap_cap;
+	vm_lapiccap_t lapic_cap;
+	vm_shared_mem_t shared_mem_cap; 
+	vm_lapicaccesscap_t lapic_access_cap;
+	vm_vmcb_t vmcb_cap;
+	thdid_t handler_tid;
 };
 
 struct vmrt_vm_comp {
@@ -33,7 +40,7 @@ struct vmrt_vm_comp {
 	void *guest_addr;
 	word_t guest_mem_sz;
 
-	u64_t lapic_access_page;
+	vm_lapicaccesscap_t lapic_access_page;
 
 	char name[VMRT_VM_NAME_SIZE];
 
@@ -72,11 +79,16 @@ vmrt_vm_vcpu_init(struct vmrt_vm_comp *vm, u32_t vcpu_nr)
 	/* 1. VCPU exception handler thread creation */
 	handler_tid = sched_thd_create(vmrt_vm_exception_handler, vcpu);
 
-	/* 2. VCPU thread creation */
-	capmgr_thd_create_ext(vm->comp_id, vcpu_nr + 1, &tid);
+	/* 2. vmcb cap creation */
+	vmrt_vmcs_page_create(vcpu);
+	vmrt_msr_bitmap_page_create(vcpu);
+	vmrt_lapic_page_create(vcpu);
+	vmrt_shared_page_create(vcpu);
+	vmrt_lapic_access_page_create(vcpu);
+	vmrt_vmcb_create(vcpu);
 
-	/* 3. Bind the exception handler to the VCPU thread */
-	capmgr_vm_thd_exception_handler_set(tid, handler_tid);
+	/* 3. Bind the vmcb to the VCPU thread */
+	cap = capmgr_vm_vcpu_create(vcpu->vm->comp_id, vcpu->vmcb_cap, &tid);
 
 	/* TODO: create new capabilities for shared resources such as lapic page and combine them into a single api */
 	vcpu->next_timer = ~0ULL;
@@ -127,3 +139,52 @@ vmrt_vm_exception_handler(struct vmrt_vm_vcpu *vcpu)
 	}
 }
 ```
+
+### VM-exit reasons
+
+- VM_EXIT_REASON_EXTERNAL_INTERRUPT
+
+	When there were an interrupt from host hardware like timer, this will be triggered with the interrupt number.
+
+- VM_EXIT_REASON_INTERRUPT_WINDOW
+
+	When the guest enables interrupt(sti instruction) and if vmcs enables this VM-exit, this will be triggered. Currently, this is a legacy VM-exit reason and is not used.
+
+- VM_EXIT_REASON_RDTSC
+
+	When guest use rdtsc and if vmcs enables this exit bit, it will be triggerred. Currently the vmm just pass-through it.
+
+- VM_EXIT_REASON_VMCALL
+
+	When guest uses vmcall, it will be triggered.
+
+- VM_EXIT_REASON_CONTROL_REGISTER_ACCESS
+
+	When guest accesses control registers, it will be triggered.
+
+- VM_EXIT_REASON_IO_INSTRUCTION
+
+	When guest uses in/out, it will be triggered.
+
+- VM_EXIT_REASON_PAUSE
+
+	When guest uses pause and if vmcs enables this exit bit, it will be triggered.
+
+- VM_EXIT_REASON_EPT_MISCONFIG
+
+	When hardware finds EPT is incorrect, it will be triggered.
+
+- VM_EXIT_REASON_APIC_ACCESS
+
+	When guest accesses lapic address and if vmcs doesn't enable virtual lapic, this will be triggered. This is not used because the system enables virtual lapic feature.
+
+- VM_EXIT_REASON_PREEMPTION_TIMER
+
+	Vmcs can set a time-out value for guest to preempt it. But this is not used. This is not related to lapic timer at all.
+
+- VM_EXIT_REASON_APIC_WRITE
+	When vmcs enables virtual lapic feature, guest access to lapic registers will trigger VM-exit.
+
+- VM_EXIT_REASON_XSETBV
+
+	When guest uses xsetbv, this will be triggered.

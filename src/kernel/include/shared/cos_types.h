@@ -118,8 +118,12 @@ typedef enum {
 	CAPTBL_OP_THDACTIVATE,
 	CAPTBL_OP_THDDEACTIVATE,
 	CAPTBL_OP_THDTLSSET,
-	CAPTBL_OP_VM_THD_PAGE_SET,
-	CAPTBL_OP_VM_THD_EXCEPTION_HANDLER_SET,
+	CAPTBL_OP_VM_VMCS_ACTIVATE,
+	CAPTBL_OP_VM_MSR_BITMAP_ACTIVATE,
+	CAPTBL_OP_VM_LAPIC_ACCESS_ACTIVATE,
+	CAPTBL_OP_VM_LAPIC_ACTIVATE,
+	CAPTBL_OP_VM_SHARED_MEM_ACTIVATE,
+	CAPTBL_OP_VM_VMCB_ACTIVATE,
 	CAPTBL_OP_COMPACTIVATE,
 	CAPTBL_OP_COMPDEACTIVATE,
 	CAPTBL_OP_SINVACTIVATE,
@@ -188,6 +192,12 @@ typedef enum {
 	CAP_TCAP,       /* tcap captable entry */
 	CAP_HW,         /* hardware (interrupt) */
 	CAP_ULK,        /* a page of ULK memory */
+	CAP_VM_VMCS,    /* vmcs page required by vmx */
+	CAP_VM_MSR_BITMAP,   /* msr bitmap page for a vm thd */
+	CAP_VM_LAPIC_ACCESS, /* lapic access page for a vm thd */
+	CAP_VM_LAPIC,        /* lapic page for a vm thd */
+	CAP_VM_SHARED_MEM,   /* shared page for a vm thd */
+	CAP_VM_VMCB,         /* a virtual macihne control block cap */
 } cap_t;
 
 /* TODO: pervasive use of these macros */
@@ -253,6 +263,12 @@ __captbl_cap2sz(cap_t c)
 	case CAP_ARCV:
 	case CAP_CAPTBL:
 	case CAP_PGTBL:
+	case CAP_VM_VMCS:
+	case CAP_VM_MSR_BITMAP:
+	case CAP_VM_LAPIC:
+	case CAP_VM_SHARED_MEM:
+	case CAP_VM_VMCB:
+	case CAP_VM_LAPIC_ACCESS:
 		return CAP_SZ_64B;
 	default:
 		return CAP_SZ_ERR;

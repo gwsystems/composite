@@ -67,9 +67,25 @@ vaddr_t COS_STUB_DECL(capmgr_vm_shared_kernel_page_create_at)(compid_t comp_id, 
 compid_t capmgr_vm_comp_create(u64_t mem_sz);
 compid_t COS_STUB_DECL(capmgr_vm_comp_create)(u64_t mem_sz);
 
-void capmgr_vm_thd_page_set(thdid_t tid, u32_t page_type, vaddr_t resource);
-void COS_STUB_DECL(capmgr_vm_thd_page_set)(thdid_t tid, u32_t page_type, vaddr_t resource);
+capid_t capmgr_vm_vmcs_create(void);
+capid_t COS_STUB_DECL(capmgr_vm_vmcs_create)(void);
 
-void capmgr_vm_thd_exception_handler_set(thdid_t tid, thdid_t handler);
-void COS_STUB_DECL(capmgr_vm_thd_exception_handler_set)(thdid_t tid, thdid_t handler);
+capid_t capmgr_vm_msr_bitmap_create(void);
+capid_t COS_STUB_DECL(capmgr_vm_msr_bitmap_create)(void);
+
+capid_t capmgr_vm_lapic_create(vaddr_t *page);
+capid_t COS_STUB_DECL(capmgr_vm_lapic_create)(vaddr_t *page);
+
+capid_t capmgr_vm_shared_region_create(vaddr_t *page);
+capid_t COS_STUB_DECL(capmgr_vm_shared_region_create)(vaddr_t *page);
+
+capid_t capmgr_vm_lapic_access_create(vaddr_t mem);
+compid_t COS_STUB_DECL(capmgr_vm_lapic_access_create)(vaddr_t mem);
+
+capid_t capmgr_vm_vmcb_create(vm_vmcscap_t vmcs_cap, vm_msrbitmapcap_t msr_bitmap_cap, vm_lapicaccesscap_t lapic_access_cap, vm_lapiccap_t lapic_cap, vm_shared_mem_t shared_mem_cap, thdid_t handler_thd_id, word_t vpid);
+capid_t COS_STUB_DECL(capmgr_vm_vmcb_create)(vm_vmcscap_t vmcs_cap, vm_msrbitmapcap_t msr_bitmap_cap, vm_lapicaccesscap_t lapic_access_cap, vm_lapiccap_t lapic_cap, vm_shared_mem_t shared_mem_cap, thdid_t handler_thd_id, word_t vpid);
+
+thdcap_t capmgr_vm_vcpu_create(compid_t vm_comp, vm_vmcb_t vmcb_cap, thdid_t *tid);
+thdcap_t COS_STUB_DECL(capmgr_vm_vcpu_create)(compid_t vm_comp, vm_vmcb_t vmcb_cap, thdid_t *tid);
+
 #endif /* CAPMGR_H */

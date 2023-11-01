@@ -853,7 +853,7 @@ capmgr_get_thd(thdid_t tid)
 compid_t
 capmgr_vm_comp_create(u64_t mem_sz)
 {
-	/* FIXME: allocate id and name rather than make it static */
+	/* TODO: allocate name rather than make it static */
 	char *name = "vmlinux";
 	prot_domain_t protdom = 0;
 	compid_t id = crt_comp_id_new();
@@ -885,41 +885,79 @@ vaddr_t
 capmgr_shared_kernel_page_create(vaddr_t *resource)
 {
 	struct cm_comp *c = ss_comp_get(cos_inv_token());
-
 	assert(c);
 
 	return crt_comp_shared_kernel_page_alloc(&c->comp, resource);
 }
 
-void
-capmgr_vm_thd_page_set(thdid_t tid, u32_t page_type, vaddr_t resource)
+capid_t
+capmgr_vm_vmcs_create(void)
 {
-	struct cm_thd *thd;
-	struct cm_comp *client;
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
 
-	thd = capmgr_get_thd(tid);
-	assert(thd);
-
-	client = thd->client;
-
-	crt_vm_thd_page_set(&client->comp, thd->thd.cap, page_type, resource);
+	return crt_vm_vmcs_create(&c->comp);
 }
 
-void
-capmgr_vm_thd_exception_handler_set(thdid_t tid, thdid_t handler)
+capid_t
+capmgr_vm_msr_bitmap_create(void)
 {
-	struct cm_thd *thd, *handler_thd;
-	struct cm_comp *client;
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
 
-	thd = capmgr_get_thd(tid);
-	assert(thd);
+	return crt_vm_msr_bitmap_create(&c->comp);
+}
 
-	handler_thd = capmgr_get_thd(handler);
-	assert(handler_thd);
+capid_t
+capmgr_vm_lapic_create(vaddr_t *page)
+{
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
 
-	client = thd->client;
+	return crt_vm_lapic_create(&c->comp, page);
+}
 
-	return cos_vm_thd_exception_handler_set(&client->comp.comp_res->ci, thd->thd.cap, handler_thd->thd.cap);
+capid_t
+capmgr_vm_shared_region_create(vaddr_t *page)
+{
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
+
+	return crt_vm_shared_region_create(&c->comp, page);
+}
+
+/* lapic access page is very special: all vcpu needs to set the same mem page */
+capid_t
+capmgr_vm_lapic_access_create(vaddr_t mem)
+{
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
+
+	return crt_vm_lapic_access_create(&c->comp, mem);
+}
+
+capid_t
+capmgr_vm_vmcb_create(vm_vmcscap_t vmcs_cap, vm_msrbitmapcap_t msr_bitmap_cap, vm_lapicaccesscap_t lapic_access_cap, vm_lapiccap_t lapic_cap, vm_shared_mem_t shared_mem_cap, thdid_t handler_thd_id, word_t vpid)
+{
+	struct cm_thd *handler_thd;
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
+
+	handler_thd = capmgr_get_thd(handler_thd_id);
+
+	return crt_vm_vmcb_create(&c->comp, vmcs_cap, msr_bitmap_cap, lapic_access_cap, lapic_cap, shared_mem_cap, handler_thd->thd.cap, vpid);
+}
+
+thdcap_t
+capmgr_vm_vcpu_create(compid_t vm_comp, vm_vmcb_t vmcb_cap, thdid_t *tid)
+{
+	/*
+	 * Set vmcb_cap as the closure_id to pass this cap into kernel,
+	 * this is OK since vm thread doesn't need closure_id, and the 
+	 * existing thead creation api has used all arguments(thus it's
+	 * not easy to modify it).
+	 */
+	return capmgr_thd_create_ext(vm_comp, vmcb_cap, tid);
 }
 
 thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }

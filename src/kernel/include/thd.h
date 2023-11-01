@@ -374,6 +374,8 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	struct cap_comp           *compc;
 	int                        ret;
 	u8_t                       type;
+	capid_t                    vmcb_cap = init_data;
+	struct cap_vm_vmcb        *vmcb = NULL;
 
 	memset(thd, 0, sizeof(struct thread));
 	compc = (struct cap_comp *)captbl_lkup(t, compcap);
@@ -405,7 +407,8 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	if (likely(type == THD_TYPE_HOST)) {
 		thd_upcall_setup(thd, compc->entry_addr, COS_UPCALL_THD_CREATE, init_data, 0, 0);
 	} else {
-		vm_thd_init(thd, chal_pa2va((paddr_t)(compc->pgd->pgtbl)));
+		vmcb = (struct cap_vm_vmcb *)captbl_lkup(t, vmcb_cap);
+		vm_thd_init(thd, chal_pa2va((paddr_t)(compc->pgd->pgtbl)), vmcb);
 	}
 	tc->t     = thd;
 	tc->cpuid = get_cpuid();
@@ -488,23 +491,6 @@ thd_tls_set(struct captbl *ct, capid_t thd_cap, vaddr_t tlsaddr, struct thread *
 	if (current == thd) chal_tls_update(tlsaddr);
 
 	return 0;
-}
-
-static int
-thd_vm_page_set(struct captbl *t, capid_t cap, capid_t capin, u32_t page_type, void *page)
-{
-	struct cap_captbl         *ct;
-	struct cap_thd            *tc;
-	int                        ret;
-	u8_t                       type;
-
-	ct = (struct cap_captbl *)captbl_lkup(t, cap);
-	if (unlikely(!ct || ct->h.type != CAP_CAPTBL)) return -EINVAL;
-
-	tc = (struct cap_thd *)captbl_lkup(ct->captbl, capin);
-	if (!tc) return -EINVAL;
-
-	return vm_thd_page_set(tc->t, page_type, page); 
 }
 
 static void

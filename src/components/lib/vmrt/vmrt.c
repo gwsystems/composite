@@ -34,6 +34,48 @@ vmrt_dump_vcpu(struct vmrt_vm_vcpu *vcpu)
 }
 
 void
+vmrt_vmcs_page_create(struct vmrt_vm_vcpu *vcpu)
+{
+	vcpu->vmcs_cap = capmgr_vm_vmcs_create();
+}
+
+void
+vmrt_msr_bitmap_page_create(struct vmrt_vm_vcpu *vcpu)
+{
+	vcpu->msr_bitmap_cap = capmgr_vm_msr_bitmap_create();
+}
+
+void
+vmrt_lapic_page_create(struct vmrt_vm_vcpu *vcpu)
+{
+	vaddr_t page;
+
+	vcpu->lapic_cap = capmgr_vm_lapic_create(&page);
+	vcpu->lapic_page = (void *)page;
+}
+
+void
+vmrt_shared_page_create(struct vmrt_vm_vcpu *vcpu)
+{
+	vaddr_t page;
+
+	vcpu->shared_mem_cap = capmgr_vm_shared_region_create(&page);
+	vcpu->shared_region = (struct vm_vcpu_shared_region *)page;
+}
+
+void
+vmrt_lapic_access_page_create(struct vmrt_vm_vcpu *vcpu)
+{
+	vcpu->lapic_access_cap = capmgr_vm_lapic_access_create(vcpu->vm->lapic_access_page);
+}
+
+void
+vmrt_vmcb_create(struct vmrt_vm_vcpu *vcpu)
+{
+	vcpu->vmcb_cap = capmgr_vm_vmcb_create(vcpu->vmcs_cap, vcpu->msr_bitmap_cap, vcpu->lapic_access_cap, vcpu->lapic_cap, vcpu->shared_mem_cap, vcpu->handler_tid << 16| vcpu->vpid, 0);
+}
+
+void
 vmrt_vm_vcpu_init(struct vmrt_vm_comp *vm, u32_t vcpu_nr)
 {
 	struct vmrt_vm_vcpu *vcpu;
@@ -45,35 +87,28 @@ vmrt_vm_vcpu_init(struct vmrt_vm_comp *vm, u32_t vcpu_nr)
 	vcpu = &vm->vcpus[vcpu_nr];
 	assert(!vcpu->shared_region);
 
-	/*
-	 * TODO: make all resources created here as capabilities and create a single kernel api
-	 * to initialize a vm thread, this will make more sense to follow CompositeOS desgin.
-	 */
-	handler_tid = sched_thd_create(vmrt_vm_exception_handler, vcpu);
+	vcpu->vm = vm;
 
-	cap = capmgr_thd_create_ext(vm->comp_id, vcpu_nr + 1, &tid);
+	handler_tid = sched_thd_create(vmrt_vm_exception_handler, vcpu);
+	vcpu->handler_tid = handler_tid;
+
+	vcpu->vpid = vcpu_nr + 1;
+	vmrt_vmcs_page_create(vcpu);
+	vmrt_msr_bitmap_page_create(vcpu);
+	vmrt_lapic_page_create(vcpu);
+	vmrt_shared_page_create(vcpu);
+	vmrt_lapic_access_page_create(vcpu);
+	vmrt_vmcb_create(vcpu);
+
+	cap = capmgr_vm_vcpu_create(vcpu->vm->comp_id, vcpu->vmcb_cap, &tid);
 	assert(tid != 0);
 	vcpu->tid = tid;
 	vcpu->cap = cap;
 	vcpu->cpuid = vcpu_nr;
 	vcpu->coreid = cos_coreid();
 
-	capmgr_vm_thd_exception_handler_set(tid, handler_tid);
-	vcpu->handler_tid = handler_tid;
-
-	capmgr_vm_thd_page_set(tid, PAGE_VMCS, 0);
-	capmgr_vm_thd_page_set(tid, PAGE_MSR_BITMAP, 0);
-	capmgr_vm_thd_page_set(tid, PAGE_LAPIC_ACCESS, vm->lapic_access_page);
-
-	vcpu->shared_region = (struct vm_vcpu_shared_region *)capmgr_shared_kernel_page_create(&resource);
-	capmgr_vm_thd_page_set(tid, PAGE_SHARED_REGION, resource);
-
-	vcpu->lapic_page = (char *)capmgr_shared_kernel_page_create(&resource);
-	capmgr_vm_thd_page_set(tid, PAGE_LAPIC, resource);
-
 	vcpu->next_timer = ~0ULL;
 
-	vcpu->vm = vm;
 }
 
 void
