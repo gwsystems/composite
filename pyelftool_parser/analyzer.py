@@ -72,8 +72,9 @@ class parser:
         print(self.stacklist)
 
 if __name__ == '__main__':
-    path = "../testbench/a.elf"
+    #path = "../testbench/selftest/a.elf"
     #path = "/usr/bin/gcc"
+    path = "../testbench/dhrystone/dhrystone"
     
     disassembler = disassembler(path)
     disassembler.disasmsymbol()
