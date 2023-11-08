@@ -1,12 +1,12 @@
 import register
 from capstone import *
 from capstone.x86 import *
-from debug import log
+from debug import loginst,log
 class execute:
     def __init__(self, register):
         self.register = register
         self.reg = register.reg
-    def exe(self, inst):
+    def exe(self, inst, edge, vertexfrom):
         ## -----------------------------------------------
         ## decode stage.
 
@@ -25,8 +25,8 @@ class execute:
         disp = 0
         memindex = 0
         if "ptr" in inst.op_str:    ## early exit for ptr, I do not handle the pointer to memory yet.
-            ##log(inst.address, inst.mnemonic, inst.op_str)
-            ##log("I do not handle memory yet")
+            ##loginst(inst.address, inst.mnemonic, inst.op_str)
+            ##loginst("I do not handle memory yet")
             return 0
         
         if len(inst.operands) >= 2:
@@ -61,7 +61,7 @@ class execute:
             if inst.id == (X86_INS_PUSH):  ## catch push
                 self.reg["rsp"] -= 8
             elif inst.id == (X86_INS_POP): ## catch pop instruction
-                #log(inst.address, inst.mnemonic, inst.op_str)
+                #loginst(inst.address, inst.mnemonic, inst.op_str)
                 self.reg["rsp"] += 8
             elif inst.id == (X86_INS_MOV):  ## catch mov instruction
                 if flagimm:
@@ -80,16 +80,48 @@ class execute:
                 else:
                     self.reg[dst] += self.reg[src]
             elif inst.id == (X86_INS_LEA):  ## catch lea instruction
-                log("LEA instruction have not yet handled")
+                loginst("LEA instruction have not yet handled")
             elif inst.id == (X86_INS_CALL):  ## catch call instruction
-                self.reg["rsp"] -= 4
+                self.reg["rsp"] -= 8
+                ## graph
+                if flagimm:
+                    edge.add((vertexfrom, imm))
+                elif flagmem:
+                    edge.add((vertexfrom, base + disp))
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
-                self.reg["rsp"] += 4
+                self.reg["rsp"] += 8
             else:
-                #log(inst.address, inst.mnemonic, inst.op_str)
-                #log("we have not catched this instruction")
+                #loginst(inst.address, inst.mnemonic, inst.op_str)
+                #loginst("we have not catched this instruction")
                 return 0
         else:
-            #log(inst.address, inst.mnemonic, inst.op_str)
-            #log("It is not about rsp")
+            #loginst(inst.address, inst.mnemonic, inst.op_str)
+            #loginst("It is not about rsp")
+            return 0
+        
+    def checkcall(self, inst):        
+        if inst.id == (X86_INS_CALL):
+            if len(inst.operands) >= 2:
+                src = inst.op_str.split(",")[1].replace(" ","")
+                dst = inst.op_str.split(",")[0]
+            elif len(inst.operands) == 1:
+                dst = inst.op_str
+            for i in inst.operands:
+                if i.type == X86_OP_REG:
+                    log("aaaa")
+                    log(inst.reg_name(i.reg))
+                if i.type == X86_OP_IMM:
+                    imm = i.imm
+                    log("bbbb")
+                    log(imm)
+                    flagimm = 1
+                if i.type == X86_OP_MEM:
+                    base = inst.reg_name(i.mem.base)
+                    disp = i.mem.disp
+                    memindex = i.mem.index
+                    log("cccc")
+                    log(base, disp, memindex)
+                    flagmem = 1
+            return 1
+        else:
             return 0
