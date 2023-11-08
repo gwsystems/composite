@@ -27,7 +27,7 @@ class disassembler:
                 #print(i)
                 self.inst[i.address] = (i)
                 #print(f'0x{i.address:x}:\t{i.mnemonic}\t{i.op_str}')
-        f.close()
+            #f.close()
 
     def disasmsymbol(self):
         with open(self.path, 'rb') as f:
@@ -39,7 +39,7 @@ class disassembler:
                     self.symbol[symbol['st_value']] = symbol.name
                     self.vertex[symbol['st_value']] = symbol.name                  
                     #print(symbol.name)
-        f.close()
+            #f.close()
 
 class parser:
     def __init__(self, symbol, inst, register, execute):

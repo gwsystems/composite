@@ -82,14 +82,14 @@ class execute:
             elif inst.id == (X86_INS_LEA):  ## catch lea instruction
                 loginst("LEA instruction have not yet handled")
             elif inst.id == (X86_INS_CALL):  ## catch call instruction
-                self.reg["rsp"] -= 4
+                self.reg["rsp"] -= 8
                 ## graph
                 if flagimm:
                     edge.add((vertexfrom, imm))
                 elif flagmem:
                     edge.add((vertexfrom, base + disp))
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
-                self.reg["rsp"] += 4
+                self.reg["rsp"] += 8
             else:
                 #loginst(inst.address, inst.mnemonic, inst.op_str)
                 #loginst("we have not catched this instruction")
