@@ -4,7 +4,6 @@ import execute
 from elftools.elf.elffile import ELFFile
 from elftools.elf.relocation import RelocationSection
 from capstone import *
-import graph
 from elftools.elf.sections import (
     NoteSection, SymbolTableSection, SymbolTableIndexSection
 )
@@ -52,20 +51,19 @@ class parser:
         self.edge = set()
         self.vertex = set()
     def stack_analyzer(self):
-        stacksize = 0
         nextinstkey = list(self.inst.keys())
         nextinstkey.append(-1) ## dummy value for last iteration.
         index = 0
         for key in self.inst.keys():
             register.reg["pc"] = key
-            register.updaterip(nextinstkey[index + 1])
+            register.updaterip(nextinstkey[index + 1]) ## catch the rip for memory instruction.
             index = index + 1
             if key in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
                 self.stackfunction.append(self.symbol[key])
                 self.stacklist.append(register.reg["stack"])
-                print(self.symbol[key])
-                print(register.reg["stack"])
-                print()
+                #print(self.symbol[key])
+                #print(register.reg["stack"])
+                #print()
                 register.clean()
                 ###### Graph
                 vertexfrom = key
@@ -77,21 +75,6 @@ class parser:
         self.stacklist = self.stacklist[1:]
         print(self.stackfunction)
         print(self.stacklist)
-        
-    def parsegraphedge(self):
-        nextinstkey = list(self.inst.keys())
-        nextinstkey.append(-1) ## dummy value for last iteration.
-        index = 0
-        for key in self.inst.keys():
-            index = index + 1
-            execute.exe(self.inst[key])
-            vertexfrom = -1
-            if key in self.symbol.keys():
-                vertexfrom = key
-                self.vertex.add(vertexfrom)
-            if  (execute.checkcall(self.inst[key])):
-                vertexto = key
-        ## TODO:: add the vertex into function
         
 
 if __name__ == '__main__':
@@ -109,6 +92,5 @@ if __name__ == '__main__':
     parser = parser(disassembler.symbol, disassembler.inst, register, execute)
     parser.stack_analyzer()
     print(parser.edge)
-    # parser.parsegraphedge()
     
     
