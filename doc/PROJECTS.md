@@ -82,10 +82,11 @@ These labels follow.
 	We'd like to investigate two ways to do this:
 
 	1. Use `buildroot` to set up generic images.
-  		We'd want to see what a simple image, e.g. based on `nginx` requires from Linux, and its support, and validate that the image still runs in Composite.
-    		Look into other applications (below).
-    	2. Manually configure Linux (as we are now) using a simple `init`.
-     		This is similar to Linux From Scratch.
+		We'd want to see what a simple image, e.g. based on `nginx` requires from Linux, and its support, and validate that the image still runs in Composite.
+		Look into other applications (below).
+
+	2. Manually configure Linux (as we are now) using a simple `init`.
+		This is similar to Linux From Scratch.
 
 	Applications we might be interested in include:
 
