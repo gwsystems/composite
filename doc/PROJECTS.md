@@ -40,6 +40,12 @@ These labels follow.
 	Uses `graphviz` to output the graphic.
 	Includes special annotations for scheduler, initializer, constructor, and capability manager.
 	A separate representation might depict the capability and page-tables of components.
+- `[components]` It is useful and interesting to investigate the use of SIMD instructions and registers for data-movement.
+ 	SIMD registers (e.g. [AVX-2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions)) are quite large.
+  	Compared to the normal registers (e.g. in total 16*8 = 128 bytes), the AVX-2 [registers](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions#Advanced_Vector_Extensions) are a significant increase (e.g. 32*(256/8) = 1024 bytes), let alone AVX-512 (with 32*(512/8) = 2048 bytes).
+  	We can use these registers to pass arguments/buffers via IPC!
+  	This project will study the performance of SIMD operations, notably, populating them with buffers, populating buffers with their contents, and zeroing them out (researching the fastest way to do so).
+  	Add SIMD message passing into an updated ping/pong set of IPC benchmarking components.
 - `[components,design]` Design/implement protocol for resource delegation/revocation.
 	The capability manager tracks delegations of kernel resources.
 	If a delegation is performed, both components involved must agree to the operation.
