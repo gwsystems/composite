@@ -11,6 +11,7 @@ These labels follow.
 - `design`: Understands the user-level design of core components.
 - `kernel`: Can hack on the kernel.
 - `build`: Can understand the build system.
+- `virt`: virtualization support.
 - `binary`: Understand and operate on binaries, likely with [`pyelftools`](https://dev.to/icyphox/python-for-reverse-engineering-1-elf-binaries-1fo4) and [`capstone`](https://github.com/capstone-engine/capstone/blob/master/bindings/python/test_x86.py)
 - `composer`: Understand the composer.
 
@@ -76,3 +77,23 @@ These labels follow.
 	Port over the previous support to the new system structure.
 - `[kernel,build,components]` Risc-V support.
 - `[kernel,build,components]` Armv8 (64 bit) support.
+- `[virt]` Composite supports very minimal VMs in which Linux is configured in a specific manner.
+	We'd like to create Linux images that work within these confines for applications we care about.
+	We'd like to investigate two ways to do this:
+
+	1. Use `buildroot` to set up generic images.
+  		We'd want to see what a simple image, e.g. based on `nginx` requires from Linux, and its support, and validate that the image still runs in Composite.
+    		Look into other applications (below).
+    	2. Manually configure Linux (as we are now) using a simple `init`.
+     		This is similar to Linux From Scratch.
+
+	Applications we might be interested in include:
+
+	- nginx
+   	- memcached
+   	- redis
+   	- image processing applications
+   	- ...
+- `[virt]` We'd like VMs to interact with each other, and with the surrounding system, and Plan 9 is always cool.
+  	Lets get the VMs speaking the 9p protocol to enable them to use filesystems outside of the VM, and using virtio 9p for the communication.
+  	We likely want rust working in a component as the 9p server will be much easier in rust.
