@@ -1,4 +1,4 @@
-#include "../src/kernel/include/cos_types.h"
+#include "../src/components/lib/cos/cos_types.h"
 #include <stdio.h>
 
 int

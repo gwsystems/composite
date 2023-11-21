@@ -17,8 +17,9 @@ composer:
 	$(info ************ Building the Composer ************)
 	$(info ***********************************************)
 	$(info )
-	@gcc -D__KERNEL__ $(TOOL_DIR)/offsets.c -o $(TOOL_DIR)/offsets
-	@$(TOOL_DIR)/offsets | grep "BOOT_CAPTBL_FREE" | awk '{ print $$2 }' > ./composer/src/boot_captbl_offset.txt
+# FIXME: avoiding passing globals into the rust, for now.
+#	@gcc -D__KERNEL__ $(TOOL_DIR)/offsets.c -o $(TOOL_DIR)/offsets
+#	@$(TOOL_DIR)/offsets | grep "BOOT_CAPTBL_FREE" | awk '{ print $$2 }' > ./composer/src/boot_captbl_offset.txt
 	cd composer/ ; cargo build
 
 component:

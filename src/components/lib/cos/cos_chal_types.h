@@ -4,8 +4,6 @@
 
 #pragma once
 
-
-
 /* x86_64 prot_domain_t bits:
  *
  * |000......000|  pcid  |mpk key|

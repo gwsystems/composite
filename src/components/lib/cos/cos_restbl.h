@@ -68,7 +68,7 @@ cos_restbl_num_nodes(uword_t addr, uword_t addr_lower, uword_t node_bits, uword_
  *
  * ```
  * <-------- capabilities in our captbl ----------->
- * ...|(0,0)|(1,0)|(1,1)|(2,0)|(2,3)|(2,3)|...
+ * ...|(0,0)|(1,0)|(1,1)|(2,0)|(2,1)|(2,2)|...
  *    |                             ^
  *    |                             |
  *    +------ offset ---------------+
