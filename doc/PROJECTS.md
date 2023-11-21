@@ -11,6 +11,7 @@ These labels follow.
 - `design`: Understands the user-level design of core components.
 - `kernel`: Can hack on the kernel.
 - `build`: Can understand the build system.
+- `virt`: virtualization support.
 - `binary`: Understand and operate on binaries, likely with [`pyelftools`](https://dev.to/icyphox/python-for-reverse-engineering-1-elf-binaries-1fo4) and [`capstone`](https://github.com/capstone-engine/capstone/blob/master/bindings/python/test_x86.py)
 - `composer`: Understand the composer.
 
@@ -40,6 +41,12 @@ These labels follow.
 	Uses `graphviz` to output the graphic.
 	Includes special annotations for scheduler, initializer, constructor, and capability manager.
 	A separate representation might depict the capability and page-tables of components.
+- `[components]` It is useful and interesting to investigate the use of SIMD instructions and registers for data-movement.
+ 	SIMD registers (e.g. [AVX-2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions)) are quite large.
+  	Compared to the normal registers (e.g. in total 16*8 = 128 bytes), the AVX-2 [registers](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions#Advanced_Vector_Extensions) are a significant increase (e.g. 32*(256/8) = 1024 bytes), let alone AVX-512 (with 32*(512/8) = 2048 bytes).
+  	We can use these registers to pass arguments/buffers via IPC!
+  	This project will study the performance of SIMD operations, notably, populating them with buffers, populating buffers with their contents, and zeroing them out (researching the fastest way to do so).
+  	Add SIMD message passing into an updated ping/pong set of IPC benchmarking components.
 - `[components,design]` Design/implement protocol for resource delegation/revocation.
 	The capability manager tracks delegations of kernel resources.
 	If a delegation is performed, both components involved must agree to the operation.
@@ -70,3 +77,24 @@ These labels follow.
 	Port over the previous support to the new system structure.
 - `[kernel,build,components]` Risc-V support.
 - `[kernel,build,components]` Armv8 (64 bit) support.
+- `[virt]` Composite supports very minimal VMs in which Linux is configured in a specific manner.
+	We'd like to create Linux images that work within these confines for applications we care about.
+	We'd like to investigate two ways to do this:
+
+	1. Use `buildroot` to set up generic images.
+		We'd want to see what a simple image, e.g. based on `nginx` requires from Linux, and its support, and validate that the image still runs in Composite.
+		Look into other applications (below).
+
+	2. Manually configure Linux (as we are now) using a simple `init`.
+		This is similar to Linux From Scratch.
+
+	Applications we might be interested in include:
+
+	- nginx
+   	- memcached
+   	- redis
+   	- image processing applications
+   	- ...
+- `[virt]` We'd like VMs to interact with each other, and with the surrounding system, and Plan 9 is always cool.
+  	Lets get the VMs speaking the 9p protocol to enable them to use filesystems outside of the VM, and using virtio 9p for the communication.
+  	We likely want rust working in a component as the 9p server will be much easier in rust.
