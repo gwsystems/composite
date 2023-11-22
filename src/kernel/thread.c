@@ -176,18 +176,24 @@ thread_retrieve_sched_evt_or_switch(struct thread *curr, struct thread *t, struc
 }
 
 /**
- * `thread_await_evt` is called by a thread that waits to wait for an
+ * `thread_await_evt` is called by a thread that wants to wait for an
  * asynchronous activation event. If there are no pending events, we
  * switch to the scheduler after passing it the await event.
  *
  * - `@curr` - the current thread awaiting asynchronous activation
+ * - `@cap_thd` - the thread in the activated capability
  * - `@rs` - the thread's register set
  * - `@return` - the register set to return into
  */
 struct regs *
-thread_await_evt(struct thread *curr, struct regs *rs)
+thread_await_evt(struct thread *curr, struct thread *cap_thd, struct regs *rs)
 {
 	struct thread *sched = (struct thread *)ref2page_ptr(curr->sched_thd);
+
+	if (unlikely(curr != cap_thd)) {
+		regs_retval(rs, REGS_RETVAL_BASE, -COS_ERR_WRONG_THREAD);
+		return rs;
+	}
 
 	/* Pending events? return them! */
 	if (curr->evt.evt_count > 0) {
@@ -345,7 +351,7 @@ thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs)
 	case COS_OP_THD_EVT_OR_DISPATCH:
 		return thread_retrieve_sched_evt_or_switch(curr, t, rs);
 	case COS_OP_THD_AWAIT_EVT:
-		return thread_await_evt(curr, rs);
+		return thread_await_evt(curr, t, rs);
 	}
 err:
 	regs_retval(rs, REGS_RETVAL_BASE, r);

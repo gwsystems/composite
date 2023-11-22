@@ -19,8 +19,6 @@ typedef u32_t          refcnt_t;          /* type of a specific reference counte
 typedef u8_t           page_type_t;       /* tag for each page's type+kerntype used for retyping */
 typedef u8_t           page_kerntype_t;
 
-typedef u32_t          cos_cap_type_t;    /* tag for each capability's type */
-
 /**
  * A versioned reference to a resource. Needs to be checked for
  * validity before dereference (i.e. checking that the epoch here

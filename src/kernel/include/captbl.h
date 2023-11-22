@@ -63,10 +63,13 @@ static inline cos_retval_t
 captbl_cap_typecheck(struct capability_generic* c, cos_cap_type_t type, cos_op_bitmap_t required)
 {
 	if (unlikely(c->type != type)) return -COS_ERR_WRONG_CAP_TYPE;
-        /*
-         * We first test required being zero to make it clear to the
-         * compiler to omit this test in that case (i.e. the sinv
-         * fastpath).
+	/*
+	 * We first test required being zero to make it clear to the
+	 * compiler to omit this test in that case (i.e. the sinv
+	 * fastpath).
+	 *
+	 * TODO: can we omit this as a conditional, and instead just
+	 * modify the operation to be only the bitwise and?
 	 */
 	if (unlikely(required && (c->operations & required) == required)) return -COS_ERR_INSUFFICIENT_PERMISSIONS;
 

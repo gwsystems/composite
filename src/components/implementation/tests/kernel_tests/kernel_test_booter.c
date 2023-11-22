@@ -1,4 +1,4 @@
-#include "kernel_tests.h"
+#include <kernel_tests.h>
 #include <init.h>
 #include <ps_plat.h>
 

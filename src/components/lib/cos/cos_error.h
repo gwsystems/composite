@@ -35,6 +35,7 @@
 #define COS_ERR_CONTENTION               15 /* Another core has contended this operation, and won the race */
 #define COS_ERR_NO_OPERATION             16 /* Another core has contended this operation, and won the race */
 #define COS_ERR_SCHED_RETRY              17 /* There has been a scheduler race, and it should retry scheduling */
+#define COS_ERR_WRONG_THREAD             18 /* We didn't specify a capability to our own thread */
 
 /*
  * General return value from the kernel. Negative values indicate

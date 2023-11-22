@@ -495,7 +495,7 @@ captbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t ca
 		}
 	} else {
 		if (ops & COS_OP_NEST) {
-
+			/* TODO */
 		}
 		if (ops == COS_OP_RESTBL_CONSTRUCT) {
 			uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);

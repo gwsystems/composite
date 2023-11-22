@@ -48,6 +48,7 @@ typedef u64_t          cos_time_t;	  /* absolute time */
 typedef u8_t           cos_thd_state_t;   /* thread state, reported to scheduler */
 
 typedef uword_t        cos_cap_t;
+typedef u32_t          cos_cap_type_t;    /* tag for each capability's type */
 typedef u32_t          cos_op_bitmap_t;   /* bitmap where each bit designates an allowed operation on a resource */
 
 typedef uword_t        vaddr_t;           /* opaque, user-level virtual address */

@@ -222,7 +222,11 @@ pgtbl_copy(pgtbl_ref_t pgtbl_from, uword_t pgtbl_off_from, pgtbl_ref_t pgtbl_to,
 	if (!pgtbl_arch_entry_empty(ent_to)) return -COS_ERR_ALREADY_EXISTS;
 
 	pgtbl_arch_entry_unpack(ent_from, &from_ref, &from_perm);
-	/* Potentially downgrade permissions. TODO: only allow manipulation of specific bits. */
+	/*
+	 * Potentially downgrade permissions.
+	 *
+	 * FIXME: only allow manipulation of specific bits.
+	 */
 	ref2page(from_ref, NULL, &page);
 
 	ent_from = pgtbl_arch_entry_pack(from_ref, from_perm & perm);
