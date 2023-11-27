@@ -499,11 +499,15 @@ constructor_core_execute(coreid_t core, struct kernel_init_state *s)
 {
 	struct thread *t = (struct thread *)&pages[s->thread_offset + core];
 	struct regs *rs = &t->regs;
+	uword_t ip, sp;
 
 	/* Check that `s` is initialized */
 	assert(s->thread_offset != 0);
 	/* ...and that the thread registers are in the correct state */
 	assert(!regs_preempted(rs));
+
+	regs_ip_sp(rs, &ip, &sp);
+	printk("Starting user-level on core %d: instruction pointer %x.\n", core, ip);
 
 	userlevel_eager_return_syscall(rs);
 }

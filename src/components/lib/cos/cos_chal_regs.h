@@ -567,8 +567,8 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct regs_frame_ctx, bp),
  * we need to manually save/restore that.
  */
 #define REGS_SYSCALL_TEMPLATE				\
-	"movq %%rbp, REGS_CTXT_BP_OFF(%%r11)\n\t"	\
-	"movq %%rsp, REGS_CTXT_SP_OFF(%%r11)\n\t"	\
+	"movq %%rbp, " EXPAND(REGS_CTXT_BP_OFF) "(%%r11)\n\t"	\
+	"movq %%rsp, " EXPAND(REGS_CTXT_SP_OFF) "(%%r11)\n\t"	\
 							\
 	"movq %%r11, %%rbp\n\t"				\
 	"syscall\n\t"					\
