@@ -5,7 +5,7 @@ import socket
 import time
 
 host='10.10.1.2'
-port=80
+port=6
 udp_server_addr = (host, port)
 local_addr = ('', 10000)
 

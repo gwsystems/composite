@@ -203,7 +203,7 @@ protdom_ns_vas_init(struct protdom_ns_vas *new, struct protdom_ns_asid *asids)
 	asid_index = protdom_asid_available_name(asids);
 	if (asid_index == -1) return -1;
 
-	if ((top_lvl_pgtbl = cos_pgtbl_alloc(ci)) == 0) return -1;
+	if ((top_lvl_pgtbl = cos_pgtbl_alloc(ci, PGTBL_TYPE_DEF)) == 0) return -1;
 
 	new->asid_name = asid_index;
 	asids->names[asid_index].state |= PROTDOM_NS_STATE_ALLOCATED;

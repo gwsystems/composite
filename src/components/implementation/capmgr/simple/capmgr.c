@@ -73,9 +73,12 @@ SS_STATIC_SLAB(asnd, struct cm_asnd, MAX_NUM_THREADS);
 
 /* 64 MiB */
 #define MB2PAGES(mb) (round_up_to_page(mb * 1024 * 1024) / PAGE_SIZE)
-#define MM_NPAGES (MB2PAGES(256))
+#define MM_NPAGES (MB2PAGES(512))
 SS_STATIC_SLAB(page, struct mm_page, MM_NPAGES);
 SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
+
+#define CONTIG_PHY_PAGES 70000
+static void * contig_phy_pages = 0;
 
 static struct cm_comp *
 cm_self(void)
@@ -247,26 +250,32 @@ mm_page_allocn(struct cm_comp *c, unsigned long num_pages, unsigned long align)
 	return initial;
 }
 
-vaddr_t
-memmgr_virt_to_phys(vaddr_t vaddr)
+static vaddr_t
+__memmgr_virt_to_phys(compid_t id, vaddr_t vaddr)
 {
 	struct cm_comp *c;
 
-	c = ss_comp_get(cos_inv_token());
+	c = ss_comp_get(id);
 	if (!c) return 0;
 
 	return call_cap_op(c->comp.comp_res->ci.pgtbl_cap, CAPTBL_OP_INTROSPECT, (vaddr_t)vaddr, 0, 0, 0);
 }
 
+vaddr_t
+memmgr_virt_to_phys(vaddr_t vaddr)
+{
+	return __memmgr_virt_to_phys(cos_inv_token(), vaddr);
+}
+
 static void
-contigmem_check(vaddr_t vaddr, int npages)
+contigmem_check(compid_t id, vaddr_t vaddr, int npages)
 {
 	vaddr_t paddr_pre = 0, paddr_next = 0;
 
-	paddr_pre = memmgr_virt_to_phys(vaddr);
+	paddr_pre = __memmgr_virt_to_phys(id, vaddr);
 
 	for (int i = 1; i < npages; i++) {
-		paddr_next = memmgr_virt_to_phys(vaddr + i * PAGE_SIZE);
+		paddr_next = __memmgr_virt_to_phys(id, vaddr + i * PAGE_SIZE);
 		assert(paddr_next - paddr_pre == PAGE_SIZE);
 
 		paddr_pre = paddr_next;
@@ -287,8 +296,7 @@ contigmem_alloc(unsigned long npages)
 	c = ss_comp_get(cos_inv_token());
 	if (!c) return 0;
 
-	void *page = crt_page_allocn(&cm_self()->comp, npages);
-	assert(page);
+	void *page = contig_phy_pages;
 
 	if (crt_page_aliasn_aligned_in(page, PAGE_SIZE, npages, &cm_self()->comp, &c->comp, &vaddr)) BUG();
 
@@ -306,7 +314,9 @@ contigmem_alloc(unsigned long npages)
 		ss_page_activate(p);
 	}
 
-	contigmem_check((vaddr_t)vaddr, npages);
+	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
+	contig_phy_pages += npages * PAGE_SIZE;
+	assert((word_t)contig_phy_pages < CONTIG_PHY_PAGES * PAGE_SIZE);
 	return vaddr;
 }
 
@@ -327,8 +337,7 @@ contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_
 	c = ss_comp_get(cos_inv_token());
 	if (!c) return 0;
 
-	void *page = crt_page_allocn(&cm_self()->comp, npages);
-	assert(page);
+	void * page = contig_phy_pages;
 
 	if (crt_page_aliasn_aligned_in(page, align, npages, &cm_self()->comp, &c->comp, &vaddr)) BUG();
 
@@ -364,7 +373,9 @@ contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_
 
 	*pgaddr = initial->mappings[0].addr;
 
-	contigmem_check((vaddr_t)vaddr, npages);
+	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
+	contig_phy_pages += npages * PAGE_SIZE;
+	assert((word_t)contig_phy_pages < CONTIG_PHY_PAGES * PAGE_SIZE);
 	return ret;
 }
 
@@ -465,6 +476,39 @@ mm_page_alias(struct mm_page *p, struct cm_comp *c, vaddr_t *addr, unsigned long
 	assert(i == MM_MAPPINGS_MAX);
 
 	return -ENOMEM;
+}
+
+unsigned long
+memmgr_shared_page_map_aligned_in_vm(cbuf_t id, unsigned long align, vaddr_t *pgaddr, compid_t cid)
+{
+	struct cm_comp *c;
+	struct mm_span *s;
+	struct mm_page *p;
+	unsigned int i;
+	vaddr_t addr;
+	compid_t vmm = (compid_t)cos_inv_token();
+
+	*pgaddr = 0;
+	s = ss_span_get(id);
+	if (!s) return 0;
+	c = ss_comp_get(cid);
+	if (!c) return 0;
+
+	/* Only the vmm of this VM is allowed to call this interface */
+	assert(vmm == c->comp.vm_comp_info.vmm_comp_id);
+
+	for (i = 0; i < s->n_pages; i++) {
+		struct mm_page *p;
+
+		p = ss_page_get(s->page_off + i);
+		if (!p) return 0;
+
+		if (mm_page_alias(p, c, &addr, align)) BUG();
+		if (*pgaddr == 0) *pgaddr = addr;
+		align = PAGE_SIZE_4K;
+	}
+
+	return s->n_pages;
 }
 
 unsigned long
@@ -719,14 +763,19 @@ capmgr_thd_create_ext(spdid_t client, thdclosure_index_t idx, thdid_t *tid)
 	struct cm_thd *t;
 	struct cm_comp *s, *c;
 
+	c = ss_comp_get(client);
+
 	if (schedid != capmgr_comp_sched_get(client)) {
-		/* don't have permission to create execution in that component. */
-		printc("capmgr: Component asking to create thread from %ld in %ld -- no permission.\n",
-		       schedid, (compid_t)client);
-		return 0;
+		if (c->comp.flags & CRT_COMP_VM) {
+			schedid = c->comp.vm_comp_info.vmm_comp_id;
+		} else {
+			/* don't have permission to create execution in that component. */
+			printc("capmgr: Component asking to create thread from %ld in %ld -- no permission.\n",
+			schedid, (compid_t)client);
+			return 0;
+		}
 	}
 
-	c = ss_comp_get(client);
 	s = ss_comp_get(schedid);
 	if (!c || !s) return 0;
 	t = cm_thd_alloc_in(c, s, idx);
@@ -787,6 +836,129 @@ capmgr_rcv_create(thdclosure_index_t idx, crt_rcv_flags_t flags, asndcap_t *asnd
 	return r->aliased_cap;
 }
 
+static struct cm_thd *
+capmgr_get_thd(thdid_t tid)
+{
+	/* This can only be used on the slow path */
+	struct cm_thd *thd;
+	for (int i = 1; i < MAX_NUM_THREADS; i++) {
+		thd = ss_thd_get(i);
+		if (thd == NULL) continue;
+		if (thd->thd.tid == tid) return thd;
+	}
+	
+	return NULL;
+}
+
+compid_t
+capmgr_vm_comp_create(u64_t mem_sz)
+{
+	/* TODO: allocate name rather than make it static */
+	char *name = "vmlinux";
+	prot_domain_t protdom = 0;
+	compid_t id = crt_comp_id_new();
+
+	/* Allocate a new comp */
+	struct cm_comp *c = ss_comp_alloc_at_id(id);
+	assert(c);
+
+	crt_comp_vm_create(&c->comp, name, id, protdom);
+
+	ss_comp_activate(c);
+
+	return id;
+}
+
+vaddr_t
+capmgr_vm_shared_kernel_page_create_at(compid_t comp_id, vaddr_t addr)
+{
+	struct cm_comp *vmm = ss_comp_get(cos_inv_token());
+	struct cm_comp *vm = ss_comp_get(comp_id);
+
+	assert(vmm && vm);
+	assert(vm->comp.vm_comp_info.vmm_comp_id == vmm->comp.id);
+
+	return crt_comp_shared_kernel_page_alloc_at(&vm->comp, addr);
+}
+
+vaddr_t
+capmgr_shared_kernel_page_create(vaddr_t *resource)
+{
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
+
+	return crt_comp_shared_kernel_page_alloc(&c->comp, resource);
+}
+
+capid_t
+capmgr_vm_vmcs_create(void)
+{
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
+
+	return crt_vm_vmcs_create(&c->comp);
+}
+
+capid_t
+capmgr_vm_msr_bitmap_create(void)
+{
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
+
+	return crt_vm_msr_bitmap_create(&c->comp);
+}
+
+capid_t
+capmgr_vm_lapic_create(vaddr_t *page)
+{
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
+
+	return crt_vm_lapic_create(&c->comp, page);
+}
+
+capid_t
+capmgr_vm_shared_region_create(vaddr_t *page)
+{
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
+
+	return crt_vm_shared_region_create(&c->comp, page);
+}
+
+/* lapic access page is very special: all vcpu needs to set the same mem page */
+capid_t
+capmgr_vm_lapic_access_create(vaddr_t mem)
+{
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
+
+	return crt_vm_lapic_access_create(&c->comp, mem);
+}
+
+capid_t
+capmgr_vm_vmcb_create(vm_vmcscap_t vmcs_cap, vm_msrbitmapcap_t msr_bitmap_cap, vm_lapicaccesscap_t lapic_access_cap, vm_lapiccap_t lapic_cap, vm_shared_mem_t shared_mem_cap, thdid_t handler_thd_id, word_t vpid)
+{
+	struct cm_thd *handler_thd;
+	struct cm_comp *c = ss_comp_get(cos_inv_token());
+	assert(c);
+
+	handler_thd = capmgr_get_thd(handler_thd_id);
+
+	return crt_vm_vmcb_create(&c->comp, vmcs_cap, msr_bitmap_cap, lapic_access_cap, lapic_cap, shared_mem_cap, handler_thd->thd.cap, vpid);
+}
+
+thdcap_t
+capmgr_vm_vcpu_create(compid_t vm_comp, vm_vmcb_t vmcb_cap, thdid_t *tid)
+{
+	/*
+	 * Set vmcb_cap as the closure_id to pass this cap into kernel,
+	 * this is OK since vm thread doesn't need closure_id, and the 
+	 * existing thead creation api has used all arguments(thus it's
+	 * not easy to modify it).
+	 */
+	return capmgr_thd_create_ext(vm_comp, vmcb_cap, tid);
+}
 
 thdcap_t  capmgr_aep_create_thunk(struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax) { BUG(); return 0; }
 thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv) { BUG(); return 0; }
@@ -846,6 +1018,10 @@ cos_init(void)
 	if (!cm_comp_self_alloc("capmgr")) BUG();
 	/* Initialize the other component's for which we're responsible */
 	capmgr_comp_init();
+
+	/* Reserve some continuous pages */
+	contig_phy_pages = crt_page_allocn(&cm_self()->comp, CONTIG_PHY_PAGES);
+	contigmem_check(cos_compid(), (vaddr_t)contig_phy_pages, CONTIG_PHY_PAGES);
 
 	return;
 }

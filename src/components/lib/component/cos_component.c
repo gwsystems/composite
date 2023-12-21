@@ -116,6 +116,12 @@ libc_posixsched_initialization_handler()
 {
 }
 
+CWEAKSYMB void
+libc_tls_init(unsigned int cpuid)
+{
+
+}
+
 /* TODO: Make this a weak symbol (currently doing so makes this fail) */
 void __init_libc(char **envp, char *pn);
 
@@ -301,6 +307,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	 * required here to update first.
 	 */
 	ps_lock_take(&_lock);
+	libc_tls_init(cos_cpuid());
 	if (first) {
 		first = 0;
 

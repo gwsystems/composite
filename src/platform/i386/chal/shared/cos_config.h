@@ -141,6 +141,9 @@
 #define ENABLE_SERIAL
 
 #if defined(__x86_64__)
+
+#define CONFIG_VMX 1
+
 /* root page tbale is 0, then second level page table is 1, etc.*/
 #define COS_PGTBL_DEPTH 4
 #define COS_PGTBL_ORDER_PTE_3 12

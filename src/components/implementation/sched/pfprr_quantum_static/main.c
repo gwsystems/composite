@@ -208,6 +208,13 @@ sched_thd_wakeup(thdid_t tid)
 	return thd_wakeup(t);
 }
 
+int
+sched_debug_thd_state(thdid_t tid)
+{
+	struct slm_thd *t = slm_thd_lookup(tid);
+	return t->state;
+}
+
 static int
 thd_block_until(cycles_t timeout)
 {
@@ -582,10 +589,10 @@ slm_ipi_process(void *d)
 
 	while (1) {
 		cos_rcv(r->rcv, RCV_ALL_PENDING, &rcvd);
-		assert(!slm_ipi_event_empty(cos_cpuid()));
 
 		while (!slm_ipi_event_empty(cos_cpuid())) {
 			slm_ipi_event_dequeue(&event, cos_cpuid());
+
 			thd = slm_thd_static_cm_lookup(event.tid);
 			slm_cs_enter(current, SLM_CS_NONE);
 			ret = slm_thd_wakeup(thd, 0);
@@ -600,10 +607,12 @@ slm_ipi_process(void *d)
 	return;
 }
 
+static coreid_t _init_core_id = 0;
+
 void
 parallel_main(coreid_t cid)
 {
-	if (cid == 0) printc("Starting scheduler loop...\n");
+	if (cid == _init_core_id) printc("Starting scheduler loop...\n");
 	slm_sched_loop_nonblock();
 }
 
@@ -615,6 +624,9 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	thdcap_t thdcap, ipithdcap;
 	arcvcap_t rcvcap;
 	thdid_t tid, ipitid;
+	if (init_core) {
+		_init_core_id = cid;
+	} 
 	struct slm_ipi_percore *ipi_data = slm_ipi_percore_get(cos_cpuid());
 
 	cos_defcompinfo_sched_init();

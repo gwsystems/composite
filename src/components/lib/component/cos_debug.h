@@ -17,7 +17,7 @@
  * to expand to a constant string */
 #define STRX(x) #x
 #define STR(x) STRX(x)
-#define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
+#define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) "\n"))
 
 static volatile int *volatile_null_ptr = (int *) NULL;
 

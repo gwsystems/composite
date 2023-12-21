@@ -4,7 +4,7 @@
 #include <cos_component.h>
 #include <shm_bm.h>
 
-#define PKT_BUF_NUM 8192
+#define PKT_BUF_NUM 64
 #define PKT_BUF_SIZE 2048
 
 struct netshmem {
@@ -48,6 +48,7 @@ void netshmem_create(void);
 
 cbuf_t netshmem_get_shm_id();
 shm_bm_t netshmem_get_shm();
+void netshemem_move(thdid_t old, thdid_t new);
 
 /* map a shmem for a client component */
 void netshmem_map_shmem(cbuf_t shm_id);

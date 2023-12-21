@@ -15,7 +15,7 @@ COMPLIST=$(wordlist $(shell echo $(COMPLEN)-1 | bc), $(COMPLEN), $(COMPPATH))
 COMPNAME=$(shell echo $(strip $(COMPLIST)) | sed "s/ /./")
 COMPOBJ =$(COMPNAME).o
 
-C_OBJS  =$(patsubst %.c,%.o,$(wildcard *.c))
+C_OBJS  +=$(patsubst %.c,%.o,$(wildcard *.c))
 CXX_OBJS=$(patsubst %.cc,%.o,$(wildcard *.cc))
 ASM_OBJS=$(patsubst %.S,%.o,$(wildcard *.S))
 OBJS    =$(CXX_OBJS) $(C_OBJS) $(ASM_OBJS) $(OBJLIBS)
@@ -134,6 +134,6 @@ component: clean comp_header $(COMPOBJ)
 .PHONY: clean
 clean:
 	$(info |     [RM]   Cleaning up implementation directory for component $(COMPNAME))
-	@rm -f a.out *.o *.a *.d *.d.* *~
+	@rm -f $(C_OBJS) $(ASM_OBJS) $(SOURCE_DEPENDENCIES) a.out *.o *.a *.d *.d.* *~
 
 -include $(SOURCE_DEPENDENCIES)

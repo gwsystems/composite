@@ -73,6 +73,11 @@ stacklist_dequeue(struct stacklist_head *h)
 	while (1) {
 		sl = ps_load(&h->head);
 
+		/*
+		 * Check sl again in case other thread updating the head,
+		 * which might causes dereferencing a NULL pointer.
+		 */
+		if (!sl) return NULL;
 		if (ps_cas((unsigned long *)&h->head, (unsigned long)sl, (unsigned long)sl->next)) break;
 	}
 	sl->next = NULL;

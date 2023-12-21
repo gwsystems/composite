@@ -69,6 +69,16 @@ sysenter_entry:
 	RET_TO_USER
 /* we are changing thread contexts, reload all registers */
 
+.align 16
+.globl restore_from_vm
+restore_from_vm:
+	swapgs
+	testq %rax, %rax
+	jne restore_from_thd
+
+	RESTORE_REGS_ALL
+	RET_TO_USER
+
 /* on restoring path, only the %ds will be taken care of. */
 .align 16
 restore_from_thd:

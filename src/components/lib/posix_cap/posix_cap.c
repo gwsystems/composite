@@ -85,6 +85,7 @@ void *
 cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 	void *ret=0;
+	printc("mmap sz:%lu\n", length/1024/1024);
 
 	if (addr != NULL) {
 		printc("parameter void *addr is not supported!\n");

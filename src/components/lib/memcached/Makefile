@@ -35,7 +35,7 @@ CFILES+=$(MEMCACHED_SRC_FILES)
 include Makefile.lib
 CINC+=$(foreach I, $(INCLUDE_PATHS), -I$(I))
 # Memcached source dose have some code that triggers some warnings, we close them here
-CFLAGS+=-DCOS_MEMCACHED -DHAVE_CONFIG_H -I$(MEMCACHE_INC_DIR) -Wno-implicit-fallthrough -Wno-sign-compare -Wno-unused-but-set-parameter -Wno-old-style-declaration
+CFLAGS+=-DCOS_MEMCACHED -DHAVE_CONFIG_H -I$(MEMCACHE_INC_DIR) -Wno-implicit-fallthrough -Wno-sign-compare -Wno-unused-but-set-parameter -Wno-old-style-declaration -Wno-unused-but-set-variable -Wno-implicit-function-declaration -Wno-maybe-uninitialized
 
 .PHONY: all clean distclean init build 
 

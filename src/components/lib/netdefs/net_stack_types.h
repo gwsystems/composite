@@ -83,6 +83,6 @@ struct udp_hdr
 #define IPv4 4
 
 /* enable IP and UDP offload by default */
-#define ENABLE_OFFLOAD 1
+#define ENABLE_OFFLOAD 0
 
 #endif

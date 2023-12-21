@@ -17,6 +17,7 @@
 #include "include/hw.h"
 #include "include/chal/chal_proto.h"
 #include "include/ulk.h"
+#include "include/vm.h"
 
 
 #define COS_DEFAULT_RET_CAP 0
@@ -199,6 +200,44 @@ err:
 	return ret;
 }
 
+static inline int
+cap_check(struct captbl *t, capid_t root_captbl, capid_t root_cap, capid_t second_lvl_cap, int self_resource)
+{
+	struct cap_header *root_captbl_hdr,  *p;
+	int                sz, ret;
+	cap_t              cap_type;
+
+	root_captbl_hdr = captbl_lkup(t, root_captbl);
+	if (unlikely(!root_captbl_hdr)) {
+		return -ENOENT;
+	}
+
+	cap_type = root_captbl_hdr->type;
+	assert(cap_type == CAP_CAPTBL);
+
+	/* this time the root_captbl_hdr can be either any entry in the root captbl, or the pointer to second lvl cap tbl */
+	p = __captbl_lkupan(((struct cap_captbl *)root_captbl_hdr)->captbl, root_cap, CAPTBL_DEPTH, NULL);
+	if (self_resource) {
+		if (!p)  return -ENOENT;
+	}
+	root_captbl_hdr = captbl_lkup(((struct cap_captbl *)root_captbl_hdr)->captbl, root_cap);	
+	
+	if (unlikely(!root_captbl_hdr)) {
+		return -ENOENT;
+	}
+
+	if (!self_resource) {
+		cap_type = root_captbl_hdr->type;
+		assert(cap_type == CAP_CAPTBL);
+
+		p = __captbl_lkupan(((struct cap_captbl *)root_captbl_hdr)->captbl, second_lvl_cap, CAPTBL_DEPTH, NULL);
+		if (unlikely(!p)) {
+			return -ENOENT;
+		}
+	}
+
+	return 0;
+}
 /*
  * Copy a capability from a location in one captbl/pgtbl to a location
  * in the other.  Fundamental operation used to delegate capabilities.
@@ -345,7 +384,7 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, c
 	return ret;
 }
 
-static int
+int
 cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struct comp_info *ci,
                struct cos_cpu_local_info *cos_info)
 {
@@ -364,14 +403,16 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	/* FIXME: trigger fault for the next thread, for now, return error */
 	if (unlikely(!ltbl_isalive(&next_ci->liveness))) {
 		assert(!(curr->state & THD_STATE_PREEMPTED));
+		assert(curr->thd_type != THD_TYPE_VM);
 		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
 		return 0;
 	}
 
-	if (!(curr->state & THD_STATE_PREEMPTED)) {
+	if ((!(curr->state & THD_STATE_PREEMPTED)) && (curr->thd_type != THD_TYPE_VM)) {
 		copy_gp_regs(regs, &curr->regs);
 		__userregs_set(&curr->regs, 0, __userregs_getsp(&curr->regs), __userregs_getip(&curr->regs));
 	} else {
+		/*TODO: VM"s regs seem to be able to not be copied to save some overhead with the cost another if condition */
 		copy_all_regs(regs, &curr->regs);
 	}
 
@@ -380,14 +421,19 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	next_protdom = thd_invstk_protdom_curr(next);
 
 	thd_current_update(next, curr, cos_info);
-	if (likely(pgtbl_current() != next_pt->pgtbl)) {
-		pgtbl_update(next_pt);
-	}
-	
-	chal_protdom_write(next_protdom);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
 	if (next->tls != curr->tls) chal_tls_update(next->tls);
+
+	if (next->thd_type == THD_TYPE_VM) {
+		thd_vm_exec(next);
+	}
+
+	if (likely(pgtbl_current() != next_pt->pgtbl)) {
+		pgtbl_update(next_pt);
+	}
+
+	chal_protdom_write(next_protdom);
 
 	preempt = thd_switch_update(next, &next->regs, 0);
 	/* if switching to the preempted/awoken thread clear cpu local next_thdinfo */
@@ -450,7 +496,7 @@ notify_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap
  * Process the send event, and notify the appropriate end-points.
  * Return the thread that should be executed next.
  */
-static struct thread *
+struct thread *
 asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, struct tcap *tcap,
              struct tcap **tcap_next, int yield, struct cos_cpu_local_info *cos_info)
 {
@@ -610,8 +656,10 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		tcap = tcap_cap->tcap;
 		if (!tcap_rcvcap_thd(tcap)) return -EINVAL;
 		if (unlikely(!tcap_is_active(tcap))) return -EPERM;
+	} else {
+		/* If a thread has no tcap, then keep the previous timeout and do not change it. */
+		timeout = cos_info->next_timer;
 	}
-
 	ret = cap_switch(regs, thd, next, tcap, timeout, ci, cos_info);
 	if (tc && tcap_current(cos_info) == tcap) tcap_setprio(tcap, prio);
 
@@ -1170,6 +1218,111 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			break;
 		}
+		case CAPTBL_OP_VM_VMCS_ACTIVATE: {
+			capid_t pgtbl_addr            = __userregs_get1(regs);
+			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t vmcs_cap              = __userregs_get3(regs);
+
+			vaddr_t page;
+			unsigned long     *pte = NULL;
+			struct cap_pgtbl  *pgtblc;
+			word_t            flags;
+
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+			if (likely(!ret)) {
+				ret = vm_vmcs_activate(ct, cap, vmcs_cap, page);
+			}
+			if (ret) kmem_unalloc(pte);
+
+			break;
+		}
+		case CAPTBL_OP_VM_MSR_BITMAP_ACTIVATE: {
+			capid_t pgtbl_addr            = __userregs_get1(regs);
+			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t bitmap_cap            = __userregs_get3(regs);
+
+			vaddr_t page;
+			unsigned long     *pte = NULL;
+			struct cap_pgtbl  *pgtblc;
+			word_t            flags;
+
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+			if (likely(!ret)) {
+				ret = vm_msr_bitmap_activate(ct, cap, bitmap_cap, page);
+			}
+			if (ret) kmem_unalloc(pte);
+
+			break;
+		}
+		case CAPTBL_OP_VM_LAPIC_ACCESS_ACTIVATE: {
+			capid_t pgtbl_addr            = __userregs_get1(regs);
+			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t lapic_access_cap      = __userregs_get3(regs);
+
+			vaddr_t page;
+			unsigned long     *pte = NULL;
+			struct cap_pgtbl  *pgtblc;
+			word_t            flags;
+
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+			if (likely(!ret)) {
+				ret = vm_lapic_access_activate(ct, cap, lapic_access_cap, page);
+			}
+			if (ret) kmem_unalloc(pte);
+
+			break;
+		}
+		case CAPTBL_OP_VM_LAPIC_ACTIVATE: {
+			capid_t pgtbl_addr            = __userregs_get1(regs);
+			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t lapic_cap             = __userregs_get3(regs);
+
+			vaddr_t page;
+			unsigned long     *pte = NULL;
+			struct cap_pgtbl  *pgtblc;
+			word_t            flags;
+
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+			if (likely(!ret)) {
+				ret = vm_lapic_activate(ct, cap, lapic_cap, page);
+			}
+			if (ret) kmem_unalloc(pte);
+
+			break;
+		}
+		case CAPTBL_OP_VM_SHARED_MEM_ACTIVATE: {
+			capid_t pgtbl_addr            = __userregs_get1(regs);
+			capid_t pgtbl_cap             = __userregs_get2(regs);
+			capid_t shared_mem_cap        = __userregs_get3(regs);
+
+			vaddr_t page;
+			unsigned long     *pte = NULL;
+			struct cap_pgtbl  *pgtblc;
+			word_t            flags;
+
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+			if (likely(!ret)) {
+				ret = vm_shared_mem_activate(ct, cap, shared_mem_cap, page);
+			}
+			if (ret) kmem_unalloc(pte);
+
+			break;
+		}
+		case CAPTBL_OP_VM_VMCB_ACTIVATE: {
+			/* NOTE: try to wrap capid into a single word to save available syscall arguments because vmcb might be expanded in the future */
+			capid_t vmcb_cap              = (__userregs_get1(regs) >> 16 * 0) & 0xFFFF;
+			capid_t vmcs_cap              = (__userregs_get1(regs) >> 16 * 1) & 0xFFFF;
+			capid_t msr_bitmap_cap        = (__userregs_get1(regs) >> 16 * 2) & 0xFFFF;
+			capid_t lapic_access_cap      = (__userregs_get1(regs) >> 16 * 3) & 0xFFFF;
+			capid_t lapic_cap             = (__userregs_get2(regs) >> 16 * 0) & 0xFFFF;
+			capid_t shared_mem_cap        = (__userregs_get2(regs) >> 16 * 1) & 0xFFFF;
+			capid_t handler_cap           = (__userregs_get2(regs) >> 16 * 2) & 0xFFFF;
+			u16_t vpid                    = (__userregs_get2(regs) >> 16 * 3) & 0xFFFF;
+
+			ret = vm_vmcb_activate(ct, cap, vmcb_cap, vmcs_cap, msr_bitmap_cap, lapic_access_cap, lapic_cap, handler_cap, shared_mem_cap, vpid);
+
+			break;
+		}
 		case CAPTBL_OP_TCAP_ACTIVATE: {
 			capid_t        tcap_cap   = __userregs_get1(regs) >> 16;
 			capid_t        pgtbl_cap  = (__userregs_get1(regs) << 16) >> 16;
@@ -1305,6 +1458,21 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 
 			ret = cap_decons(ct, cap, capin, decons_addr, lvl);
 
+			break;
+		}
+		case CAPTBL_OP_CAPCHECK: {
+			capid_t root_captbl, root_cap;
+			capid_t second_lvl_cap;
+
+			int self_resource = __userregs_get3(regs);
+			root_captbl = cap;
+			root_cap = __userregs_get1(regs);
+
+			if (!self_resource) {
+				second_lvl_cap = __userregs_get2(regs);
+			}
+
+			ret = cap_check(ct, root_captbl, root_cap, second_lvl_cap, self_resource);
 			break;
 		}
 		case CAPTBL_OP_INTROSPECT: {

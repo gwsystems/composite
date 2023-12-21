@@ -55,6 +55,12 @@ typedef capid_t captblcap_t;
 typedef capid_t pgtblcap_t;
 typedef capid_t hwcap_t;
 typedef capid_t ulkcap_t;
+typedef capid_t vm_vmcscap_t;
+typedef capid_t vm_msrbitmapcap_t;
+typedef capid_t vm_lapicaccesscap_t;
+typedef capid_t vm_lapiccap_t;
+typedef capid_t vm_shared_mem_t;
+typedef capid_t vm_vmcb_t;
 
 /* Memory source information */
 struct cos_meminfo {
@@ -86,7 +92,16 @@ struct cos_compinfo {
 	/* shared comp cap */
 	capid_t comp_cap_shared;
 	capid_t pgtbl_cap_shared;
+
+	u8_t comp_type;
 };
+
+#define COMP_TYPE_DEF (0)
+#define COMP_TYPE_VM (1)
+
+#define PGTBL_TYPE_DEF (0)
+#define PGTBL_TYPE_EPT (1)
+#define PGTBL_LVL_FLAG_VM (1UL << 31)
 
 void cos_compinfo_init(struct cos_compinfo *ci, pgtblcap_t pgtbl_cap, captblcap_t captbl_cap, compcap_t comp_cap,
                        vaddr_t heap_ptr, capid_t cap_frontier, struct cos_compinfo *ci_resources);/*
@@ -109,7 +124,8 @@ pgtblcap_t cos_pgtbl_intern_expand(struct cos_compinfo *ci, vaddr_t mem_ptr, int
  * frontier as above.
  */
 int cos_pgtbl_intern_expandwith(struct cos_compinfo *ci, pgtblcap_t intern, vaddr_t mem);
-
+vaddr_t cos_shared_kernel_page_alloc(struct cos_compinfo *ci, vaddr_t *resource);
+vaddr_t cos_shared_kernel_page_alloc_at(struct cos_compinfo *ci, vaddr_t mem_ptr);
 int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t entry, struct cos_compinfo *ci_resources, prot_domain_t protdom);
 
 /*
@@ -119,7 +135,7 @@ int cos_comp_alloc_shared(struct cos_compinfo *ci_og, pgtblcap_t ptc, vaddr_t en
 int         cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, capid_t cap_frontier, vaddr_t entry,
                                struct cos_compinfo *ci_resources, prot_domain_t protdom);
 captblcap_t cos_captbl_alloc(struct cos_compinfo *ci);
-pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci);
+pgtblcap_t  cos_pgtbl_alloc(struct cos_compinfo *ci, u8_t type);
 compcap_t   cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t entry, prot_domain_t protdom);
 
 void       cos_ulk_info_init(struct cos_compinfo *ci);
@@ -132,12 +148,22 @@ void cos_comp_capfrontier_update(struct cos_compinfo *ci, capid_t cap_frontier, 
 typedef void (*cos_thd_fn_t)(void *);
 thdcap_t cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
 thdcap_t cos_thd_alloc_ext(struct cos_compinfo *ci, compcap_t comp, thdclosure_index_t idx);
+
+vaddr_t cos_vm_kernel_page_create(struct cos_compinfo *ci);
+
 /* Create the initial (cos_init) thread */
 thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp);
 
 sinvcap_t cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry, invtoken_t token);
 arcvcap_t cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap, arcvcap_t enotif);
 asndcap_t cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t ctcap);
+
+capid_t cos_vm_vmcs_alloc(struct cos_compinfo *ci, vaddr_t kmem);
+capid_t cos_vm_msr_bitmap_alloc(struct cos_compinfo *ci, vaddr_t kmem);
+capid_t cos_vm_lapic_alloc(struct cos_compinfo *ci, vaddr_t kmem);
+capid_t cos_vm_shared_region_alloc(struct cos_compinfo *ci, vaddr_t kmem);
+capid_t cos_vm_lapic_access_alloc(struct cos_compinfo *ci, vaddr_t kmem);
+capid_t cos_vm_vmcb_alloc(struct cos_compinfo *ci, vm_vmcscap_t vmcs_cap, vm_msrbitmapcap_t msr_bitmap_cap, vm_lapicaccesscap_t lapic_access_cap, vm_lapiccap_t lapic_cap, vm_shared_mem_t shared_mem_cap, thdcap_t handler_cap, word_t vpid);
 
 void *cos_page_bump_alloc(struct cos_compinfo *ci);
 void *cos_page_bump_allocn(struct cos_compinfo *ci, size_t sz);

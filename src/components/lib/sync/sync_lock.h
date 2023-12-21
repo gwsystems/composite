@@ -73,6 +73,9 @@ sync_lock_teardown(struct sync_lock *l)
 static inline void
 sync_lock_take(struct sync_lock *l)
 {
+#if 1
+	ps_lock_take((struct ps_lock *)&l->owner_blked);
+#else
 	struct sync_blkpt_checkpoint chkpt;
 
 	while (1) {
@@ -92,6 +95,7 @@ sync_lock_take(struct sync_lock *l)
 		/* We can't take the lock, have set the block bit, and await release */
 		sync_blkpt_wait(&l->blkpt, 0, &chkpt);
 	}
+#endif
 }
 
 /**
@@ -105,11 +109,15 @@ sync_lock_take(struct sync_lock *l)
 static inline int
 sync_lock_try_take(struct sync_lock *l)
 {
+#if 1
+	return l->owner_blked;
+#else
 	if (ps_cas(&l->owner_blked, 0, (unsigned long)cos_thdid())) {
 		return 0;	/* success! */
 	} else {
 		return 1;
 	}
+#endif
 }
 
 /**
@@ -122,6 +130,9 @@ sync_lock_try_take(struct sync_lock *l)
 static inline void
 sync_lock_release(struct sync_lock *l)
 {
+#if 1
+	ps_lock_release((struct ps_lock *)&l->owner_blked);	
+#else
 	while (1) {
 		unsigned long o_b = ps_load(&l->owner_blked);
 		int blked = unlikely(SYNC_LOCK_BLKED(o_b) == SYNC_LOCK_BLKED_MASK);
@@ -140,6 +151,7 @@ sync_lock_release(struct sync_lock *l)
 
 		return;
 	}
+#endif
 }
 
 #endif /* SYNC_LOCK_H */

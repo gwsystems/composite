@@ -49,3 +49,15 @@ COS_CLIENT_STUB(unsigned long, memmgr_shared_page_map_aligned, cbuf_t id, unsign
 
 	return ret;
 }
+
+COS_CLIENT_STUB(unsigned long, memmgr_shared_page_map_aligned_in_vm, cbuf_t id, unsigned long align, vaddr_t *pgaddr, compid_t cid)
+{
+	COS_CLIENT_INVCAP;
+	word_t unused, addrret;
+	unsigned long ret;
+
+	ret = cos_sinv_2rets(uc, id, align, cid, 0, &addrret, &unused);
+	*pgaddr = addrret;
+
+	return ret;
+}

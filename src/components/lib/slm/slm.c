@@ -7,6 +7,9 @@ struct slm_ipi_percore slm_ipi_percore_data[NUM_CPU];
 
 CK_RING_PROTOTYPE(slm_ipi_ringbuf, slm_ipi_event);
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+/* GCC has bug of processing a warning(-Warray-bounds) and it does not get fixed, thus currently just close the warning in this function */
 inline int
 slm_ipi_event_enqueue(struct slm_ipi_event *event, cpuid_t id)
 {
@@ -38,6 +41,7 @@ slm_ipi_percore_get(cpuid_t id)
 {
     return &slm_ipi_percore_data[id];
 }
+#pragma GCC diagnostic pop
 
 struct slm_thd *
 slm_thd_special(void)
@@ -440,7 +444,7 @@ slm_cs_enter_sched(void)
 {
 	int ret;
 
-	while ((ret = slm_cs_enter(&slm_global()->sched_thd, SLM_CS_NOSPIN))) {
+	while ((ret = slm_cs_enter(&slm_global()->sched_thd, SLM_CS_SCHEDEVT))) {
 		/* We don't want to retry if we have pending events to handle */
 		if (ret == -EBUSY) break;
 	}
@@ -564,7 +568,7 @@ pending_events:
 		if (slm_cs_enter_sched()) continue;
 		/* If switch returns an inconsistency, we retry anyway */
 		ret = slm_cs_exit_reschedule(us, SLM_CS_CHECK_TIMEOUT);
-		if (ret && ret != -EAGAIN) BUG();
+		if (ret && ret != -EAGAIN && ret != -EBUSY) BUG();
 	}
 }
 

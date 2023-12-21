@@ -6,7 +6,7 @@ if [ $# -lt 2 ]; then
 fi 
 
 num_sockets=1
-num_cores=8
+num_cores=16
 num_threads=1
 vcpus=$[${num_sockets}*${num_cores}*${num_threads}]
 mem_size=4096
@@ -52,7 +52,7 @@ fi
 
 if [ "${arch}" == "x86_64" ]
 then
-	qemu-system-x86_64 ${kvm_flag} -cpu max -smp ${vcpus},cores=${num_cores},threads=${num_threads},sockets=${num_sockets} -m ${mem_size} -cdrom $1 -no-reboot -nographic -s ${debug_flag} ${nic_flag}
+	qemu-system-x86_64 ${kvm_flag} -cpu max -smp ${vcpus},cores=${num_cores},threads=${num_threads},sockets=${num_sockets} -m ${mem_size} -cdrom $1 -no-reboot -nographic -s ${debug_flag} -nic none ${nic_flag}
 elif [ "${arch}" == "i386" ]
 then
 	qemu-system-i386 ${kvm_flag} -cpu max -smp ${vcpus},cores=${num_cores},threads=${num_threads},sockets=${num_sockets} -m ${mem_size} -cdrom $1 -no-reboot -nographic -s ${debug_flag} ${nic_flag}

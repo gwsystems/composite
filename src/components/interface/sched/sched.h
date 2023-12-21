@@ -27,6 +27,8 @@ int      sched_thd_yield_to(thdid_t t);
 int      COS_STUB_DECL(sched_thd_yield_to)(thdid_t t);
 int      sched_thd_wakeup(thdid_t t);
 int      COS_STUB_DECL(sched_thd_wakeup)(thdid_t t);
+int      sched_debug_thd_state(thdid_t t);
+int      COS_STUB_DECL(sched_debug_thd_state)(thdid_t t);
 int      sched_thd_block(thdid_t dep_id);
 int      COS_STUB_DECL(sched_thd_block)(thdid_t dep_id);
 cycles_t sched_thd_block_timeout(thdid_t dep_id, cycles_t abs_timeout);

@@ -36,5 +36,7 @@ unsigned long COS_STUB_DECL(memmgr_shared_page_map)(cbuf_t id, vaddr_t *pgaddr);
 unsigned long memmgr_shared_page_map_aligned(cbuf_t id, unsigned long align, vaddr_t *pgaddr);
 unsigned long COS_STUB_DECL(memmgr_shared_page_map_aligned)(cbuf_t id, unsigned long align, vaddr_t *pgaddr);
 
+unsigned long memmgr_shared_page_map_aligned_in_vm(cbuf_t id, unsigned long align, vaddr_t *pgaddr, compid_t cid);
+unsigned long COS_STUB_DECL(memmgr_shared_page_map_aligned_in_vm)(cbuf_t id, unsigned long align, vaddr_t *pgaddr, compid_t cid);
 
 #endif /* MEMMGR_H */
