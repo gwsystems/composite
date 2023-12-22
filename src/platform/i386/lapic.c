@@ -76,6 +76,7 @@ volatile int apicids[NUM_CPU];
 #define LAPIC_ICR_STATUS         (1 << 12)
 #define LAPIC_ICR_INIT           0x500     /* INIT */
 #define LAPIC_ICR_SIPI           0x600     /* Startup IPI */
+#define LAPIC_ICR_SELF           0x40000   /* Self IPI */
 #define LAPIC_ICR_FIXED          0x000     /* fixed IPI */
 #define LAPIC_IPI_ASND_VEC       HW_LAPIC_IPI_ASND /* interrupt vec for asnd ipi */
 
@@ -433,6 +434,17 @@ lapic_ipi_send(u32_t dest, u32_t vect_flags)
 
 	return 0;
 }
+
+void
+lapic_selfipi(u8_t vector)
+{
+	lapic_write_reg(LAPIC_ICR + 0x10, 0 << 24);
+	lapic_read_reg(LAPIC_ICR + 0x10);
+
+	lapic_write_reg(LAPIC_ICR, LAPIC_ICR_SELF | vector);
+	lapic_read_reg(LAPIC_ICR);
+}
+
 void
 lapic_asnd_ipi_send(const cpuid_t cpu_id)
 {

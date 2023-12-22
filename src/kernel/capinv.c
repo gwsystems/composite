@@ -1265,9 +1265,20 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			word_t            flags;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+			if (ret == -EEXIST || ret == -ECASFAIL) {
+				/* apic access mem has been activated by other vcpu, thus just get the page addr */
+				pgtblc = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
+				page = (vaddr_t)pgtbl_lkup(pgtblc->pgtbl, pgtbl_addr & PGTBL_FRAME_MASK, &flags);
+				assert(page);
+				ret = 0;
+			}
+
 			if (likely(!ret)) {
 				ret = vm_lapic_access_activate(ct, cap, lapic_access_cap, page);
+				/* TODO: improve it for multi-vcpu case */
+				assert(!ret);
 			}
+			assert(!ret);
 			if (ret) kmem_unalloc(pte);
 
 			break;

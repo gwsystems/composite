@@ -143,6 +143,7 @@
 #if defined(__x86_64__)
 
 #define CONFIG_VMX 1
+#define VMX_SUPPORT_POSTED_INTR 0
 
 /* root page tbale is 0, then second level page table is 1, etc.*/
 #define COS_PGTBL_DEPTH 4

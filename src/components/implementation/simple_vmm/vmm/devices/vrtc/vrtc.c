@@ -42,7 +42,6 @@ vrtc_handler(u16_t port, int dir, int sz, struct vmrt_vm_vcpu *vcpu)
 			}
 			break;
 		case CMOS_DATA_PORT:
-			assert(0);
 			break;
 		default:
 			assert(0);

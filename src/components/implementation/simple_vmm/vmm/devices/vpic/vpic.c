@@ -20,6 +20,8 @@ struct chip_8259 {
 
 static struct chip_8259 chip;
 
+static u8_t pic_elcr1 = 0, pic_elcr2 = 0;
+
 void
 vpic_handler(u16_t port, int dir, int sz, struct vmrt_vm_vcpu *vcpu)
 {
@@ -35,6 +37,15 @@ vpic_handler(u16_t port, int dir, int sz, struct vmrt_vm_vcpu *vcpu)
 			break;
 		case PIC_MASTER_CMD_PORT:
 			vcpu->shared_region->ax = chip.master_cmd;
+			break;
+		case PIC_SLAVE_CMD_PORT:
+			vcpu->shared_region->ax = chip.slave_cmd;
+			break;
+		case PIC_ELCR1:
+			vcpu->shared_region->ax = pic_elcr1;
+			break;
+		case PIC_ELCR2:
+			vcpu->shared_region->ax = pic_elcr2;
 			break;
 		default:
 			printc("vpic_handler: port: 0x%x, dir: %d\n", port, dir);
@@ -76,6 +87,12 @@ vpic_handler(u16_t port, int dir, int sz, struct vmrt_vm_vcpu *vcpu)
 				chip.slave_offset = chip.slave_data;
 				chip.is_slave_init = 0;
 			}
+			break;
+		case PIC_ELCR1:
+			pic_elcr1 = val;
+			break;
+		case PIC_ELCR2:
+			pic_elcr2 = val;
 			break;
 		default:
 			assert(0);

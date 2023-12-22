@@ -170,66 +170,38 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 	int i, ret;
 	int len = 0;
 
-	struct eth_hdr		*eth;
 	struct ip_hdr		*iph;
 	struct arp_hdr		*arp_hdr;
 	struct tcp_udp_port	*port;
 	struct client_session	*session;
-	char                    *pkt;
 	struct pkt_buf           buf;
 
 	for (i = 0; i < nb_pkts; i++) {
-		pkt = cos_get_packet(rx_pkts[i], &len);
-		eth = (struct eth_hdr *)pkt;
+		cos_get_packet(rx_pkts[i], &len);
 
-		if (htons(eth->ether_type) == 0x0800) {
-			iph	= (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
-			if (unlikely(iph->proto != UDP_PROTO)) {
-				// assert(0);
-				cos_free_packet(rx_pkts[i]);
-				rx_enqueued_miss++;
-				continue;
-			}
-			port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
+		/* TODO: need a policy spefic rule to route packets to different receiving threads*/
 
-			// printc("port id:0x%x\n", port->dst_port);
-			session = cos_hash_lookup(port->dst_port);
-			// assert(session->port == port->dst_port);
-			if (unlikely(debug_flag)) {
-				debug_print_stats();
-				debug_flag = 0;
-			}
-			if (unlikely(session == NULL)) {
-				cos_free_packet(rx_pkts[i]);
-				continue;
-			}
-			// memset(&buf, 0, sizeof(buf));
-			buf.pkt = rx_pkts[i];
-			// if (ntohs(port->dst_port) == 6) {
-			// 	buf.tent_id = 6;
-			// 	buf.srcid = ntohs(port->src_port);
-			// } else if(ntohs(port->dst_port) == 7) {
-			// 	buf.tent_id = 7;
-			// 	buf.srcid = ntohs(port->src_port);
-			// } else {
-			// 	assert(0);
-			// }
-			if (unlikely(!pkt_ring_buf_enqueue(&(session->pkt_ring_buf), &buf))){
+		session = cos_hash_lookup(0);
+
+		if (unlikely(session == NULL)) {
+			cos_free_packet(rx_pkts[i]);
+			continue;
+		}
+
+		buf.pkt = rx_pkts[i];
+
+		if (unlikely(!pkt_ring_buf_enqueue(&(session->pkt_ring_buf), &buf))){
 				cos_free_packet(buf.pkt);
 				rx_enqueued_miss++;
 				continue;
-			}
-			enqueued_rx++;
-			// if (unlikely(debug_flag)) {
-			// 	session->sem.debug = 1;
-			// }
-
-			sync_sem_give(&session->sem);
-		} else if (htons(eth->ether_type) == 0x0806) {
-			cos_free_packet(buf.pkt);
-			continue;
 		}
+		enqueued_rx++;
+
+		sync_sem_give(&session->sem);
 	}
+	/* yield for some cycles to improve CPU utility */
+	sched_thd_block_timeout(0, 100000);
+
 }
 
 static void

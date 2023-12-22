@@ -27,6 +27,7 @@
  */
 #include <assert.h>
 #include <cos_types.h>
+#include <sched.h>
 #include "virtio_net_io.h"
 #include "vpci.h"
 #include "virtio_ring.h"
@@ -45,7 +46,7 @@ static unsigned char icmp_reply[] = {
 static inline int
 vq_ring_ready(struct virtio_vq_info *vq)
 {
-	return 1;
+	return ((vq->flags & VQ_ALLOC) == VQ_ALLOC);
 }
 
 static inline int 
@@ -53,8 +54,10 @@ vq_has_descs(struct virtio_vq_info *vq)
 {
 	int ret = 0;
 	if (vq_ring_ready(vq) && vq->last_avail != vq->avail->idx) {
-		if ((u16_t)((unsigned int)vq->avail->idx - vq->last_avail) > vq->qsize)
-			printc ("no valid descriptor\n");
+		if (unlikely((u16_t)((unsigned int)vq->avail->idx - vq->last_avail) > vq->qsize)) {
+			printc("no valid descriptor\n");
+			assert(0);
+		}
 		else
 			ret = 1;
 	}
@@ -78,11 +81,25 @@ vq_endchains(struct vmrt_vm_vcpu *vcpu, struct virtio_vq_info *vq, int used_all_
 	u16_t event_idx, new_idx, old_idx;
 	int intr;
 
-	if (!vq || !vq->used)
+	if (unlikely(!vq || !vq->used))
 		return;
+
+	old_idx = vq->save_used;
+	vq->save_used = new_idx = vq->used->idx;
+
+	intr = new_idx != old_idx &&
+		    !(vq->avail->flags & VRING_AVAIL_F_NO_INTERRUPT);
 	
-	/* TODO: 57 is virtio-net interrupt, should read it from somewhere else more reliable */
-	lapic_intr_inject(vcpu, 57, 0);
+	if (intr) {
+		virtio_net_regs.header.ISR = 1;
+		/* TODO: 57 is virtio-net interrupt without io apic, 33 is with io apic */
+#if VMX_SUPPORT_POSTED_INTR
+		vlapic_set_intr(vcpu, 33, 0);
+#else
+		lapic_intr_inject(vcpu, 33, 0);
+#endif
+	}
+
 }
 
 static inline struct iovec *
@@ -90,24 +107,10 @@ rx_iov_trim(struct iovec *iov, int *niov, size_t tlen)
 {
 	struct iovec *riov;
 
-	/* XXX short-cut: assume first segment is >= tlen */
-	if (iov[0].iov_len < tlen) {
-		printc("vtnet: rx_iov_trim: iov_len=%lu, tlen=%lu\n", iov[0].iov_len, tlen);
-		return NULL;
-	}
-
 	iov[0].iov_len -= tlen;
-	if (iov[0].iov_len == 0) {
-		if (*niov <= 1) {
-			printc("vtnet: rx_iov_trim: *niov=%d\n", *niov);
-			return NULL;
-		}
-		*niov -= 1;
-		riov = &iov[1];
-	} else {
-		iov[0].iov_base = (void *)((uintptr_t)iov[0].iov_base + tlen);
-		riov = &iov[0];
-	}
+	
+	iov[0].iov_base = (void *)((uintptr_t)iov[0].iov_base + tlen);
+	riov = &iov[0];
 
 	return riov;
 }
@@ -149,13 +152,14 @@ virtio_vq_init(struct vmrt_vm_vcpu *vcpu, int nr_queue, u32_t pfn)
 	/* Mark queue as allocated after initialization is complete. */
 	mb();
 	vq->flags = VQ_ALLOC;
+	vq->vcpu = vcpu;
 
-	printc("%s: vq enable done\n", __func__);
 	return;
 
 error:
 	vq->flags = 0;
 	printc("%s: vq enable failed\n", __func__);
+	assert(0);
 }
 
 static inline int
@@ -164,15 +168,21 @@ _vq_record(int i, volatile struct vring_desc *vd,
 
 	void *host_addr;
 
-	if (i >= n_iov)
-		return -1;
+	if (i >= n_iov) {
+		printc("Number of descs is more than iov slots\n");
+		assert(0);
+	}
+
 	host_addr = paddr_guest2host(vd->addr, vcpu->vm);
-	if (!host_addr)
-		return -1;
+	if (unlikely(!host_addr)) {
+		printc("Invalid host addr\n");
+		assert(0);
+	}
 	iov[i].iov_base = host_addr;
 	iov[i].iov_len = vd->len;
-	if (flags != NULL)
+	if (unlikely(flags != NULL))
 		flags[i] = vd->flags;
+
 	return 0;
 }
 
@@ -196,7 +206,6 @@ vq_getchain(struct vmrt_vm_vcpu *vcpu, struct virtio_vq_info *vq, u16_t *pidx,
 	unsigned int idx, next;
 
 	volatile struct vring_desc *vdir, *vindir, *vp;
-	const char *name = "testnic"; 
 	/*
 	 * Note: it's the responsibility of the guest not to
 	 * update vq->avail->idx until all of the descriptors
@@ -212,13 +221,12 @@ vq_getchain(struct vmrt_vm_vcpu *vcpu, struct virtio_vq_info *vq, u16_t *pidx,
 	 */
 	idx = vq->last_avail;
 	ndesc = (u16_t)((unsigned int)vq->avail->idx - idx);
-	if (ndesc == 0)
+	if (unlikely(ndesc == 0))
 		return 0;
-	if (ndesc > vq->qsize) {
-		/* XXX need better way to diagnose issues */
-		printc("%s: ndesc (%u) out of range, driver confused?\r\n",
-		    name, (unsigned int)ndesc);
-		return -1;
+	if (unlikely(ndesc > vq->qsize)) {
+		printc("ndesc (%u) out of range, driver confused?\r\n",
+		    (unsigned int)ndesc);
+		assert(0);
 	}
 
 	/*
@@ -236,75 +244,27 @@ vq_getchain(struct vmrt_vm_vcpu *vcpu, struct virtio_vq_info *vq, u16_t *pidx,
 			printc("tx: descriptor index %u out of range, "
 			    "driver confused?\r\n",
 			     next);
-			return -1;
+			assert(0);
 		}
 		vdir = &vq->desc[next];
-		if ((vdir->flags & VRING_DESC_F_INDIRECT) == 0) {
-			if (_vq_record(i, vdir, iov, n_iov, flags, vcpu)) {
-				printc("%s: mapping to host failed\r\n", name);
-				return -1;
+		if (likely((vdir->flags & VRING_DESC_F_INDIRECT) == 0)) {
+			if (unlikely(_vq_record(i, vdir, iov, n_iov, flags, vcpu))) {
+				printc("mapping to host failed\r\n");
+				assert(0);
 			}
 			i++;
-		} else if ((virtio_net_regs.header.dev_features &
-		    (1 << VIRTIO_RING_F_INDIRECT_DESC)) == 0) {
-			printc("%s: descriptor has forbidden INDIRECT flag, "
-			    "driver confused?\r\n",
-			    name);
-			return -1;
 		} else {
-			n_indir = vdir->len / 16;
-			if ((vdir->len & 0xf) || n_indir == 0) {
-				printc("%s: invalid indir len 0x%x, "
-				    "driver confused?\r\n",
-				    name, (unsigned int)vdir->len);
-				return -1;
-			}
-			vindir = paddr_guest2host(
-			    vdir->addr, vcpu->vm);
-
-			if (!vindir) {
-				printc("%s cannot get host memory\r\n", name);
-				return -1;
-			}
-			/*
-			 * Indirects start at the 0th, then follow
-			 * their own embedded "next"s until those run
-			 * out.  Each one's indirect flag must be off
-			 * (we don't really have to check, could just
-			 * ignore errors...).
-			 */
-			next = 0;
-			for (;;) {
-				vp = &vindir[next];
-				if (vp->flags & VRING_DESC_F_INDIRECT) {
-					printc("%s: indirect desc has INDIR flag,"
-					    " driver confused?\r\n",
-					    name);
-					return -1;
-				}
-				if (_vq_record(i, vp, iov, n_iov, flags, vcpu)) {
-					printc("%s: mapping to host failed\r\n", name);
-					return -1;
-				}
-				if (++i > VQ_MAX_DESCRIPTORS)
-					goto loopy;
-				if ((vp->flags & VRING_DESC_F_NEXT) == 0)
-					break;
-				next = vp->next;
-				if (next >= n_indir) {
-					printc("%s: invalid next %u > %u, "
-					    "driver confused?\r\n",
-					    name, (unsigned int)next, n_indir);
-					return -1;
-				}
-			}
+			printc("descriptor has forbidden INDIRECT flag, "
+			    "driver confused?\r\n");
+			assert(0);
 		}
 		if ((vdir->flags & VRING_DESC_F_NEXT) == 0)
 			return i;
 	}
-loopy:
-	printc("%s: descriptor loop? count > %d - driver confused?\r\n",
-	    name, i);
+
+	/* code should not come here */
+	printc("descriptor loop? count > %d - driver confused?\r\n", i);
+	assert(0);
 	return -1;
 }
 
@@ -335,134 +295,90 @@ vq_relchain(struct virtio_vq_info *vq, u16_t idx, u32_t iolen)
 	vuh->idx = uidx;
 }
 
-static void
-virtio_net_tap_rx(struct vmrt_vm_vcpu *vcpu)
+void
+vq_retchain(struct virtio_vq_info *vq)
+{
+	vq->last_avail--;
+}
+
+void
+virtio_net_rcv_one_pkt(void *data, int pkt_len)
 {
 	struct iovec iov[VIRTIO_NET_MAXSEGS], *riov;
 	struct virtio_vq_info *vq;
+	struct vmrt_vm_vcpu *vcpu;
 	void *vrx;
-	int len, n;
+	int n;
 	u16_t idx;
 	int ret;
 
-	/*
-	 * Check for available rx buffers
-	 */
 	vq = &virtio_net_vqs[VIRTIO_NET_RXQ];
-	if (!vq_has_descs(vq)) {
-		VM_PANIC(vcpu);
+	
+	vcpu = vq->vcpu;
+
+	if (unlikely(!vq_has_descs(vq))) {
+		return;
 	}
 
-	do {
-		/*
-		 * Get descriptor chain.
-		 */
-		n = vq_getchain(vcpu, vq, &idx, iov, VIRTIO_NET_MAXSEGS, NULL);
-		if (n < 1 || n > VIRTIO_NET_MAXSEGS) {
-			printc("vtnet: virtio_net_tap_rx: vq_getchain = %d\n", n);
-			VM_PANIC(vcpu);
-			return;
-		}
-		/*
-		 * Get a pointer to the rx header, and use the
-		 * data immediately following it for the packet buffer.
-		 */
-		vrx = iov[0].iov_base;
-		riov = rx_iov_trim(iov, &n, sizeof(struct virtio_net_rxhdr));
+	n = vq_getchain(vcpu, vq, &idx, iov, VIRTIO_NET_MAXSEGS, NULL);
 
-		memcpy(iov[0].iov_base, icmp_reply, sizeof(icmp_reply));
+	if (unlikely (n < 1 || n >= VIRTIO_NET_MAXSEGS )) {
+		printc("vtnet: virtio_net_tap_rx: vq_getchain = %d\n", n);
+		assert(0);
+	}
 
-		len = sizeof(icmp_reply);
-		if (riov == NULL)
-			VM_PANIC(vcpu);
+	vrx = iov[0].iov_base;
+	/* every packet needs to be proceeded by a virtio_net_rxhdr header space */
+	riov = rx_iov_trim(iov, &n, sizeof(struct virtio_net_rxhdr));
 
-		memset(vrx, 0, sizeof(struct virtio_net_rxhdr));
-		
+	assert(iov[0].iov_len >= (size_t)pkt_len);
 
-		if (len < 0 ) {
-			/*
-			 * No more packets, but still some avail ring
-			 * entries.  Interrupt if needed/appropriate.
-			 */
-			/*TODO: fix the erro case */
-			VM_PANIC(vcpu);
-		}
+	memcpy(iov[0].iov_base, data, pkt_len);
 
-		/*
-		 * The only valid field in the rx packet header is the
-		 * number of buffers if merged rx bufs were negotiated.
-		 */
+	memset(vrx, 0, sizeof(struct virtio_net_rxhdr));
 
-		/*
-		 * Release this chain and handle more chains.
-		 */
-		vq_relchain(vq, idx, len);
-	} while (vq_has_descs(vq));
+	vq_relchain(vq, idx, pkt_len + sizeof(struct virtio_net_rxhdr));
 
-	/* Interrupt if needed, including for NOTIFY_ON_EMPTY. */
 	vq_endchains(vcpu, vq, 1);
+	return;
 }
 
-static void
-virtio_net_proctx(struct vmrt_vm_vcpu *vcpu, struct virtio_vq_info *vq)
+void
+virtio_net_send_one_pkt(void *data, u16_t *pkt_len)
 {
-	struct iovec iov[VIRTIO_NET_MAXSEGS + 1];
+	struct virtio_vq_info *vq = &virtio_net_vqs[VIRTIO_NET_TXQ];
+	struct iovec iov[VIRTIO_NET_MAXSEGS];
+	struct vmrt_vm_vcpu *vcpu;
 	int i, n;
 	int plen, tlen;
 	u16_t idx;
 
-	memset(&iov, 0, sizeof(iov));
-	/*
-	 * Obtain chain of descriptors.  The first one is
-	 * really the header descriptor, so we need to sum
-	 * up two lengths: packet length and transfer length.
-	 */
-	n = vq_getchain(vcpu, vq, &idx, iov, VIRTIO_NET_MAXSEGS, NULL);
-	if (n < 1 || n > VIRTIO_NET_MAXSEGS) {
-		printc("vtnet: virtio_net_proctx: vq_getchain = %d\n", n);
-		return;
+	while (!vq_has_descs(vq)) {
+		sched_thd_block(0);
 	}
+	vcpu = vq->vcpu;
+
+	memset(&iov, 0, sizeof(iov));
+	n = vq_getchain(vcpu, vq, &idx, iov, VIRTIO_NET_MAXSEGS, NULL);
+	if (unlikely(n < 1 || n >= VIRTIO_NET_MAXSEGS)) {
+		printc("vtnet: virtio_net_proctx: vq_getchain = %d\n", n);
+		assert(0);
+	}
+
 	plen = 0;
 	tlen = iov[0].iov_len;
-	for (i = 1; i < n; i++) {
-		plen += iov[i].iov_len;
-		tlen += iov[i].iov_len;
-	}
+	assert(n == 2);
 
-	printc("virtio: packet send, %d bytes, %d segs\n\r", plen, n);
-	/* begin to send packets */
-	dump_packet(iov[1].iov_base, plen);
-	/* TODO: process tx output to nic component */
-	/* net->virtio_net_tx(net, &iov[1], n - 1, plen); */
+	plen += iov[1].iov_len;
+	tlen += iov[1].iov_len;
 
-	/* chain is processed, release it and set tlen */
+	memcpy(data, iov[1].iov_base, iov[1].iov_len);
+
+	*pkt_len = plen;
 	vq_relchain(vq, idx, tlen);
-}
 
-static void
-virtio_net_tx_thread(void *param, struct vmrt_vm_vcpu *vcpu)
-{
-	struct virtio_vq_info *vq = &virtio_net_vqs[VIRTIO_NET_TXQ];
-
-	while (!vq_ring_ready(vq))
-		VM_PANIC(vcpu);
-
-	vq->used->flags |= VRING_USED_F_NO_NOTIFY;
-
-	do {
-		/*
-		* Run through entries, placing them into
-		* iovecs and sending when an end-of-packet
-		* is found
-		*/
-		virtio_net_proctx(vcpu, vq);
-	} while (vq_has_descs(vq));
-	printc("tx done on busrt\n");
-
-	/*
-	 * Generate an interrupt if needed.
-	 */
 	vq_endchains(vcpu, vq, 1);
+	return;
 }
 
 static void
@@ -494,6 +410,7 @@ virtio_net_inb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 		break;
 	case VIRTIO_NET_ISR:
 		vcpu->shared_region->ax = virtio_net_regs.header.ISR;
+		virtio_net_regs.header.ISR = 0;
 		break;
 	case VIRTIO_NET_STATUS:
 		vcpu->shared_region->ax = virtio_net_regs.config_reg.status; 
@@ -559,8 +476,7 @@ virtio_net_outw(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 		break;
 	case VIRTIO_NET_QUEUE_NOTIFY:
 		if (val == VIRTIO_NET_TXQ) {
-			virtio_net_tx_thread(0, vcpu);
-			virtio_net_tap_rx(vcpu);
+			sched_thd_wakeup(12);
 		}
 		virtio_net_regs.header.queue_notify = val;
 		break;

@@ -44,7 +44,7 @@
 #define VIRTIO_NET_F_GUEST_ANNOUNCE (21)
 
 #define VIRTIO_NET_RINGSZ	512
-#define VIRTIO_NET_MAXSEGS	256
+#define VIRTIO_NET_MAXSEGS	32
 #define	VQ_MAX_DESCRIPTORS	512
 
 struct virtio_header {
@@ -122,6 +122,9 @@ struct virtio_vq_info {
 	u32_t gpa_avail[2];	/* gpa of avail_ring */
 	u32_t gpa_used[2];	/* gpa of used_ring */
 	int enabled;		/* whether the virtqueue is enabled */
+
+	/* each vq is bounded to a vcpu */
+	struct vmrt_vm_vcpu *vcpu;
 };
 
 /*
@@ -134,7 +137,8 @@ struct virtio_net_rxhdr {
 	u16_t	vrh_gso_size;
 	u16_t	vrh_csum_start;
 	u16_t	vrh_csum_offset;
-	/* u16_t	vrh_bufs; */
 } __attribute__((packed));
 
 void virtio_net_handler(u16_t port, int dir, int sz, struct vmrt_vm_vcpu *vcpu);
+void virtio_net_rcv_one_pkt(void *data, int pkt_len);
+void virtio_net_send_one_pkt(void *data, u16_t *pkt_len);

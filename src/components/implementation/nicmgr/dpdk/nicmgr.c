@@ -84,13 +84,9 @@ nic_get_a_packet(u16_t *pkt_len)
 	thd = cos_thdid();
 	assert(thd < NIC_MAX_SESSION);
 
-	session = &client_sessions[thd];
+	session = &client_sessions[thd];	
 
-	// if (unlikely(debug_flag)) {
-	// 	printc("tenant %u(%u) is to dequeue\n", ntohs(session->port), thd);
-	// }
 	session->blocked_loops_begin++;
-	
 	sync_sem_take(&session->sem);
 	session->blocked_loops_end++;
 
@@ -143,7 +139,7 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	thd   = cos_thdid();
 	objid = pktid;
 
-	obj = (struct netshmem_pkt_buf *)shm_bm_borrow_net_pkt_buf(client_sessions[thd].shemem_info.shm, objid);
+	obj = (struct netshmem_pkt_buf *)shm_bm_transfer_net_pkt_buf(client_sessions[thd].shemem_info.shm, objid);
 
 	buf.obj = (char *)obj;
 	buf.pkt = pkt_offset + obj->data;

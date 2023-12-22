@@ -34,7 +34,6 @@ rdmsr_handler(struct vmrt_vm_vcpu *vcpu)
 	{
 		/* TODO: need to handle tsc adjustment in VM */
 		u32_t ax, dx;
-		printc("MSR_IA32_TSC_ADJUST:%llx, %llx\n", regs->ax, regs->dx);
 		regs->ax = 0;
 		regs->dx = 0;
 		goto done;
@@ -233,6 +232,11 @@ wrmsr_handler(struct vmrt_vm_vcpu *vcpu)
 	case MSR_IA32_SPEC_CTRL:
 	{
 		/* This MSR has a value of 0 after reset, thus just keep it ad default, don't modify */
+		goto done;
+	}
+	case MSR_IA32_APIC_BASE:
+	{
+		VM_PANIC(vcpu);
 		goto done;
 	}
 	default:

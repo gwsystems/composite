@@ -8,7 +8,8 @@
 
 #define COS_ETH_NAME_SZ 16
 
-#define	COS_MBUF_DEFAULT_DATAROOM	1500
+/* vmxnet3 needs at least 1700 */
+#define	COS_MBUF_DEFAULT_DATAROOM	1700
 #define COS_PKTMBUF_HEADROOM 128
 
 /* 

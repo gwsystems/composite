@@ -14,6 +14,9 @@
 
 #include <stdbool.h>
 
+/** Roundup (x/y) to ( x/y + (x%y) ? 1 : 0) **/
+#define INT_DIV_ROUNDUP(x, y)	((((x)+(y))-1)/(y))
+
 /* Define standard data types.  These definitions allow software components
  * to perform in the same manner on different target platforms.
  */

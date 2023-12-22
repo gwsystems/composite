@@ -18,5 +18,7 @@
 #define ICW4_SFNM				0x10
 
 #define PIC_EOI					0x20
+#define PIC_ELCR1				0x4d0
+#define PIC_ELCR2				0x4d1
 
 void vpic_handler(u16_t port, int dir, int sz, struct vmrt_vm_vcpu *vcpu);

@@ -76,7 +76,7 @@ struct lapic_regs {			 /*OFFSET(Hex)*/
 
 	/*roundup sizeof current struct to 4KB*/
 	struct lapic_reg	rsv5[192]; /*400 -- FF0*/
-} __attribute__((aligned(PAGE_SIZE_4K)));
+} __attribute__((aligned(4096)));
 
 enum LAPIC_REGISTERS {
 	LAPIC_ID	= 0x2,

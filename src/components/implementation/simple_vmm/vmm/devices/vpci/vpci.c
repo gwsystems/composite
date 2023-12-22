@@ -94,6 +94,7 @@ set_vpci_bar(u8_t* raw_data, u8_t reg, u32_t val)
 			*(u32_t *)raw_data = val;
 		} else { /* Mem bar */
 			/* Currently don't support IO bar */
+			printc("no vpci bar\n");
 			assert(0);
 		}
 

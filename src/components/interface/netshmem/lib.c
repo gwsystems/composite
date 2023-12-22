@@ -5,13 +5,18 @@
 struct netshmem netshmems[NETSHMEM_REGION_SZ] = {0};
 
 void
-netshmem_create(void)
+netshmem_create(thdid_t tid)
 {
 	shm_bm_objid_t objid;
 	struct netshmem_pkt_buf *obj;
+	thdid_t thd;
 	void  *mem;
 
-	thdid_t thd = cos_thdid();
+	if (!tid) {
+		thd = cos_thdid();
+	} else {
+		thd = tid;
+	}
 	assert(thd < NETSHMEM_REGION_SZ);
 
 	/* init rx shmem */
