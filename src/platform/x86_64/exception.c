@@ -1,3 +1,4 @@
+#include <cos_chal_regs.h>
 #include <pgtbl.h>
 #include <thread.h>
 #include <fpu.h>
@@ -16,12 +17,13 @@ trap_error_check(const char *name, struct regs *r)
 	if ((r->frame.cs & 3) != 3) die_reg(r, "KERNEL FAULT %s\n", name);
 }
 
-#define TRAP_C_HANDLER(name, fn)		\
-void name(struct regs *r)			\
-{						\
-	/*trap_error_check(EXPAND(name), r);*/	\
-	r = fn(r);				\
-	userlevel_eager_return(r);		\
+#define TRAP_C_HANDLER(name, fn)			\
+void name(struct regs *r)				\
+{							\
+	trap_error_check(EXPAND(name), r);		\
+	r = fn(r);					\
+	assert(r->state == REG_STATE_PREEMPTED);	\
+	ASM_TRAP_RETURN(r);				\
 }
 
 #define TRAP_C_ERR_HANDLER(name, msg)			\
@@ -105,7 +107,7 @@ struct regs *
 periodic_timer_fn(struct regs *regs)
 {
 	printk(COS_REGS_PRINT_ARGS(regs));
-//	die("FAULT: Periodic Timer Exception\n");
+	//die("FAULT: Periodic Timer Exception\n");
 
 	return regs;
 }

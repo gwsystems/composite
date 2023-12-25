@@ -733,6 +733,8 @@ syscall_handler(struct regs *rs)
 {
 	struct regs *ret_regs = capability_activation(rs);
 
+	printk("In syscall handler.\n");
+
 	userlevel_eager_return(ret_regs);
 	/* Should never get here: we're returning to user-level in the previous line */
 	while (1) ;

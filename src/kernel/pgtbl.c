@@ -1,4 +1,4 @@
-#include <chal_consts.h>
+#include <consts.h>
 #include <chal_atomics.h>
 #include <cos_consts.h>
 #include <cos_error.h>
@@ -114,14 +114,14 @@ pgtbl_map(pgtbl_ref_t pt, uword_t offset, pageref_t page, uword_t perm)
 	if (!pgtbl_arch_entry_empty(pt_node->next[offset])) return -COS_ERR_ALREADY_EXISTS;
 
 	/* If this is a kernel resource, then perm == 0 */
-	if (perm == 0) {
+	if (perm == COS_PGTBL_PERM_KERN) {
 		ref2page(page, &mem_node, &mem_type);
 	} else {
 		COS_CHECK(page_resolve(page, COS_PAGE_TYPE_VM, 0, NULL, &mem_node, &mem_type));
 	}
 
 	/* Updates! */
-	if (!cas_w(&pt_node->next[offset], 0, pgtbl_arch_entry_pack(page, perm))) return -COS_ERR_ALREADY_EXISTS;
+	if (!cas_w(&pt_node->next[offset], PGTBL_ARCH_ENTRY_NULL, pgtbl_arch_entry_pack(page, perm))) return -COS_ERR_ALREADY_EXISTS;
 	faa32(&pt_type->refcnt, 1);
 	faa32(&mem_type->refcnt, 1);
 
@@ -136,6 +136,7 @@ pgtbl_unmap(pgtbl_ref_t pt, uword_t offset)
 	struct page_type       *pt_type, *mem_type;
 	pageref_t               page;
 	pgtbl_t                 entry;
+	uword_t                 perm;
 
 	if (page_bounds_check(pt)) return -COS_ERR_OUT_OF_BOUNDS;
 	offset = COS_WRAP(offset, COS_PGTBL_INTERNAL_NENT);
@@ -147,7 +148,7 @@ pgtbl_unmap(pgtbl_ref_t pt, uword_t offset)
 	entry = pt_node->next[offset];
 	if (pgtbl_arch_entry_empty(entry)) return -COS_ERR_RESOURCE_NOT_FOUND;
 
-        pgtbl_arch_entry_unpack(entry, &page, NULL); /* TODO: permissions */
+        pgtbl_arch_entry_unpack(entry, &page, &perm);
         COS_CHECK(page_resolve(page, COS_PAGE_TYPE_VM, 0, NULL, &mem_node, &mem_type));
 	/* TODO: if the target page is untyped (or maybe a kernel type), we shouldn't unmap if this is the last ref. */
 

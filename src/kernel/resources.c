@@ -111,7 +111,6 @@
  *    cache-line access on the fast-paths.
  */
 
-#include "cos_consts.h"
 #include <chal.h>
 #include <compiler.h>
 #include <component.h>
@@ -119,6 +118,7 @@
 #include <cos_error.h>
 #include <chal_atomics.h>
 #include <cos_regs.h>
+#include <chal_pgtbl.h>
 
 #include <resources.h>
 #include <thread.h>
@@ -128,11 +128,6 @@
 
 struct page_type page_types[COS_NUM_RETYPEABLE_PAGES] COS_PAGE_ALIGNED;
 struct page      pages[COS_NUM_RETYPEABLE_PAGES];
-
-/* The argument is really a page, but we want to keep it generic */
-static inline pageref_t
-page2ref(void *p)
-{ return (struct page *)p - pages; }
 
 static inline struct page_type *
 page2type(void *p)
@@ -500,12 +495,11 @@ resource_compref_create(pageref_t compref, struct component_ref *r)
 	/* See weakref create: need to take the epoch, then validate type */
 	ref2page(compref, NULL, &t);
 	epoch = epoch_copy(t);
-	mem_barrier();
 
 	COS_CHECK(page_resolve(compref, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_COMP, NULL, (struct page **)&comp, &t));
 
 	*r = (struct component_ref) {
-		.pgtbl     = comp->pgtbl,
+		.pgtbl     = pgtbl_arch_entry_pack(comp->pgtbl, comp->pd_tag),
 		.captbl    = comp->captbl,
 		.pd_tag    = comp->pd_tag,
 		.component = compref,

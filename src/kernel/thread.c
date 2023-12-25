@@ -325,13 +325,13 @@ thread_initialize(struct thread *thd, thdid_t id, coreid_t coreid, id_token_t sc
  *
  * We assume here that the registers (arguments) are laid out statically:
  *
- * - `2` - scheduling token
- * - `3` - thread capability for a tcap
- * - `4` - cycles to transfer to the tcap
- * - `5` - absolute cycles to use to program the timer
+ * - `@arg2` - scheduling token
+ * - `@arg3` - thread capability for a tcap
+ * - `@arg4` - cycles to transfer to the tcap
+ * - `@arg5` - absolute cycles to use to program the timer
  *
- * Recall that `0` is the capability id, and `1` is the operations
- * bitmap.
+ * Recall that `@arg0` is the capability id, and `@arg1` is the
+ * operations bitmap.
  */
 COS_NEVER_INLINE struct regs *
 thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs)
@@ -343,13 +343,17 @@ thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs)
 	regs_retval(rs, REGS_RETVAL_BASE, COS_RET_SUCCESS);
 	COS_CHECK_THROW(thread_scheduler_update(&requested_op, t, rs), r, err);
 
+	/*
+	 * Only one of the operations can be performed. Passing
+	 * multiple results in `-COS_ERR_NO_OPERATION`.
+	 */
 	switch(requested_op) {
 	case COS_OP_THD_DISPATCH:
 		return thread_switch(t, rs);
-	case COS_OP_THD_TRIGGER_EVT:
-		return thread_trigger_evt(curr, t, rs);
 	case COS_OP_THD_EVT_OR_DISPATCH:
 		return thread_retrieve_sched_evt_or_switch(curr, t, rs);
+	case COS_OP_THD_TRIGGER_EVT:
+		return thread_trigger_evt(curr, t, rs);
 	case COS_OP_THD_AWAIT_EVT:
 		return thread_await_evt(curr, t, rs);
 	}

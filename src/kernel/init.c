@@ -1,3 +1,5 @@
+#include "chal_cpu.h"
+#include "cos_chal_consts.h"
 #include <state.h>
 #include <consts.h>
 #include <cos_regs.h>
@@ -211,8 +213,11 @@ kernel_cores_init(struct kernel_init_state *state)
 		 * Find the thread, assuming the threads exist one per core,
 		 * starting at the thread offset.
 		 */
-		struct thread *t = (struct thread *)&pages[state->thread_offset + core];
+		int off = state->thread_offset + core;
+		struct thread *t = (struct thread *)&pages[off];
 
+		assert(page_types[off].type == COS_PAGE_TYPE_KERNEL && page_types[off].kerntype == COS_PAGE_KERNTYPE_THD);
+		assert(t->core == core);
 		s = chal_percore_state_coreid(core);
 		s->globals = (struct state) {
 			.active_thread = t,
@@ -274,8 +279,8 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 	pgtbl_offset       = res_pgtbl_offset + res_pgtbl_num;
 	/* Have to map all untyped pages and *also* vaddrs */
 	mappings_num       = constructor_size / COS_PAGE_SIZE;
-	pgtbl_num          = cos_pgtbl_num_nodes(constructor_lower_vaddr / COS_PAGE_SIZE, mappings_num);
-	constructor_upper_page = (constructor_lower_vaddr / COS_PAGE_SIZE) + mappings_num;
+	pgtbl_num          = cos_pgtbl_num_nodes(constructor_lower_page, mappings_num);
+	constructor_upper_page = constructor_lower_page + mappings_num;
 
 	/*
 	 * How many captbl nodes do we need? This includes:
@@ -296,6 +301,10 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 
 	/* To be used in future APIs */
 	s->thread_offset   = thread_offset;
+
+	printk("Constructor object:\n");
+	printk("\t- %d pages.\n\t- virtual addresses [%x, %x).\n\t- entry address %x.\n",
+	       mappings_num, constructor_lower_vaddr, constructor_lower_vaddr + constructor_size, constructor_entry);
 
 	printk("Constructor capability layout:\n");
 	printk("\t- [0, 1) - 1 (inaccessible) captbl nil node.\n");
@@ -337,6 +346,7 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 		/* Find the lower and upper (min/max) offsets into the page-table nodes */
 		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_page, constructor_lower_page, mappings_num, &min));
 		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_upper_page, constructor_lower_page, mappings_num, &max));
+		printk("Creating page-table level %d node [%d, %d]\n", lvl, pgtbl_offset + min, pgtbl_offset + max);
 		for (i = min; i <= max; i++) {
 			COS_CHECK(resource_restbl_create(COS_PAGE_KERNTYPE_PGTBL_0 + lvl, i + pgtbl_offset));
 		}
@@ -397,14 +407,21 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_page, constructor_lower_page, mappings_num, &top_off));
 		COS_CHECK(cos_pgtbl_intern_offset(lvl, constructor_lower_page, &cons_off));
 
+		if (lvl == 0) {
+			struct page *p = &pages[pgtbl_offset + top_off];
+			printk("Top page-table node %d @ %lx (physaddr %lx)\n", pgtbl_offset + top_off, p, chal_va2pa(p));
+		}
+
 		/* ...and the next level nodes to cons into the top? */
 		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_lower_page, constructor_lower_page, mappings_num, &bottom_lower));
 		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_upper_page, constructor_lower_page, mappings_num, &bottom_upper));
 
 		nentries = (lvl == 0)? COS_PGTBL_TOP_NENT: COS_PGTBL_INTERNAL_NENT;
 		/* Now cons the next level nodes into their previous level */
+		printk("Page-table level %d, adding nodes for level %d:\n", lvl, lvl + 1);
 		for (bottom_off = bottom_lower; bottom_off <= bottom_upper; bottom_off++, cons_off = (cons_off + 1) % nentries) {
-			COS_CHECK(pgtbl_construct(pgtbl_offset + top_off, cons_off, pgtbl_offset + bottom_off, 0));
+			printk("\t%d[%d] = %d, %x\n", pgtbl_offset + top_off, cons_off, pgtbl_offset + bottom_off, COS_PGTBL_PERM_INTERN_DEFAULT);
+			COS_CHECK(pgtbl_construct(pgtbl_offset + top_off, cons_off, pgtbl_offset + bottom_off, COS_PGTBL_PERM_INTERN_DEFAULT));
 
 			/*
 			 * Have we done all of the conses for this
@@ -422,6 +439,7 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 		uword_t offset = (constructor_lower_page + i) % COS_PGTBL_LEAF_NENT;
 		uword_t vm_page = constructor_offset + (ro_off / COS_PAGE_SIZE) + i;
 
+//		printk("\t%d[%d] = %d, %x\n", pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_EXEC);
 		COS_CHECK(pgtbl_map(pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_EXEC));
 
 		/* If we've reached the end of a page-table node, move on to the next */
@@ -432,16 +450,18 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 		uword_t offset = (constructor_lower_page + i) % COS_PGTBL_LEAF_NENT;
 		uword_t vm_page = constructor_offset + (data_off / COS_PAGE_SIZE) + j;
 
+//		printk("\t%d[%d] = %d, %x\n", pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_RW);
 		COS_CHECK(pgtbl_map(pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_RW));
 
 		/* If we've reached the end of a page-table node, move on to the next */
 		if (offset == (COS_PGTBL_LEAF_NENT - 1)) pgtbl_leaf_off++;
 	}
 	printk("RW zeroed data...\n");
-	for (j = 0; j < zero_sz / COS_PAGE_SIZE; i++, j++) {
+	for (j = 0; j < cos_round_up_to_pow2(zero_sz, COS_PAGE_SIZE) / COS_PAGE_SIZE; i++, j++) {
 		uword_t offset = (constructor_lower_page + i) % COS_PGTBL_LEAF_NENT;
 		uword_t vm_page = zeroed_page_offset + j;
 
+//		printk("\t%d[%d] = %d, %x\n", pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_RW);
 		COS_CHECK(resource_vm_create(vm_page));
 		COS_CHECK(pgtbl_map(pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_RW));
 
@@ -498,6 +518,7 @@ COS_NO_RETURN void
 constructor_core_execute(coreid_t core, struct kernel_init_state *s)
 {
 	struct thread *t = (struct thread *)&pages[s->thread_offset + core];
+	struct component_ref *comp = &t->invstk.entries[t->invstk.head].component;
 	struct regs *rs = &t->regs;
 	uword_t ip, sp;
 
@@ -509,5 +530,7 @@ constructor_core_execute(coreid_t core, struct kernel_init_state *s)
 	regs_ip_sp(rs, &ip, &sp);
 	printk("Starting user-level on core %d: instruction pointer %x.\n", core, ip);
 
+	printk("page-table loading: %lx\n", comp->pgtbl | comp->pd_tag);
+	pgtbl_arch_activate(comp->pgtbl, comp->pd_tag);
 	userlevel_eager_return_syscall(rs);
 }

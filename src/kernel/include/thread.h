@@ -200,7 +200,10 @@ err:
  *   This is a pointer so that we can *remove* the schedule flag from
  *   it.
  * - `@t` - Thread we're switching to
- * - `@rs` - Register set for the current system call.
+ * - `@rs` - Register set for the current system call. The registers
+ *           are assumed to include:
+ *   - `@arg2`: the scheduling synchronization token.
+ *   - `@arg3`: the absolute time for the next timer interrupt.
  * - `@return` - Normal return value, notable error on synchronization
  *   race
  */

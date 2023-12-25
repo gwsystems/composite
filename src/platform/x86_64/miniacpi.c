@@ -329,7 +329,7 @@ acpi_shutdown(void)
 void
 acpi_init(void)
 {
-	void *timer;
+	//void *timer;
 	void *apic;
 	int lapic_err = 1;
 
@@ -345,11 +345,11 @@ acpi_init(void)
 	printk("\tRSDT vaddr is @ %p\n", rsdt);
 	acpi_iterate_tbs();
 
-	timer = acpi_find_timer();
+	/* timer = acpi_find_timer();
 	if (timer) {
 		printk("Found timer, but foregoing using HPET.\n");
 		//hpet = timer_initialize_hpet(timer);
-	}
+		}*/
 
 	apic = acpi_find_apic();
 	if (apic) {

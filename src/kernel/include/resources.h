@@ -45,6 +45,19 @@ extern struct page_type page_types[COS_NUM_RETYPEABLE_PAGES] COS_PAGE_ALIGNED;
 extern struct page      pages[COS_NUM_RETYPEABLE_PAGES];
 
 /**
+ * `page2ref` is a simple utility function to return the opaque
+ * (integer) reference to a page.
+ *
+ * Assumes: `p` is a `struct page *`.
+ *
+ * - `@p` - page to retrieve reference
+ * - `@return` - the opaque reference to the page
+ */
+static inline pageref_t
+page2ref(void *p)
+{ return (struct page *)p - pages; }
+
+/**
  * `ref2page` finds a pointer to a page from its reference. Returns
  * the generic type to enable call-site typing.
  *
