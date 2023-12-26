@@ -24,7 +24,7 @@ int          pgtbl_arch_entry_empty(pgtbl_t entry);
 static inline pgtbl_t
 pgtbl_arch_entry_pack(pageref_t ref, uword_t perm)
 {
-	return chal_va2pa(ref2page_ptr(ref)) & perm;
+	return chal_va2pa(ref2page_ptr(ref)) | perm;
 }
 
 static inline void

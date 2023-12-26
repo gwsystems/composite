@@ -16,7 +16,7 @@ pgtbl_top_initialize(struct pgtbl_top *pt)
 		pt->next[i] = 0;
 	}
 	for (i = 0; i < COS_PGTBL_KERN_NENT; i++) {
-		pt->kern_next[i] = 0; /* TODO: copy kern mappings */
+		pt->kern_next[i] = 0;
 	}
 }
 
