@@ -446,7 +446,7 @@ chal_cpu_init(void)
 	a = 0x07;
 	c = 0;
 	chal_cpuid(&a, &b, &c, &d);
-	assert(b & (1 < 5));
+	assert(b & (1 << 5));
 	printk("\tThe CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE\n");
 
 	/* Check if the CPU suppor XSAVEOPT, XSAVEC and XSAVES instructions*/

@@ -30,6 +30,7 @@ void name(struct regs *r)				\
 void							\
 name(struct regs *rs)					\
 {							\
+	trap_error_check(EXPAND(name), rs);		\
 	rs = error_handler(rs, msg);			\
 	userlevel_eager_return(rs);			\
 }

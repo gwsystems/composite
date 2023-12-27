@@ -27,6 +27,11 @@ device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags)
 	return device_pa2va(dev_addr);
 }
 
+void
+kern_pgtbl_init(struct pgtbl_top *top)
+{
+	top->kern_next[0] = boot_comp_pgd[KERN_INIT_PGD_IDX];
+}
 
 void
 kern_paging_map_init(void)

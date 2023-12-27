@@ -6,6 +6,8 @@ pgtbl_arch_entry_empty(pgtbl_t entry)
 	return entry == PGTBL_ARCH_ENTRY_NULL;
 }
 
+extern void kern_pgtbl_init(struct pgtbl_top *top);
+
 void
 pgtbl_top_initialize(struct pgtbl_top *pt)
 {
@@ -15,9 +17,7 @@ pgtbl_top_initialize(struct pgtbl_top *pt)
 	for (i = 0; i < COS_PGTBL_TOP_NENT; i++) {
 		pt->next[i] = 0;
 	}
-	for (i = 0; i < COS_PGTBL_KERN_NENT; i++) {
-		pt->kern_next[i] = 0;
-	}
+	kern_pgtbl_init(pt);
 }
 
 void

@@ -346,7 +346,7 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 		/* Find the lower and upper (min/max) offsets into the page-table nodes */
 		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_page, constructor_lower_page, mappings_num, &min));
 		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_upper_page, constructor_lower_page, mappings_num, &max));
-		printk("Creating page-table level %d node [%d, %d]\n", lvl, pgtbl_offset + min, pgtbl_offset + max);
+
 		for (i = min; i <= max; i++) {
 			COS_CHECK(resource_restbl_create(COS_PAGE_KERNTYPE_PGTBL_0 + lvl, i + pgtbl_offset));
 		}
@@ -407,20 +407,13 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 		COS_CHECK(cos_pgtbl_node_offset(lvl, constructor_lower_page, constructor_lower_page, mappings_num, &top_off));
 		COS_CHECK(cos_pgtbl_intern_offset(lvl, constructor_lower_page, &cons_off));
 
-		if (lvl == 0) {
-			struct page *p = &pages[pgtbl_offset + top_off];
-			printk("Top page-table node %d @ %lx (physaddr %lx)\n", pgtbl_offset + top_off, p, chal_va2pa(p));
-		}
-
 		/* ...and the next level nodes to cons into the top? */
 		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_lower_page, constructor_lower_page, mappings_num, &bottom_lower));
 		COS_CHECK(cos_pgtbl_node_offset(lvl + 1, constructor_upper_page, constructor_lower_page, mappings_num, &bottom_upper));
 
 		nentries = (lvl == 0)? COS_PGTBL_TOP_NENT: COS_PGTBL_INTERNAL_NENT;
 		/* Now cons the next level nodes into their previous level */
-		printk("Page-table level %d, adding nodes for level %d:\n", lvl, lvl + 1);
 		for (bottom_off = bottom_lower; bottom_off <= bottom_upper; bottom_off++, cons_off = (cons_off + 1) % nentries) {
-			printk("\t%d[%d] = %d, %x\n", pgtbl_offset + top_off, cons_off, pgtbl_offset + bottom_off, COS_PGTBL_PERM_INTERN_DEFAULT);
 			COS_CHECK(pgtbl_construct(pgtbl_offset + top_off, cons_off, pgtbl_offset + bottom_off, COS_PGTBL_PERM_INTERN_DEFAULT));
 
 			/*

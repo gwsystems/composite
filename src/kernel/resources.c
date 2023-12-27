@@ -568,7 +568,6 @@ resource_comp_create(captbl_ref_t captbl_ref, pgtbl_ref_t pgtbl_ref, prot_domain
 
 	c = (struct component *)c_page;
 	/* Update the component structure in recently retyped page */
-	printk("Creating component w/ pgtbl %d\n", pgtbl_ref);
 	*c = (struct component) {
 		.pgtbl    = pgtbl_ref,
 		.captbl   = captbl_ref,
