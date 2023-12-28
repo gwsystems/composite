@@ -15,7 +15,7 @@ pgtbl_top_initialize(struct pgtbl_top *pt)
 
 	/* The top-level of a page-table must include the kernel mappings. */
 	for (i = 0; i < COS_PGTBL_TOP_NENT; i++) {
-		pt->next[i] = 0;
+		pt->next[i] = PGTBL_ARCH_ENTRY_NULL;
 	}
 	kern_pgtbl_init(pt);
 }

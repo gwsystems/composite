@@ -12,6 +12,7 @@
 #include <cos_error.h>
 #include <cos_types.h>
 #include <cos_compiler.h>
+#include <capop.h>
 
 #include <cos_component.h>
 #include <cos_debug.h>
@@ -302,6 +303,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	static int first = 1;
 	static	struct ps_lock _lock = {0};
 
+	__capop_4_1_op(1, 2, 3, 4, 5, 6);
+	while (1);
 	/*
 	 * There should be no concurrency at initialization (the init
 	 * interface ensures this), so atomic operations aren't

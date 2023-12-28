@@ -487,6 +487,7 @@ chal_cpu_init(void)
 	xcr0_config |= XCR0_x87 | XCR0_SSE | XCR0_AVX;
 	chal_cpu_xsetbv(XCR0, xcr0_config);
 	printk("\tAVX enabled\n");
+	assert(chal_cpu_xgetbv(XCR0) == xcr0_config);
 
 	readmsr(MSR_IA32_EFER, &low, &high);
 	writemsr(MSR_IA32_EFER,low | 0x1, high);
