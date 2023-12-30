@@ -178,7 +178,7 @@ thread_switch(struct thread *t, struct regs *rs) {
 	return &t->regs;
 err:
 	if (rs->state == REG_STATE_SYSCALL) {
-		regs_retval(rs, REGS_RETVAL_BASE, r);
+		regs_retval(rs, 0, r);
 	}
 
 	return rs;
@@ -210,15 +210,15 @@ err:
 COS_FORCE_INLINE static inline cos_retval_t
 thread_scheduler_update(cos_op_bitmap_t *ops, struct thread *t, struct regs *rs)
 {
-	struct state  *g = state();
-	struct thread *s = (struct thread *)ref2page_ptr(t->sched_thd);
-	sync_token_t tok = regs_arg(rs, REGS_GEN_ARGS_BASE + 0);
-	cos_time_t timeout = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+	struct state  *g   = state();
+	struct thread *s   = (struct thread *)ref2page_ptr(t->sched_thd);
+	sync_token_t tok   = regs_arg(rs, 0);
+	cos_time_t timeout = regs_arg(rs, 1);
 
 	if (!(*ops & COS_OP_THD_SCHEDULE)) return COS_RET_SUCCESS;
 	*ops &= ~COS_OP_THD_SCHEDULE;
 
-	t->priority   = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
+	t->priority   = regs_arg(rs, 2);
 	if (tok <= s->sync_token) return -COS_ERR_SCHED_RETRY;
 	s->sync_token = tok;
 	if (g->timeout != timeout) chal_timer_program(timeout);

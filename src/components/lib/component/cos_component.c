@@ -303,7 +303,11 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	static int first = 1;
 	static	struct ps_lock _lock = {0};
 
-	__capop_4_1_op(1, 2, 3, 4, 5, 6);
+	uword_t ret, ret2;
+
+	cos_syscall_9_1(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, &ret);
+	cos_syscall_4_1(ret, ret, ret, ret, ret, ret, &ret2);
+
 	while (1);
 	/*
 	 * There should be no concurrency at initialization (the init

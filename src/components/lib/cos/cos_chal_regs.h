@@ -1,5 +1,5 @@
 /*
- * Do NOT include this file. Instead, include chal_regs.h.
+ * Do NOT include this file. Instead, include cos_regs.h.
  */
 
 #pragma once
@@ -14,17 +14,28 @@
  */
 
 #define REGS_NUM_ARGS_RETS  12	/* # general purpose registers - clobbered registers are part of the syscall (i.e. 2) */
-#define REGS_RETVAL_BASE    0
-#define REGS_MAX_NUM_ARGS   9 	/* REGS_NUM_ARGS_RETS - 3 (for sinv: coreid/thdid/token or call: thdid/epid/token) */
-#define REGS_GEN_ARGS_BASE  3    /* where the general purpose arguments begin */
-
-/* Arguments to capability activations/system calls */
-#define REGS_ARG_CAP        0
-#define REGS_ARG_OPS        1
-/* Arguments passed on upcalls (e.g. synchronous invocations): */
+/*
+ * On an upcall to user-level, the first three registers are the
+ * arguments passed on upcalls (e.g. synchronous invocations):
+ */
 #define REGS_ARG_COREID     0
 #define REGS_ARG_THDID      1
 #define REGS_ARG_TOKEN      2 	/* invocation token for invocation, endpoint for sync RPC */
+/*
+ * On a system call, the first two registers are the capability to
+ * invoke, and the operation to perform on it.
+ */
+#define REGS_ARG_CAP        0
+#define REGS_ARG_OPS        1
+/*
+ * The rest of the registers (all 9 of them) are either arguments or
+ * return values. They might be passed to the kernel on a capability
+ * invocation that modifies a kernel resource, or they might be passed
+ * via IPC between a client and server.
+ */
+#define REGS_ARGS_RETS_BASE 3   /* Where the general purpose arguments begin */
+#define REGS_MAX_NUM_ARGS   9 	/* REGS_NUM_ARGS_RETS - 3 (for sinv: coreid/thdid/token or call: thdid/epid/token) */
+
 
 /* rflags value during upcalls */
 #define REGS_RFLAGS_DEFAULT  0x3200
@@ -60,8 +71,8 @@
  * instruction pointers, and the next two save `0`s into the %rcx and
  * %r11 slots in the structures.
  *
- * Note that the last push of the `1` sets the register state so
- * that the calling convention is for a system call.
+ * Note that the last push of the `1` sets the register state so that
+ * the calling convention is for a system call (`REG_STATE_SYSCALL`).
  */
 
 /*
@@ -200,8 +211,8 @@
 #define ASM_TRAP_RETURN(rs) \
 	asm volatile("movq %0, %%rsp;" EXPAND(POP_REGS_RET_TRAP) : : "r" (rs) : "memory" )
 
-COS_STATIC_ASSERT(REGS_MAX_NUM_ARGS + REGS_GEN_ARGS_BASE == REGS_NUM_ARGS_RETS,
-		  "The relationship between REGS_MAX_NUM_ARGS, REGS_GEN_ARGS_BASE, and REGS_NUM_ARGS_RETS is not correct.");
+COS_STATIC_ASSERT(REGS_MAX_NUM_ARGS + REGS_ARGS_RETS_BASE == REGS_NUM_ARGS_RETS,
+		  "The relationship between REGS_MAX_NUM_ARGS, REGS_ARGS_RETS_BASE, and REGS_NUM_ARGS_RETS is not correct.");
 
 typedef uword_t        reg_state_t;       /* the state of a register set: preempted, or partially saved  */
 
@@ -247,29 +258,49 @@ struct regs_clobbered {
 	uword_t rbp_sp;
 };
 
-/* push decreases sp, pop increases it */
-
 /*
  * The register set for a thread. This structure exists one
  * per-thread, and once on each core's stack.
  *
- * The `args` are generally used to pass data as function arguments or
- * return values. They are ordered as such:
+ * Four registers are clobbered on return to user-level via the sysret
+ * semantics: r11, rcx, rip, and rsp. Additionally `rbp` is used to
+ * pass the to-be-restored stack pointer on system call, thus is it
+ * also clobbered. These are represented in a combination of
+ * `->clobbered` and `frame`.
  *
- * rax, rbx, rdx, rsi, rdi, r8, r9, r10, r12, r13, r14, r15
+ * Three registers are devoted to either passing the capability and
+ * operations on a system call, or passing coreid, thdid, and
+ * invocation token on upcall/return from system call. These are the
+ * first three registers in `->args`. The registers used for these
+ * are:
  *
- * Note the rcx and r11 are clobbered as part of `syscall`/`sysret`,
- * thus follow the other GP regs in `struct regs_clobbered`.
- * Additionally `rbp` is used to pass the stack pointer on system
- * call, thus is also clobbered.
+ * - rax, rbx, rdx
  *
- * On a system call (state == `1`), `clobbered.rcx_ip` holds the
- * user-level IP to return to, and `clobbered.r11_sp` holds the stack
- * pointer to return to.
+ * The rest of the (9) registers are used to pass arguments and return
+ * values. These remaining registers are generally used to pass data
+ * as function arguments or return values. They are ordered as such:
  *
- * On a trap, (state == `0`), both hold the actual `rcx` and `r11`
- * that must be properly restored. The `ip` and `sp` are stored in the
- * `struct trap_frame`.
+ * - rsi, rdi, r8, r9, r10, r12, r13, r14, r15
+ *
+ * On a system call (state == `REG_STATE_SYSCALL`), `clobbered.rcx_ip`
+ * holds the user-level IP to return to, and `clobbered.r11_sp` holds
+ * the stack pointer to return to.
+ *
+ * On a trap, (state == `REG_STATE_PREEMPTED`), both hold the actual
+ * `rcx`, `rbp`, and `r11` that must be properly restored. The `ip`
+ * and `sp` are stored in the `struct trap_frame`.
+ *
+ * To access/manipulate the registers within the kernel, use:
+ *
+ * - `regs_arg`
+ * - `regs_retval`
+ * - `regs_cap_op`
+ * - `regs_set_upcall_args`
+ * - `regs_ip_sp`
+ * - `regs_set_ip_sp`
+ * - `regs_preempted`
+ *
+ * From user-level, use the `cos_syscall_*_*` functions.
  */
 struct regs {
 	uword_t args[REGS_NUM_ARGS_RETS]; /* arguments/retvals for syscalls */
@@ -384,60 +415,35 @@ struct fpu_regs {
 } __attribute__((aligned(64)));
 
 /**
- * `regs_arg` retrieves a thread's argument. This should only be used
- * when the register's state (`rs->state`) is `REG_STATE_SYSCALL`.
+ * `regs_arg` retrieves a thread's argument. Assumptions:
  *
- * Conventions for these arguments when we're making a typical system
- * call include:
- *
- * - `REGS_ARG_CAP`: the capability activated with the system call
- * - `REGS_ARG_OPS`: the operation for the invocation
- * - [`REGS_GEN_ARGS_BASE`, `REGS_GEN_ARGS_BASE` + `REGS_NUM_ARGS_RETS`): General arguments
+ * - `!regs_preempted(rs)`
+ * - `argno < REGS_MAX_NUM_ARGS`
  */
 COS_FORCE_INLINE static inline uword_t
-regs_arg(struct regs *rs, int argno)
+regs_arg(struct regs *rs, unsigned int argno)
 {
-	return rs->args[argno];
+	return rs->args[REGS_ARGS_RETS_BASE + argno];
+}
+COS_STATIC_ASSERT(REGS_ARGS_RETS_BASE == 3, "RETS base redefined?");
+
+/**
+ * `regs_cap_op` retrieves a system call's capability and operations
+ * arguments.
+ *
+ * Assumes that `!regs_preempted(rs)`.
+ */
+COS_FORCE_INLINE static inline void
+regs_cap_op(struct regs *rs, cos_cap_t *cap, cos_op_bitmap_t *ops)
+{
+	*cap = rs->args[REGS_ARG_CAP];
+	*ops = rs->args[REGS_ARG_OPS];
 }
 
 /**
- * `regs_retval` sets the return value `retvalno` for a thread. This
- * should only be used when the register's state (`rs->state`) is
- * `REG_STATE_SYSCALL`.
+ * `regs_ip_sp` returns the thread's instruction and stack pointers.
  *
- * Conventions for these return values for a normal system call
- * include:
- *
- * - `0`: function return value
- * - `1` - `REGS_NUM_ARGS_RETS`: additional return values, where appropriate
- *
- * Conventions for these return values for an *upcall* corresponding
- * to a synchronous invocation into a server component include:
- *
- * - `0`: core id
- * - `1`: thread id
- * - `2`: the synchronous invocation token
- * - `3` - `REGS_NUM_ARGS_RETS`: the function arguments, from 3 to REGS_NUM_ARGS_RETSth.
- *
- * Conventions for these return values for a `call`-based activation
- * of a thread through IPC include:
- *
- * - `0`: core id
- * - `1`: thread id
- * - `2`: the end-point token
- * - `3`: the client identifier token
- * - `4` - `REGS_NUM_ARGS_RETS`: the function arguments, from 4 to REGS_NUM_ARGS_RETSth.
- */
-COS_FORCE_INLINE static inline uword_t
-regs_retval(struct regs *rs, int retvalno, uword_t val)
-{
-	return rs->args[retvalno] = val;
-}
-
-/**
- * `regs_ip_sp` simply returns the thread's instruction and stack
- * pointers. Assumes that this should only be used if
- * `regs_preempted(...) == 0`.
+ * Assumes that `!regs_preempted(rs)`.
  */
 COS_FORCE_INLINE static inline void
 regs_ip_sp(struct regs *rs, uword_t *ip, uword_t *sp)
@@ -447,9 +453,38 @@ regs_ip_sp(struct regs *rs, uword_t *ip, uword_t *sp)
 }
 
 /**
+ * `regs_retval` sets the return value `retvalno` for a thread.
+ *
+ * Assumes:
+ *
+ * - `!regs_preempted(rs)`
+ * - `retvalno < REGS_MAX_NUM_ARGS`
+ */
+COS_FORCE_INLINE static inline void
+regs_retval(struct regs *rs, unsigned int retvalno, uword_t val)
+{
+	rs->args[retvalno] = val;
+}
+
+/**
+ * `regs_set_upcall_args` sets the register values necessary for an
+ * upcall.
+ *
+ * Assumes that `!regs_preempted(rs)`.
+ */
+COS_FORCE_INLINE static inline void
+regs_set_upcall_args(struct regs *rs, coreid_t coreid, id_token_t thdid, inv_token_t tok)
+{
+	rs->args[REGS_ARG_COREID] = coreid;
+	rs->args[REGS_ARG_THDID]  = thdid;
+	rs->args[REGS_ARG_TOKEN]  = tok;
+}
+
+/**
  * `regs_set_ip_sp` sets the register set's instruction and stack
- * pointers. Assumes that this should only be used if
- * `regs_preempted(...) == 0`.
+ * pointers.
+ *
+ * Assumes that `!regs_preempted(rs)`.
  */
 COS_FORCE_INLINE static inline void
 regs_set_ip_sp(struct regs *rs, uword_t ip, uword_t sp)
@@ -481,44 +516,21 @@ regs_preempted(struct regs *rs)
  * invocations which must pass client-identifying information in the
  * token.
  *
- * Assumes that `rs->state == REG_STATE_SYSCALL` as it makes not sense
+ * Assumes that `rs->state == REG_STATE_SYSCALL` as it makes no sense
  * to override the registers otherwise.
  */
 COS_FORCE_INLINE static inline void
-regs_prepare_upcall(struct regs *rs, vaddr_t entry_ip, coreid_t coreid, thdid_t thdid, inv_token_t tok)
+regs_prepare_upcall(struct regs *rs, vaddr_t entry_ip, coreid_t coreid, id_token_t thdid, inv_token_t tok)
 {
-	rs->args[0] = coreid;
-	rs->args[1] = thdid;
-	rs->args[2] = tok;
+	regs_set_upcall_args(rs, coreid, thdid, tok);
 	rs->clobbered = (struct regs_clobbered) {
 		.rcx_ip = entry_ip,
 		.r11    = REGS_RFLAGS_DEFAULT,
-		.rbp_sp = 0
+		.rbp_sp = 0 	/* user-level establishes its own stack */
 	};
 
 	return;
 }
-
-/**
- * `regs_prepare_ipc_retvals` populates the registers to return from a
- * `reply_and_wait` operation in a server thread. These include the
- * thread id that is doing the `call`, the end-point identifier, and
- * the invocation token associated with it.
- *
- * Assumes that `rs->state == REG_STATE_SYSCALL` as it makes not sense
- * to override the registers otherwise.
- */
-COS_FORCE_INLINE static inline void
-regs_prepare_ipc_retvals(struct regs *rs, thdid_t thdid, id_token_t ep_id, inv_token_t tok)
-{
-	rs->args[0] = ep_id;
-	rs->args[1] = thdid;
-	rs->args[2] = tok;
-
-	return;
-}
-
-
 
 /***
  * The user-level system call and register manipulation implementation
@@ -586,70 +598,57 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct regs_frame_ctx, bp),
 
 /* Rest of the args are in the input inline asm list */
 #define REGS_SYSCALL_DECL_ARGS4				\
-	register uword_t r8 __asm__("r8")   = a2
+	register uword_t r8  __asm__("r8")  = a2;	\
+	register uword_t r9  __asm__("r9")  = a3
 
 #define REGS_SYSCALL_DECL_ARGS9				\
 	REGS_SYSCALL_DECL_ARGS4;			\
-	register uword_t r9  __asm__("r9")  = a3;	\
 	register uword_t r10 __asm__("r10") = a4;	\
 	register uword_t r12 __asm__("r12") = a5;	\
 	register uword_t r13 __asm__("r13") = a6;	\
 	register uword_t r14 __asm__("r14") = a7;	\
 	register uword_t r15 __asm__("r15") = a8
 
-#define REGS_SYSCALL_DECL_RETS4				\
-	register uword_t rr2 __asm__("r8");		\
-	register uword_t rr3 __asm__("r9");
-
-#define REGS_SYSCALL_DECL_RETS9				\
-	REGS_SYSCALL_DECL_RETS4;			\
-	register uword_t rr4 __asm__("r10");		\
-	register uword_t rr5 __asm__("r12");		\
-	register uword_t rr6 __asm__("r13");		\
-	register uword_t rr7 __asm__("r14");		\
-	register uword_t rr8 __asm__("r15")
-
-#define REGS_SYSCALL_DECL_POSTRETS4			\
-	*ret2 = rr2;					\
-	*ret3 = rr3
+#define REGS_SYSCALL_DECL_POSTRETS4		\
+	*ret2 = r8;				\
+        *ret3 = r9
 
 #define REGS_SYSCALL_DECL_POSTRETS9			\
 	REGS_SYSCALL_DECL_POSTRETS4;			\
-	*ret4 = rr4;					\
-	*ret5 = rr5;					\
-	*ret6 = rr6;					\
-	*ret7 = rr7;					\
-	*ret8 = rr8
+	*ret4 = r10;					\
+	*ret5 = r12;					\
+	*ret6 = r13;					\
+	*ret7 = r14;					\
+	*ret8 = r15
 
-#define REGS_SYSCALL_RET1			\
-	"=S" (*ret0)
-
-#define REGS_SYSCALL_RET4					\
-	REGS_SYSCALL_RET1, "=D" (*ret1), "=r" (rr2), "=r" (rr3)
-
-#define REGS_SYSCALL_RET9						\
-	REGS_SYSCALL_RET4, "=r" (rr4), "=r" (rr5), "=r" (rr6), "=r" (rr7), "=r" (rr8)
-
+/*
+ * Here nothing is explicitly returned in `r11_ctx`, but the inline
+ * assembly has to convey that the `r11` register has been clobbered.
+ * This is the prescribed way.
+ */
 #define REGS_SYSCALL_ARG4						\
 	"r" (r11_ctx), "a" (cap), "b" (ops), "d" (0), "S" (a0), "D" (a1), "r" (r8)
-
 #define REGS_SYSCALL_ARG9						\
 	REGS_SYSCALL_ARG4, "r" (r9), "r" (r10), "r" (r12), "r" (r13), "r" (r14), "r" (r15)
 
+#define REGS_SYSCALL_RET4						\
+	"=r" (r11_ctx), "=S" (*ret0), "=D" (*ret1), "=r" (r8), "=r" (r9)
+#define REGS_SYSCALL_RET9						\
+	REGS_SYSCALL_RET4, "=r" (r10), "=r" (r12), "=r" (r13), "=r" (r14), "=r" (r15)
+
 #define REGS_SYSCALL_CLOBBER_BASE		\
 	"memory", "cc"
-
 #define REGS_SYSCALL_CLOBBER4						\
 	REGS_SYSCALL_CLOBBER_BASE, "r10", "r12", "r13", "r14", "r15"
-
 #define REGS_SYSCALL_CLOBBER9						\
 	REGS_SYSCALL_CLOBBER_BASE
 
 #define REGS_SYSCALL_FN_ARGS4 uword_t a0, uword_t a1, uword_t a2, uword_t a3
 #define REGS_SYSCALL_FN_ARGS9 REGS_SYSCALL_FN_ARGS4, uword_t a4, uword_t a5, uword_t a6, uword_t a7, uword_t a8
-#define REGS_SYSCALL_FN_RETS1 uword_t *ret0
-#define REGS_SYSCALL_FN_RETS4 REGS_SYSCALL_FN_RETS1, uword_t *ret1, uword_t *ret2, uword_t *ret3
+#define REGS_SYSCALL_FN_RETS4 uword_t *ret0, uword_t *ret1, uword_t *ret2, uword_t *ret3
 #define REGS_SYSCALL_FN_RETS9 REGS_SYSCALL_FN_RETS4, uword_t *ret4, uword_t *ret5, uword_t *ret6, uword_t *ret7, uword_t *ret8
+#define REGS_SYSCALL_FN_4RETS_EMU				\
+	uword_t rmem1, rmem2, rmem3, *ret1 = &rmem1, *ret2 = &rmem2, *ret3 = &rmem3
 
 /**
  * The `regs_syscall_x_y` functions make a system call, passing `x`
@@ -666,21 +665,9 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct regs_frame_ctx, bp),
  */
 
 COS_FORCE_INLINE static inline void
-cos_syscall_4_1(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS4, REGS_SYSCALL_FN_RETS1) {
-	REGS_SYSCALL_CTXT;
-	REGS_SYSCALL_DECL_ARGS4;
-
-	asm volatile(REGS_SYSCALL_TEMPLATE
-		     : REGS_SYSCALL_RET1
-		     : REGS_SYSCALL_ARG4
-		     : REGS_SYSCALL_CLOBBER4);
-}
-
-COS_FORCE_INLINE static inline void
 cos_syscall_4_4(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS4, REGS_SYSCALL_FN_RETS4) {
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS4;
-	REGS_SYSCALL_DECL_RETS4;
 	asm volatile(REGS_SYSCALL_TEMPLATE
 		     : REGS_SYSCALL_RET4
 		     : REGS_SYSCALL_ARG4
@@ -689,13 +676,27 @@ cos_syscall_4_4(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS4, REGS_
 }
 
 COS_FORCE_INLINE static inline void
-cos_syscall_9_1(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, REGS_SYSCALL_FN_RETS1) {
+cos_syscall_4_1(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS4, uword_t *ret0) {
+	REGS_SYSCALL_FN_4RETS_EMU;
+	REGS_SYSCALL_CTXT;
+	REGS_SYSCALL_DECL_ARGS4;
+	asm volatile(REGS_SYSCALL_TEMPLATE
+		     : REGS_SYSCALL_RET4
+		     : REGS_SYSCALL_ARG4
+		     : REGS_SYSCALL_CLOBBER4);
+	REGS_SYSCALL_DECL_POSTRETS4;
+}
+
+COS_FORCE_INLINE static inline void
+cos_syscall_9_1(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, uword_t *ret0) {
+	REGS_SYSCALL_FN_4RETS_EMU;
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS9;
 	asm volatile(REGS_SYSCALL_TEMPLATE
-		     : REGS_SYSCALL_RET1
+		     : REGS_SYSCALL_RET4
 		     : REGS_SYSCALL_ARG9
 		     : REGS_SYSCALL_CLOBBER9);
+	REGS_SYSCALL_DECL_POSTRETS4;
 }
 
 COS_FORCE_INLINE static inline void
@@ -703,7 +704,6 @@ cos_syscall_9_4(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, REGS_
 {
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS9;
-	REGS_SYSCALL_DECL_RETS4;
 	asm volatile(REGS_SYSCALL_TEMPLATE
 		     : REGS_SYSCALL_RET4
 		     : REGS_SYSCALL_ARG9
@@ -716,7 +716,6 @@ cos_syscall_9_9(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, REGS_
 {
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS9;
-	REGS_SYSCALL_DECL_RETS9;
 	asm volatile(REGS_SYSCALL_TEMPLATE
 		     : REGS_SYSCALL_RET9
 		     : REGS_SYSCALL_ARG9

@@ -152,6 +152,7 @@
  *        between components.
  */
 
+#include "cos_chal_regs.h"
 #include <cos_error.h>
 #include <cos_regs.h>
 #include <types.h>
@@ -469,25 +470,25 @@ captbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t ca
 		    ops == COS_OP_CAPTBL_CAP_CREATE_RESTBL ||
 		    ops == COS_OP_CAPTBL_CAP_CREATE_COMP ||
 		    ops == COS_OP_CAPTBL_CAP_CREATE_SINV) {
-			cos_cap_type_t t    = regs_arg(rs, REGS_GEN_ARGS_BASE);
-			uword_t ct_off      = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
-			cos_op_bitmap_t ops = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
-			cos_cap_t pt_node   = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
-			cos_cap_t pt_off    = regs_arg(rs, REGS_GEN_ARGS_BASE + 4);
-			vaddr_t entry       = regs_arg(rs, REGS_GEN_ARGS_BASE + 5);
-			inv_token_t token   = regs_arg(rs, REGS_GEN_ARGS_BASE + 6);
+			cos_cap_type_t t    = regs_arg(rs, 0);
+			uword_t ct_off      = regs_arg(rs, 1);
+			cos_op_bitmap_t ops = regs_arg(rs, 2);
+			cos_cap_t pt_node   = regs_arg(rs, 3);
+			cos_cap_t pt_off    = regs_arg(rs, 4);
+			vaddr_t entry       = regs_arg(rs, 5);
+			inv_token_t token   = regs_arg(rs, 6);
 
 			return capability_create(t, g->active_captbl, capno, ct_off, ops, pt_node, pt_off, entry, token);
 		} else if (ops == COS_OP_CAPTBL_CAP_REMOVE) {
-			uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
+			uword_t off = regs_arg(rs, 0);
 
 			return capability_remove(captblref, off);
 		} else if (ops == COS_OP_RESTBL_CAP_COPY) {
-			uword_t off_to = regs_arg(rs, REGS_GEN_ARGS_BASE);
-			cos_cap_t from_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
-			uword_t off_from = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
+			uword_t off_to = regs_arg(rs, 0);
+			cos_cap_t from_cap = regs_arg(rs, 1);
+			uword_t off_from = regs_arg(rs, 2);
 			pageref_t from_ref;
-			uword_t ops_allowed = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
+			uword_t ops_allowed = regs_arg(rs, 3);
 
 			COS_CHECK(captbl_lookup_type_deref(captbl, from_cap, COS_CAP_TYPE_CAPTBL_LEAF, ops, &from_ref));
 
@@ -498,15 +499,15 @@ captbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t ca
 			/* TODO */
 		}
 		if (ops == COS_OP_RESTBL_CONSTRUCT) {
-			uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
-			cos_cap_t bottomcap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+			uword_t off = regs_arg(rs, 0);
+			cos_cap_t bottomcap = regs_arg(rs, 1);
 			pageref_t bottomref;
 
 			COS_CHECK(captbl_lookup_type_deref(captbl, bottomcap, cap->type + 1, ops, &bottomref));
 
 			return captbl_construct(captblref, bottomref, off);
 		} else if (ops == COS_OP_RESTBL_DECONSTRUCT) {
-			uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
+			uword_t off = regs_arg(rs, 0);
 
 			return captbl_deconstruct(captblref, off);
 		}
@@ -524,7 +525,7 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 	if (cap->type == COS_CAP_TYPE_PGTBL_LEAF) {
 		pgtbl_ref_t pgtblref;
 		pageref_t internref;
-		uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
+		uword_t off = regs_arg(rs, 0);
 		page_kerntype_t t;
 		uword_t pgtbl_entry_perm = 0; /* TODO: add R/W perms */
 
@@ -532,54 +533,54 @@ pgtbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t cap
 		COS_CHECK(pgtbl_leaf_lookup(pgtblref, off, COS_PAGE_TYPE_UNTYPED, 0, pgtbl_entry_perm, &internref));
 
 		if (ops == COS_OP_PGTBL_RETYPE_PGTBL) {
-			uword_t level = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+			uword_t level = regs_arg(rs, 1);
 
 			if (level > COS_PGTBL_MAX_DEPTH - 1) return -COS_ERR_OUT_OF_BOUNDS;
 			t = COS_PAGE_KERNTYPE_PGTBL_0 + level;
 
 			return restbl_create(t, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_CAPTBL) {
-			uword_t level = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+			uword_t level = regs_arg(rs, 1);
 
 			if (level > COS_CAPTBL_MAX_DEPTH - 1) return -COS_ERR_OUT_OF_BOUNDS;
 			t = COS_PAGE_KERNTYPE_CAPTBL_0 + level;
 
 			return restbl_create(t, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_THD) {
-			cos_cap_t schedthd_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
-			cos_cap_t comp_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
-			thdid_t id = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
-			id_token_t tok = regs_arg(rs, REGS_GEN_ARGS_BASE + 4);
+			cos_cap_t schedthd_cap = regs_arg(rs, 1);
+			cos_cap_t comp_cap = regs_arg(rs, 2);
+			thdid_t id = regs_arg(rs, 3);
+			id_token_t tok = regs_arg(rs, 4);
 
 			return thd_create(captbl, schedthd_cap, comp_cap, ops, id, tok, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_COMP) {
-			cos_cap_t ct_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
-			cos_cap_t pt_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
-			prot_domain_tag_t tag = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
-			vaddr_t entry = regs_arg(rs, REGS_GEN_ARGS_BASE + 4);
+			cos_cap_t ct_cap = regs_arg(rs, 1);
+			cos_cap_t pt_cap = regs_arg(rs, 2);
+			prot_domain_tag_t tag = regs_arg(rs, 3);
+			vaddr_t entry = regs_arg(rs, 4);
 
 			return comp_create(captbl, ct_cap, pt_cap, tag, entry, internref);
 		} else if (ops == COS_OP_PGTBL_RETYPE_DEALLOCATE) {
 			return poly_destroy(internref);
 		} else if (ops == COS_OP_RESTBL_CAP_COPY) {
 			pgtbl_ref_t from_ref;
-			cos_cap_t from_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
-			uword_t from_off = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
-			uword_t pgtbl_perm = regs_arg(rs, REGS_GEN_ARGS_BASE + 3);
+			cos_cap_t from_cap = regs_arg(rs, 1);
+			uword_t from_off = regs_arg(rs, 2);
+			uword_t pgtbl_perm = regs_arg(rs, 3);
 
 			COS_CHECK(captbl_lookup_type_deref(captbl, from_cap, COS_CAP_TYPE_CAPTBL_LEAF, ops, &from_ref));
 			return pgtbl_copy(pgtblref, off, from_ref, from_off, pgtbl_perm);
 		}
 	} else if (cap->type != COS_CAP_TYPE_PGTBL_LEAF) {
 		pgtbl_ref_t pgtblref;
-		uword_t off = regs_arg(rs, REGS_GEN_ARGS_BASE);
+		uword_t off = regs_arg(rs, 0);
 
 		COS_CHECK(resource_weakref_deref(&cap->intern.ref, &pgtblref));
 
 		if (ops == COS_OP_RESTBL_CONSTRUCT) {
-			cos_cap_t bottom_cap = regs_arg(rs, REGS_GEN_ARGS_BASE + 1);
+			cos_cap_t bottom_cap = regs_arg(rs, 1);
 			pageref_t bottom_ref;
-			uword_t perm = regs_arg(rs, REGS_GEN_ARGS_BASE + 2);
+			uword_t perm = regs_arg(rs, 2);
 
 			COS_CHECK(captbl_lookup_type_deref(captbl, bottom_cap, cap->type + 1, ops, &bottom_ref));
 
@@ -597,19 +598,19 @@ hw_activation(struct regs *rs, struct capability_hw *cap, cos_cap_t capno, cos_o
 {
 	if (ops == COS_OP_HW_PRINT) {
 		unsigned int i;
-		unsigned int len = regs_arg(rs, REGS_GEN_ARGS_BASE);
+		unsigned int len = regs_arg(rs, 0);
 		unsigned int max_len = sizeof(uword_t) * (REGS_MAX_NUM_ARGS - 1);
 
 		if (len > max_len) len = max_len;
 
 		for (i = 0; i < len; i++) {
-			uword_t r = regs_arg(rs, REGS_GEN_ARGS_BASE + 1 + (i / sizeof(uword_t)));
+			uword_t r = regs_arg(rs, 1 + (i / sizeof(uword_t)));
 
 			if (putc_try(((char *)&r)[i % sizeof(uword_t)])) break;
 		}
 
 		/* How many bytes did we end up writing? */
-		regs_retval(rs, REGS_RETVAL_BASE + 1, i);
+		regs_retval(rs, 1, i);
 	} else {
 		return -COS_ERR_NO_OPERATION;
 	}
@@ -620,11 +621,12 @@ hw_activation(struct regs *rs, struct capability_hw *cap, cos_cap_t capno, cos_o
 COS_NEVER_INLINE static struct regs *
 capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
 {
-	cos_op_bitmap_t ops = regs_arg(rs, REGS_ARG_OPS);
-	cos_cap_t capno = regs_arg(rs, REGS_ARG_CAP);
+	cos_op_bitmap_t ops;
+	cos_cap_t capno;
 	cos_retval_t r;
 
-	regs_retval(rs, REGS_RETVAL_BASE, COS_RET_SUCCESS);
+	regs_cap_op(rs, &capno, &ops);
+	regs_retval(rs, 0, COS_RET_SUCCESS);
 
 	/*
 	 * Validate that all of the requested operations are allowed.
@@ -634,7 +636,7 @@ capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
 	 */
 	if (unlikely((ops & cap->operations) != ops)) {
 		/* TODO: software exception */
-		regs_retval(rs, REGS_RETVAL_BASE, -COS_ERR_INSUFFICIENT_PERMISSIONS);
+		regs_retval(rs, 0, -COS_ERR_INSUFFICIENT_PERMISSIONS);
 
                 return rs;
 	}
@@ -660,7 +662,7 @@ capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
 	}
 
 err:
-	regs_retval(rs, REGS_RETVAL_BASE, r);
+	regs_retval(rs, 0, r);
 
         return rs;
 }
@@ -672,9 +674,18 @@ capability_activation(struct regs *rs)
 	captbl_t captbl = g->active_captbl;
 	struct thread *t = g->active_thread;
 	struct capability_generic *cap_slot;
-	cos_cap_t cap = regs_arg(rs, REGS_ARG_CAP);
+	cos_cap_t cap;
 	cos_op_bitmap_t ops;
 	pageref_t ref;
+
+	regs_cap_op(rs, &cap, &ops);
+
+	printk("System call arguments: %x, %x, %x, %x, %x, %x, %x, %x, %x, %x, %x\n",
+	       cap, ops, regs_arg(rs, 0), regs_arg(rs, 1), regs_arg(rs, 2), regs_arg(rs, 3),
+	       regs_arg(rs, 4), regs_arg(rs, 5), regs_arg(rs, 6), regs_arg(rs, 7), regs_arg(rs, 8));
+	regs_retval(rs, 0, 12);
+
+	return rs;
 
         /*
 	 * Phase I: The synchronous invocation fastpath includes
@@ -682,7 +693,7 @@ capability_activation(struct regs *rs)
          * synchronous return fastpath, while an invocation is
          * signaled by finding a synchronous invocation capability.
 	 */
-	if (likely(cap == 0)) {
+	if (cap == 0) {
 		return sinv_return(t, &g->invstk_head, rs);
 	}
 	cap_slot = captbl_lookup(captbl, cap);
@@ -697,7 +708,6 @@ capability_activation(struct regs *rs)
 		return sinv_invoke(t, &g->invstk_head, rs, sinv_cap);
 	}
 
-	ops = regs_arg(rs, REGS_ARG_OPS);
         /*
 	 * Phase II: Thread operations are both performance sensitive
          * (IPC), and complex. These are the only operations that
@@ -711,7 +721,7 @@ capability_activation(struct regs *rs)
 		t = (struct thread *)ref2page_ptr(ref);
 		ret = thread_scheduler_update(&ops, t, rs);
 		if (unlikely(ret != COS_RET_SUCCESS)) {
-			regs_retval(rs, REGS_RETVAL_BASE, ret);
+			regs_retval(rs, 0, ret);
 			return rs;
 		}
 		/* Thread operations. First, the dispatch fast-path. */
@@ -732,8 +742,6 @@ COS_FASTPATH_SECTION void
 syscall_handler(struct regs *rs)
 {
 	struct regs *ret_regs = capability_activation(rs);
-
-	printk("In syscall handler.\n");
 
 	userlevel_eager_return(ret_regs);
 	/* Should never get here: we're returning to user-level in the previous line */

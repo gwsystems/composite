@@ -105,8 +105,8 @@ thread_sched_returnvals(struct thread *s, struct regs *rs)
 	 * exist at the time of it firing.
 	 */
 	if (!thread_evt_pending(s)) {
-		regs_retval(rs, REGS_RETVAL_BASE + 0, COS_RET_SUCCESS);
-		regs_retval(rs, REGS_RETVAL_BASE + 1, COS_THD_STATE_NULL);
+		regs_retval(rs, 0, COS_RET_SUCCESS);
+		regs_retval(rs, 1, COS_THD_STATE_NULL);
 
 		return rs;
 	}
@@ -115,13 +115,13 @@ thread_sched_returnvals(struct thread *s, struct regs *rs)
 	evt_thd = thread_evt_dequeue(s);
 	evt     = &evt_thd->evt;
 
-	regs_retval(rs, REGS_RETVAL_BASE + 0, COS_RET_SUCCESS);
+	regs_retval(rs, 0, COS_RET_SUCCESS);
 	/* Are there even more events to process? */
-	regs_retval(rs, REGS_RETVAL_BASE + 1, thread_evt_pending(s));
-	regs_retval(rs, REGS_RETVAL_BASE + 2, evt_thd->state);
-	regs_retval(rs, REGS_RETVAL_BASE + 3, evt_thd->sched_id);
-	regs_retval(rs, REGS_RETVAL_BASE + 4, evt->execution);
-	regs_retval(rs, REGS_RETVAL_BASE + 5, 0); /* dependency placeholder */
+	regs_retval(rs, 1, thread_evt_pending(s));
+	regs_retval(rs, 2, evt_thd->state);
+	regs_retval(rs, 3, evt_thd->sched_id);
+	regs_retval(rs, 4, evt->execution);
+	regs_retval(rs, 5, 0); /* dependency placeholder */
 
 	/* TODO: return 2 events at a time */
 
@@ -146,8 +146,8 @@ thread_await_evt_returnvals(struct thread *t, struct regs *rs)
 	uword_t cnt = t->evt.evt_count;
 
 	t->evt.evt_count = 0;
-	regs_retval(rs, REGS_RETVAL_BASE + 0, COS_RET_SUCCESS);
-	regs_retval(rs, REGS_RETVAL_BASE + 1, cnt); /* # of returned events */
+	regs_retval(rs, 0, COS_RET_SUCCESS);
+	regs_retval(rs, 1, cnt); /* # of returned events */
 
 	return rs;
 }
@@ -191,7 +191,7 @@ thread_await_evt(struct thread *curr, struct thread *cap_thd, struct regs *rs)
 	struct thread *sched = (struct thread *)ref2page_ptr(curr->sched_thd);
 
 	if (unlikely(curr != cap_thd)) {
-		regs_retval(rs, REGS_RETVAL_BASE, -COS_ERR_WRONG_THREAD);
+		regs_retval(rs, 0, -COS_ERR_WRONG_THREAD);
 		return rs;
 	}
 
@@ -261,7 +261,7 @@ thread_calculate_returnvals(struct thread *t)
 {
 	/* thread has cooperatively dispatched */
 	if (likely(t->state == COS_THD_STATE_EXECUTING)) {
-		regs_retval(&t->regs, REGS_RETVAL_BASE + 0, COS_RET_SUCCESS);
+		regs_retval(&t->regs, 0, COS_RET_SUCCESS);
 		return;
 	}
 	switch (t->state) {
@@ -340,7 +340,7 @@ thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs)
 	cos_retval_t r = -COS_ERR_NO_OPERATION;
 
 	/* Default return value for the current thread */
-	regs_retval(rs, REGS_RETVAL_BASE, COS_RET_SUCCESS);
+	regs_retval(rs, 0, COS_RET_SUCCESS);
 	COS_CHECK_THROW(thread_scheduler_update(&requested_op, t, rs), r, err);
 
 	/*
@@ -358,7 +358,7 @@ thread_slowpath(struct thread *t, cos_op_bitmap_t requested_op, struct regs *rs)
 		return thread_await_evt(curr, t, rs);
 	}
 err:
-	regs_retval(rs, REGS_RETVAL_BASE, r);
+	regs_retval(rs, 0, r);
 
 	return rs;
 }

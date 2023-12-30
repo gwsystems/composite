@@ -61,7 +61,7 @@ sinv_invoke(struct thread *t, uword_t *head, struct regs *rs, struct capability_
 	return rs;
 err:
 	/* Error: leave registers the same except for a return value... */
-	regs_retval(rs, REGS_RETVAL_BASE, r);
+	regs_retval(rs, 0, r);
 
 	return rs;
 }
@@ -85,7 +85,7 @@ sinv_return(struct thread *t, uword_t *head, struct regs *rs)
 	return rs;
 err:
 	/* Error: just add the return value. */
-	regs_retval(rs, REGS_RETVAL_BASE, r);
+	regs_retval(rs, 0, r);
 
         return rs;
 }
