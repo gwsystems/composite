@@ -680,13 +680,6 @@ capability_activation(struct regs *rs)
 
 	regs_cap_op(rs, &cap, &ops);
 
-	printk("System call arguments: %x, %x, %x, %x, %x, %x, %x, %x, %x, %x, %x\n",
-	       cap, ops, regs_arg(rs, 0), regs_arg(rs, 1), regs_arg(rs, 2), regs_arg(rs, 3),
-	       regs_arg(rs, 4), regs_arg(rs, 5), regs_arg(rs, 6), regs_arg(rs, 7), regs_arg(rs, 8));
-	regs_retval(rs, 0, 12);
-
-	return rs;
-
         /*
 	 * Phase I: The synchronous invocation fastpath includes
          * invoke and return. Capability #0 is hard-coded to

@@ -1,3 +1,7 @@
+/*
+ * Do *not* include this file directly. Instead include cos_system.h
+ */
+
 #pragma once
 
 #include <cos_types.h>

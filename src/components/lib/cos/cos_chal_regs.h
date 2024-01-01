@@ -463,7 +463,7 @@ regs_ip_sp(struct regs *rs, uword_t *ip, uword_t *sp)
 COS_FORCE_INLINE static inline void
 regs_retval(struct regs *rs, unsigned int retvalno, uword_t val)
 {
-	rs->args[retvalno] = val;
+	rs->args[REGS_ARGS_RETS_BASE + retvalno] = val;
 }
 
 /**
@@ -584,8 +584,6 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct regs_frame_ctx, bp),
 							\
 	"movq %%r11, %%rbp\n\t"				\
 	"syscall\n\t"					\
-	"movq %%rbp, %%rsp\n\t"				\
-							\
 	"popq %%rbp\n\t"				\
 	"popq %%rsp\n\t"
 
@@ -597,17 +595,27 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct regs_frame_ctx, bp),
  */
 
 /* Rest of the args are in the input inline asm list */
-#define REGS_SYSCALL_DECL_ARGS4				\
-	register uword_t r8  __asm__("r8")  = a2;	\
-	register uword_t r9  __asm__("r9")  = a3
+#define REGS_SYSCALL_DECL				\
+	register uword_t r8  __asm__("r8")  = 0;	\
+	register uword_t r9  __asm__("r9")  = 0;	\
+	register uword_t r10 __asm__("r10") = 0;	\
+	register uword_t r12 __asm__("r12") = 0;	\
+	register uword_t r13 __asm__("r13") = 0;	\
+	register uword_t r14 __asm__("r14") = 0;	\
+	register uword_t r15 __asm__("r15") = 0
+
+#define REGS_SYSCALL_DECL_ARGS4			\
+	REGS_SYSCALL_DECL;			\
+	r8 = a2;				\
+	r9 = a3
 
 #define REGS_SYSCALL_DECL_ARGS9				\
 	REGS_SYSCALL_DECL_ARGS4;			\
-	register uword_t r10 __asm__("r10") = a4;	\
-	register uword_t r12 __asm__("r12") = a5;	\
-	register uword_t r13 __asm__("r13") = a6;	\
-	register uword_t r14 __asm__("r14") = a7;	\
-	register uword_t r15 __asm__("r15") = a8
+	r10 = a4;					\
+	r12 = a5;					\
+	r13 = a6;					\
+	r14 = a7;					\
+	r15 = a8
 
 #define REGS_SYSCALL_DECL_POSTRETS4		\
 	*ret2 = r8;				\
@@ -627,21 +635,15 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct regs_frame_ctx, bp),
  * This is the prescribed way.
  */
 #define REGS_SYSCALL_ARG4						\
-	"r" (r11_ctx), "a" (cap), "b" (ops), "d" (0), "S" (a0), "D" (a1), "r" (r8)
+	"r" (r11_ctx), "a" (cap), "b" (ops), "d" (0), "S" (a0), "D" (a1), "r" (r8), "r" (r9)
 #define REGS_SYSCALL_ARG9						\
-	REGS_SYSCALL_ARG4, "r" (r9), "r" (r10), "r" (r12), "r" (r13), "r" (r14), "r" (r15)
+	REGS_SYSCALL_ARG4, "r" (r10), "r" (r12), "r" (r13), "r" (r14), "r" (r15)
 
-#define REGS_SYSCALL_RET4						\
-	"=r" (r11_ctx), "=S" (*ret0), "=D" (*ret1), "=r" (r8), "=r" (r9)
-#define REGS_SYSCALL_RET9						\
-	REGS_SYSCALL_RET4, "=r" (r10), "=r" (r12), "=r" (r13), "=r" (r14), "=r" (r15)
+#define REGS_SYSCALL_RET						\
+	"=r" (r11_ctx), "=S" (*ret0), "=D" (*ret1), "=r" (r8), "=r" (r9), "=r" (r10), "=r" (r12), "=r" (r13), "=r" (r14), "=r" (r15)
 
-#define REGS_SYSCALL_CLOBBER_BASE		\
-	"memory", "cc"
-#define REGS_SYSCALL_CLOBBER4						\
-	REGS_SYSCALL_CLOBBER_BASE, "r10", "r12", "r13", "r14", "r15"
-#define REGS_SYSCALL_CLOBBER9						\
-	REGS_SYSCALL_CLOBBER_BASE
+#define REGS_SYSCALL_CLOBBER		\
+	"memory", "cc", "%rcx"
 
 #define REGS_SYSCALL_FN_ARGS4 uword_t a0, uword_t a1, uword_t a2, uword_t a3
 #define REGS_SYSCALL_FN_ARGS9 REGS_SYSCALL_FN_ARGS4, uword_t a4, uword_t a5, uword_t a6, uword_t a7, uword_t a8
@@ -669,9 +671,9 @@ cos_syscall_4_4(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS4, REGS_
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS4;
 	asm volatile(REGS_SYSCALL_TEMPLATE
-		     : REGS_SYSCALL_RET4
+		     : REGS_SYSCALL_RET
 		     : REGS_SYSCALL_ARG4
-		     : REGS_SYSCALL_CLOBBER4);
+		     : REGS_SYSCALL_CLOBBER);
 	REGS_SYSCALL_DECL_POSTRETS4;
 }
 
@@ -681,9 +683,9 @@ cos_syscall_4_1(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS4, uword
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS4;
 	asm volatile(REGS_SYSCALL_TEMPLATE
-		     : REGS_SYSCALL_RET4
+		     : REGS_SYSCALL_RET
 		     : REGS_SYSCALL_ARG4
-		     : REGS_SYSCALL_CLOBBER4);
+		     : REGS_SYSCALL_CLOBBER);
 	REGS_SYSCALL_DECL_POSTRETS4;
 }
 
@@ -693,9 +695,9 @@ cos_syscall_9_1(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, uword
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS9;
 	asm volatile(REGS_SYSCALL_TEMPLATE
-		     : REGS_SYSCALL_RET4
+		     : REGS_SYSCALL_RET
 		     : REGS_SYSCALL_ARG9
-		     : REGS_SYSCALL_CLOBBER9);
+		     : REGS_SYSCALL_CLOBBER);
 	REGS_SYSCALL_DECL_POSTRETS4;
 }
 
@@ -705,9 +707,9 @@ cos_syscall_9_4(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, REGS_
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS9;
 	asm volatile(REGS_SYSCALL_TEMPLATE
-		     : REGS_SYSCALL_RET4
+		     : REGS_SYSCALL_RET
 		     : REGS_SYSCALL_ARG9
-		     : REGS_SYSCALL_CLOBBER9);
+		     : REGS_SYSCALL_CLOBBER);
 	REGS_SYSCALL_DECL_POSTRETS4;
 }
 
@@ -717,9 +719,9 @@ cos_syscall_9_9(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, REGS_
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS9;
 	asm volatile(REGS_SYSCALL_TEMPLATE
-		     : REGS_SYSCALL_RET9
+		     : REGS_SYSCALL_RET
 		     : REGS_SYSCALL_ARG9
-		     : REGS_SYSCALL_CLOBBER9);
+		     : REGS_SYSCALL_CLOBBER);
 	REGS_SYSCALL_DECL_POSTRETS9;
 }
 

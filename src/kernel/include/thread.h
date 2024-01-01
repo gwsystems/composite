@@ -135,7 +135,8 @@ void thread_calculate_returnvals(struct thread *t);
  * - `@return` - The registers to load on returning to user-level
  */
 COS_FORCE_INLINE static inline struct regs *
-thread_switch(struct thread *t, struct regs *rs) {
+thread_switch(struct thread *t, struct regs *rs)
+{
 	struct state         *g    = state();
 	struct thread        *curr = g->active_thread;
 	struct component_ref *comp;
