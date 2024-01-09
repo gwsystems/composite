@@ -306,8 +306,8 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 	printk("\t- %d pages.\n\t- virtual addresses [%x, %x).\n\t- entry address %x.\n",
 	       mappings_num, constructor_lower_vaddr, constructor_lower_vaddr + constructor_size, constructor_entry);
 
-	printk("Constructor capability layout:\n");
-	printk("\t- [0, 1) - 1 (inaccessible) captbl nil node.\n");
+	printk("Constructor page layout:\n");
+	printk("\t- [0, 1) - Inaccessible capability-table NULL node.\n");
 	printk("\t- [1, %d) - %d constructor image pages.\n", post_constructor_offset, post_constructor_offset - 1);
 	printk("\t- [%d, %d) - %d constructor BSS (zeroed data) pages.\n", post_constructor_offset, res_pgtbl_offset, cos_round_up_to_pow2(zero_sz, COS_PAGE_SIZE) / COS_PAGE_SIZE);
 	printk("\t- [%d, %d) - %d page-table nodes for retypeable memory.\n", res_pgtbl_offset, pgtbl_offset, res_pgtbl_num);
@@ -432,7 +432,6 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 		uword_t offset = (constructor_lower_page + i) % COS_PGTBL_LEAF_NENT;
 		uword_t vm_page = constructor_offset + (ro_off / COS_PAGE_SIZE) + i;
 
-//		printk("\t%d[%d] = %d, %x\n", pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_EXEC);
 		COS_CHECK(pgtbl_map(pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_EXEC));
 
 		/* If we've reached the end of a page-table node, move on to the next */
@@ -443,7 +442,6 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 		uword_t offset = (constructor_lower_page + i) % COS_PGTBL_LEAF_NENT;
 		uword_t vm_page = constructor_offset + (data_off / COS_PAGE_SIZE) + j;
 
-//		printk("\t%d[%d] = %d, %x\n", pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_RW);
 		COS_CHECK(pgtbl_map(pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_RW));
 
 		/* If we've reached the end of a page-table node, move on to the next */
@@ -495,6 +493,7 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 
 		COS_CHECK(cap_restbl_create(ct, off, COS_PAGE_KERNTYPE_PGTBL_LEAF, COS_OP_ALL, res_pgtbl_offset + i));
 	}
+	COS_CHECK(cap_restbl_create(ct, off, COS_PAGE_KERNTYPE_PGTBL_LEAF, COS_OP_ALL, res_pgtbl_offset + i));
 
 	return COS_RET_SUCCESS;
 }
@@ -523,7 +522,6 @@ constructor_core_execute(coreid_t core, struct kernel_init_state *s)
 	regs_ip_sp(rs, &ip, &sp);
 	printk("Starting user-level on core %d: instruction pointer %x.\n", core, ip);
 
-	printk("page-table loading: %lx\n", comp->pgtbl | comp->pd_tag);
 	pgtbl_arch_activate(comp->pgtbl, comp->pd_tag);
 	userlevel_eager_return_syscall(rs);
 }

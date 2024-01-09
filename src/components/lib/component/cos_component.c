@@ -304,44 +304,6 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	static int first = 1;
 	static	struct ps_lock _lock = {0};
 
-	uword_t ret, ret0, ret1, ret2, ret3, ret4, ret5, ret6, ret7, ret8;
-
-	cos_cycles_t pre, sc99, sc91, sc44, sc41, sc99_2, sc91_2, sc44_2, sc41_2;
-
-	cos_syscall_9_9(0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-			&ret0, &ret1, &ret2, &ret3, &ret4, &ret5, &ret6, &ret7, &ret8);
-
-	pre = cos_cycles();
-	cos_syscall_9_9(0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-			&ret0, &ret1, &ret2, &ret3, &ret4, &ret5, &ret6, &ret7, &ret8);
-	sc99 = cos_cycles() - pre;
-	pre = cos_cycles();
-	cos_syscall_9_1(0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, &ret0);
-	sc91 = cos_cycles() - pre;
-	pre = cos_cycles();
-	cos_syscall_4_4(0, 2, 3, 4, 5, 6, &ret0, &ret1, &ret2, &ret3);
-	sc44 = cos_cycles() - pre;
-	pre = cos_cycles();
-	cos_syscall_4_1(0, 2, 3, 4, 5, 6, &ret0);
-	sc41 = cos_cycles() - pre;
-
-	pre = cos_cycles();
-	cos_syscall_9_9(0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-			&ret0, &ret1, &ret2, &ret3, &ret4, &ret5, &ret6, &ret7, &ret8);
-	sc99_2 = cos_cycles() - pre;
-	pre = cos_cycles();
-	cos_syscall_9_1(0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, &ret0);
-	sc91_2 = cos_cycles() - pre;
-	pre = cos_cycles();
-	cos_syscall_4_4(0, 2, 3, 4, 5, 6, &ret0, &ret1, &ret2, &ret3);
-	sc44_2 = cos_cycles() - pre;
-	pre = cos_cycles();
-	cos_syscall_4_1(0, 2, 3, 4, 5, 6, &ret0);
-	sc41_2 = cos_cycles() - pre;
-
-	cos_syscall_9_1(1, 2, sc99, sc91, sc44, sc41, sc99_2, sc91_2, sc44_2, sc41_2, 0, &ret0);
-
-	while (1);
 	/*
 	 * There should be no concurrency at initialization (the init
 	 * interface ensures this), so atomic operations aren't

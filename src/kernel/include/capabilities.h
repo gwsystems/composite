@@ -77,12 +77,7 @@ struct capability_resource {
 COS_STATIC_ASSERT(sizeof(struct capability_resource) == sizeof(struct capability_generic), "Resource capability incorrectly sized.");
 
 struct capability_hw_intern {
-	uword_t              data0;
-	uword_t              data1;
-	uword_t              data2;
-	uword_t              data3;
-	uword_t              data4;
-	uword_t              data5;
+	uword_t              data[6];
 };
 
 struct capability_hw {

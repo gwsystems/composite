@@ -69,12 +69,28 @@ static inline liveness_t
 liveness_now(void)
 {
 	/* TODO: actual liveness. */
-	return 0;
+	return 1;
+}
+
+/*
+ * By default, liveness values for *live* resources are the highest
+ * possible value, i.e. absolutely live as they cannot be quiesced.
+ *
+ * This simply helps handle the race between when we deactivate a
+ * resource, and when we update its liveness value. In such a case, a
+ * parallel access will not see the freed resource as quesced due to
+ * this choice of the default.
+ */
+static inline liveness_t
+liveness_live_default(void)
+{
+	return ~0;
 }
 
 static inline int
 liveness_quiesced(liveness_t past)
 {
+	if (past == liveness_live_default()) return 0;
 	/* TODO: actual liveness. */
 	return 1;//liveness_now() > past;
 }

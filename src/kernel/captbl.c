@@ -11,8 +11,6 @@
 #include <resources.h>
 #include <captbl.h>
 
-#define COS_CAPTBL_0_ENT_NULL 0
-
 void
 captbl_leaf_initialize(struct captbl_leaf *ct)
 {
@@ -28,13 +26,25 @@ captbl_leaf_initialize(struct captbl_leaf *ct)
 	}
 }
 
+#define CAPTBL_INTERNAL_NULL_ENT ((captbl_t)ref2page_ptr(0))
+
 void
-captbl_intern_initialize(struct captbl_internal *ct)
+captbl_intern_initialize(struct captbl_internal *ct, unsigned int lvl)
 {
 	int i;
+	/*
+	 * Assumption: The first N pages are capability-table nodes
+	 * (where N is the maximum number of capability levels - 1).
+	 * These nodes denote "not available" capabilities (i.e. that
+	 * are `NULL`).
+	 *
+	 * As current capability tables are only two levels, and the
+	 * leaf level is handled above, we hardcode the reference.
+	 */
+	captbl_t next_lvl = CAPTBL_INTERNAL_NULL_ENT;
 
 	for (i = 0; i < COS_CAPTBL_INTERNAL_NENT; i++) {
-		ct->next[i] = COS_CAPTBL_0_ENT_NULL;
+		ct->next[i] = next_lvl;
 	}
 }
 
@@ -84,7 +94,7 @@ captbl_construct(captbl_ref_t top, captbl_ref_t leaf, uword_t offset)
 	offset = COS_WRAP(offset, COS_CAPTBL_INTERNAL_NENT);
 
 	/* Updates! */
-	if (!cas_w(&top_node->next[offset], COS_CAPTBL_0_ENT_NULL, (u64_t)leaf_node)) return -COS_ERR_ALREADY_EXISTS;
+	if (!cas_w(&top_node->next[offset], CAPTBL_INTERNAL_NULL_ENT, (u64_t)leaf_node)) return -COS_ERR_ALREADY_EXISTS;
 	faa32(&top_type->refcnt, 1);
 	faa32(&leaf_type->refcnt, 1);
 
@@ -111,11 +121,13 @@ captbl_deconstruct(captbl_ref_t top, uword_t offset)
 
 	COS_CHECK(page_resolve(top, COS_PAGE_TYPE_KERNEL, COS_PAGE_KERNTYPE_CAPTBL_0, NULL, (struct page **)&top_node, &top_type));
 	leaf = top_node->next[offset];
+	/* Does this reference page 0, or the "empty capability-table" page? */
+	if (leaf == 0) return -COS_ERR_RESOURCE_NOT_FOUND;
 	ref2page(leaf, (struct page **)&leaf_node, &leaf_type);
 	/* assert: leaf must be proper type */
 
 	/* Updates! */
-	if (!cas_w(&top_node->next[offset], leaf, COS_CAPTBL_0_ENT_NULL)) return -COS_ERR_CONTENTION;
+	if (!cas_w(&top_node->next[offset], leaf, CAPTBL_INTERNAL_NULL_ENT)) return -COS_ERR_CONTENTION;
 	faa32(&top_type->refcnt, -1);
 	faa32(&leaf_type->refcnt, -1);
 
@@ -240,6 +252,7 @@ COS_FORCE_INLINE static inline void
 captbl_cap_activate(struct capability_generic *cap, cos_cap_type_t type, cos_op_bitmap_t operations, void *cap_data)
 {
 	cap->operations = operations;
+	cap->liveness   = liveness_live_default();
 
 	/*
 	 * Cast the cap_data to the specific internal type required by
@@ -293,17 +306,15 @@ captbl_cap_deactivate(struct captbl_leaf *captbl, uword_t leaf_off)
 	t   = cap->type;
 	if (t == COS_CAP_TYPE_FREE || t == COS_CAP_TYPE_RESERVED) return -COS_ERR_RESOURCE_NOT_FOUND;
 
-	/* parallel quiescence must be calculated from this point */
-	cap->liveness = liveness_now();
-
 	/*
 	 * Can't destructively update the capability's fields aside
 	 * from liveness and type due to parallel accesses.
 	 */
 
-	mem_barrier();
 	/* Update! */
 	if (!cas32(&cap->type, t, COS_CAP_TYPE_FREE)) return -COS_ERR_CONTENTION;
+	/* parallel quiescence must be calculated from this point */
+	cap->liveness = liveness_now();
 
 	return COS_RET_SUCCESS;
 }
@@ -523,9 +534,24 @@ cap_restbl_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_of
 }
 
 cos_retval_t
-cap_hw_create(captbl_ref_t captbl_to_entry_ref, uword_t captbl_to_entry_off, captbl_ref_t captbl_from_entry_ref, uword_t captbl_from_entry_off, cos_op_bitmap_t ops)
+cap_hw_create(captbl_ref_t captbl_add_entry_ref, uword_t captbl_add_entry_off, cos_op_bitmap_t operations)
 {
-	/* TODO */
+	struct capability_hw_intern r;
+	struct captbl_leaf *captbl_entry;
+	struct capability_generic *cap;
+
+	captbl_entry = (struct captbl_leaf *)ref2page_ptr(captbl_add_entry_ref);
+	cap = captbl_leaf_lookup(captbl_entry, COS_WRAP(captbl_add_entry_off, COS_CAPTBL_LEAF_NENT));
+	/* Reserve the capability that we'll populate next */
+	COS_CHECK(captbl_cap_reserve(cap));
+
+	/* Update the capability to properly reference the resource */
+	r = (struct capability_hw_intern) {
+		.data  = { 0 },
+	};
+
+	/* Finish updating the capability to refer to the component structure. */
+	captbl_cap_activate(cap, COS_CAP_TYPE_HW, operations, &r);
 
 	return COS_RET_SUCCESS;
 }

@@ -61,6 +61,5 @@ paging_init(void)
 	assert(boot_comp_pgd[KERN_INIT_PGD_IDX] == ((u64_t)chal_va2pa(&boot_comp_pgt1) | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE));
 	assert(boot_comp_pgt1[0] = (X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL));
 	assert(boot_comp_pgt1[1] = (PGT1_RANGE | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL));
-	printk("\tLoading the page-table.\n");
 	chal_cpu_pgtbl_activate((pgtbl_t)chal_va2pa(&boot_comp_pgd));
 }

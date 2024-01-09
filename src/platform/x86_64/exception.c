@@ -107,8 +107,13 @@ TRAP_C_HANDLER(oneshot_handler, oneshot_timer_fn);
 struct regs *
 periodic_timer_fn(struct regs *regs)
 {
-	printk(COS_REGS_PRINT_ARGS(regs));
-	//die("FAULT: Periodic Timer Exception\n");
+	static int periodic_timer_triggered = 0;
+
+	if (!periodic_timer_triggered) {
+		periodic_timer_triggered = 1;
+	} else {
+		die("FAULT: Periodic Timer Exception\n");
+	}
 
 	return regs;
 }

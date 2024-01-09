@@ -79,7 +79,7 @@ COS_STATIC_ASSERT(COS_PAGE_SIZE == sizeof(struct state_percore),
 		  "The size of the per-core state is not correct");
 /* The stack is to start at the end of `registers` */
 COS_STATIC_ASSERT(STATE_STACK_OFFSET == offsetof(struct state_percore, gs_stack_ptr),
-		  "The stack offset constant is not correct");
+ 		  "The stack offset constant is not correct");
 COS_STATIC_ASSERT((STATE_STACK_OFFSET / 16 ) * 16 == STATE_STACK_OFFSET,
 		  "The kernel stack's constant is not an architecture-mandated value aligned on a 16-byte boundary.");
 COS_STATIC_ASSERT(STATE_OFFSETOF_GLOBALS == STATE_GLOBALS_OFFSET,

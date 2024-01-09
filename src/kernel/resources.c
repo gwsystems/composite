@@ -500,7 +500,8 @@ resource_compref_create(pageref_t compref, struct component_ref *r)
 
 	*r = (struct component_ref) {
 		.pgtbl     = pgtbl_arch_entry_pack(comp->pgtbl, comp->pd_tag),
-		.captbl    = comp->captbl,
+		/* TODO abstract to architecture-specific code */
+		.captbl    = (captbl_t)ref2page_ptr(comp->captbl),
 		.pd_tag    = comp->pd_tag,
 		.component = compref,
 		.epoch     = epoch,
@@ -725,7 +726,7 @@ resource_restbl_create(page_kerntype_t kt, pageref_t untyped_src_ref)
 	if (kt == COS_PAGE_KERNTYPE_CAPTBL_LEAF) {
 		captbl_leaf_initialize((struct captbl_leaf *)p);
 	} else if (page_is_captbl(kt)) { /* non-leaf captbl */
-		captbl_intern_initialize((struct captbl_internal *)p);
+		captbl_intern_initialize((struct captbl_internal *)p, kt - COS_PAGE_KERNTYPE_CAPTBL_0);
 	} else if (kt == COS_PAGE_KERNTYPE_PGTBL_0) { /* top-level page-table */
 		pgtbl_top_initialize((struct pgtbl_top *)p);
 	} else {		/* internal page-table node  */

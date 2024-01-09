@@ -451,6 +451,8 @@ capability_create(cos_cap_type_t captype, captbl_t ct, cos_cap_t captbl_target_c
 		return cap_sinv_create(captbl_ref, captbl_target_off, res_ref, addr, token);
 	} else if (cap_is_restbl(captype)) {
 		return cap_restbl_create(captbl_ref, captbl_target_off, kt, ops, res_ref);
+	} else if (captype == COS_CAP_TYPE_HW) {
+		return cap_hw_create(captbl_ref, captbl_target_off, ops);
 	} else {
 		return -COS_ERR_WRONG_CAP_TYPE;
 	}
@@ -497,6 +499,7 @@ captbl_activation(struct regs *rs, struct capability_resource *cap, cos_cap_t ca
 	} else {
 		if (ops & COS_OP_NEST) {
 			/* TODO */
+			return -COS_ERR_NO_OPERATION;
 		}
 		if (ops == COS_OP_RESTBL_CONSTRUCT) {
 			uword_t off = regs_arg(rs, 0);
@@ -680,13 +683,21 @@ capability_activation(struct regs *rs)
 
 	regs_cap_op(rs, &cap, &ops);
 
-        /*
+	/*
 	 * Phase I: The synchronous invocation fastpath includes
-         * invoke and return. Capability #0 is hard-coded to
-         * synchronous return fastpath, while an invocation is
-         * signaled by finding a synchronous invocation capability.
+	 * invoke and return. Capability #0 is hard-coded to
+	 * synchronous return fastpath, while an invocation is
+	 * signaled by finding a synchronous invocation capability.
+	 *
+	 * We use `likely` here to attempt to keep the code for return
+	 * inline. If it is placed after all of the compiler's decided
+	 * "fast-path", it can be after all of the fast-paths. In
+	 * short, the `sinv_return` code doesn't push the following
+	 * fastpath code much further back, while the thread
+	 * operations can push the return code much further back in
+	 * the instruction stream.
 	 */
-	if (cap == 0) {
+	if (likely(cap == 0)) {
 		return sinv_return(t, &g->invstk_head, rs);
 	}
 	cap_slot = captbl_lookup(captbl, cap);
