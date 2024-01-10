@@ -220,20 +220,20 @@ mod_mem_type(void *pa, u32_t order, const mem_type_t type)
 			 * will fail. This CAS makes sure that the parent will not be retyped into
 			 * something else.
 			 */
-			if (retypetbl_cas((u32_t*)(walk[i + 1].p_glb), old_temp.refcnt_atom.v, temp.refcnt_atom.v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+			if (retypetbl_cas((u32_t*)(walk[i + 1].p_glb), old_temp.refcnt_atom.v, temp.refcnt_atom.v) != CAS_SUCCESS) assert(0); //cos_throw(err, -ECASFAIL);
 			/* This is a simple assignment, because this is the function's local variable */
 			walk[i + 1].inc_cnt = 1;
 		}
-		if (walk[i].p_glb->refcnt_atom.type != RETYPETBL_UNTYPED) cos_throw(err, -ECASFAIL);
+		if (walk[i].p_glb->refcnt_atom.type != RETYPETBL_UNTYPED) assert(0); //cos_throw(err, -ECASFAIL);
 	}
 
 	/* typed as the other type? - if there is a retype/retype race */
 	if (((temp.refcnt_atom.type == RETYPETBL_KERN) && (type == RETYPETBL_USER)) ||
-		((temp.refcnt_atom.type == RETYPETBL_USER) && (type == RETYPETBL_KERN))) cos_throw(err, -ECASFAIL);
+		((temp.refcnt_atom.type == RETYPETBL_USER) && (type == RETYPETBL_KERN))) assert(0); //cos_throw(err, -ECASFAIL);
 
 	/* atomic update with CAS */
 	ret = atomic_type_swap(walk[POS(order)].p_glb, RETYPETBL_UNTYPED, RETYPETBL_RETYPING, 1);
-	if (ret != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+	if (ret != CAS_SUCCESS) assert(0); //cos_throw(err, -ECASFAIL);
 	cos_mem_fence();
 
 	/* 

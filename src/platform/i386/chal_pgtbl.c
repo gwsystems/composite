@@ -325,7 +325,6 @@ chal_pgtbl_lkup_lvl(pgtbl_t pt, vaddr_t addr, word_t *flags, u32_t start_lvl, u3
 		intern = page + (addr >> (PAGE_ORDER + PGTBL_ENTRY_ORDER * (PGTBL_DEPTH - 1 - i))); 
 		page = chal_pa2va((*intern) & PGTBL_ENTRY_ADDR_MASK);
 	}
-
 	*flags = (*intern) & PGTBL_FLAG_MASK;
 	return intern;
 #elif defined(__i386__)
@@ -741,9 +740,9 @@ chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandi
 	ret = cos_cas_32((u32_t *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
 	if (ret != CAS_SUCCESS) return -ECASFAIL;
 
-	new_pte = (u32_t)chal_va2pa(
-	          (void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK))
-	          | X86_PGTBL_INTERN_DEF;
+	new_pte = (u64_t)((chal_va2pa(
+	          (void *)((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK)
+	          | X86_PGTBL_INTERN_DEF);
 
 	ret = cos_cas(intern, old_pte, new_pte);
 	if (ret != CAS_SUCCESS) {

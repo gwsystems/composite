@@ -430,8 +430,8 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, capid_t cap_from, c
 		old_v_to = *moveto;
 
 		cos_mem_fence();
-		if (!chal_pgtbl_flag_exist(old_v, PGTBL_COSFRAME)) return -EPERM;
-		if (chal_pgtbl_flag_exist(old_v_to, PGTBL_COSFRAME | PGTBL_PRESENT)) return -EPERM;
+		if (!chal_pgtbl_flag_exist(old_v, PGTBL_COSFRAME)) assert(0); //return -EPERM;
+		if (chal_pgtbl_flag_exist(old_v_to, PGTBL_COSFRAME | PGTBL_PRESENT)) assert(0);//return -EPERM;
 
 		ret = pgtbl_quie_check(old_v_to);
 		if (ret) return ret;
@@ -1260,7 +1260,6 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			capid_t pgtbl_lvl = __userregs_get4(regs);
 			/* FIXME: change lvl to order */
 			ret = chal_pgtbl_pgtblactivate(ct, cap, pt_entry, pgtbl_cap, kmem_cap, pgtbl_lvl);
-
 			break;
 		}
 		case CAPTBL_OP_PGTBLDEACTIVATE: {

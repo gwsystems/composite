@@ -110,6 +110,7 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 		/* This is a best guess about what went wrong */
 		errno = ENOMEM;
 	}
+	memset((void *)ret, 0, length / sizeof(u8_t));
 	return ret;
 }
 

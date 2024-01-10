@@ -150,7 +150,7 @@ boot_pgtbl_expand(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char 
 			assert(!ret);
 		}
 	}
-	
+
 	return;
 }
 

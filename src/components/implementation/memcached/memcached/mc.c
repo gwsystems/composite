@@ -1,4 +1,3 @@
-
 #include <cos_types.h>
 #include <string.h>
 #include <arpa/inet.h>
