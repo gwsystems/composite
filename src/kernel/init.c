@@ -260,6 +260,7 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 	uword_t pgtbl_offset, pgtbl_leaf_off, res_pgtbl_offset, zeroed_page_offset, frontier;
 	uword_t captbl_num, pgtbl_num, caps_needed, mappings_num, res_pgtbl_num;
 	uword_t constructor_lower_page, constructor_upper_page;
+	uword_t captbl_bump;
 
 	post_constructor_offset = s->post_constructor_offset;
 
@@ -486,14 +487,20 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 	/* ...Finally, populate the capability-tables */
 	printk("\tCapability-table population...\n");
 	COS_CHECK(cos_captbl_node_offset(COS_CAPTBL_MAX_DEPTH - 1, 1, 1, captbl_num, &captbl_lower));
-	/* TODO: HW cap in slot 1 */
+	captbl_bump = 1;
+	COS_CHECK(cap_hw_create(captbl_offset + captbl_lower, captbl_bump++, COS_OP_ALL));
+	COS_CHECK(cap_comp_create(captbl_offset + captbl_lower, captbl_bump++, COS_OP_ALL, component_offset));
+	for (i = 0; i < COS_NUM_CPU; i++) {
+		pageref_t thread_ref = i + thread_offset;
+
+		COS_CHECK(cap_thd_create(captbl_offset + captbl_lower, captbl_bump++, COS_OP_ALL, thread_ref));
+	}
 	for (i = 0; i < captbl_num; i++) {
 		uword_t ct  = captbl_offset + captbl_lower + (i / COS_CAPTBL_LEAF_NENT);
-		uword_t off = (i + 2) % COS_CAPTBL_LEAF_NENT; /* offset by two for the return and HW capability */
+		uword_t off = (i + 3) % COS_CAPTBL_LEAF_NENT; /* offset by two for the return and HW capability */
 
 		COS_CHECK(cap_restbl_create(ct, off, COS_PAGE_KERNTYPE_PGTBL_LEAF, COS_OP_ALL, res_pgtbl_offset + i));
 	}
-	COS_CHECK(cap_restbl_create(ct, off, COS_PAGE_KERNTYPE_PGTBL_LEAF, COS_OP_ALL, res_pgtbl_offset + i));
 
 	return COS_RET_SUCCESS;
 }
