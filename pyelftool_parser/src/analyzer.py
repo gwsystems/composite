@@ -36,10 +36,45 @@ class disassembler:
             for section in symbol_tables:
                 for symbol in section.iter_symbols():
                     self.symbol[symbol['st_value']] = symbol.name
-                    self.vertex[symbol['st_value']] = symbol.name                  
+                    self.vertex[symbol['st_value']] = symbol.name
+                            
                     #print(symbol.name)
             #f.close()
-
+    def sym_analyzer(self):
+        sym_info = {}
+        with open(self.path, 'rb') as f:
+            e = ELFFile(f)
+            symbol_tables = [ s for s in e.iter_sections()
+                         if isinstance(s, SymbolTableSection)]
+            for section in symbol_tables:
+                for symbol in section.iter_symbols():
+                    if (symbol['st_size'] == 0):
+                        continue   
+                    sym_info[symbol.name] = {
+                        'address': symbol['st_value'],
+                        'size': symbol['st_size'],
+                        'padding': 0   
+                    }
+            #sort by adress to ensure contiguous symbols
+            sorted_names = sorted(sym_info.keys(),
+            key=lambda name: sym_info[name]['address'],
+            reverse=False)
+            #assign padding based on difference in address
+            for i, name in enumerate(sorted_names):
+                if (i == 0):
+                    continue
+                prev_sym = sym_info[sorted_names[i - 1]]
+                cur_sym = sym_info[name]
+                prev_sym['padding'] = cur_sym['address'] - prev_sym['address'] - prev_sym['size']
+                #sort by size
+            sorted_names = sorted(sym_info.keys(),key=lambda name: sym_info[name]['size'], reverse=True)
+            #print symbols in order of size with padding
+            for name in sorted_names[:10]:
+                cur_sym = sym_info[name]
+                print(
+                    f"Name: {name}, Address: {hex(cur_sym['address'])}, Size: {hex(cur_sym['size'])}, Padding: {hex(cur_sym['padding'])}"
+                )
+    
 class parser:
     def __init__(self, symbol, inst, register, execute):
         self.symbol = symbol 
@@ -76,6 +111,7 @@ class parser:
         print(self.stackfunction)
         print(self.stacklist)
         return (self.stackfunction,self.stacklist)
+    
 
 def driver(disassembler, register, execute, parser):
     path = "../testbench/selftest/a.elf"
@@ -83,10 +119,10 @@ def driver(disassembler, register, execute, parser):
     #path = "../testbench/dhrystone/dhrystone"
     disassembler.disasmsymbol()
     disassembler.disasminst()
-    
+    disassembler.sym_analyzer()
     parser.stack_analyzer()
     print(parser.edge)
-    return parser.stacklist;
+    return parser.stacklist
 
 
 if __name__ == '__main__':
