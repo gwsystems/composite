@@ -6,7 +6,8 @@ script=
 name=
 binary=
 arch=
-
+minlib=
+ 
 initialize()
 {
 	case ${arch} in
@@ -62,10 +63,16 @@ compose()
 	exit 1
 	fi
 
-	echo "[cos executing] src/composer/target/debug/compose $script $name"
-	src/composer/target/debug/compose $script $name
+    if [ -z "$minlib" ]; then
+        echo "[cos executing] src/composer/target/debug/compose $script $name"
+        src/composer/target/debug/compose $script $name
+		local dir="system_binaries/cos_build-${name}"
+    else
+        echo "[cos executing] src/composer/target/debug/compose $script $name $minlib"
+        src/composer/target/debug/compose $script $name $minlib
+		local dir="system_binaries/cos_build_minlib-${name}"
 
-	local dir="system_binaries/cos_build-${name}"
+    fi
 
 	tools/build_iso.sh ${dir}/cos.img
 }
@@ -157,6 +164,7 @@ case $1 in
 	compose )
 		script=$2
 		name=$3
+		minlib=$4
 		compose
 		;;
 	run )

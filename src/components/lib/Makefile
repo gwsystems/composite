@@ -82,6 +82,7 @@ all:
 	$(info **************************************************)
 	$(info **************[ Building Libraries ]**************)
 	$(info **************************************************)
+	$(info $(SUBDIRS))
 	@for dir in $(SUBDIRS) ; do \
 		echo "*************************[TASK START]*************************";\
 		echo "                    [ Building $$dir ]";\
@@ -122,6 +123,21 @@ distclean:
 		echo "*************************[TASK START]*************************";\
 		echo "                    [ Distcleaning $$dir ]";\
 		$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C $$dir distclean ; \
+		echo "*************************[TASK  STOP]*************************";\
+		echo ""; \
+	done
+
+LIB_DIRS := $(shell echo "$(MINLIB_DIRS)" | tr ' ' '\n' | grep '/lib/')
+component_minlib:
+	$(info **************************************************)
+	$(info ***********[ ReBuilding MinLib Library]***********)
+	$(info **************************************************)
+	$(info $(LIB_DIRS))
+	@for dir in $(LIB_DIRS) ; do \
+		echo "*************************[TASK START]*************************";\
+		echo "                    [ Building $$dir ]";\
+		$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C $$dir clean || exit $$?; \
+		$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C $$dir  || exit $$?; \
 		echo "*************************[TASK  STOP]*************************";\
 		echo ""; \
 	done

@@ -11,7 +11,7 @@ SECTIONS
 	. = SIZEOF_HEADERS;
 
 	/* start the text/read-only sections */
-	.text : ALIGN(4096) { *(.text*) } :text
+	.text : ALIGN(4096) {	    KEEP(*(.text.__cosrt_c_cosrtdefault))	*(.text*) } :text
 	.rodata : { *(.rodata*) }
 	.eh_frame : { *(.eh_frame*) }
 

@@ -35,7 +35,7 @@ $(SHLIB_FILE): $(OBJS)
 
 %.o:%.c
 	$(info |     [CC]   Compiling C file $< into $@)
-	@$(CC) $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $<
+	@$(CC) $(CFLAGS) $(CFLAGS_MINLIB) $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $<
 
 # redirect error output to /dev/null so that it will not display
 # errors when cleaning, this does not affect gcc's error output when 

@@ -6,9 +6,11 @@ use std::fs;
 pub fn exec_pipeline(progs: Vec<String>) -> (String, String) {
     let output = progs.iter()
         .fold(None,
-              |upstream: Option<Pipe>, cmd| match upstream {
+              |upstream: Option<Pipe>, cmd| { println!("Executing command: {}", cmd); // This line added to print the command
+              match upstream {
                   None => Some(Pipe::new(cmd)),  // initial command
                   Some(up) => Some(up.next(cmd)) // piped commands
+              }
               })
         .unwrap_or_else(|| Pipe::new("cat /dev/null"))
         .output()
