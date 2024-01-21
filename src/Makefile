@@ -20,6 +20,13 @@ composer:
 component:
 	$(MAKE) $(MAKEOPTIONS) -C components component
 
+component_minlib:
+	$(MAKE) $(MAKEOPTIONS) -C components component_minlib
+
+component_dir:
+	$(MAKE) $(MAKEOPTIONS) -C components component_dir
+
+
 comps:
 	$(info )
 	$(info ***********************************************)
