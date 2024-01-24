@@ -73,8 +73,6 @@ multiboot_mem_parse(struct multiboot_tag *tag)
 			glb_memlayout.kmem_end = mem_addr + mem_len;
 			printk("\t  memory usable at boot time: %lx (%ld MB + %ld KB) [%lx, %lx)\n", sz,
 				MEM_MB_ONLY(sz), MEM_KB_ONLY(sz), glb_memlayout.kern_boot_heap, glb_memlayout.kmem_end);
-			printk("boot_start: %lx, k_start: %lx, mod_end: %lx\n",
-					mem_boot_start(), mem_kmem_start(), glb_memlayout.mod_end);
 		}
 
 		i++;

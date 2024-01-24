@@ -146,7 +146,7 @@ boot_pgtbl_expand(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char 
 			pte_cap->lvl = lvl;
 			/* hook the pte into the boot component's page tables */
 			ret = cap_cons(ct, pgdcap, ptecap, 
-					(capid_t)(user_vaddr + i * (1 << (PAGE_ORDER + (PGTBL_DEPTH - lvl) * PGTBL_ENTRY_ORDER))));
+					(user_vaddr + (capid_t)i * (1 << (PAGE_ORDER + (PGTBL_DEPTH - lvl) * PGTBL_ENTRY_ORDER))));
 			assert(!ret);
 		}
 	}
