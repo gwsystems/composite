@@ -487,17 +487,22 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 	/* ...Finally, populate the capability-tables */
 	printk("\tCapability-table population...\n");
 	COS_CHECK(cos_captbl_node_offset(COS_CAPTBL_MAX_DEPTH - 1, 1, 1, captbl_num, &captbl_lower));
+	/* Leave capability = 0 as empty. */
 	captbl_bump = 1;
+	/* Add the hardware capability first. */
 	COS_CHECK(cap_hw_create(captbl_offset + captbl_lower, captbl_bump++, COS_OP_ALL));
+	/* Add the constructor component into the capability-table. */
 	COS_CHECK(cap_comp_create(captbl_offset + captbl_lower, captbl_bump++, COS_OP_ALL, component_offset));
-	for (i = 0; i < COS_NUM_CPU; i++) {
-		pageref_t thread_ref = i + thread_offset;
-
-		COS_CHECK(cap_thd_create(captbl_offset + captbl_lower, captbl_bump++, COS_OP_ALL, thread_ref));
-	}
-	for (i = 0; i < captbl_num; i++) {
+	/* Add `COS_NUM_CPU` into the capability table */
+	for (i = 0; i < COS_NUM_CPU; i++, captbl_bump++) {
 		uword_t ct  = captbl_offset + captbl_lower + (i / COS_CAPTBL_LEAF_NENT);
-		uword_t off = (i + 3) % COS_CAPTBL_LEAF_NENT; /* offset by two for the return and HW capability */
+
+		COS_CHECK(cap_thd_create(ct, captbl_bump % COS_CAPTBL_LEAF_NENT, COS_OP_ALL, thread_offset + i));
+	}
+	/* Add page-table leaf nodes into the capability-table */
+	for (i = 0; i < captbl_num; i++, captbl_bump++) {
+		uword_t ct  = captbl_offset + captbl_lower + (i / COS_CAPTBL_LEAF_NENT);
+		uword_t off = captbl_bump % COS_CAPTBL_LEAF_NENT;
 
 		COS_CHECK(cap_restbl_create(ct, off, COS_PAGE_KERNTYPE_PGTBL_LEAF, COS_OP_ALL, res_pgtbl_offset + i));
 	}
