@@ -32,7 +32,7 @@
 #define INITARGS_MAX_PATHNAME 512
 #endif
 #ifndef BOOTER_CAPMGR_MB
-#define BOOTER_CAPMGR_MB 512
+#define BOOTER_CAPMGR_MB 4096
 #endif
 #ifndef BOOTER_MAX_CHKPT
 #define BOOTER_MAX_CHKPT 64
@@ -431,7 +431,7 @@ comps_init(void)
 		int keylen;
 		struct crt_comp_exec_context ctxt = { 0 };
 		/* TODO: generalize. Give the capmgr 64MB for now. */
-		size_t mem = BOOTER_CAPMGR_MB * 1024 * 1024;
+		size_t mem = (unsigned long)BOOTER_CAPMGR_MB * 1024 * 1024;
 
 		printc("Capability manager memory delegation (%d capmgrs): %ld MB.\n",
 		       args_len(&comps), (unsigned long)mem / (1024 * 1024));

@@ -156,7 +156,7 @@ boot_pgtbl_expand(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char 
 
 int
 boot_pgtbl_mappings_add(struct captbl *ct, capid_t pgdcap, capid_t ptecap, const char *label, void *kern_vaddr,
-                        unsigned long user_vaddr, unsigned int range, int uvm)
+                        unsigned long user_vaddr, u64_t range, int uvm)
 {
 	int               ret;
 	u8_t *            ptes;

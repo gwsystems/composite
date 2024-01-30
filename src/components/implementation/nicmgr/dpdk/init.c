@@ -347,7 +347,11 @@ cos_nic_init(void)
 	assert(ret == argc - 1); /* program name is excluded */
 
 	/* 2. init all Ether ports */
-	nic_ports = cos_eth_ports_init();
+	while (!nic_ports) {
+		nic_ports = cos_eth_ports_init();
+		printc(".");
+	}
+	printc("\n");
 
 	assert(nic_ports > 0);
 

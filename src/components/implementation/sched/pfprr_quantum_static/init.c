@@ -125,7 +125,7 @@ exit_init_thd(void)
 	struct cos_compinfo    *ci    = cos_compinfo_get(defci);
 	struct slm_thd *current = slm_thd_current_extern();
 
-	if (cos_coreid() == _init_core_id) printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), (compid_t)cos_inv_token());
+	//if (cos_coreid() == _init_core_id) printc("\tScheduler %ld: Exiting thread %ld from component %ld\n", cos_compid(), cos_thdid(), (compid_t)cos_inv_token());
 
 	slm_cs_enter(current, SLM_CS_NONE);
 	slm_thd_deinit(current);		/* I'm out! */
@@ -250,7 +250,7 @@ slm_comp_init_loop(void)
 		n = &initialization_state[client];
 		init_schedule_current++;
 
-		if (cos_coreid() == _init_core_id)	printc("\tScheduler %ld: initializing component %ld with thread %ld.\n", cos_compid(), client, t->tid);
+		//if (cos_coreid() == _init_core_id)	printc("\tScheduler %ld: initializing component %ld with thread %ld.\n", cos_compid(), client, t->tid);
 		/*
 		 * This waits till init_done effective runs before
 		 * moving on. We need to be highest-priority, so that

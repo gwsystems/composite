@@ -87,13 +87,13 @@ SS_STATIC_SLAB(asnd, struct cm_asnd, MAX_NUM_THREADS);
 
 /* 64 MiB */
 #define MB2PAGES(mb) (round_up_to_page(mb * 1024 * 1024) / PAGE_SIZE)
-#define MM_NPAGES (MB2PAGES(512))
+#define MM_NPAGES (MB2PAGES(4096))
 SS_STATIC_SLAB(page, struct mm_page, MM_NPAGES);
 SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 
 SS_STATIC_SLAB(dcb, struct cm_dcb, MAX_NUM_THREADS);
 SS_STATIC_SLAB(dcbinfo, struct cm_dcbinfo, MAX_NUM_THREADS);
-#define CONTIG_PHY_PAGES 70000
+#define CONTIG_PHY_PAGES 72000
 static void * contig_phy_pages = 0;
 
 static struct cm_comp *
