@@ -73,14 +73,14 @@ Good news, we found some [Null-Modem RS232 Serial cables](https://www.amazon.com
 If you've a UNIX-based machine, you could use `minicom` to see the serial output from Composite running on baremetal on your host machine.
 
 To get minicom working with the RS232 Serial to USB cables, you'd need to change the serail port to: `/dev/ttyUSB0` ideally using `minicom -s`. (You should verify this device from the `dmesg` output to be sure you're using the right port).
-Next, you'd need to set up the baudrate to match what composite uses (38400bps).
+Next, you'd need to set up the baudrate to match what composite uses (115200bps).
 To see the logs correctly, you'd need to set the linefeed, carriage return, and linewrap to "Yes".
 
 The contents of my minicom config file `minirc.dfl`:
 ```
 # Machine-generated file - use "minicom -s" to change parameters.
 pu port             /dev/ttyUSB0
-pu baudrate         38400
+pu baudrate         115200
 pu histlines        5000
 pu addlinefeed      Yes
 pu linewrap         Yes
