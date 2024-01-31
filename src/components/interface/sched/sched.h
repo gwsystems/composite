@@ -20,6 +20,7 @@
 #include <cos_stubs.h>
 
 typedef u32_t sched_blkpt_id_t;
+typedef u32_t sched_thd_param_t; //TODO: Added for getting execution and switch count, remove after
 #define SCHED_BLKPT_NULL 0
 typedef word_t sched_blkpt_epoch_t;
 
@@ -33,6 +34,9 @@ int      sched_thd_block(thdid_t dep_id);
 int      COS_STUB_DECL(sched_thd_block)(thdid_t dep_id);
 cycles_t sched_thd_block_timeout(thdid_t dep_id, cycles_t abs_timeout);
 cycles_t COS_STUB_DECL(sched_thd_block_timeout)(thdid_t dep_id, cycles_t abs_timeout);
+//TODO: Added for getting execution and switch count, remove after
+u64_t sched_thd_get_param(thdid_t t, sched_thd_param_t p);
+u64_t COS_STUB_DECL(sched_thd_get_param)(thdid_t t, sched_thd_param_t p);
 
 void     sched_set_tls(void* tls_addr);
 unsigned long sched_get_cpu_freq(void);

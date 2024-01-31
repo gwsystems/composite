@@ -19,7 +19,7 @@ struct runqueue threads[NUM_CPU];
 
 /* No RR based on execution, yet */
 void
-slm_sched_fprr_execution(struct slm_thd *t, cycles_t cycles)
+slm_sched_fprr_execution(struct slm_thd *t, cycles_t cycles, cycles_t now)
 { return; }
 
 /* simply dump a core's task queue for debug usage */
@@ -51,7 +51,7 @@ debug_dump_info(void)
 }
 
 struct slm_thd *
-slm_sched_fprr_schedule(void)
+slm_sched_fprr_schedule(cycles_t now)
 {
 	int i;
 	struct slm_sched_thd *t;

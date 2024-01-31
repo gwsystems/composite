@@ -460,6 +460,42 @@ slm_get_cycs_per_usec(void)
 	return (unsigned long)g->cyc_per_usec;
 }
 
+/* TODO: Added for test purposes */
+void
+slm_thd_get_param(thdid_t tid, slm_thd_params_t param, void* val)
+{
+	struct slm_global *g = slm_global();
+	struct slm_thd *t;
+
+	if (tid == 0) {
+		t = &g->idle_thd;
+	} else if (tid == 1) {
+		t = &g->sched_thd;
+	} else {
+		t = slm_thd_lookup(tid);
+	}
+
+	assert(t);
+	assert(val);
+
+	switch (param)
+	{
+	case SLM_THD_EXEC_TIME:
+	{
+		*(cycles_t*)val = t->total_exec_time;
+		break;
+	}
+	case SLM_THD_SWITCH_CNT:
+	{
+		*(u16_t*)val = t->switch_cnt;
+		break;
+	}
+	default:
+		assert(0);
+		break;
+	}
+}
+
 static void
 slm_sched_loop_intern(int non_block)
 {
@@ -471,6 +507,7 @@ slm_sched_loop_intern(int non_block)
 	/* Only the scheduler thread should call this function. */
 	assert(cos_thdid() == us->tid);
 
+	printc("Scheduler thread id %ld\n", cos_thdid());
 	while (1) {
 		int pending, ret;
 
@@ -552,7 +589,7 @@ pending_events:
 				if (unlikely(slm_state_is_dead(t->state))) continue;
 
 				/* Notify the policy that some execution has happened. */
-				slm_sched_execution(t, cycles);
+				slm_sched_execution(t, cycles, slm_now());
 
 				if (blocked) {
 					assert(cycles);
@@ -570,6 +607,12 @@ pending_events:
 		ret = slm_cs_exit_reschedule(us, SLM_CS_CHECK_TIMEOUT);
 		if (ret && ret != -EAGAIN && ret != -EBUSY) BUG();
 	}
+}
+
+// TODO: Added for tracing, remove
+void slm_idle_iteration(void) 
+{
+	cos_trace_print_buffer();
 }
 
 void
@@ -603,9 +646,15 @@ slm_init(thdcap_t thd, thdid_t tid)
 		.thd = sched_aep->thd,
 		.tid = sched_aep->tid,
 		.rcv = sched_aep->rcv,
+		.total_exec_time = 0,
+		.switch_cnt = 0,
 		.cpuid = cos_cpuid(),
 		.priority = TCAP_PRIO_MAX
 	};
+
+	// Initialize scheduled_thd to scheh_thd
+	g->scheduled_thd = s;
+
 	ps_list_init(s, thd_list);
 	ps_list_init(s, graveyard_list);
 	assert(s->tid == cos_thdid());
@@ -617,6 +666,8 @@ slm_init(thdcap_t thd, thdid_t tid)
 		.thd = thd,
 		.tid = tid,
 		.rcv = 0,
+		.total_exec_time = 0,
+		.switch_cnt = 0,
 		.cpuid = cos_cpuid(),
 		.priority = TCAP_PRIO_MIN
 	};
@@ -627,6 +678,8 @@ slm_init(thdcap_t thd, thdid_t tid)
 	ps_list_head_init(&g->graveyard_head);
 
 	g->cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
+	printc("Cycles per usec: %d\n", g->cyc_per_usec);
+
 	g->lock.owner_contention = 0;
 
 	slm_sched_init();
