@@ -30,8 +30,13 @@ class execute:
             return 0
         
         if len(inst.operands) >= 2:
-            src = inst.op_str.split(",")[1].replace(" ","")
-            dst = inst.op_str.split(",")[0]
+            if(inst.id == X86_INS_FXCH):
+                dst = inst.op_str
+                print("HIHIHI")
+                print(dst)
+            else:
+                src = inst.op_str.split(",")[1].replace(" ","")
+                dst = inst.op_str.split(",")[0]
         elif len(inst.operands) == 1:
             dst = inst.op_str
         for i in inst.operands:

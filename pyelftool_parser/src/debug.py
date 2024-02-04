@@ -1,6 +1,6 @@
 
 DEBUG = True
-DEBUGinst = False
+DEBUGinst = True
 def loginst(*argv):
     if DEBUG and DEBUGinst:
         print(argv)

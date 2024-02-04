@@ -96,9 +96,6 @@ class parser:
             if key in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
                 self.stackfunction.append(self.symbol[key])
                 self.stacklist.append(self.register.reg["stack"])
-                #print(self.symbol[key])
-                #print(register.reg["stack"])
-                #print()
                 self.register.clean()
                 ###### Graph
                 vertexfrom = key
@@ -114,9 +111,6 @@ class parser:
     
 
 def driver(disassembler, register, execute, parser):
-    path = "../testbench/selftest/a.elf"
-    #path = "../usr/bin/gcc"
-    #path = "../testbench/dhrystone/dhrystone"
     disassembler.disasmsymbol()
     disassembler.disasminst()
     disassembler.sym_analyzer()
@@ -126,9 +120,10 @@ def driver(disassembler, register, execute, parser):
 
 
 if __name__ == '__main__':
-    path = "../testbench/selftest/a.elf"
+    #path = "../testbench/selftest/a.elf"
     #path = "../usr/bin/gcc"
     #path = "../testbench/dhrystone/dhrystone"
+    path = "../testbench/composite/tests.unit_pingpong.global.ping"
     
     disassembler = disassembler(path)
     disassembler.disasmsymbol()
