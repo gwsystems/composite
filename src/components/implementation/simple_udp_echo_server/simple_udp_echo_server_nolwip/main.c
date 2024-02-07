@@ -4,6 +4,10 @@
 #include <netshmem.h>
 #include <simple_udp_stack.h>
 
+static volatile thdid_t init_thd = 0;
+volatile int initdone = 0;
+static int initcore = 0;
+
 struct conn_addr {
 	u32_t ip;
 	u16_t port;
@@ -15,10 +19,26 @@ cos_init(void)
 	shm_bm_objid_t objid;
 	struct netshmem_pkt_buf *obj;
 
+	init_thd = cos_thdid();
+	initcore = cos_cpuid();
 	/* create current component's shmem */
 	netshmem_create();
+	//udp_stack_shmem_map(netshmem_get_shm_id());
+	printc("init core init shm done\n");
+}
+
+void
+cos_parallel_init(coreid_t cid, int init_core, int ncores)
+{
+	printc("parallel init\n");
+	if (init_thd != cos_thdid()) {
+		netshemem_move(init_thd, cos_thdid());
+	}
 	udp_stack_shmem_map(netshmem_get_shm_id());
-	printc("app init shm done\n");
+	assert(netshmem_get_shm());
+	if (cos_faa(&initdone, 1) == (NUM_CPU-1) && cos_cpuid() == init_core) {
+		printc("Init done\n");
+	}
 }
 
 int

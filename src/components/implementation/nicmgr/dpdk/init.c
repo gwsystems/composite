@@ -285,6 +285,7 @@ cos_nic_start(){
 
 	char *rx_packets[MAX_PKT_BURST];
 
+	int loop = 1000000000;
 	while (1) {
 #if USE_CK_RING_FREE_MBUF
 		cos_free_rx_buf();
@@ -301,7 +302,8 @@ cos_nic_start(){
 		// if (nb_pkts!= 0) cos_dev_port_tx_burst(0, 0, rx_packets, nb_pkts);
 
 		/* This is the real processing logic for applications */
-		if (nb_pkts != 0) process_rx_packets(0, rx_packets, nb_pkts);
+		if (nb_pkts != 0) assert(0);//process_rx_packets(0, rx_packets, nb_pkts);
+		if (loop-- == 0) cos_get_port_stats(0);
 	}
 }
 
@@ -347,11 +349,7 @@ cos_nic_init(void)
 	assert(ret == argc - 1); /* program name is excluded */
 
 	/* 2. init all Ether ports */
-	while (!nic_ports) {
-		nic_ports = cos_eth_ports_init();
-		printc(".");
-	}
-	printc("\n");
+	nic_ports = cos_eth_ports_init();
 
 	assert(nic_ports > 0);
 

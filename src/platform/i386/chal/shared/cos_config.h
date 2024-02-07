@@ -38,7 +38,7 @@
  */
 #define COS_MEM_KERN_PA (0x00100000)
 #if defined(__x86_64__)
-#define COS_MEM_KERN_PA_ORDER (33)
+#define COS_MEM_KERN_PA_ORDER (35)
 #else
 #define COS_MEM_KERN_PA_ORDER (29)
 #endif
