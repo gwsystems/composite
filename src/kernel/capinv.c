@@ -1067,9 +1067,9 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 
 #define ENABLE_KERNEL_PRINT
 
-static int composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch);
+static sword_t composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch);
 
-COS_SYSCALL __attribute__((section("__ipc_entry"))) int
+COS_SYSCALL __attribute__((section("__ipc_entry"))) sword_t
 composite_syscall_handler(struct pt_regs *regs)
 {
 	struct cap_header *ch;
@@ -1082,7 +1082,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	 * pass it into other functions to avoid redundant lookups.
 	 */
 	struct cos_cpu_local_info *cos_info   = cos_cpu_local_info();
-	int                        ret        = -ENOENT;
+	sword_t                    ret        = -ENOENT;
 	int                        thd_switch = 0;
 
 	/* Definitely do it for all the fast-path calls. */
@@ -1165,14 +1165,14 @@ done:
  * slowpath: other capability operations, most of which
  * involve updating the resource tables.
  */
-static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
+static sword_t __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 {
 	struct cap_header *        ch;
 	struct captbl *            ct;
 	struct thread *            thd;
 	capid_t                    cap, capin;
 	syscall_op_t               op;
-	int                        ret      = -ENOENT;
+	sword_t                    ret      = -ENOENT;
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	struct comp_info          *ci;
 	unsigned long              ip, sp;

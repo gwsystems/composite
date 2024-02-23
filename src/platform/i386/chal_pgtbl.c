@@ -785,7 +785,7 @@ chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t prune
 	return 0;
 }
 
-int
+unsigned long
 chal_pgtbl_introspect(struct cap_header *ch, vaddr_t addr)
 {
 	unsigned long *pte;

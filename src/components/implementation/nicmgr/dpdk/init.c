@@ -285,7 +285,6 @@ cos_nic_start(){
 
 	char *rx_packets[MAX_PKT_BURST];
 
-	int loop = 1000000000;
 	while (1) {
 #if USE_CK_RING_FREE_MBUF
 		cos_free_rx_buf();
@@ -297,13 +296,14 @@ cos_nic_start(){
 
 		// only port 0, queue 0 receive packets
 		nb_pkts = cos_dev_port_rx_burst(0, 0, rx_packets, MAX_PKT_BURST);
+		if (nb_pkts != 0) {
+			process_rx_packets(0, rx_packets, nb_pkts);
+		}
 		/* These are the two test options */
 		// if (nb_pkts!= 0) transmit_back(0, rx_packets, nb_pkts);
 		// if (nb_pkts!= 0) cos_dev_port_tx_burst(0, 0, rx_packets, nb_pkts);
 
 		/* This is the real processing logic for applications */
-		if (nb_pkts != 0) assert(0);//process_rx_packets(0, rx_packets, nb_pkts);
-		if (loop-- == 0) cos_get_port_stats(0);
 	}
 }
 

@@ -32,6 +32,7 @@
 
 typedef unsigned long      word_t;
 typedef unsigned long long dword_t;
+typedef signed long        sword_t;
 typedef u64_t              cycles_t;
 typedef u64_t              microsec_t;
 typedef unsigned long      tcap_res_t;

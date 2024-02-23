@@ -20,7 +20,7 @@ struct rte_port *ports;
 
 static int cos_dpdk_log_type;
 #define COS_DPDK_APP_LOG(level, fmt, args...) \
-	rte_log(RTE_LOG_ ## level, cos_dpdk_log_type, "COD_DPDK_APP: " fmt, ## args)
+	rte_log(RTE_LOG_ ## level, cos_dpdk_log_type, "COS_DPDK_APP: " fmt, ## args)
 
 static cos_portid_t ports_ids[RTE_MAX_ETHPORTS];
 static uint16_t nb_ports = 0;

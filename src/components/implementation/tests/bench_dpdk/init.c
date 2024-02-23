@@ -63,7 +63,7 @@ cos_nic_init(void)
 			"--no-huge",
 			"--iova-mode=pa",
 			"--log-level",
-			"*:info", /* log level can be changed to *debug* if needed, this will print lots of information */
+			"*:debug", /* log level can be changed to *debug* if needed, this will print lots of information */
 			"-m",
 			"64", /* total memory used by dpdk memory subsystem, such as mempool */
 			};
