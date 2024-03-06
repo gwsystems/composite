@@ -281,6 +281,12 @@ cpuid_handler(struct vmrt_vm_vcpu *vcpu)
 	VM_PANIC(vcpu);
 }
 
+CWEAKSYMB void 
+pause_handler(struct vmrt_vm_vcpu *vcpu)
+{
+	VM_PANIC(vcpu);
+}
+
 
 CWEAKSYMB void 
 ctrl_register_access_handler(struct vmrt_vm_vcpu *vcpu)
@@ -431,7 +437,7 @@ vmrt_handle_reason(struct vmrt_vm_vcpu *vcpu, u64_t reason)
 		break;
 	case VM_EXIT_REASON_PAUSE:
 		/* TODO: handle pause exception */
-		GOTO_NEXT_INST(vcpu->shared_region);
+		pause_handler(vcpu);
 		break;
 	case VM_EXIT_REASON_EPT_VIOLATION:
 		ept_violation_handler(vcpu);
@@ -462,7 +468,7 @@ void
 vmrt_vm_vcpu_start(struct vmrt_vm_vcpu *vcpu)
 {
 	/* This is actually just to "push" the vcpu handler thread into run queue. */
-	sched_thd_param_set(vcpu->handler_tid, sched_param_pack(SCHEDP_PRIO, 30));
+	sched_thd_param_set(vcpu->handler_tid, sched_param_pack(SCHEDP_PRIO, 31));
 }
 
 void

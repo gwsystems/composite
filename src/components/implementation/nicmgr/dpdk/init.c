@@ -199,9 +199,6 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 
 		sync_sem_give(&session->sem);
 	}
-	/* yield for some cycles to improve CPU utility */
-	sched_thd_block_timeout(0, 100000);
-
 }
 
 static void
@@ -264,7 +261,6 @@ cos_nic_start(){
 #if ENABLE_DEBUG_INFO
 		debug_dump_info();
 #endif
-		// process_tx_packets();
 
 		// only port 0, queue 0 receive packets
 		nb_pkts = cos_dev_port_rx_burst(0, 0, rx_packets, MAX_PKT_BURST);
@@ -273,7 +269,11 @@ cos_nic_start(){
 		// if (nb_pkts!= 0) cos_dev_port_tx_burst(0, 0, rx_packets, nb_pkts);
 
 		/* This is the real processing logic for applications */
-		if (nb_pkts != 0) process_rx_packets(0, rx_packets, nb_pkts);
+		if (nb_pkts != 0) {
+			process_rx_packets(0, rx_packets, nb_pkts);
+		} else {
+			sched_thd_block_timeout(0, ps_tsc() + 2000*1);
+		}
 	}
 }
 
@@ -363,6 +363,7 @@ void
 cos_init(void)
 {
 	printc("nicmgr init...\n");
+#if 1
 	cos_nic_init();
 	cos_hash_init();
 #ifdef USE_CK_RING_FREE_MBUF
@@ -372,7 +373,27 @@ cos_init(void)
 		sync_lock_init(&tx_lock[i]);
 	}
 
+#endif
 	printc("dpdk init end\n");
+}
+
+thdid_t recv_tid = 0;
+
+#define RECV_THD_PRIORITY 1
+
+static void
+recv_task(void)
+{
+	cos_nic_start();
+}
+
+void
+cos_parallel_init(coreid_t cid, int init_core, int ncores)
+{
+	if(cid == 0) {
+		recv_tid = sched_thd_create((void *)recv_task, NULL);
+		printc("dpdk recv tid :%ld\n", recv_tid);
+	}
 }
 
 int
@@ -380,7 +401,8 @@ parallel_main(coreid_t cid)
 {
 	/* DPDK rx and tx will only run on core 0 */
 	if(cid == 0) {
-		cos_nic_start();
+		sched_thd_param_set(recv_tid, sched_param_pack(SCHEDP_PRIO, RECV_THD_PRIORITY));
+		sched_thd_block(0);
 	} else {
 #if 0
 #if E810_NIC == 0

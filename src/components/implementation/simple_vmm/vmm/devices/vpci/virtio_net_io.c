@@ -322,16 +322,16 @@ virtio_net_rcv_one_pkt(void *data, int pkt_len)
 
 	n = vq_getchain(vcpu, vq, &idx, iov, VIRTIO_NET_MAXSEGS, NULL);
 
-	if (unlikely (n < 1 || n >= VIRTIO_NET_MAXSEGS )) {
-		printc("vtnet: virtio_net_tap_rx: vq_getchain = %d\n", n);
-		assert(0);
-	}
+	// if (unlikely (n < 1 || n >= VIRTIO_NET_MAXSEGS )) {
+	// 	printc("vtnet: virtio_net_tap_rx: vq_getchain = %d\n", n);
+	// 	assert(0);
+	// }
 
 	vrx = iov[0].iov_base;
 	/* every packet needs to be proceeded by a virtio_net_rxhdr header space */
 	riov = rx_iov_trim(iov, &n, sizeof(struct virtio_net_rxhdr));
 
-	assert(iov[0].iov_len >= (size_t)pkt_len);
+	// assert(iov[0].iov_len >= (size_t)pkt_len);
 
 	memcpy(iov[0].iov_base, data, pkt_len);
 
@@ -354,7 +354,9 @@ virtio_net_send_one_pkt(void *data, u16_t *pkt_len)
 	u16_t idx;
 
 	while (!vq_has_descs(vq)) {
-		sched_thd_block(0);
+		*pkt_len = 0;
+		return;
+		// sched_thd_block(0);
 	}
 	vcpu = vq->vcpu;
 
@@ -398,6 +400,14 @@ virtio_net_outb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 	return;
 }
 
+#define REAL_NIC 0
+
+#if REAL_NIC
+static u8_t virtio_net_mac[6] = {0x6c, 0xfe, 0x54, 0x40, 0x41, 0x01};
+#else 
+static u8_t virtio_net_mac[6] = {0x10, 0x10, 0x10, 0x10, 0x10, 0x11};
+#endif
+
 static void 
 virtio_net_inb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 {
@@ -420,22 +430,22 @@ virtio_net_inb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 		break;
 	/* TODO: read mac address from virtio-net config space */
 	case VIRTIO_NET_MAC:
-		vcpu->shared_region->ax = 0x10;
+		vcpu->shared_region->ax = virtio_net_mac[0];
 		break;
 	case VIRTIO_NET_MAC1:
-		vcpu->shared_region->ax = 0x10;
+		vcpu->shared_region->ax = virtio_net_mac[1];
 		break;
 	case VIRTIO_NET_MAC2:
-		vcpu->shared_region->ax = 0x10;
+		vcpu->shared_region->ax = virtio_net_mac[2];
 		break;
 	case VIRTIO_NET_MAC3:
-		vcpu->shared_region->ax = 0x10;
+		vcpu->shared_region->ax = virtio_net_mac[3];
 		break;
 	case VIRTIO_NET_MAC4:
-		vcpu->shared_region->ax = 0x10;
+		vcpu->shared_region->ax = virtio_net_mac[4];
 		break;
 	case VIRTIO_NET_MAC5:
-		vcpu->shared_region->ax = 0x11;
+		vcpu->shared_region->ax = virtio_net_mac[5];
 		break;
 	default:
 		VM_PANIC(vcpu);
@@ -476,7 +486,6 @@ virtio_net_outw(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 		break;
 	case VIRTIO_NET_QUEUE_NOTIFY:
 		if (val == VIRTIO_NET_TXQ) {
-			sched_thd_wakeup(12);
 		}
 		virtio_net_regs.header.queue_notify = val;
 		break;

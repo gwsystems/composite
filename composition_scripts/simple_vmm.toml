@@ -35,7 +35,7 @@ baseaddr = "0x6000000"
 [[components]]
 name = "vmm"
 img  = "simple_vmm.vmm"
-deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}]
 implements = [{interface = "netio"}]
 constructor = "booter"
 baseaddr = "0x2000000"

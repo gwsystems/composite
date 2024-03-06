@@ -2,4 +2,6 @@
 
 cos_asm_stub_indirect(netio_get_a_packet)
 cos_asm_stub(netio_send_packet)
+cos_asm_stub(netio_send_packet_batch)
+cos_asm_stub(netio_get_a_packet_batch)
 cos_asm_stub(netio_shmem_map)

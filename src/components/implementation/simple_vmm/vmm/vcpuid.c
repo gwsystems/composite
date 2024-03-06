@@ -87,7 +87,7 @@ static void init_vcpuid_entry(uint32_t leaf, uint32_t subleaf,
 
 	case 0x06U:
 		cpuid_subleaf(leaf, subleaf, &entry->eax, &entry->ebx, &entry->ecx, &entry->edx);
-		entry->eax &= ~(CPUID_EAX_HWP | CPUID_EAX_HWP_N | CPUID_EAX_HWP_AW | CPUID_EAX_HWP_EPP | CPUID_EAX_HWP_PLR);
+		entry->eax &= ~(CPUID_EAX_DTHERM | CPUID_EAX_HWP | CPUID_EAX_HWP_N | CPUID_EAX_HWP_AW | CPUID_EAX_HWP_EPP | CPUID_EAX_HWP_PLR);
 		entry->ecx &= ~CPUID_ECX_HCFC;
 		break;
 
@@ -545,7 +545,7 @@ static void guest_cpuid_01h(struct vmrt_vm_vcpu *vcpu, uint32_t *eax, uint32_t *
 	/*
 	 * Hide MONITOR/MWAIT.
 	 */
-	*ecx &= ~CPUID_ECX_MONITOR;
+	// *ecx &= ~CPUID_ECX_MONITOR;
 
 	/* Warning: should we support CPUID_ECX_OSXSAVE in VM? Let's begin with not setting it first */
 	*ecx &= ~CPUID_ECX_OSXSAVE;
@@ -557,6 +557,9 @@ static void guest_cpuid_01h(struct vmrt_vm_vcpu *vcpu, uint32_t *eax, uint32_t *
 			*ecx |= CPUID_ECX_OSXSAVE;
 		}
 	}
+
+	/* disable thermal ctrl*/
+	*edx &= ~CPUID_EDX_TM1;
 
 	*edx &= ~CPUID_EDX_VME;
 

@@ -24,13 +24,20 @@ INCBIN(bios, "guest/guest.img")
 static struct vmrt_vm_comp *g_vm;
 
 #define VM_MAX_COMPS (2)
-#define GUEST_MEM_SZ (64*1024*1024)
+#define GUEST_MEM_SZ (320*1024*1024)
 
 SS_STATIC_SLAB(vm_comp, struct vmrt_vm_comp, VM_MAX_COMPS);
 SS_STATIC_SLAB(vm_lapic, struct acrn_vlapic, VM_MAX_COMPS * VMRT_VM_MAX_VCPU);
 SS_STATIC_SLAB(vcpu_inst_ctxt, struct instr_emul_ctxt, VM_MAX_COMPS * VMRT_VM_MAX_VCPU);
 SS_STATIC_SLAB(vm_io_apic, struct acrn_vioapics, VM_MAX_COMPS);
 SS_STATIC_SLAB(vcpu_mmio_req, struct acrn_mmio_request, VM_MAX_COMPS * VMRT_VM_MAX_VCPU);
+
+void 
+pause_handler(struct vmrt_vm_vcpu *vcpu)
+{
+	sched_thd_block_timeout(0, ps_tsc() + 2000*1);
+	GOTO_NEXT_INST(vcpu->shared_region);
+}
 
 void
 mmio_init(struct vmrt_vm_vcpu *vcpu)
@@ -84,7 +91,7 @@ struct vmrt_vm_comp *
 vm_comp_create(void)
 {
 	u64_t guest_mem_sz = GUEST_MEM_SZ;
-	u64_t num_vcpu = NUM_CPU;
+	u64_t num_vcpu = 1;
 	void *start;
 	void *end;
 	cbuf_t shm_id;
@@ -97,7 +104,7 @@ vm_comp_create(void)
 	vmrt_vm_create(vm, "vmlinux-5.15", num_vcpu, guest_mem_sz);
 
 	/* Allocate memory for the VM */
-	shm_id	= contigmem_shared_alloc_aligned(guest_mem_sz / PAGE_SIZE_4K, PAGE_SIZE_4K, (vaddr_t *)&mem);
+	shm_id	= memmgr_shared_page_allocn_aligned(guest_mem_sz / PAGE_SIZE_4K, PAGE_SIZE_4K, (vaddr_t *)&mem);
 	/* Make the memory accessible to VM */
 	memmgr_shared_page_map_aligned_in_vm(shm_id, PAGE_SIZE_4K, (vaddr_t *)&vm_mem, vm->comp_id);
 	vmrt_vm_mem_init(vm, mem);
@@ -130,19 +137,25 @@ vm_comp_create(void)
 void
 cos_init(void)
 {
-	g_vm = vm_comp_create();
 }
 
 void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
 	struct vmrt_vm_vcpu *vcpu;
-	vmrt_vm_vcpu_init(g_vm, cid);
-	vcpu = vmrt_get_vcpu(g_vm, cid);
 
-	lapic_init(vcpu);
-	iinst_ctxt_init(vcpu);
-	mmio_init(vcpu);
+	if (cid != 0 || NUM_CPU == 1)
+	{
+		cid = 0;
+		g_vm = vm_comp_create();
+		vmrt_vm_vcpu_init(g_vm, cid);
+		vcpu = vmrt_get_vcpu(g_vm, cid);
+
+		lapic_init(vcpu);
+		iinst_ctxt_init(vcpu);
+		mmio_init(vcpu);
+	}
+	
 	return;
 }
 
@@ -150,14 +163,18 @@ void
 parallel_main(coreid_t cid)
 {
 	struct vmrt_vm_vcpu *vcpu;
-	vcpu = vmrt_get_vcpu(g_vm, cid);
 
-	vmrt_vm_vcpu_start(vcpu);
-
+	if (cid != 0 || NUM_CPU == 1) {
+		cid = 0;
+		vcpu = vmrt_get_vcpu(g_vm, cid);
+		vmrt_vm_vcpu_start(vcpu);
+	}
 	while (1)
 	{
 		sched_thd_block(0);
 		/* Should not be here, or there is a bug in the scheduler! */
 		assert(0);
 	}
+	
+
 }

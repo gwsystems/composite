@@ -114,6 +114,67 @@ nic_get_a_packet(u16_t *pkt_len)
 	return objid;
 }
 
+shm_bm_objid_t
+nic_get_a_packet_batch(u8_t batch_limit)
+{
+	thdid_t                    thd;	
+	struct pkt_buf             buf;
+	shm_bm_objid_t             objid;
+	struct client_session     *session;
+	struct netshmem_pkt_buf   *obj;
+	shm_bm_objid_t             first_objid;
+	struct netshmem_pkt_buf   *first_obj;
+	struct netshmem_pkt_pri   *first_obj_pri;
+	struct netshmem_meta_tuple *pkt_arr;
+	char *data_buf;
+	char *pkt;
+	int len;
+	u8_t batch_ct = 0;
+
+	thd = cos_thdid();
+
+	session = &client_sessions[thd];	
+
+	obj = first_obj = shm_bm_alloc_net_pkt_buf(session->shemem_info.shm, &objid);
+	assert(obj);
+	first_objid = objid;
+	first_obj_pri = netshmem_get_pri(obj);
+	pkt_arr = (struct netshmem_meta_tuple *)&first_obj_pri->pkt_arr;
+	first_obj_pri->batch_len = 0;
+
+	sync_sem_take(&session->sem);
+
+	assert(!pkt_ring_buf_empty(&session->pkt_ring_buf));
+
+	while (batch_ct < batch_limit && pkt_ring_buf_dequeue(&session->pkt_ring_buf, &buf)) {
+		assert(buf.pkt);
+		if (likely(batch_ct > 0)) {
+			obj = shm_bm_alloc_net_pkt_buf(session->shemem_info.shm, &objid);
+			sync_sem_take(&session->sem);
+			assert(obj);
+		}
+
+		pkt = cos_get_packet(buf.pkt, &len);
+		assert(len < netshmem_get_max_data_buf_sz());
+		
+		data_buf = netshmem_get_data_buf(obj);
+		memcpy(data_buf, pkt, len);
+		pkt_arr[batch_ct].obj_id = objid;
+		pkt_arr[batch_ct].pkt_len = len;
+		batch_ct++;
+
+#if USE_CK_RING_FREE_MBUF
+		while (!pkt_ring_buf_enqueue(&g_free_ring, &buf));
+#else
+		cos_free_packet(buf.pkt);
+#endif
+	}
+
+	first_obj_pri->batch_len = batch_ct;	
+
+	return first_objid;
+}
+
 static void
 ext_buf_free_callback_fn(void *addr, void *opaque)
 {
@@ -175,6 +236,105 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	cos_dev_port_tx_burst(0, core_id - 1, tx_packets, 1);
 	sync_lock_release(&tx_lock[core_id - 1]);
 #endif
+
+	return 0;
+}
+
+void pkt_hex_dump(void *_data, u16_t len)
+{
+    int rowsize = 16;
+    int i, l, linelen, remaining;
+    int li = 0;
+    u8_t *data, ch; 
+
+    data = _data;
+
+    printc("Packet hex dump, len:%d\n", len);
+    remaining = len;
+    for (i = 0; i < len; i += rowsize) {
+        printc("%06d\t", li);
+
+        linelen = remaining < rowsize ? remaining : rowsize;
+        remaining -= rowsize;
+
+        for (l = 0; l < linelen; l++) {
+            ch = data[l];
+            printc( "%02X ", (u32_t) ch);
+        }
+
+        data += linelen;
+        li += 10; 
+
+        printc( "dump done\n");
+    }
+}
+
+int
+nic_send_packet_batch(shm_bm_objid_t pktid)
+{
+	thdid_t                  thd;
+	shm_bm_objid_t           objid;
+	struct pkt_buf           buf;
+	struct netshmem_pkt_buf *obj;
+	shm_bm_objid_t first_objid;
+	struct netshmem_pkt_buf *first_obj;
+	struct netshmem_pkt_pri *first_obj_pri;
+	struct netshmem_meta_tuple *pkt_arr;
+	u16_t pkt_len;
+	u8_t batch_tc = 0;
+	shm_bm_t shm;
+	u64_t   paddr, data_paddr;
+
+	thd   = cos_thdid();
+	objid = pktid;
+
+	paddr = client_sessions[thd].shemem_info.paddr;
+	shm = client_sessions[thd].shemem_info.shm;
+
+	obj = first_obj = shm_bm_transfer_net_pkt_buf(shm, objid);
+
+	first_obj_pri = netshmem_get_pri(first_obj);
+	pkt_arr = (struct netshmem_meta_tuple *)&(first_obj_pri->pkt_arr);
+	batch_tc = first_obj_pri->batch_len;
+
+	pkt_len = pkt_arr[0].pkt_len;
+
+	data_paddr = paddr + (u64_t)obj - (u64_t)shm;
+	
+	char *mbuf;
+	void *ext_shinfo;
+	char *tx_packets[256];
+
+	coreid_t core_id = cos_cpuid();
+#if E810_NIC == 0
+	core_id = 1;
+#endif
+
+	mbuf = cos_allocate_mbuf(g_tx_mp[core_id - 1]);
+	assert(mbuf);
+	ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)obj);
+	cos_attach_external_mbuf(mbuf, obj, data_paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
+	cos_set_external_packet(mbuf, netshmem_get_data_offset(), pkt_len, 1);
+	tx_packets[0] = mbuf;
+	// pkt_hex_dump(netshmem_get_data_buf(obj), pkt_len);
+
+	for (u8_t i = 1; i < batch_tc; i++) {
+		pkt_len = pkt_arr[i].pkt_len;
+		pktid = pkt_arr[i].obj_id;
+		obj = shm_bm_transfer_net_pkt_buf(shm, pktid);
+		data_paddr = paddr + (u64_t)obj - (u64_t)shm;
+
+		mbuf = cos_allocate_mbuf(g_tx_mp[core_id - 1]);
+		assert(mbuf);
+		ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)obj);
+		cos_attach_external_mbuf(mbuf, obj, data_paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
+		cos_set_external_packet(mbuf, netshmem_get_data_offset(), pkt_len, 0);
+		tx_packets[i] = mbuf;
+	}
+
+	// sync_lock_take(&tx_lock[core_id - 1]);
+	cos_dev_port_tx_burst(0, core_id - 1, tx_packets, batch_tc);
+	// sync_lock_release(&tx_lock[core_id - 1]);
 
 	return 0;
 }

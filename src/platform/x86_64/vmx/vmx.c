@@ -118,7 +118,7 @@ vmx_guest_state_init(struct thread *thd)
 	#define DATA_ACCESS_RIGHT (0x3 | 1 << 4 | 1 << 7)
 	#define CODE_ACCESS_RIGHT (0x3 | 1 << 4 | 1 << 7 | 1 << 13)
 	#define LDTR_ACCESS_RIGHT (0x2 | 1 << 7)
-	#define TR_ACCESS_RIGHT (0x3 | 1 << 7)
+	#define TR_ACCESS_RIGHT (0xB | 1 << 7)
 	vmwrite(GUEST_CS_ACCESS_RIGHTS, CODE_ACCESS_RIGHT);
 	vmwrite(GUEST_DS_ACCESS_RIGHTS, DATA_ACCESS_RIGHT);
 	vmwrite(GUEST_ES_ACCESS_RIGHTS, DATA_ACCESS_RIGHT);
