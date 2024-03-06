@@ -6,7 +6,7 @@
 INTERFACE_EXPORTS = netio
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES = contigmem netshmem nic
+INTERFACE_DEPENDENCIES = contigmem netshmem nic sched nic
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
 LIBRARY_DEPENDENCIES = ubench component kernel initargs vmrt shm_bm 

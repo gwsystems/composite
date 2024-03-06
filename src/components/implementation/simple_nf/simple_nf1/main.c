@@ -18,6 +18,9 @@ char rx_nf_buffer[4096];
 #define RX_BATCH 1
 #define TX_BATCH 1
 
+#define RX_PROCESSING 0
+#define TX_PROCESSING 0
+
 static void
 tx_task(void)
 {
@@ -52,13 +55,14 @@ tx_task(void)
 		first_obj_pri = netshmem_get_pri(first_obj);
 		pkt_arr = (struct netshmem_meta_tuple *)&(first_obj_pri->pkt_arr);
 		tx_batch_ct = first_obj_pri->batch_len;
-
+#if TX_PROCESSING
 		for (u8_t i = 0; i < tx_batch_ct; i++) {
 			pkt_len = pkt_arr[i].pkt_len;
 			objid = pkt_arr[i].obj_id;
 			tx_obj = shm_bm_transfer_net_pkt_buf(tx_shmemd, objid);
 			memcpy(tx_nf_buffer, netshmem_get_data_buf(tx_obj), pkt_len);
 		}
+#endif
 		nic_send_packet_batch(first_objid);
 #endif
 	}
@@ -102,13 +106,14 @@ rx_task(void)
 		first_obj_pri = netshmem_get_pri(first_obj);
 		pkt_arr = (struct netshmem_meta_tuple *)&(first_obj_pri->pkt_arr);
 		rx_batch_ct = first_obj_pri->batch_len;
-
+#if RX_PROCESSING
 		for (u8_t i = 0; i < rx_batch_ct; i++) {
 			pkt_len = pkt_arr[i].pkt_len;
 			objid = pkt_arr[i].obj_id;
 			rx_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, objid);
 			memcpy(rx_nf_buffer, netshmem_get_data_buf(rx_obj), pkt_len);
 		}
+#endif
 
 		netio_send_packet_batch(first_objid);
 #endif

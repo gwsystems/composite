@@ -2,6 +2,7 @@
 #include <string.h>
 #include <netshmem.h>
 #include <nic.h>
+#include <sched.h>
 #include <devices/vpci/virtio_net_io.h>
 
 
@@ -116,7 +117,7 @@ netio_send_packet(shm_bm_objid_t pktid, u16_t pkt_len)
 	return 0;
 }
 
-extern int rx_intr;
+
 int
 netio_send_packet_batch(shm_bm_objid_t pktid)
 {
