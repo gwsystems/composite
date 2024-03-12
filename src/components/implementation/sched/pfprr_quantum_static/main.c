@@ -150,6 +150,18 @@ sched_thd_yield_to(thdid_t t)
 	return ret;
 }
 
+int
+sched_thd_yield(void)
+{
+	struct slm_thd *current = slm_thd_current();
+	int ret;
+
+	slm_cs_enter(current, SLM_CS_NONE);
+	slm_sched_yield(current, 0);
+	ret = slm_cs_exit_reschedule(current, SLM_CS_NONE);
+
+	return ret;
+}
 
 void
 sched_set_tls(void* tls_addr)

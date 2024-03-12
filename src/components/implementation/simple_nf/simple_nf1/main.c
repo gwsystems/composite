@@ -7,7 +7,7 @@
 #include <netio.h>
 #include <nic.h>
 
-#define NF_THD_PRIORITY 31
+#define NF_THD_PRIORITY 2
 
 thdid_t rx_tid = 0;
 thdid_t tx_tid = 0;

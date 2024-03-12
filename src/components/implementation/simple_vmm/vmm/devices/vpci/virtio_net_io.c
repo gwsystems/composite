@@ -28,16 +28,68 @@
 #include <assert.h>
 #include <cos_types.h>
 #include <sched.h>
+#include <sync_lock.h>
+#include <nf_session.h>
 #include "virtio_net_io.h"
 #include "vpci.h"
 #include "virtio_ring.h"
 
+#include <netinet/if_ether.h>
+#include <netinet/ip.h>
+#include <netinet/udp.h>
+#include <netinet/tcp.h>
+
+
 /* TODO: remove this warning flag when virtio-net is done */
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 
-static struct virtio_net_io_reg virtio_net_regs;
-static struct virtio_queue virtio_queues[2];
-struct virtio_vq_info virtio_net_vqs[VIRTIO_NET_MAXQ - 1];
+static struct virtio_net_io_reg virtio_net_regs[VMRT_MAX_VM];
+static struct virtio_queue virtio_queues[VMRT_MAX_VM][2];
+static struct virtio_vq_info virtio_net_vqs[VMRT_MAX_VM][VIRTIO_NET_MAXQ - 1];
+
+static inline struct virtio_net_io_reg *get_virtio_net_regs(struct vmrt_vm_vcpu *vcpu) {
+	return &virtio_net_regs[vcpu->vm->comp_id];
+}
+
+static inline struct virtio_queue *get_virtio_queue(struct vmrt_vm_vcpu *vcpu, int nr_queue) {
+	return &virtio_queues[vcpu->vm->comp_id][nr_queue];
+}
+
+static inline struct virtio_vq_info *get_virtio_net_vqs(struct vmrt_vm_comp *vm, int nr_queue) {
+	return &virtio_net_vqs[vm->comp_id][nr_queue];
+}
+
+static u8_t virtio_net_mac[VMRT_MAX_VM][6] = {
+		{0x10, 0x10, 0x10, 0x10, 0x10, 0x11}, 
+		{0x10, 0x10, 0x10, 0x10, 0x10, 0x13},
+		{0x10, 0x10, 0x10, 0x10, 0x10, 0x15},
+		{0x10, 0x10, 0x10, 0x10, 0x10, 0x17},
+		{0x10, 0x10, 0x10, 0x10, 0x10, 0x19},
+		{0x10, 0x10, 0x10, 0x10, 0x10, 0x1a},
+		{0x10, 0x10, 0x10, 0x10, 0x10, 0x1b},
+		{0x10, 0x10, 0x10, 0x10, 0x10, 0x1c},
+		{0x10, 0x10, 0x10, 0x10, 0x10, 0x1d},
+		{0x10, 0x10, 0x10, 0x10, 0x10, 0x1e},
+	};
+
+
+static struct vmrt_vm_comp *mac_to_vm[VMRT_MAX_VM] = {0};
+
+void
+vm_mac_tbl_update(compid_t comp_id, struct vmrt_vm_comp *vm) {
+	mac_to_vm[comp_id] = vm;
+}
+
+struct vmrt_vm_comp *get_vm_from_mac(u8_t *mac) {
+	for (int i = 0; i < VMRT_MAX_VM; i++) {
+		if(!memcmp(virtio_net_mac[i], mac, 6)) {
+			return mac_to_vm[i];
+		}
+	}
+
+	return NULL;
+}
+
 
 static unsigned char icmp_reply[] = {
 	/* TODO: remove icmp reply and process nic input from nic component */
@@ -91,7 +143,7 @@ vq_endchains(struct vmrt_vm_vcpu *vcpu, struct virtio_vq_info *vq, int used_all_
 		    !(vq->avail->flags & VRING_AVAIL_F_NO_INTERRUPT);
 	
 	if (intr) {
-		virtio_net_regs.header.ISR = 1;
+		get_virtio_net_regs(vcpu)->header.ISR = 1;
 		/* TODO: 57 is virtio-net interrupt without io apic, 33 is with io apic */
 #if VMX_SUPPORT_POSTED_INTR
 		vlapic_set_intr(vcpu, 33, 0);
@@ -123,7 +175,8 @@ virtio_vq_init(struct vmrt_vm_vcpu *vcpu, int nr_queue, u32_t pfn)
 	size_t size;
 	char *vb;
 
-	vq = &virtio_net_vqs[nr_queue];
+	vq = get_virtio_net_vqs(vcpu->vm, nr_queue);
+
 	vq->pfn = pfn;
 	phys = (u64_t)pfn << VRING_PAGE_BITS;
 	size = vring_size(vq->qsize, VIRTIO_PCI_VRING_ALIGN);
@@ -311,8 +364,10 @@ virtio_net_rcv_one_pkt(void *data, int pkt_len)
 	int n;
 	u16_t idx;
 	int ret;
+	struct vmrt_vm_comp *vm = get_vm_from_mac(data);
+	assert(vm);
 
-	vq = &virtio_net_vqs[VIRTIO_NET_RXQ];
+	vq = get_virtio_net_vqs(vm, VIRTIO_NET_RXQ);
 	
 	vcpu = vq->vcpu;
 
@@ -344,14 +399,21 @@ virtio_net_rcv_one_pkt(void *data, int pkt_len)
 }
 
 void
-virtio_net_send_one_pkt(void *data, u16_t *pkt_len)
+virtio_net_send_one_pkt(void *data, u16_t *pkt_len, struct vmrt_vm_comp *vm)
 {
-	struct virtio_vq_info *vq = &virtio_net_vqs[VIRTIO_NET_TXQ];
 	struct iovec iov[VIRTIO_NET_MAXSEGS];
 	struct vmrt_vm_vcpu *vcpu;
 	int i, n;
 	int plen, tlen;
 	u16_t idx;
+	struct virtio_vq_info *vq;
+
+	if (unlikely(vm == NULL)) {
+		*pkt_len = 0;
+		return;
+	}
+
+	vq = get_virtio_net_vqs(get_vm_from_mac(((u8_t *)data + 6)), VIRTIO_NET_TXQ);
 
 	while (!vq_has_descs(vq)) {
 		*pkt_len = 0;
@@ -391,7 +453,7 @@ virtio_net_outb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 	switch (port_id)
 	{
 	case VIRTIO_NET_DEV_STATUS:
-		virtio_net_regs.header.dev_status = val;
+		get_virtio_net_regs(vcpu)->header.dev_status = val;
 		break;
 	default:
 		VM_PANIC(vcpu);
@@ -399,14 +461,6 @@ virtio_net_outb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 	}
 	return;
 }
-
-#define REAL_NIC 0
-
-#if REAL_NIC
-static u8_t virtio_net_mac[6] = {0x6c, 0xfe, 0x54, 0x40, 0x41, 0x01};
-#else 
-static u8_t virtio_net_mac[6] = {0x10, 0x10, 0x10, 0x10, 0x10, 0x11};
-#endif
 
 static void 
 virtio_net_inb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
@@ -416,36 +470,38 @@ virtio_net_inb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 	switch (port_id)
 	{
 	case VIRTIO_NET_DEV_STATUS:
-		vcpu->shared_region->ax = virtio_net_regs.header.dev_status;
+		vcpu->shared_region->ax = get_virtio_net_regs(vcpu)->header.dev_status;
 		break;
 	case VIRTIO_NET_ISR:
-		vcpu->shared_region->ax = virtio_net_regs.header.ISR;
-		virtio_net_regs.header.ISR = 0;
+		vcpu->shared_region->ax = get_virtio_net_regs(vcpu)->header.ISR;
+		get_virtio_net_regs(vcpu)->header.ISR = 0;
 		break;
 	case VIRTIO_NET_STATUS:
-		vcpu->shared_region->ax = virtio_net_regs.config_reg.status; 
+		vcpu->shared_region->ax = get_virtio_net_regs(vcpu)->config_reg.status; 
 		break;
 	case VIRTIO_NET_STATUS_H:
-		vcpu->shared_region->ax = virtio_net_regs.config_reg.status >> 8; 
+		vcpu->shared_region->ax = get_virtio_net_regs(vcpu)->config_reg.status >> 8; 
 		break;
 	/* TODO: read mac address from virtio-net config space */
 	case VIRTIO_NET_MAC:
-		vcpu->shared_region->ax = virtio_net_mac[0];
+		vm_mac_tbl_update(vcpu->vm->comp_id, vcpu->vm);
+		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->comp_id][0];
+		mac_to_vm[vcpu->vm->comp_id] = vcpu->vm;
 		break;
 	case VIRTIO_NET_MAC1:
-		vcpu->shared_region->ax = virtio_net_mac[1];
+		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->comp_id][1];
 		break;
 	case VIRTIO_NET_MAC2:
-		vcpu->shared_region->ax = virtio_net_mac[2];
+		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->comp_id][2];
 		break;
 	case VIRTIO_NET_MAC3:
-		vcpu->shared_region->ax = virtio_net_mac[3];
+		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->comp_id][3];
 		break;
 	case VIRTIO_NET_MAC4:
-		vcpu->shared_region->ax = virtio_net_mac[4];
+		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->comp_id][4];
 		break;
 	case VIRTIO_NET_MAC5:
-		vcpu->shared_region->ax = virtio_net_mac[5];
+		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->comp_id][5];
 		break;
 	default:
 		VM_PANIC(vcpu);
@@ -459,14 +515,14 @@ virtio_net_inw(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 	switch (port_id)
 	{
 	case VIRTIO_NET_QUEUE_SIZE:
-		vcpu->shared_region->ax = virtio_queues[virtio_net_regs.header.queue_select].queue_sz;
+		vcpu->shared_region->ax = get_virtio_queue(vcpu, get_virtio_net_regs(vcpu)->header.queue_select)->queue_sz;
 		break;
 	case VIRTIO_NET_QUEUE_SELECT:
-		vcpu->shared_region->ax = virtio_net_regs.header.queue_select;
+		vcpu->shared_region->ax = get_virtio_net_regs(vcpu)->header.queue_select;
 		break;
 	case VIRTIO_NET_QUEUE_NOTIFY:
 		VM_PANIC(vcpu);
-		vcpu->shared_region->ax = virtio_net_regs.header.queue_notify;
+		vcpu->shared_region->ax = get_virtio_net_regs(vcpu)->header.queue_notify;
 		break;
 	default:
 		VM_PANIC(vcpu);
@@ -482,12 +538,13 @@ virtio_net_outw(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 	switch (port_id)
 	{
 	case VIRTIO_NET_QUEUE_SELECT:
-		virtio_net_regs.header.queue_select = val;
+		get_virtio_net_regs(vcpu)->header.queue_select = val;
 		break;
 	case VIRTIO_NET_QUEUE_NOTIFY:
 		if (val == VIRTIO_NET_TXQ) {
+			sched_thd_wakeup(vcpu->vm->tx_thd);
 		}
-		virtio_net_regs.header.queue_notify = val;
+		get_virtio_net_regs(vcpu)->header.queue_notify = val;
 		break;
 	default:
 		VM_PANIC(vcpu);
@@ -504,11 +561,11 @@ virtio_net_outl(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 	switch (port_id)
 	{
 	case VIRTIO_NET_GUEST_FEATURES:
-		virtio_net_regs.header.guest_features = val;
+		get_virtio_net_regs(vcpu)->header.guest_features = val;
 		break;
 	case VIRTIO_NET_QUEUE_ADDR:
-		virtio_queues[virtio_net_regs.header.queue_select].queue = (void *)tmp;
-		virtio_vq_init(vcpu, virtio_net_regs.header.queue_select, val);
+		get_virtio_queue(vcpu, get_virtio_net_regs(vcpu)->header.queue_select)->queue = (void *)tmp;
+		virtio_vq_init(vcpu, get_virtio_net_regs(vcpu)->header.queue_select, val);
 		break;
 	default:
 		VM_PANIC(vcpu);
@@ -523,13 +580,13 @@ virtio_net_inl(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 	switch (port_id)
 	{
 	case VIRTIO_NET_DEV_FEATURES:
-		vcpu->shared_region->ax = virtio_net_regs.header.dev_features;
+		vcpu->shared_region->ax = get_virtio_net_regs(vcpu)->header.dev_features;
 		break;
 	case VIRTIO_NET_GUEST_FEATURES:
-		vcpu->shared_region->ax = virtio_net_regs.header.guest_features;
+		vcpu->shared_region->ax = get_virtio_net_regs(vcpu)->header.guest_features;
 		break;
 	case VIRTIO_NET_QUEUE_ADDR:
-		vcpu->shared_region->ax = virtio_net_regs.header.queue_addr;
+		vcpu->shared_region->ax = get_virtio_net_regs(vcpu)->header.queue_addr;
 		break;
 	default:
 		VM_PANIC(vcpu);
@@ -574,17 +631,116 @@ virtio_net_handler(u16_t port, int dir, int sz, struct vmrt_vm_vcpu *vcpu)
 }
 
 void
+virtio_tx_task(void *data)
+{
+	struct vmrt_vm_comp *vm = (struct vmrt_vm_comp *)data;
+	// printc("virtio tx task :%p, id:%d, tx thd:%d\n", data, vm->comp_id, cos_thdid());
+
+	struct virtio_vq_info *vq;
+	struct iovec iov[VIRTIO_NET_MAXSEGS];
+	struct vmrt_vm_vcpu *vcpu;
+	int i, n;
+	int plen, tlen;
+	u16_t idx;
+	char *pkt;
+	struct netshmem_pkt_buf *tx_obj;
+	shm_bm_objid_t tx_pktid;
+	struct nf_pkt_meta_data buf;
+
+	struct nf_session *session = NULL;
+	shm_bm_t tx_shmemd = 0;
+	u16_t svc_id = 0;
+
+	struct iphdr *iphdr = NULL;
+	struct tcphdr *tcphdr = NULL;
+	struct udphdr *udphdr = NULL;
+
+	vq = get_virtio_net_vqs(vm, VIRTIO_NET_TXQ);
+	while (1) {
+		while (!vq_has_descs(vq)) {
+			sched_thd_block(0);
+		}
+
+		vcpu = vq->vcpu;
+
+		memset(&iov, 0, sizeof(iov));
+
+		n = vq_getchain(vcpu, vq, &idx, iov, VIRTIO_NET_MAXSEGS, NULL);
+		if (unlikely(n < 1 || n >= VIRTIO_NET_MAXSEGS)) {
+			printc("vtnet: virtio_net_proctx: vq_getchain = %d\n", n);
+			assert(0);
+		}
+
+		plen = 0;
+		tlen = iov[0].iov_len;
+		assert(n == 2);
+
+		plen += iov[1].iov_len;
+		tlen += iov[1].iov_len;
+
+		pkt = iov[1].iov_base;
+
+		iphdr = (struct iphdr *) (pkt + ETH_HLEN);
+		unsigned char *srcip = (unsigned char *)&(iphdr->saddr);
+		unsigned char *dstip = (unsigned char *)&(iphdr->daddr);
+
+		if(iphdr->protocol == IPPROTO_TCP)
+		{
+			tcphdr = (struct tcphdr*)((u_int8_t*)iphdr + (iphdr->ihl << 2));
+			svc_id = ntohs(tcphdr->th_sport);
+			svc_id = 0;
+			// printc("tcp svc id:%u\n", svc_id);
+			// length = pdataLen - (iphdr->ihl<<2) - (tcphdr->doff << 2);
+			// payload = (u_int8_t*)( (u_int8_t*)tcphdr + (tcphdr->doff << 2) );
+			// sport = tcphdr->source;
+			// dport = tcphdr->dest;
+
+			// printf("processed one packet:queue_num:%d, id:%d, plen:%d, ret:%d,src ip:%d.%d.%d.%d, dest ip:%d.%d.%d.%d, src port:%u, dst port:%u \n", queue_num, id, plen, ret, IP_ARG(srcip), IP_ARG(dstip), ntohs(tcphdr->source), ntohs(tcphdr->dest));
+		} else if (iphdr->protocol == IPPROTO_UDP) {
+			udphdr = (struct udphdr*)((u_int8_t*)iphdr + (iphdr->ihl << 2));
+			svc_id = ntohs(udphdr->uh_sport);
+			printc("udp svc id:%u\n", svc_id);
+			assert(0);
+
+		}
+
+		session = get_nf_session(vm, svc_id);
+		tx_shmemd = session->tx_shmemd;
+		assert(tx_shmemd);
+
+		if (tx_shmemd != 0) {
+			tx_obj = shm_bm_alloc_net_pkt_buf(tx_shmemd, &tx_pktid);
+			assert(tx_obj);
+			buf.objid = tx_pktid;
+			buf.pkt_len = plen;
+			buf.obj = tx_obj;
+			memcpy(netshmem_get_data_buf(tx_obj), pkt, plen);
+			if (unlikely(!nf_tx_ring_buf_enqueue(&(session->nf_tx_ring_buf), &buf))){
+				shm_bm_free_net_pkt_buf(tx_obj);
+			} else {
+				sched_thd_wakeup(session->tx_thd);
+			}
+		}
+
+		vq_relchain(vq, idx, tlen);
+		vq_endchains(vcpu, vq, 1);
+	}
+}
+
+void
 virtio_net_io_init(void)
 {
 	memset(&virtio_net_regs, 0, sizeof(virtio_net_regs));
 	memset(&virtio_queues, 0, sizeof(virtio_queues));
 	memset(&virtio_net_vqs, 0, sizeof(virtio_net_vqs));
 
-	virtio_net_regs.header.dev_features |= (1 << VIRTIO_NET_F_STATUS);
-	virtio_net_regs.header.dev_features |= (1 << VIRTIO_NET_F_MAC);
-	virtio_net_regs.config_reg.status = VIRTIO_NET_S_LINK_UP;
-	virtio_queues[0].queue_sz = VQ_MAX_DESCRIPTORS;
-	virtio_queues[1].queue_sz = VQ_MAX_DESCRIPTORS;
-	virtio_net_vqs[VIRTIO_NET_RX].qsize = VQ_MAX_DESCRIPTORS;
-	virtio_net_vqs[VIRTIO_NET_TX].qsize = VQ_MAX_DESCRIPTORS;
+	for(int i = 0; i < VMRT_MAX_VM; i++) {
+		virtio_net_regs[i].header.dev_features |= (1 << VIRTIO_NET_F_STATUS);
+		virtio_net_regs[i].header.dev_features |= (1 << VIRTIO_NET_F_MAC);
+		virtio_net_regs[i].config_reg.status = VIRTIO_NET_S_LINK_UP;
+		virtio_queues[i][0].queue_sz = VQ_MAX_DESCRIPTORS;
+		virtio_queues[i][1].queue_sz = VQ_MAX_DESCRIPTORS;
+		virtio_net_vqs[i][VIRTIO_NET_RX].qsize = VQ_MAX_DESCRIPTORS;
+		virtio_net_vqs[i][VIRTIO_NET_TX].qsize = VQ_MAX_DESCRIPTORS;
+	}
 }

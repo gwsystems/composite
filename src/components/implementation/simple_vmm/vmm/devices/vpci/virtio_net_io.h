@@ -91,11 +91,11 @@ struct virtio_net_io_reg {
 	struct virtio_net_config config_reg;
 } __attribute__((packed));
 
-struct iovec
-{
-    void *iov_base;	/* Pointer to data.  */
-    size_t iov_len;	/* Length of data.  */
-};
+// struct iovec
+// {
+//     void *iov_base;	/* Pointer to data.  */
+//     size_t iov_len;	/* Length of data.  */
+// };
 
 struct virtio_vq_info {
 	u16_t qsize;		/* size of this queue (a power of 2) */
@@ -141,4 +141,4 @@ struct virtio_net_rxhdr {
 
 void virtio_net_handler(u16_t port, int dir, int sz, struct vmrt_vm_vcpu *vcpu);
 void virtio_net_rcv_one_pkt(void *data, int pkt_len);
-void virtio_net_send_one_pkt(void *data, u16_t *pkt_len);
+void virtio_net_send_one_pkt(void *data, u16_t *pkt_len, struct vmrt_vm_comp *vm);

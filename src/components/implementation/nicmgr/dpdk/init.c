@@ -197,7 +197,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 		}
 		enqueued_rx++;
 
-		sync_sem_give(&session->sem);
+		// sync_sem_give(&session->sem);
 	}
 }
 
@@ -402,7 +402,6 @@ parallel_main(coreid_t cid)
 	/* DPDK rx and tx will only run on core 0 */
 	if(cid == 0) {
 		sched_thd_param_set(recv_tid, sched_param_pack(SCHEDP_PRIO, RECV_THD_PRIORITY));
-		sched_thd_block(0);
 	} else {
 #if 0
 #if E810_NIC == 0
@@ -414,6 +413,7 @@ parallel_main(coreid_t cid)
 #endif
 #endif
 	}
+	sched_thd_block(0);
 
 	return 0;
 }

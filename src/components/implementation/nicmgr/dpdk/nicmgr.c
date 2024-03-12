@@ -142,15 +142,18 @@ nic_get_a_packet_batch(u8_t batch_limit)
 	pkt_arr = (struct netshmem_meta_tuple *)&first_obj_pri->pkt_arr;
 	first_obj_pri->batch_len = 0;
 
-	sync_sem_take(&session->sem);
+	// sync_sem_take(&session->sem);
 
-	assert(!pkt_ring_buf_empty(&session->pkt_ring_buf));
+	// assert(!pkt_ring_buf_empty(&session->pkt_ring_buf));
+	while (pkt_ring_buf_empty(&session->pkt_ring_buf)) {
+		sched_thd_yield();
+	}
 
 	while (batch_ct < batch_limit && pkt_ring_buf_dequeue(&session->pkt_ring_buf, &buf)) {
 		assert(buf.pkt);
 		if (likely(batch_ct > 0)) {
 			obj = shm_bm_alloc_net_pkt_buf(session->shemem_info.shm, &objid);
-			sync_sem_take(&session->sem);
+			// sync_sem_take(&session->sem);
 			assert(obj);
 		}
 

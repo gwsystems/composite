@@ -468,7 +468,7 @@ void
 vmrt_vm_vcpu_start(struct vmrt_vm_vcpu *vcpu)
 {
 	/* This is actually just to "push" the vcpu handler thread into run queue. */
-	sched_thd_param_set(vcpu->handler_tid, sched_param_pack(SCHEDP_PRIO, 31));
+	sched_thd_param_set(vcpu->handler_tid, sched_param_pack(SCHEDP_PRIO, 2));
 }
 
 void

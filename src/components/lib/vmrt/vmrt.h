@@ -3,6 +3,8 @@
 #include <cos_kernel_api.h>
 #include <consts.h>
 
+#define VMRT_MAX_VM (10)
+
 #define VMRT_VM_NAME_SIZE (32)
 #define VMRT_VM_MAX_VCPU (16)
 
@@ -52,6 +54,8 @@ struct vmrt_vm_comp {
 
 	u8_t num_vcpu;
 	struct vmrt_vm_vcpu vcpus[VMRT_VM_MAX_VCPU];
+
+	thdid_t tx_thd;
 
 	int wire_mode;
 };
