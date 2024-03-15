@@ -302,7 +302,7 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM);
 #endif
 
-	txq_conf.tx_free_thresh = nb_tx_desc - 32;
+	// txq_conf.tx_free_thresh = nb_tx_desc - 32;
 	/* set the txq to enable IP and UDP offload */
 	if (ENABLE_OFFLOAD) {
 		txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;

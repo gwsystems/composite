@@ -12,12 +12,14 @@
 #include <rte_hash_crc.h>
 #include <sync_blkpt.h>
 #include <sync_lock.h>
+#include <cos_time.h>
+#include "simple_hash.h"
 #include "nicmgr.h"
 
 #define ENABLE_DEBUG_INFO 0
 
-#define NB_RX_DESC_DEFAULT 2048
-#define NB_TX_DESC_DEFAULT 1024
+#define NB_RX_DESC_DEFAULT 512
+#define NB_TX_DESC_DEFAULT 512
 
 #define MAX_PKT_BURST NB_RX_DESC_DEFAULT
 
@@ -170,32 +172,52 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 	int i, ret;
 	int len = 0;
 
+	struct eth_hdr		*eth;
 	struct ip_hdr		*iph;
 	struct arp_hdr		*arp_hdr;
 	struct tcp_udp_port	*port;
 	struct client_session	*session;
+	char                    *pkt;
 	struct pkt_buf           buf;
 
 	for (i = 0; i < nb_pkts; i++) {
-		cos_get_packet(rx_pkts[i], &len);
+		pkt = cos_get_packet(rx_pkts[i], &len);
+		eth = (struct eth_hdr *)pkt;
+		if (likely(htons(eth->ether_type) == 0x0800)) {
+			iph	= (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
+			port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
+			u16_t svc_id = ntohs(port->dst_port);
 
-		/* TODO: need a policy spefic rule to route packets to different receiving threads*/
+			session = simple_hash_find(iph->dst_addr, svc_id);
+			// printc("port:%d, session:%p\n", ntohs(port->dst_port), session);
+			buf.pkt = rx_pkts[i];
+			if (likely(session)) {
+				if (unlikely(!pkt_ring_buf_enqueue(&(session->pkt_ring_buf), &buf))){
+					cos_free_packet(rx_pkts[i]);
+					rx_enqueued_miss++;
+					continue;
+				}
+				enqueued_rx++;
 
-		session = cos_hash_lookup(0);
-
-		if (unlikely(session == NULL)) {
-			cos_free_packet(rx_pkts[i]);
+			} else {
+				session = simple_hash_find(iph->dst_addr, 0);
+				if (session) {
+					if (unlikely(!pkt_ring_buf_enqueue(&(session->pkt_ring_buf), &buf))){
+						cos_free_packet(rx_pkts[i]);
+						rx_enqueued_miss++;
+						continue;
+					}
+					enqueued_rx++;
+				} else {
+					rx_enqueued_miss++;
+					cos_free_packet(rx_pkts[i]);
+					continue;
+				}
+			}
+		} else {
+			cos_free_packet(buf.pkt);
 			continue;
 		}
-
-		buf.pkt = rx_pkts[i];
-
-		if (unlikely(!pkt_ring_buf_enqueue(&(session->pkt_ring_buf), &buf))){
-				cos_free_packet(buf.pkt);
-				rx_enqueued_miss++;
-				continue;
-		}
-		enqueued_rx++;
 
 		// sync_sem_give(&session->sem);
 	}
@@ -272,7 +294,9 @@ cos_nic_start(){
 		if (nb_pkts != 0) {
 			process_rx_packets(0, rx_packets, nb_pkts);
 		} else {
-			sched_thd_block_timeout(0, ps_tsc() + 2000*1);
+			// sched_thd_block_timeout(0, ps_tsc() + 2000*10);
+			sched_thd_block_timeout(0, time_now() + time_usec2cyc(1));
+			// sched_thd_block(0);
 		}
 	}
 }
@@ -293,8 +317,8 @@ cos_nic_init(void)
 	 * set max_mbufs 2 times than nb_rx_desc, so that there is enough room
 	 * to store packets, or this will fail if nb_rx_desc <= max_mbufs.
 	 */
-	const size_t max_rx_mbufs = 8 * nb_rx_desc;
-	const size_t max_tx_mbufs = 2 * nb_tx_desc;
+	const size_t max_rx_mbufs = 20 * nb_rx_desc;
+	const size_t max_tx_mbufs = 30 * nb_tx_desc;
 	memset(rx_per_core_mpool_name, 0, sizeof(rx_per_core_mpool_name));
 	memset(tx_per_core_mpool_name, 0, sizeof(tx_per_core_mpool_name));
 
@@ -308,7 +332,7 @@ cos_nic_init(void)
 			"--log-level",
 			"*:info", /* log level can be changed to *debug* if needed, this will print lots of information */
 			"-m",
-			"128", /* total memory used by dpdk memory subsystem, such as mempool */
+			"512", /* total memory used by dpdk memory subsystem, such as mempool */
 			};
 
 	argc = ARRAY_SIZE(argv);
@@ -365,7 +389,8 @@ cos_init(void)
 	printc("nicmgr init...\n");
 #if 1
 	cos_nic_init();
-	cos_hash_init();
+	// cos_hash_init();
+	simple_hash_init();
 #ifdef USE_CK_RING_FREE_MBUF
 	pkt_ring_buf_init(&g_free_ring, FREE_PKT_RBUF_NUM, FREE_PKT_RING_SZ);
 #endif

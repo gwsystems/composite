@@ -1,6 +1,7 @@
 #include <ck_ring.h>
 #include <netshmem.h>
 #include <vmrt.h>
+#include <sync_sem.h>
 
 struct nf_pkt_meta_data {
 	void          *obj;
@@ -20,10 +21,12 @@ struct nf_session {
 	thdid_t rx_thd;
 	thdid_t tx_thd;
 
+	struct sync_sem tx_sem;
+
 	struct nf_tx_ring_buf nf_tx_ring_buf;
 };
 
-#define NF_TX_PKT_RBUF_NUM 512
+#define NF_TX_PKT_RBUF_NUM 32
 #define NF_TX_PKT_RBUF_SZ (NF_TX_PKT_RBUF_NUM * sizeof(struct nf_tx_ring_buf))
 #define NF_TX_PKT_RING_SZ   (sizeof(struct ck_ring) + NF_TX_PKT_RBUF_SZ)
 #define NF_TX_PKT_RING_PAGES (round_up_to_page(NF_TX_PKT_RING_SZ)/PAGE_SIZE)

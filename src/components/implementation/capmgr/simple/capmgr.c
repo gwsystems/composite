@@ -73,12 +73,13 @@ SS_STATIC_SLAB(asnd, struct cm_asnd, MAX_NUM_THREADS);
 
 /* 64 MiB */
 #define MB2PAGES(mb) (round_up_to_page(mb * 1024 * 1024) / PAGE_SIZE)
-#define MM_NPAGES (MB2PAGES(600))
+#define MM_NPAGES (MB2PAGES(6000))
 SS_STATIC_SLAB(page, struct mm_page, MM_NPAGES);
 SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 
-#define CONTIG_PHY_PAGES 70000
-static void * contig_phy_pages = 0;
+#define CONTIG_PHY_PAGES 300000
+static u8_t *contig_phy_pages = 0;
+static u8_t *max_contig_phy_pages = 0;
 
 static struct cm_comp *
 cm_self(void)
@@ -316,7 +317,7 @@ contigmem_alloc(unsigned long npages)
 
 	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
 	contig_phy_pages += npages * PAGE_SIZE;
-	assert((word_t)contig_phy_pages < CONTIG_PHY_PAGES * PAGE_SIZE);
+	assert((word_t)contig_phy_pages < max_contig_phy_pages + CONTIG_PHY_PAGES * PAGE_SIZE);
 	return vaddr;
 }
 
@@ -375,7 +376,7 @@ contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_
 
 	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
 	contig_phy_pages += npages * PAGE_SIZE;
-	assert((word_t)contig_phy_pages < CONTIG_PHY_PAGES * PAGE_SIZE);
+	assert((word_t)contig_phy_pages < max_contig_phy_pages + CONTIG_PHY_PAGES * PAGE_SIZE);
 	return ret;
 }
 
@@ -1021,6 +1022,7 @@ cos_init(void)
 
 	/* Reserve some continuous pages */
 	contig_phy_pages = crt_page_allocn(&cm_self()->comp, CONTIG_PHY_PAGES);
+	max_contig_phy_pages = contig_phy_pages;
 	contigmem_check(cos_compid(), (vaddr_t)contig_phy_pages, CONTIG_PHY_PAGES);
 
 	return;

@@ -22,8 +22,10 @@
 #include <sync_lock.h>
 #include <cos_time.h>
 #include <nf_session.h>
+#include <sync_sem.h>
+#include <arpa/inet.h>
 
-#define NF_THD_PRIORITY 2
+#define NF_THD_PRIORITY 31
 
 #define NO_NF_TEST 1
 
@@ -49,8 +51,10 @@ INCBIN(bios, "guest/guest.img")
 static struct vmrt_vm_comp *g_vm;
 static struct vmrt_vm_comp *g_vm1;
 
+struct vmrt_vm_comp *vm_list[2] = {0};
+
 #define VM_MAX_COMPS (2)
-#define GUEST_MEM_SZ (100*1024*1024)
+#define GUEST_MEM_SZ (310*1024*1024)
 
 SS_STATIC_SLAB(vm_comp, struct vmrt_vm_comp, VM_MAX_COMPS);
 SS_STATIC_SLAB(vm_lapic, struct acrn_vlapic, VM_MAX_COMPS * VMRT_VM_MAX_VCPU);
@@ -60,9 +64,21 @@ SS_STATIC_SLAB(vcpu_mmio_req, struct acrn_mmio_request, VM_MAX_COMPS * VMRT_VM_M
 
 struct sync_lock vm_boot_lock;
 
+static int pause = 0;
+static int hlt = 0;
+
 void 
 pause_handler(struct vmrt_vm_vcpu *vcpu)
 {
+	// printc("paused %d\n", pause++);
+	sched_thd_yield();
+	GOTO_NEXT_INST(vcpu->shared_region);
+}
+
+void 
+hlt_handler(struct vmrt_vm_vcpu *vcpu)
+{
+	// printc("hlt %d\n", hlt++);
 	sched_thd_yield();
 	GOTO_NEXT_INST(vcpu->shared_region);
 }
@@ -223,12 +239,14 @@ rx_task(void)
 	struct netshmem_pkt_pri   *first_obj_pri;
 	struct netshmem_meta_tuple *pkt_arr;
 	u16_t pkt_len;
+	u32_t ip;
 
 	u8_t batch_ct = 50;
 
 	// netio_shmem_map(netshmem_get_shm_id());
 	nic_shmem_map(netshmem_get_shm_id());
-	nic_bind_port(0, 0);
+	ip = inet_addr("10.10.1.2");
+	nic_bind_port(ip, 0);
 
 	int i = 0;
 	u64_t times = 0;
@@ -278,11 +296,13 @@ tx_task(void)
 	struct netshmem_meta_tuple *pkt_arr;
 	u8_t tx_batch_ct = 0;
 	struct netshmem_pkt_buf *tx_obj;
+	u32_t ip;
 
 	shm_bm_t tx_shmemd = 0;
 	tx_shmemd = netshmem_get_shm();
+	ip = inet_addr("10.10.1.2");
 
-	nic_bind_port(0, 1);
+	nic_bind_port(ip, 1);
 	int svc_id = 0;
 
 	nf_svc_update(cos_compid(), cos_thdid(), svc_id, g_vm);
@@ -290,6 +310,7 @@ tx_task(void)
 	struct nf_session *session;
 	session = get_nf_session(g_vm, svc_id);
 	nf_session_tx_update(session, tx_shmemd, cos_thdid());
+	sync_sem_init(&session->tx_sem, 0);
 
 	nf_tx_ring_buf_init(&session->nf_tx_ring_buf, NF_TX_PKT_RBUF_NUM, NF_TX_PKT_RING_SZ);
 
@@ -312,12 +333,16 @@ cos_init(void)
 		struct vmrt_vm_vcpu *vcpu;
 		g_vm = vm_comp_create();
 		printc("created vm done:%d, %p\n", g_vm->comp_id, g_vm);
+		g_vm->vm_mac_id = 0;
 
 		g_vm1 = vm_comp_create();
+		g_vm1->vm_mac_id = 1;
 
 		sync_lock_init(&vm_boot_lock);
 
 		printc("creating vm1 done:%d, %p\n", g_vm1->comp_id, g_vm1);
+		vm_list[0] = g_vm;
+		vm_list[1] = g_vm1;
 }
 
 void
@@ -372,10 +397,10 @@ parallel_main(coreid_t cid)
 #endif
 	} else if(cid == 1) {
 		/* wait for the first vm to start */
-		sched_thd_block_timeout(0, time_now() + time_usec2cyc(10000000));
-		printc("----------------------STARTING SECOND VM----------------------\n");
-		vcpu = vmrt_get_vcpu(g_vm1, 0);
-		vmrt_vm_vcpu_start(vcpu);
+		// sched_thd_block_timeout(0, time_now() + time_usec2cyc(10000000));
+		// printc("----------------------STARTING SECOND VM----------------------\n");
+		// vcpu = vmrt_get_vcpu(g_vm1, 0);
+		// vmrt_vm_vcpu_start(vcpu);
 	}
 
 	while (1)

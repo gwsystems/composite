@@ -158,7 +158,7 @@ sched_thd_yield(void)
 
 	slm_cs_enter(current, SLM_CS_NONE);
 	slm_sched_yield(current, 0);
-	ret = slm_cs_exit_reschedule(current, SLM_CS_NONE);
+	ret = slm_cs_exit_reschedule(current, SLM_CS_CHECK_TIMEOUT);
 
 	return ret;
 }
@@ -180,8 +180,8 @@ thd_block(void)
 
 	slm_cs_enter(current, SLM_CS_NONE);
         ret = slm_thd_block(current);
-	if (!ret) ret = slm_cs_exit_reschedule(current, SLM_CS_NONE);
-	else      slm_cs_exit(NULL, SLM_CS_NONE);
+	if (!ret) ret = slm_cs_exit_reschedule(current, SLM_CS_CHECK_TIMEOUT);
+	else      slm_cs_exit(NULL, SLM_CS_CHECK_TIMEOUT);
 
 	return ret;
 }
@@ -207,7 +207,7 @@ thd_wakeup(struct slm_thd *t)
 		return ret;
 	}
 
-	return slm_cs_exit_reschedule(current, SLM_CS_NONE);
+	return slm_cs_exit_reschedule(current, SLM_CS_CHECK_TIMEOUT);
 }
 
 int
@@ -240,7 +240,7 @@ thd_block_until(cycles_t timeout)
 			slm_timer_cancel(current);
 		}
 done:
-		ret = slm_cs_exit_reschedule(current, SLM_CS_NONE);
+		ret = slm_cs_exit_reschedule(current, SLM_CS_CHECK_TIMEOUT);
 		/* cleanup stale timeouts (e.g. if we were woken outside of the timer) */
 		slm_timer_cancel(current);
 	}

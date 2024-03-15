@@ -101,7 +101,7 @@ slm_blkpt_trigger(sched_blkpt_id_t blkpt, struct slm_thd *current, sched_blkpt_e
 	}
 	ps_lock_release(&m->lock);
 	/* most likely we switch to a woken thread here */
-	slm_cs_exit_reschedule(current, SLM_CS_NONE);
+	slm_cs_exit_reschedule(current, SLM_CS_CHECK_TIMEOUT);
 
 	return 0;
 unlock:
@@ -156,7 +156,7 @@ slm_blkpt_block(sched_blkpt_id_t blkpt, struct slm_thd *current, sched_blkpt_epo
 		ERR_THROW(0, unlock);
 	}
 	ps_lock_release(&m->lock);
-	slm_cs_exit_reschedule(current, SLM_CS_NONE);
+	slm_cs_exit_reschedule(current, SLM_CS_CHECK_TIMEOUT);
 	assert(stacklist_is_removed(&sl));
 
 	return 0;

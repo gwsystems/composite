@@ -5,6 +5,7 @@
 #include <sched.h>
 #include <devices/vpci/virtio_net_io.h>
 #include <nf_session.h>
+#include <sync_sem.h>
 
 shm_bm_objid_t
 netio_get_a_packet(u16_t *pkt_len)
@@ -168,9 +169,10 @@ netio_get_a_packet_batch(u8_t batch_limit)
 	session = get_nf_session(vm, svc_id);
 
 
+	// sync_sem_take(&session->tx_sem);
 	while (nf_tx_ring_buf_empty(&session->nf_tx_ring_buf)) {
-		// sched_thd_yield();
-		sched_thd_block(0);
+		sched_thd_yield();
+		// sched_thd_block(0);
 	}
 
 	assert(nf_tx_ring_buf_dequeue(&session->nf_tx_ring_buf, &buf));
@@ -186,6 +188,7 @@ netio_get_a_packet_batch(u8_t batch_limit)
 	batch_ct++;
 
 	while (batch_ct < batch_limit && nf_tx_ring_buf_dequeue(&session->nf_tx_ring_buf, &buf)) {
+		// printc("netio out a pkt, batch_ct:%d\n", batch_ct);
 		pkt_arr[batch_ct].obj_id = buf.objid;
 		pkt_arr[batch_ct].pkt_len = buf.pkt_len;
 		batch_ct++;
@@ -254,4 +257,25 @@ void
 netio_shmem_map(cbuf_t shm_id)
 {
 	netshmem_map_shmem(shm_id);
+}
+
+extern struct vmrt_vm_comp *vm_list[2];
+
+void
+netio_svc_update(int svc_id, u32_t vm)
+{
+	compid_t nf_id = cos_inv_token();
+	thdid_t thd = cos_thdid(); 
+	assert(vm < 2);
+	shm_bm_t tx_shm = netshmem_get_shm();
+	assert(tx_shm);
+	
+	nf_svc_update(nf_id, thd, svc_id, vm_list[vm]);
+
+	struct nf_session *session;
+	session = get_nf_session(vm_list[vm], svc_id);
+	nf_session_tx_update(session, tx_shm, thd);
+	sync_sem_init(&session->tx_sem, 0);
+
+	nf_tx_ring_buf_init(&session->nf_tx_ring_buf, NF_TX_PKT_RBUF_NUM, NF_TX_PKT_RING_SZ);
 }

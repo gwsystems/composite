@@ -400,6 +400,12 @@ ctrl_register_access_handler(struct vmrt_vm_vcpu *vcpu)
 	}
 }
 
+CWEAKSYMB void 
+hlt_handler(struct vmrt_vm_vcpu *vcpu)
+{
+	VM_PANIC(vcpu);
+}
+
 static inline void
 vmrt_handle_reason(struct vmrt_vm_vcpu *vcpu, u64_t reason)
 {
@@ -414,8 +420,7 @@ vmrt_handle_reason(struct vmrt_vm_vcpu *vcpu, u64_t reason)
 		cpuid_handler(vcpu);
 		break;
 	case VM_EXIT_REASON_HLT:
-		/* TODO: handle hlt exception */
-		VM_PANIC(vcpu);
+		hlt_handler(vcpu);
 		break;
 	case VM_EXIT_REASON_RDTSC:
 		VM_PANIC(vcpu);
@@ -468,7 +473,7 @@ void
 vmrt_vm_vcpu_start(struct vmrt_vm_vcpu *vcpu)
 {
 	/* This is actually just to "push" the vcpu handler thread into run queue. */
-	sched_thd_param_set(vcpu->handler_tid, sched_param_pack(SCHEDP_PRIO, 2));
+	sched_thd_param_set(vcpu->handler_tid, sched_param_pack(SCHEDP_PRIO, 31));
 }
 
 void

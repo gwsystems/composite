@@ -38,6 +38,7 @@
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <netinet/tcp.h>
+#include <sync_sem.h>
 
 
 /* TODO: remove this warning flag when virtio-net is done */
@@ -365,6 +366,10 @@ virtio_net_rcv_one_pkt(void *data, int pkt_len)
 	u16_t idx;
 	int ret;
 	struct vmrt_vm_comp *vm = get_vm_from_mac(data);
+	if (unlikely(vm == NULL)) {
+		printc("vm not exist\n");
+		return;
+	}
 	assert(vm);
 
 	vq = get_virtio_net_vqs(vm, VIRTIO_NET_RXQ);
@@ -484,24 +489,24 @@ virtio_net_inb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 		break;
 	/* TODO: read mac address from virtio-net config space */
 	case VIRTIO_NET_MAC:
-		vm_mac_tbl_update(vcpu->vm->comp_id, vcpu->vm);
-		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->comp_id][0];
+		vm_mac_tbl_update(vcpu->vm->vm_mac_id, vcpu->vm);
+		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->vm_mac_id][0];
 		mac_to_vm[vcpu->vm->comp_id] = vcpu->vm;
 		break;
 	case VIRTIO_NET_MAC1:
-		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->comp_id][1];
+		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->vm_mac_id][1];
 		break;
 	case VIRTIO_NET_MAC2:
-		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->comp_id][2];
+		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->vm_mac_id][2];
 		break;
 	case VIRTIO_NET_MAC3:
-		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->comp_id][3];
+		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->vm_mac_id][3];
 		break;
 	case VIRTIO_NET_MAC4:
-		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->comp_id][4];
+		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->vm_mac_id][4];
 		break;
 	case VIRTIO_NET_MAC5:
-		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->comp_id][5];
+		vcpu->shared_region->ax = virtio_net_mac[vcpu->vm->vm_mac_id][5];
 		break;
 	default:
 		VM_PANIC(vcpu);
@@ -543,6 +548,8 @@ virtio_net_outw(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 	case VIRTIO_NET_QUEUE_NOTIFY:
 		if (val == VIRTIO_NET_TXQ) {
 			sched_thd_wakeup(vcpu->vm->tx_thd);
+			// void virtio_tx_task(void *data);
+			// virtio_tx_task(vcpu->vm);
 		}
 		get_virtio_net_regs(vcpu)->header.queue_notify = val;
 		break;
@@ -659,6 +666,8 @@ virtio_tx_task(void *data)
 	while (1) {
 		while (!vq_has_descs(vq)) {
 			sched_thd_block(0);
+			// sched_thd_yield();
+			// return;
 		}
 
 		vcpu = vq->vcpu;
@@ -702,23 +711,29 @@ virtio_tx_task(void *data)
 			printc("udp svc id:%u\n", svc_id);
 			assert(0);
 
-		}
-
+	}
 		session = get_nf_session(vm, svc_id);
 		tx_shmemd = session->tx_shmemd;
 		assert(tx_shmemd);
 
 		if (tx_shmemd != 0) {
 			tx_obj = shm_bm_alloc_net_pkt_buf(tx_shmemd, &tx_pktid);
-			assert(tx_obj);
-			buf.objid = tx_pktid;
-			buf.pkt_len = plen;
-			buf.obj = tx_obj;
-			memcpy(netshmem_get_data_buf(tx_obj), pkt, plen);
-			if (unlikely(!nf_tx_ring_buf_enqueue(&(session->nf_tx_ring_buf), &buf))){
-				shm_bm_free_net_pkt_buf(tx_obj);
+
+			if (likely(tx_obj != NULL)){
+				buf.objid = tx_pktid;
+				buf.pkt_len = plen;
+				buf.obj = tx_obj;
+				memcpy(netshmem_get_data_buf(tx_obj), pkt, plen);
+				if ((unlikely(!nf_tx_ring_buf_enqueue(&(session->nf_tx_ring_buf), &buf)))){
+					shm_bm_free_net_pkt_buf(tx_obj);
+					sched_thd_yield();
+				} else {
+					// sched_thd_wakeup(session->tx_thd);
+					// sync_sem_give(&session->tx_sem);
+				}
 			} else {
-				sched_thd_wakeup(session->tx_thd);
+				printc("cannot allocate objects\n");
+				assert(0);
 			}
 		}
 

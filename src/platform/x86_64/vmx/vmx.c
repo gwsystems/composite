@@ -199,7 +199,7 @@ vmx_procbased_ctl_init(void)
 	u32_t primary_procbased_ctls = 0;
 	u32_t second_procbased_ctls = 0;
 
-	primary_procbased_ctls =  MWAIT_EXITING | RDPMC_EXITING | USE_TPR_SHADOW 
+	primary_procbased_ctls =  HLT_EXITING | MWAIT_EXITING | RDPMC_EXITING | USE_TPR_SHADOW 
 				| UNCONDITIONAL_IO_EXITING | USE_MSR_BITMAPS
 				| PAUSE_EXITING | ACTIVATE_SECONDARY_CONTROLS;
 	primary_procbased_ctls = fix_reserved_ctrl_bits(IA32_VMX_TRUE_PROCBASED_CTLS, primary_procbased_ctls);

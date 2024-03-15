@@ -12,6 +12,7 @@
 #include <sync_lock.h>
 #include <arpa/inet.h>
 #include "nicmgr.h"
+#include "simple_hash.h"
 
 extern volatile int debug_flag;
 
@@ -183,6 +184,7 @@ ext_buf_free_callback_fn(void *addr, void *opaque)
 {
 	/* Shared mem uses borrow api, thus do not need to free it here */
 	if (addr != NULL) {
+		// printc("???????????????????????????????????\n");
 		shm_bm_free_net_pkt_buf(addr);
 	} else {
 		printc("External buffer address is invalid\n");
@@ -375,7 +377,8 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 	client_sessions[thd].shemem_info.shmid = shmid;
 	client_sessions[thd].shemem_info.shm   = shm;
 	client_sessions[thd].shemem_info.paddr = paddr;
-	cos_hash_add(client_sessions[thd].port, &client_sessions[thd]);
+	// cos_hash_add(client_sessions[thd].port, &client_sessions[thd]);
+	simple_hash_add(client_sessions[thd].ip_addr, client_sessions[thd].port, &client_sessions[thd]);
 
 	sync_sem_init(&client_sessions[thd].sem, 0);
 
