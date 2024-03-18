@@ -8,10 +8,12 @@
 #include <cos_dpdk.h>
 #include <ck_ring.h>
 #include <rte_atomic.h>
+#include <rte_memcpy.h>
 #include <sync_sem.h>
 #include <sync_lock.h>
 #include <arpa/inet.h>
 #include "nicmgr.h"
+#include "fast_memcpy.h"
 #include "simple_hash.h"
 
 extern volatile int debug_flag;
@@ -162,7 +164,9 @@ nic_get_a_packet_batch(u8_t batch_limit)
 		assert(len < netshmem_get_max_data_buf_sz());
 		
 		data_buf = netshmem_get_data_buf(obj);
-		memcpy(data_buf, pkt, len);
+		// memcpy_fast(data_buf, pkt, len);
+		// memcpy(data_buf, pkt, len);
+		rte_memcpy(data_buf, pkt , len);
 		pkt_arr[batch_ct].obj_id = objid;
 		pkt_arr[batch_ct].pkt_len = len;
 		batch_ct++;
@@ -184,7 +188,6 @@ ext_buf_free_callback_fn(void *addr, void *opaque)
 {
 	/* Shared mem uses borrow api, thus do not need to free it here */
 	if (addr != NULL) {
-		// printc("???????????????????????????????????\n");
 		shm_bm_free_net_pkt_buf(addr);
 	} else {
 		printc("External buffer address is invalid\n");

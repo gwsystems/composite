@@ -25,4 +25,5 @@ CFILES+=devices/vrtc/vrtc.c
 CFILES+=devices/vps2/vps2.c
 
 C_OBJS+=$(CFILES:%.c=%.o)
+COMP_FLAGS= -mavx -mavx2 -mfma -I$(LIBDIR)/dpdk/dpdk/build/install/include
 include Makefile.subsubdir

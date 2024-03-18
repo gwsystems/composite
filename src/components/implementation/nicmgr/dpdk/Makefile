@@ -15,4 +15,6 @@ LIBRARY_DEPENDENCIES = component dpdk shm_bm ck sync time
 # the build to fail. The build system does not validate this
 # minimality; that's on you!
 
+COMP_FLAGS= -mavx -mavx2 -mfma
+
 include Makefile.subsubdir

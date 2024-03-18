@@ -4,7 +4,7 @@
 #include <cos_component.h>
 #include <shm_bm.h>
 
-#define PKT_BUF_NUM 128
+#define PKT_BUF_NUM 1024
 #define PKT_BUF_SIZE 2048
 
 struct netshmem {

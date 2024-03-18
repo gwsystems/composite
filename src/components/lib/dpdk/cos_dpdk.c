@@ -114,7 +114,7 @@ cos_eth_ports_init(void)
 	for (i = 0; i < nb_ports; i++) {
 		cos_eth_info_print(ports_ids[i]);
 	}
-#if E810_NIC
+#if 1
 	ports_ids[0] = 1;
 	nb_ports = 1;
 #endif
@@ -302,7 +302,7 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM);
 #endif
 
-	// txq_conf.tx_free_thresh = nb_tx_desc - 32;
+	txq_conf.tx_free_thresh = nb_tx_desc - 32;
 	/* set the txq to enable IP and UDP offload */
 	if (ENABLE_OFFLOAD) {
 		txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
@@ -453,6 +453,7 @@ cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
 char*
 cos_get_packet(char* mbuf, int *len)
 {
+	rte_prefetch0((char *)rte_pktmbuf_mtod((struct rte_mbuf*)mbuf, void *) + 16);
 	*len = ((struct rte_mbuf*)mbuf)->pkt_len;
 	return (char *)rte_pktmbuf_mtod((struct rte_mbuf*)mbuf, struct rte_ether_hdr *);
 }

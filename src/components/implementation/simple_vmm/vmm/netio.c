@@ -19,7 +19,7 @@ netio_get_a_packet(u16_t *pkt_len)
 	tx_obj = shm_bm_alloc_net_pkt_buf(tx_shmemd, &tx_pktid);
 	assert(tx_obj);
 
-	virtio_net_send_one_pkt(tx_obj->data, &_pkt_len, 0);
+	virtio_net_send_one_pkt(tx_obj->data, &_pkt_len);
 	*pkt_len = _pkt_len;
 
 	return tx_pktid;
@@ -160,19 +160,12 @@ netio_get_a_packet_batch(u8_t batch_limit)
 	if (svc_id < 0) {
 		printc("no svc available for this nf:%d, thd:%d\n", nf_id, nf_thd);
 		assert(0);
-		return 0;
 	}
 
-	struct vmrt_vm_comp *vm = nf_svc_tbl[nf_id][nf_thd].vm;
+	session = get_nf_session(svc_id);
 
-	// printc("####################:%d, %d, vm:%d, svc:%d\n", nf_id, nf_thd, vm->comp_id, svc_id);
-	session = get_nf_session(vm, svc_id);
-
-
-	// sync_sem_take(&session->tx_sem);
 	while (nf_tx_ring_buf_empty(&session->nf_tx_ring_buf)) {
 		sched_thd_yield();
-		// sched_thd_block(0);
 	}
 
 	assert(nf_tx_ring_buf_dequeue(&session->nf_tx_ring_buf, &buf));
@@ -273,7 +266,7 @@ netio_svc_update(int svc_id, u32_t vm)
 	nf_svc_update(nf_id, thd, svc_id, vm_list[vm]);
 
 	struct nf_session *session;
-	session = get_nf_session(vm_list[vm], svc_id);
+	session = get_nf_session(svc_id);
 	nf_session_tx_update(session, tx_shm, thd);
 	sync_sem_init(&session->tx_sem, 0);
 

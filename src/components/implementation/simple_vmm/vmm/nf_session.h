@@ -26,7 +26,7 @@ struct nf_session {
 	struct nf_tx_ring_buf nf_tx_ring_buf;
 };
 
-#define NF_TX_PKT_RBUF_NUM 32
+#define NF_TX_PKT_RBUF_NUM 512
 #define NF_TX_PKT_RBUF_SZ (NF_TX_PKT_RBUF_NUM * sizeof(struct nf_tx_ring_buf))
 #define NF_TX_PKT_RING_SZ   (sizeof(struct ck_ring) + NF_TX_PKT_RBUF_SZ)
 #define NF_TX_PKT_RING_PAGES (round_up_to_page(NF_TX_PKT_RING_SZ)/PAGE_SIZE)
@@ -37,7 +37,7 @@ struct nf_session {
 
 #define MAX_SVC_NUM (20000)
 
-struct nf_session *get_nf_session(struct vmrt_vm_comp *vm, int svc_id);
+struct nf_session *get_nf_session(int svc_id);
 void nf_session_tx_update(struct nf_session *session, shm_bm_t tx_shmemd, thdid_t tx_thd);
 void nf_tx_ring_buf_init(struct nf_tx_ring_buf *pkt_ring_buf, size_t ringbuf_num, size_t ringbuf_sz);
 int nf_tx_ring_buf_enqueue(struct nf_tx_ring_buf *pkt_ring_buf, struct nf_pkt_meta_data *buf);

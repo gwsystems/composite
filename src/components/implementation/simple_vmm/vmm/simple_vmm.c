@@ -64,13 +64,9 @@ SS_STATIC_SLAB(vcpu_mmio_req, struct acrn_mmio_request, VM_MAX_COMPS * VMRT_VM_M
 
 struct sync_lock vm_boot_lock;
 
-static int pause = 0;
-static int hlt = 0;
-
 void 
 pause_handler(struct vmrt_vm_vcpu *vcpu)
 {
-	// printc("paused %d\n", pause++);
 	sched_thd_yield();
 	GOTO_NEXT_INST(vcpu->shared_region);
 }
@@ -78,7 +74,6 @@ pause_handler(struct vmrt_vm_vcpu *vcpu)
 void 
 hlt_handler(struct vmrt_vm_vcpu *vcpu)
 {
-	// printc("hlt %d\n", hlt++);
 	sched_thd_yield();
 	GOTO_NEXT_INST(vcpu->shared_region);
 }
@@ -246,6 +241,7 @@ rx_task(void)
 	// netio_shmem_map(netshmem_get_shm_id());
 	nic_shmem_map(netshmem_get_shm_id());
 	ip = inet_addr("10.10.1.2");
+
 	nic_bind_port(ip, 0);
 
 	int i = 0;
@@ -308,19 +304,13 @@ tx_task(void)
 	nf_svc_update(cos_compid(), cos_thdid(), svc_id, g_vm);
 
 	struct nf_session *session;
-	session = get_nf_session(g_vm, svc_id);
+	session = get_nf_session(svc_id);
 	nf_session_tx_update(session, tx_shmemd, cos_thdid());
 	sync_sem_init(&session->tx_sem, 0);
 
 	nf_tx_ring_buf_init(&session->nf_tx_ring_buf, NF_TX_PKT_RBUF_NUM, NF_TX_PKT_RING_SZ);
 
-	while(1) {
-		u8_t batch_ct = 32;
-
-		first_objid = objid = netio_get_a_packet_batch(batch_ct);
-
-		nic_send_packet_batch(first_objid);
-	}
+	virtio_tx_task(0);
 }
 
 void
@@ -335,32 +325,20 @@ cos_init(void)
 		printc("created vm done:%d, %p\n", g_vm->comp_id, g_vm);
 		g_vm->vm_mac_id = 0;
 
-		g_vm1 = vm_comp_create();
-		g_vm1->vm_mac_id = 1;
-
-		sync_lock_init(&vm_boot_lock);
-
-		printc("creating vm1 done:%d, %p\n", g_vm1->comp_id, g_vm1);
 		vm_list[0] = g_vm;
-		vm_list[1] = g_vm1;
 }
 
 void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
 	struct vmrt_vm_vcpu *vcpu;
-#if NO_NF_TEST
+
 	if (cid == 0) {
 		rx_tid = sched_thd_create((void *)rx_task, NULL);
 		netshmem_create(rx_tid);
 		tx_tid = sched_thd_create((void *)tx_task, NULL);
 		netshmem_create(tx_tid);
 		printc("NF rx tid:%ld, tx tid:%ld\n", rx_tid, tx_tid);
-
-		extern void virtio_tx_task(void *data);
-		virtio_tx_tid = sched_thd_create((void *)virtio_tx_task, g_vm);
-		printc("virtio_tx_tid:%d\n", virtio_tx_tid);
-		g_vm->tx_thd = virtio_tx_tid;
 
 		vmrt_vm_vcpu_init(g_vm, 0);
 		vcpu = vmrt_get_vcpu(g_vm, 0);
@@ -370,13 +348,8 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 		mmio_init(vcpu);
 
 	} else {
-		vmrt_vm_vcpu_init(g_vm1, 0);
-		vcpu = vmrt_get_vcpu(g_vm1, 0);
-		lapic_init(vcpu);
-		iinst_ctxt_init(vcpu);
-		mmio_init(vcpu);
+
 	}
-#endif
 	
 	return;
 }
@@ -389,18 +362,12 @@ parallel_main(coreid_t cid)
 	if (cid == 0) {
 		vcpu = vmrt_get_vcpu(g_vm, 0);
 		vmrt_vm_vcpu_start(vcpu);
-#if NO_NF_TEST
+
 		sched_thd_param_set(rx_tid, sched_param_pack(SCHEDP_PRIO, NF_THD_PRIORITY));
 		sched_thd_param_set(tx_tid, sched_param_pack(SCHEDP_PRIO, NF_THD_PRIORITY));
 
-		sched_thd_param_set(virtio_tx_tid, sched_param_pack(SCHEDP_PRIO, NF_THD_PRIORITY));
-#endif
 	} else if(cid == 1) {
-		/* wait for the first vm to start */
-		// sched_thd_block_timeout(0, time_now() + time_usec2cyc(10000000));
-		// printc("----------------------STARTING SECOND VM----------------------\n");
-		// vcpu = vmrt_get_vcpu(g_vm1, 0);
-		// vmrt_vm_vcpu_start(vcpu);
+	
 	}
 
 	while (1)

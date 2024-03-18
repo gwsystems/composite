@@ -5,21 +5,19 @@
 CK_RING_PROTOTYPE(nf_tx_ring_buf, nf_pkt_meta_data);
 
 static char ring_buffers[NF_TX_MAX_RING_NUM][NF_TX_PKT_RING_SZ];
-static struct nf_session nf_sessions[VMRT_MAX_VM][MAX_SVC_NUM];
+static struct nf_session nf_sessions[MAX_SVC_NUM];
 
 void
 nf_sessions_init(void)
 {
-	for (int i = 0; i < VMRT_MAX_VM; i++) {
-		for (int j = 0; j < MAX_SVC_NUM; j++) {
-			nf_sessions[i][j].rx_shmemd = 0;
-			nf_sessions[i][j].rx_thd = 0;
-			nf_sessions[i][j].tx_shmemd = 0;
-			nf_sessions[i][j].tx_thd = 0;
-			nf_sessions[i][j].nf_tx_ring_buf.ring = 0;
-			nf_sessions[i][j].nf_tx_ring_buf.ringbuf = 0;
+	for (int i = 0; i < MAX_SVC_NUM; i++) {
+		nf_sessions[i].rx_shmemd = 0;
+		nf_sessions[i].rx_thd = 0;
+		nf_sessions[i].tx_shmemd = 0;
+		nf_sessions[i].tx_thd = 0;
+		nf_sessions[i].nf_tx_ring_buf.ring = 0;
+		nf_sessions[i].nf_tx_ring_buf.ringbuf = 0;
 
-		}
 	}
 }
 
@@ -62,10 +60,10 @@ nf_tx_ring_buf_empty(struct nf_tx_ring_buf *pkt_ring_buf)
 	return (!ck_ring_size(pkt_ring_buf->ring));
 }
 
-struct nf_session *get_nf_session(struct vmrt_vm_comp *vm, int svc_id)
+struct nf_session *get_nf_session(int svc_id)
 {
-	if (svc_id < 0) return NULL;
-	else return &nf_sessions[vm->comp_id][svc_id];
+	if (unlikely(svc_id < 0 || svc_id > 1000)) return &nf_sessions[0];
+	else return &nf_sessions[svc_id];
 }
 
 void
