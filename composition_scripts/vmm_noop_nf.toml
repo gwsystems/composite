@@ -1,5 +1,5 @@
 [system]
-description = "Simple VMM component."
+description = "Simple VMM"
 
 [[components]]
 name = "booter"
@@ -34,7 +34,7 @@ baseaddr = "0x6000000"
 
 [[components]]
 name = "vmm"
-img  = "simple_vmm.vmm"
+img  = "simple_vmm.noop_nf"
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}]
 implements = [{interface = "netio"}]
 constructor = "booter"

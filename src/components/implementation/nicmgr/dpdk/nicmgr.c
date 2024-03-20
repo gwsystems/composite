@@ -138,19 +138,19 @@ nic_get_a_packet_batch(u8_t batch_limit)
 
 	session = &client_sessions[thd];	
 
-	obj = first_obj = shm_bm_alloc_net_pkt_buf(session->shemem_info.shm, &objid);
-	assert(obj);
-	first_objid = objid;
-	first_obj_pri = netshmem_get_pri(obj);
-	pkt_arr = (struct netshmem_meta_tuple *)&first_obj_pri->pkt_arr;
-	first_obj_pri->batch_len = 0;
-
 	// sync_sem_take(&session->sem);
 
 	// assert(!pkt_ring_buf_empty(&session->pkt_ring_buf));
 	while (pkt_ring_buf_empty(&session->pkt_ring_buf)) {
 		sched_thd_yield();
 	}
+
+	obj = first_obj = shm_bm_alloc_net_pkt_buf(session->shemem_info.shm, &objid);
+	assert(obj);
+	first_objid = objid;
+	first_obj_pri = netshmem_get_pri(obj);
+	pkt_arr = (struct netshmem_meta_tuple *)&first_obj_pri->pkt_arr;
+	first_obj_pri->batch_len = 0;
 
 	while (batch_ct < batch_limit && pkt_ring_buf_dequeue(&session->pkt_ring_buf, &buf)) {
 		assert(buf.pkt);
@@ -340,9 +340,9 @@ nic_send_packet_batch(shm_bm_objid_t pktid)
 		tx_packets[i] = mbuf;
 	}
 
-	// sync_lock_take(&tx_lock[core_id - 1]);
+	sync_lock_take(&tx_lock[core_id - 1]);
 	cos_dev_port_tx_burst(0, core_id - 1, tx_packets, batch_tc);
-	// sync_lock_release(&tx_lock[core_id - 1]);
+	sync_lock_release(&tx_lock[core_id - 1]);
 
 	return 0;
 }

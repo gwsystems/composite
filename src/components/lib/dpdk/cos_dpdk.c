@@ -114,10 +114,11 @@ cos_eth_ports_init(void)
 	for (i = 0; i < nb_ports; i++) {
 		cos_eth_info_print(ports_ids[i]);
 	}
-#if 1
-	ports_ids[0] = 1;
-	nb_ports = 1;
-#endif
+
+	if (nb_ports != 1) {
+		ports_ids[0] = 1;
+		nb_ports = 1;
+	}
 
 	return nb_ports;
 }

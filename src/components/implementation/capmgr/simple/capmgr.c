@@ -512,6 +512,8 @@ memmgr_shared_page_map_aligned_in_vm(cbuf_t id, unsigned long align, vaddr_t *pg
 	return s->n_pages;
 }
 
+struct ps_lock map_lock = {.o = 0};
+
 unsigned long
 memmgr_shared_page_map_aligned(cbuf_t id, unsigned long align, vaddr_t *pgaddr)
 {
@@ -520,6 +522,7 @@ memmgr_shared_page_map_aligned(cbuf_t id, unsigned long align, vaddr_t *pgaddr)
 	struct mm_page *p;
 	unsigned int i;
 	vaddr_t addr;
+	ps_lock_take(&map_lock);
 
 	*pgaddr = 0;
 	s = ss_span_get(id);
@@ -537,6 +540,7 @@ memmgr_shared_page_map_aligned(cbuf_t id, unsigned long align, vaddr_t *pgaddr)
 		if (*pgaddr == 0) *pgaddr = addr;
 		align = PAGE_SIZE; // only the first page can have special alignment
 	}
+	ps_lock_release(&map_lock);
 
 	return s->n_pages;
 }

@@ -360,6 +360,8 @@ parallel_main(coreid_t cid)
 	struct vmrt_vm_vcpu *vcpu;
 	
 	if (cid == 0) {
+		printc("------STARTING VM------\n");
+		sched_thd_block_timeout(0, time_now() + time_usec2cyc(10000000));
 		vcpu = vmrt_get_vcpu(g_vm, 0);
 		vmrt_vm_vcpu_start(vcpu);
 
