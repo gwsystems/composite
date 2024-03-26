@@ -245,7 +245,7 @@ slm_comp_init_loop(void)
 		n = &initialization_state[client];
 		init_schedule_current++;
 
-		if (cos_coreid() == 0)	printc("\tScheduler %ld: initializing component %ld with thread %ld.\n", cos_compid(), client, t->tid);
+		// if (cos_coreid() == 0)	printc("\tScheduler %ld: initializing component %ld with thread %ld.\n", cos_compid(), client, t->tid);
 		/*
 		 * This waits till init_done effective runs before
 		 * moving on. We need to be highest-priority, so that
@@ -260,7 +260,7 @@ slm_comp_init_loop(void)
 		while (ps_load(&n->initialization_thds[cos_coreid()]) == NULL) ;
  	}
 
-	if (cos_coreid() == 0) printc("Scheduler %ld, initialization completed.\n", cos_compid());
+	// if (cos_coreid() == 0) printc("Scheduler %ld, initialization completed.\n", cos_compid());
 
 	/*
 	 * We want to *atomically* awaken all of the threads that will
