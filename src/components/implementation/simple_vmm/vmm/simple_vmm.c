@@ -240,7 +240,7 @@ rx_task(void)
 
 	// netio_shmem_map(netshmem_get_shm_id());
 	nic_shmem_map(netshmem_get_shm_id());
-	ip = inet_addr("10.10.1.2");
+	ip = inet_addr("10.10.1.1");
 
 	nic_bind_port(ip, 0);
 
@@ -296,7 +296,7 @@ tx_task(void)
 
 	shm_bm_t tx_shmemd = 0;
 	tx_shmemd = netshmem_get_shm();
-	ip = inet_addr("10.10.1.2");
+	ip = inet_addr("10.10.1.1");
 
 	nic_bind_port(ip, 1);
 	int svc_id = 0;
@@ -347,10 +347,8 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 		iinst_ctxt_init(vcpu);
 		mmio_init(vcpu);
 
-	} else {
-
 	}
-	
+
 	return;
 }
 
@@ -360,7 +358,6 @@ parallel_main(coreid_t cid)
 	struct vmrt_vm_vcpu *vcpu;
 	
 	if (cid == 0) {
-		printc("------STARTING VM------\n");
 		sched_thd_block_timeout(0, time_now() + time_usec2cyc(10000000));
 		vcpu = vmrt_get_vcpu(g_vm, 0);
 		vmrt_vm_vcpu_start(vcpu);
@@ -368,9 +365,7 @@ parallel_main(coreid_t cid)
 		sched_thd_param_set(rx_tid, sched_param_pack(SCHEDP_PRIO, NF_THD_PRIORITY));
 		sched_thd_param_set(tx_tid, sched_param_pack(SCHEDP_PRIO, NF_THD_PRIORITY));
 
-	} else if(cid == 1) {
-	
-	}
+	} 
 
 	while (1)
 	{

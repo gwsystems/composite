@@ -26,4 +26,7 @@ CFILES+=devices/vps2/vps2.c
 
 C_OBJS+=$(CFILES:%.c=%.o)
 COMP_FLAGS= -mavx -mavx2 -mfma -I$(LIBDIR)/dpdk/dpdk/build/install/include
+private:
+	cd guest && make && cd ..
+
 include Makefile.subsubdir

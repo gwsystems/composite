@@ -47,3 +47,19 @@ deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"
 implements = [{interface = "netio"}]
 constructor = "booter"
 baseaddr = "0x9000000"
+
+[[components]]
+name = "vmm2"
+img  = "simple_vmm.multi_vmm2"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}]
+implements = [{interface = "netio"}]
+constructor = "booter"
+baseaddr = "0xA000000"
+
+[[components]]
+name = "vmm3"
+img  = "simple_vmm.multi_vmm3"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}]
+implements = [{interface = "netio"}]
+constructor = "booter"
+baseaddr = "0xC000000"

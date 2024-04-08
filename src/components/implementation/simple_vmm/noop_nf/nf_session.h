@@ -31,7 +31,7 @@ struct nf_session {
 #define NF_TX_PKT_RING_SZ   (sizeof(struct ck_ring) + NF_TX_PKT_RBUF_SZ)
 #define NF_TX_PKT_RING_PAGES (round_up_to_page(NF_TX_PKT_RING_SZ)/PAGE_SIZE)
 
-#define NF_TX_MAX_RING_NUM 30
+#define NF_TX_MAX_RING_NUM 100
 
 #define MAX_NF_SESSION 10
 

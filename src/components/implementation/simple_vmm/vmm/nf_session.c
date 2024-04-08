@@ -27,7 +27,7 @@ nf_tx_ring_buf_init(struct nf_tx_ring_buf *pkt_ring_buf, size_t ringbuf_num, siz
 	struct ck_ring *buf_addr;
 
 	/* prevent multiple thread from contending memory */
-	assert(cos_thdid() < 30);
+	assert(cos_thdid() < NF_TX_MAX_RING_NUM);
 	buf_addr = (struct ck_ring *)&ring_buffers[cos_thdid()];
 
 	ck_ring_init(buf_addr, ringbuf_num);

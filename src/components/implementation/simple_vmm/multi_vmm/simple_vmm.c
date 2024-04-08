@@ -333,8 +333,7 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
 	struct vmrt_vm_vcpu *vcpu;
 
-	if (cid == 0) {
-	} else {
+	if (cid == 1) {
 		rx_tid = sched_thd_create((void *)rx_task, NULL);
 		netshmem_create(rx_tid);
 		tx_tid = sched_thd_create((void *)tx_task, NULL);
@@ -357,10 +356,8 @@ parallel_main(coreid_t cid)
 {
 	struct vmrt_vm_vcpu *vcpu;
 	
-	if (cid == 0) {
-	} else if(cid == 1) {
+	if(cid == 1) {
 		sched_thd_block_timeout(0, time_now() + time_usec2cyc(20000000));
-		printc("------STARTING SECOND VM------\n");
 		vcpu = vmrt_get_vcpu(g_vm, 0);
 		vmrt_vm_vcpu_start(vcpu);
 

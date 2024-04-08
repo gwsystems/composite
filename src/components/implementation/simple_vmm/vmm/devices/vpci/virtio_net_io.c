@@ -412,11 +412,7 @@ virtio_net_outb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 
 #define REAL_NIC 0
 
-#if REAL_NIC
-static u8_t virtio_net_mac[6] = {0x6c, 0xfe, 0x54, 0x40, 0x41, 0x01};
-#else 
 static u8_t virtio_net_mac[6] = {0x10, 0x10, 0x10, 0x10, 0x10, 0x11};
-#endif
 
 static void 
 virtio_net_inb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
