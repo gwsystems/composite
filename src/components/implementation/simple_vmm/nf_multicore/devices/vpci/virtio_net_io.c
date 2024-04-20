@@ -431,11 +431,7 @@ virtio_net_outb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 
 #define REAL_NIC 0
 
-#if REAL_NIC
-static u8_t virtio_net_mac[6] = {0x6c, 0xfe, 0x54, 0x40, 0x41, 0x01};
-#else 
 static u8_t virtio_net_mac[6] = {0x10, 0x10, 0x10, 0x10, 0x10, 0x11};
-#endif
 
 static void 
 virtio_net_inb(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
@@ -677,7 +673,7 @@ virtio_tx_task(void *data)
 				}
 				first_obj_pri->batch_len = batch_ct;
 				// printc("nic send in tx:%d, %u\n", batch_ct, cos_thdid());
-				nic_send_packet_batch(first_objid);
+				nic_netio_tx_packet_batch(first_objid);
 			}
 
 			sched_thd_yield();

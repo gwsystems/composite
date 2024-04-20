@@ -10,7 +10,7 @@ simple_hash_add(u32_t ip, u16_t port, void *data) {
 	if (!g_hash_tbl[ip % MAX_IP][port]) {
 		g_hash_tbl[ip % MAX_IP][port] = data;
 	} else {
-		printc("hash conflict:ip, port\n", ip, port);
+		printc("hash conflict:ip:%u, port:%u\n", ip, port);
 		assert(0);
 	}
 }

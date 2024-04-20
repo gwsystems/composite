@@ -3,10 +3,10 @@
 #
 # The set of interfaces that this component exports for use by other
 # components. This is a list of the interface names.
-INTERFACE_EXPORTS = netio
+INTERFACE_EXPORTS = vmm_netio_rx vmm_netio_tx vmm_netio_shmem
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES = contigmem netshmem nic sched nic
+INTERFACE_DEPENDENCIES = contigmem netshmem nic_netio_rx nic_netio_tx nic_netio_shmem sched
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
 LIBRARY_DEPENDENCIES = ubench component kernel initargs vmrt shm_bm sync time ck

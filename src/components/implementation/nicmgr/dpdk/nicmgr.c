@@ -4,7 +4,9 @@
 #include <shm_bm.h>
 #include <string.h>
 #include <sched.h>
-#include <nic.h>
+#include <nic_netio_rx.h>
+#include <nic_netio_tx.h>
+#include <nic_netio_shmem.h>
 #include <cos_dpdk.h>
 #include <ck_ring.h>
 #include <rte_atomic.h>
@@ -75,7 +77,7 @@ pkt_ring_buf_empty(struct pkt_ring_buf *pkt_ring_buf)
 }
 
 shm_bm_objid_t
-nic_get_a_packet(u16_t *pkt_len)
+nic_netio_rx_packet(u16_t *pkt_len)
 {
 	thdid_t                    thd;	
 	struct pkt_buf             buf;
@@ -118,7 +120,7 @@ nic_get_a_packet(u16_t *pkt_len)
 }
 
 shm_bm_objid_t
-nic_get_a_packet_batch(u8_t batch_limit)
+nic_netio_rx_packet_batch(u8_t batch_limit)
 {
 	thdid_t                    thd;	
 	struct pkt_buf             buf;
@@ -198,7 +200,7 @@ ext_buf_free_callback_fn(void *addr, void *opaque)
 extern struct sync_lock tx_lock[NUM_CPU];
 
 int
-nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
+nic_netio_tx_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 {
 	thdid_t                  thd;
 	shm_bm_objid_t           objid;
@@ -278,7 +280,7 @@ void pkt_hex_dump(void *_data, u16_t len)
 }
 
 int
-nic_send_packet_batch(shm_bm_objid_t pktid)
+nic_netio_tx_packet_batch(shm_bm_objid_t pktid)
 {
 	thdid_t                  thd;
 	shm_bm_objid_t           objid;
@@ -318,7 +320,7 @@ nic_send_packet_batch(shm_bm_objid_t pktid)
 	core_id = 1;
 #endif
 
-	mbuf = cos_allocate_mbuf(g_tx_mp[core_id - 1]);
+	mbuf = cos_allocate_mbuf(g_tx_mp[core_id]);
 	assert(mbuf);
 	ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)obj);
 	cos_attach_external_mbuf(mbuf, obj, data_paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
@@ -332,7 +334,7 @@ nic_send_packet_batch(shm_bm_objid_t pktid)
 		obj = shm_bm_transfer_net_pkt_buf(shm, pktid);
 		data_paddr = paddr + (u64_t)obj - (u64_t)shm;
 
-		mbuf = cos_allocate_mbuf(g_tx_mp[core_id - 1]);
+		mbuf = cos_allocate_mbuf(g_tx_mp[core_id]);
 		assert(mbuf);
 		ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)obj);
 		cos_attach_external_mbuf(mbuf, obj, data_paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
@@ -340,21 +342,21 @@ nic_send_packet_batch(shm_bm_objid_t pktid)
 		tx_packets[i] = mbuf;
 	}
 
-	sync_lock_take(&tx_lock[core_id - 1]);
-	cos_dev_port_tx_burst(0, core_id - 1, tx_packets, batch_tc);
-	sync_lock_release(&tx_lock[core_id - 1]);
+	sync_lock_take(&tx_lock[core_id]);
+	cos_dev_port_tx_burst(0, core_id, tx_packets, batch_tc);
+	sync_lock_release(&tx_lock[core_id]);
 
 	return 0;
 }
 
 void
-nic_shmem_map(cbuf_t shm_id)
+nic_netio_shmem_map(cbuf_t shm_id)
 {
 	netshmem_map_shmem(shm_id);
 }
 
 int
-nic_bind_port(u32_t ip_addr, u16_t port)
+nic_netio_shmem_bind_port(u32_t ip_addr, u16_t port)
 {
 	unsigned long npages;
 	void         *mem;
@@ -396,7 +398,7 @@ nic_bind_port(u32_t ip_addr, u16_t port)
 }
 
 u64_t
-nic_get_port_mac_address(u16_t port)
+nic_netio_shmem_get_port_mac_address(u16_t port)
 {
 	return cos_get_port_mac_address(port);
 }

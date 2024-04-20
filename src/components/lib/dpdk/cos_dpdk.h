@@ -118,11 +118,11 @@ uint64_t cos_get_port_mac_address(uint16_t port_id);
 
 void cos_test_send(int queue, char *mp);
 
-#define E810_NIC 0
+#define E810_NIC 1
 #define NIC_RX_QUEUE_NUM 1
 
 #if E810_NIC
-#define NIC_TX_QUEUE_NUM (NUM_CPU - 1)
+#define NIC_TX_QUEUE_NUM (NUM_CPU)
 #else
 #define NIC_TX_QUEUE_NUM 1
 #endif

@@ -97,6 +97,10 @@ static void init_vcpuid_entry(uint32_t leaf, uint32_t subleaf,
 
 			entry->ebx &= ~(CPUID_EBX_PQM | CPUID_EBX_PQE);
 
+			entry->eax &= ~CPUID_EAX_XCR0_BNDREGS;
+			entry->eax &= ~CPUID_EAX_XCR0_BNDCSR;
+			entry->ebx &= ~CPUID_EBX_AVX512;
+
 			/* mask LA57 */
 			entry->ecx &= ~CPUID_ECX_LA57;
 

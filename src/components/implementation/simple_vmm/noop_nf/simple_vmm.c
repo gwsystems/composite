@@ -14,8 +14,12 @@
 #include <instr_emul.h>
 #include <acrn_common.h>
 #include <netshmem.h>
-#include <netio.h>
-#include <nic.h>
+#include <vmm_netio_rx.h>
+#include <vmm_netio_tx.h>
+#include <vmm_netio_shmem.h>
+#include <nic_netio_rx.h>
+#include <nic_netio_tx.h>
+#include <nic_netio_shmem.h>
 
 #include <vlapic.h>
 #include <vioapic.h>
@@ -179,7 +183,7 @@ tx_task(void)
 	u16_t pkt_len;
 	shm_bm_objid_t objid;
 
-	nic_shmem_map(netshmem_get_shm_id());
+	nic_netio_shmem_map(netshmem_get_shm_id());
 
 	shm_bm_objid_t           first_objid;
 	struct netshmem_pkt_buf   *first_obj;
@@ -191,9 +195,9 @@ tx_task(void)
 
 	shm_bm_t tx_shmemd = 0;
 	tx_shmemd = netshmem_get_shm();
-	ip = inet_addr("10.10.1.2");
+	ip = inet_addr("10.10.1.1");
 
-	nic_bind_port(ip, 1);
+	nic_netio_shmem_bind_port(ip, 1);
 	int svc_id = 60;
 
 	nf_svc_update(cos_compid(), cos_thdid(), svc_id, g_vm);
@@ -239,10 +243,8 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 		iinst_ctxt_init(vcpu);
 		mmio_init(vcpu);
 
-	} else {
-
 	}
-	
+
 	return;
 }
 
@@ -259,8 +261,6 @@ parallel_main(coreid_t cid)
 
 		sched_thd_param_set(tx_tid, sched_param_pack(SCHEDP_PRIO, NF_THD_PRIORITY));
 
-	} else if(cid == 1) {
-	
 	}
 
 	while (1)

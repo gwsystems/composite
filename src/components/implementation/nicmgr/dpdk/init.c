@@ -1,6 +1,8 @@
 #include <llprint.h>
 #include <cos_dpdk.h>
-#include <nic.h>
+#include <nic_netio_rx.h>
+#include <nic_netio_tx.h>
+#include <nic_netio_shmem.h>
 #include <shm_bm.h>
 #include <netshmem.h>
 #include <sched.h>
@@ -328,7 +330,7 @@ cos_nic_init(void)
 			"--log-level",
 			"*:info", /* log level can be changed to *debug* if needed, this will print lots of information */
 			"-m",
-			"128", /* total memory used by dpdk memory subsystem, such as mempool */
+			"256", /* total memory used by dpdk memory subsystem, such as mempool */
 			};
 
 	argc = ARRAY_SIZE(argv);

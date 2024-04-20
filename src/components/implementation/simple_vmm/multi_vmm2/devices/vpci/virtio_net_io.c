@@ -654,7 +654,7 @@ virtio_tx_task(void *data)
 				}
 				first_obj_pri->batch_len = batch_ct;
 				// printc("nic send in tx:%d, %u\n", batch_ct, cos_thdid());
-				nic_send_packet_batch(first_objid);
+				nic_netio_tx_packet_batch(first_objid);
 			}
 
 			sched_thd_yield();

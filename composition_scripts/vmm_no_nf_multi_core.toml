@@ -28,14 +28,14 @@ baseaddr = "0x1600000"
 name = "nicmgr"
 img  = "nicmgr.dpdk"
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}]
-implements = [{interface = "nic"}]
+implements = [{interface = "nic_netio_rx"}, {interface = "nic_netio_tx"}, {interface = "nic_netio_shmem"}]
 constructor = "booter"
 baseaddr = "0x6000000"
 
 [[components]]
 name = "vmm"
 img  = "simple_vmm.nf_multicore"
-deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}]
-implements = [{interface = "netio"}]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}]
+implements = [{interface = "vmm_netio_rx"}, {interface = "vmm_netio_tx"}, {interface = "vmm_netio_shmem"}]
 constructor = "booter"
 baseaddr = "0x2000000"

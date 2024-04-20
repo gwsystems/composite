@@ -1,6 +1,6 @@
 #include <cos_types.h>
 
-#define MAX_IP 10
+#define MAX_IP 100
 #define MAX_PORT 1000
 
 

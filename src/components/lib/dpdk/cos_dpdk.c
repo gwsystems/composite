@@ -297,7 +297,7 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 	ret = rte_eth_dev_info_get(real_port_id, &dev_info);
 	txq_conf = dev_info.default_txconf;
 
-#if E810_NIC
+#if 0
 	/* We assume the NIC provides both IP & UDP offload capability */
 	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IPV4_CKSUM);
 	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM);

@@ -28,38 +28,70 @@ baseaddr = "0x1600000"
 name = "nicmgr"
 img  = "nicmgr.dpdk"
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}]
-implements = [{interface = "nic"}]
+implements = [{interface = "nic_netio_rx"}, {interface = "nic_netio_tx"}, {interface = "nic_netio_shmem"}]
 constructor = "booter"
 baseaddr = "0x6000000"
 
 [[components]]
 name = "vmm"
 img  = "simple_vmm.vmm"
-deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}]
-implements = [{interface = "netio"}]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}]
+implements = [{interface = "vmm_netio_rx"}, {interface = "vmm_netio_tx"}, {interface = "vmm_netio_shmem"}]
 constructor = "booter"
 baseaddr = "0x2000000"
 
 [[components]]
 name = "vmm1"
 img  = "simple_vmm.multi_vmm"
-deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}]
-implements = [{interface = "netio"}]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}]
+implements = [{interface = "vmm_netio_rx"}, {interface = "vmm_netio_tx"}, {interface = "vmm_netio_shmem"}]
 constructor = "booter"
 baseaddr = "0x9000000"
 
 [[components]]
 name = "vmm2"
 img  = "simple_vmm.multi_vmm2"
-deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}]
-implements = [{interface = "netio"}]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}]
+implements = [{interface = "vmm_netio_rx"}, {interface = "vmm_netio_tx"}, {interface = "vmm_netio_shmem"}]
 constructor = "booter"
 baseaddr = "0xA000000"
 
 [[components]]
 name = "vmm3"
 img  = "simple_vmm.multi_vmm3"
-deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic"}]
-implements = [{interface = "netio"}]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}]
+implements = [{interface = "vmm_netio_rx"}, {interface = "vmm_netio_tx"}, {interface = "vmm_netio_shmem"}]
+constructor = "booter"
+baseaddr = "0xC000000"
+
+[[components]]
+name = "vmm4"
+img  = "simple_vmm.multi_vmm4"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}]
+implements = [{interface = "vmm_netio_rx"}, {interface = "vmm_netio_tx"}, {interface = "vmm_netio_shmem"}]
+constructor = "booter"
+baseaddr = "0xA000000"
+
+[[components]]
+name = "vmm5"
+img  = "simple_vmm.multi_vmm5"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}]
+implements = [{interface = "vmm_netio_rx"}, {interface = "vmm_netio_tx"}, {interface = "vmm_netio_shmem"}]
+constructor = "booter"
+baseaddr = "0xC000000"
+
+[[components]]
+name = "vmm6"
+img  = "simple_vmm.multi_vmm6"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}]
+implements = [{interface = "vmm_netio_rx"}, {interface = "vmm_netio_tx"}, {interface = "vmm_netio_shmem"}]
+constructor = "booter"
+baseaddr = "0xC000000"
+
+[[components]]
+name = "vmm7"
+img  = "simple_vmm.multi_vmm7"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}]
+implements = [{interface = "vmm_netio_rx"}, {interface = "vmm_netio_tx"}, {interface = "vmm_netio_shmem"}]
 constructor = "booter"
 baseaddr = "0xC000000"

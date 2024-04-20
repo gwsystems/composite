@@ -3,7 +3,7 @@
 #
 # The set of interfaces that this component exports for use by other
 # components. This is a list of the interface names.
-INTERFACE_EXPORTS = nic 
+INTERFACE_EXPORTS = nic_netio_rx nic_netio_tx nic_netio_shmem 
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
 INTERFACE_DEPENDENCIES = netshmem

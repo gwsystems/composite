@@ -101,6 +101,9 @@
 #define CPUID_EBX_MPX           (1U<<14U)
 /* CPUID.07H:EBX.SMAP*/
 #define CPUID_EBX_SMAP          (1U<<20U)
+
+#define CPUID_EBX_AVX512        (1U<<16U)
+
 /* CPUID.07H:ECX.UMIP */
 #define CPUID_ECX_UMIP		(1U<<2U)
 /* CPUID.07H:ECX.PKE */

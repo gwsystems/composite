@@ -4,8 +4,12 @@
 #include <netshmem.h>
 #include <res_spec.h>
 #include <sched.h>
-#include <netio.h>
-#include <nic.h>
+#include <vmm_netio_rx.h>
+#include <vmm_netio_tx.h>
+#include <vmm_netio_shmem.h>
+#include <nic_netio_rx.h>
+#include <nic_netio_tx.h>
+#include <nic_netio_shmem.h>
 
 #define NF_THD_PRIORITY 31
 
@@ -37,11 +41,11 @@ rx_task(void)
 	
 	u8_t batch_ct = 50;
 
-	netio_shmem_map(netshmem_get_shm_id());
-	nic_shmem_map(netshmem_get_shm_id());
+	vmm_netio_shmem_map(netshmem_get_shm_id());
+	nic_netio_shmem_map(netshmem_get_shm_id());
 
-	ip = inet_addr("10.10.1.2");
-	nic_bind_port(ip, 0);
+	ip = inet_addr("10.10.1.1");
+	nic_netio_shmem_bind_port(ip, 0);
 
 	int i = 0;
 	u64_t times = 0;
@@ -56,10 +60,10 @@ rx_task(void)
 	{
 		u8_t rx_batch_ct = 0;
 #if !RX_BATCH
-		objid = nic_get_a_packet(&pkt_len);
-		netio_send_packet(objid, pkt_len);
+		objid = nic_netio_rx_packet(&pkt_len);
+		vmm_netio_tx_packet(objid, pkt_len);
 #else
-		first_objid = nic_get_a_packet_batch(batch_ct);
+		first_objid = nic_netio_rx_packet_batch(batch_ct);
 
 		first_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, first_objid);
 		first_obj_pri = netshmem_get_pri(first_obj);
@@ -75,7 +79,7 @@ rx_task(void)
 		}
 #endif
 
-		netio_send_packet_batch(first_objid);
+		vmm_netio_tx_packet_batch(first_objid);
 #endif
 	}
 }
@@ -86,8 +90,8 @@ tx_task(void)
 	u16_t pkt_len;
 	shm_bm_objid_t objid;
 
-	netio_shmem_map(netshmem_get_shm_id());
-	nic_shmem_map(netshmem_get_shm_id());
+	vmm_netio_shmem_map(netshmem_get_shm_id());
+	nic_netio_shmem_map(netshmem_get_shm_id());
 
 	shm_bm_objid_t           first_objid;
 	struct netshmem_pkt_buf   *first_obj;
@@ -101,19 +105,19 @@ tx_task(void)
 	tx_shmemd = netshmem_get_shm();
 	assert(tx_shmemd);
 
-	ip = inet_addr("10.10.1.2");
-	nic_bind_port(ip, 71);
+	ip = inet_addr("10.10.1.1");
+	nic_netio_shmem_bind_port(ip, 71);
 
 	int svc_id = 0;
 
-	netio_svc_update(svc_id, 0);
+	vmm_netio_shmem_svc_update(svc_id, 0);
 
 	while(1) {
 		u8_t batch_ct = 32;
 
-		first_objid = objid = netio_get_a_packet_batch(batch_ct);
+		first_objid = objid = vmm_netio_rx_packet_batch(batch_ct);
 
-		nic_send_packet_batch(first_objid);
+		nic_netio_tx_packet_batch(first_objid);
 	}
 }
 

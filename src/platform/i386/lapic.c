@@ -38,7 +38,7 @@ struct ioapic_cntl {
 } __attribute__((packed));
 
 volatile int ncpus = 1;
-volatile int apicids[NUM_CPU];
+volatile int apicids[512];
 
 #define CMOS_PORT    0x70
 
@@ -205,7 +205,7 @@ lapic_intsrc_iter(unsigned char *madt)
 			assert(l->header.len == sizeof(struct lapic_cntl));
 			printk("\tLAPIC found: coreid %d, apicid %d flags %d\n", l->proc_id, l->apic_id, l->flags);
 
-			if (l->apic_id != us && l->flags && ncpus < NUM_CPU && NUM_CPU > 1) {
+			if (l->apic_id != us && l->flags && NUM_CPU > 1) {
 				apicids[off++] = l->apic_id;
 				ncpus++;
 			}
@@ -227,6 +227,13 @@ lapic_intsrc_iter(unsigned char *madt)
 		}
 	}
 	printk("\tAPICs processed, %d cores\n", ncpus);
+
+	/* The second core of the real server is not working, delete it from the cpu list */
+	for (int i = 1; i < ncpus; i++) {
+		apicids[i] = apicids[i + 1];
+	}
+	/* Now restore the number of cpu this system can use */
+	ncpus = NUM_CPU;
 
 	if (ncpus != NUM_CPU) {
 		printk("Number of LAPICs processed =%d not meeting the requirement = %d\n", ncpus, NUM_CPU);

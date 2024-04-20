@@ -1,14 +1,18 @@
-#include <netio.h>
+#include <vmm_netio_rx.h>
+#include <vmm_netio_tx.h>
+#include <vmm_netio_shmem.h>
 #include <string.h>
 #include <netshmem.h>
-#include <nic.h>
+#include <nic_netio_rx.h>
+#include <nic_netio_tx.h>
+#include <nic_netio_shmem.h>
 #include <sched.h>
 #include <devices/vpci/virtio_net_io.h>
 #include <nf_session.h>
 #include <sync_sem.h>
 
 shm_bm_objid_t
-netio_get_a_packet(u16_t *pkt_len)
+vmm_netio_rx_packet(u16_t *pkt_len)
 {
 	struct netshmem_pkt_buf *tx_obj;
 	shm_bm_t tx_shmemd = 0;
@@ -56,7 +60,7 @@ void pkt_hex_dump(void *_data, u16_t len)
 
 #if 0
 shm_bm_objid_t
-netio_get_a_packet_batch(u8_t batch_limit)
+vmm_netio_rx_packet_batch(u8_t batch_limit)
 {
 	struct netshmem_pkt_buf *tx_obj;
 	shm_bm_t tx_shmemd = 0;
@@ -138,7 +142,7 @@ nf_svc_init(void)
 }
 
 shm_bm_objid_t
-netio_get_a_packet_batch(u8_t batch_limit)
+vmm_netio_rx_packet_batch(u8_t batch_limit)
 {
 	shm_bm_objid_t             first_objid;
 	struct netshmem_pkt_buf   *first_obj;
@@ -192,7 +196,7 @@ netio_get_a_packet_batch(u8_t batch_limit)
 }
 
 int
-netio_send_packet(shm_bm_objid_t pktid, u16_t pkt_len)
+vmm_netio_tx_packet(shm_bm_objid_t pktid, u16_t pkt_len)
 {
 	struct netshmem_pkt_buf *rx_obj;
 	shm_bm_t rx_shmemd = 0;
@@ -208,7 +212,7 @@ netio_send_packet(shm_bm_objid_t pktid, u16_t pkt_len)
 
 
 int
-netio_send_packet_batch(shm_bm_objid_t pktid)
+vmm_netio_tx_packet_batch(shm_bm_objid_t pktid)
 {
 	struct netshmem_pkt_buf *rx_obj;
 	shm_bm_objid_t first_objid;
@@ -247,7 +251,7 @@ netio_send_packet_batch(shm_bm_objid_t pktid)
 }
 
 void
-netio_shmem_map(cbuf_t shm_id)
+vmm_netio_shmem_map(cbuf_t shm_id)
 {
 	netshmem_map_shmem(shm_id);
 }
@@ -255,7 +259,7 @@ netio_shmem_map(cbuf_t shm_id)
 extern struct vmrt_vm_comp *vm_list[2];
 
 void
-netio_svc_update(int svc_id, u32_t vm)
+vmm_netio_shmem_svc_update(int svc_id, u32_t vm)
 {
 	compid_t nf_id = cos_inv_token();
 	thdid_t thd = cos_thdid(); 
