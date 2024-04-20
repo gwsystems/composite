@@ -681,7 +681,7 @@ virtio_tx_task(void *data)
 
 		iphdr = (struct iphdr *) (pkt + ETH_HLEN);
 		port	= (struct tcp_udp_port *)((char *)pkt + ETH_HLEN + iphdr->ihl * 4);
-		u16_t svc_id = ntohs(port->dst_port);
+		u16_t svc_id = ntohs(port->src_port);
 		
 		session = get_nf_session(svc_id);
 		
