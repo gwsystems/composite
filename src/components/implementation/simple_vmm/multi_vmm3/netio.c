@@ -113,8 +113,8 @@ struct nf_svc {
 	struct vmrt_vm_comp  *vm;
 };
 
-#define MAX_NFS 10
-#define MAX_THD_PER_NF 100
+#define MAX_NFS 200
+#define MAX_THD_PER_NF 1000
 
 static struct nf_svc nf_svc_tbl[MAX_NFS][MAX_THD_PER_NF];
 
