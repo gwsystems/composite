@@ -107,7 +107,7 @@ tx_task(void)
 	ip = inet_addr("10.10.1.7");
 	nic_netio_shmem_bind_port(ip, nf_port + 1);
 
-	int svc_id = 0;
+	int svc_id = nf_port;
 
 	vmm_netio_shmem_svc_update(svc_id, 0);
 
