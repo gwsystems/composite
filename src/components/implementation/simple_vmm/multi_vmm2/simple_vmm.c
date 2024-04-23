@@ -58,7 +58,7 @@ static struct vmrt_vm_comp *g_vm1;
 struct vmrt_vm_comp *vm_list[2] = {0};
 
 #define VM_MAX_COMPS (2)
-#define GUEST_MEM_SZ (100*1024*1024)
+#define GUEST_MEM_SZ (210*1024*1024)
 
 SS_STATIC_SLAB(vm_comp, struct vmrt_vm_comp, VM_MAX_COMPS);
 SS_STATIC_SLAB(vm_lapic, struct acrn_vlapic, VM_MAX_COMPS * VMRT_VM_MAX_VCPU);
