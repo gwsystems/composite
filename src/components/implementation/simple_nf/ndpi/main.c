@@ -1,4 +1,5 @@
 #include <cos_types.h>
+#include <initargs.h>
 #include <string.h>
 #include <arpa/inet.h>
 #include <netshmem.h>
@@ -15,6 +16,10 @@
 
 thdid_t rx_tid = 0;
 thdid_t tx_tid = 0;
+
+static u16_t nf_port = 0;
+static u16_t nf_vmm = 0;
+static char *nf_ip = 0;
 
 char tx_nf_buffer[4096];
 char rx_nf_buffer[4096];
@@ -44,8 +49,8 @@ rx_task(void)
 	vmm_netio_shmem_map(netshmem_get_shm_id());
 	nic_netio_shmem_map(netshmem_get_shm_id());
 
-	ip = inet_addr("10.10.1.1");
-	nic_netio_shmem_bind_port(ip, 0);
+	ip = inet_addr(nf_ip);
+	nic_netio_shmem_bind_port(ip, nf_port);
 
 	int i = 0;
 	u64_t times = 0;
@@ -105,10 +110,10 @@ tx_task(void)
 	tx_shmemd = netshmem_get_shm();
 	assert(tx_shmemd);
 
-	ip = inet_addr("10.10.1.1");
-	nic_netio_shmem_bind_port(ip, 71);
+	ip = inet_addr(nf_ip);
+	nic_netio_shmem_bind_port(ip, nf_port+1);
 
-	int svc_id = 0;
+	int svc_id = nf_port;
 
 	vmm_netio_shmem_svc_update(svc_id, 0);
 
@@ -124,7 +129,28 @@ tx_task(void)
 void
 cos_init(void)
 {
+	struct initargs params, curr;
+	struct initargs_iter i;
+	int ret = 0;
 	void setup_ndpi(void);
+
+	ret = args_get_entry("param", &params);
+	assert(!ret);
+	// printc("Key num:%d\n", args_len(&params));
+
+	for (ret = args_iter(&params, &i, &curr) ; ret ; ret = args_iter_next(&i, &curr)) {
+		int      keylen;
+		char *nf_key = args_key(&curr, &keylen);
+		char *nf_val = args_value(&curr);
+		if (!strcmp(nf_key, "ip")) {
+			nf_ip = nf_val;
+		} else if (!strcmp(nf_key, "port")) {
+			sscanf(nf_val, "%u", &nf_port);
+		} else if (!strcmp(nf_key, "vmm_id")) {
+			sscanf(nf_val, "%u", &nf_vmm);
+		}
+	}
+	printc("nf_ip:%s, nf_port:%d, nf_vmm:%u\n", nf_ip, nf_port, nf_vmm);
 
 	setup_ndpi();
 	printc("ndpi set up !\n");
@@ -134,7 +160,7 @@ cos_init(void)
 void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
-	if (cid == 0) {
+	if (cid == nf_vmm) {
 		rx_tid = sched_thd_create((void *)rx_task, NULL);
 		netshmem_create(rx_tid);
 		tx_tid = sched_thd_create((void *)tx_task, NULL);
@@ -146,13 +172,10 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 int
 parallel_main(coreid_t cid)
 {
-	if (cid == 0) {
+	if (cid == nf_vmm) {
 		sched_thd_param_set(rx_tid, sched_param_pack(SCHEDP_PRIO, NF_THD_PRIORITY));
 		sched_thd_param_set(tx_tid, sched_param_pack(SCHEDP_PRIO, NF_THD_PRIORITY));
-	} else {
-
 	}
-
 
 	sched_thd_block(0);
 	return 0;
