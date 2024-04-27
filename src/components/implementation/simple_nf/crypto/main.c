@@ -33,7 +33,7 @@ char rx_nf_buffer[4096];
 #define TX_BATCH 1
 
 #define RX_PROCESSING 1
-#define TX_PROCESSING 0
+#define TX_PROCESSING 1
 
 /* AES encryption parameters */
 BYTE key[1][32] = {{0x60, 0x3d, 0xeb, 0x10, 0x15, 0xca, 0x71, 0xbe, 0x2b, 0x73, 0xae, 0xf0, 0x85, 0x7d, 0x77, 0x81,
@@ -148,6 +148,19 @@ tx_task(void)
 		u8_t batch_ct = 32;
 
 		first_objid = objid = vmm_netio_rx_packet_batch(batch_ct);
+		first_obj = shm_bm_transfer_net_pkt_buf(tx_shmemd, first_objid);
+		first_obj_pri = netshmem_get_pri(first_obj);
+		pkt_arr = (struct netshmem_meta_tuple *)&(first_obj_pri->pkt_arr);
+		tx_batch_ct = first_obj_pri->batch_len;
+
+#if TX_PROCESSING
+		for (u8_t i = 0; i < tx_batch_ct; i++) {
+			pkt_len = pkt_arr[i].pkt_len;
+			objid = pkt_arr[i].obj_id;
+			tx_obj = shm_bm_transfer_net_pkt_buf(tx_shmemd, objid);
+			encrypt_payload(netshmem_get_data_buf(tx_obj));
+		}
+#endif
 
 		nic_netio_tx_packet_batch(first_objid);
 	}
