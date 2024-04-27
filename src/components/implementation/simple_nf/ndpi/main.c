@@ -28,7 +28,7 @@ char rx_nf_buffer[4096];
 #define TX_BATCH 1
 
 #define RX_PROCESSING 1
-#define TX_PROCESSING 0
+#define TX_PROCESSING 1
 
 extern int packet_handler(const char *pkt, int len);
 
@@ -122,6 +122,19 @@ tx_task(void)
 
 		first_objid = objid = vmm_netio_rx_packet_batch(batch_ct);
 
+		first_obj = shm_bm_transfer_net_pkt_buf(tx_shmemd, first_objid);
+		first_obj_pri = netshmem_get_pri(first_obj);
+		pkt_arr = (struct netshmem_meta_tuple *)&(first_obj_pri->pkt_arr);
+		tx_batch_ct = first_obj_pri->batch_len;
+
+#if TX_PROCESSING
+		for (u8_t i = 0; i < tx_batch_ct; i++) {
+			pkt_len = pkt_arr[i].pkt_len;
+			objid = pkt_arr[i].obj_id;
+			tx_obj = shm_bm_transfer_net_pkt_buf(tx_shmemd, objid);
+			packet_handler(netshmem_get_data_buf(tx_obj), pkt_len);
+		}
+#endif
 		nic_netio_tx_packet_batch(first_objid);
 	}
 }
