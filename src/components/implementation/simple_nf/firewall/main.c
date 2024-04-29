@@ -38,20 +38,20 @@ enum {
 	NF_DROP
 };
 
-static int
+struct firewall_rule
+{
+	uint32_t ip;
+	uint8_t action;
+};
+
+static struct firewall_rule rules[] = {
+		{.ip = 0xa0b0c0d0, .action = NF_DROP},
+};
+
+static inline int
 firewall(unsigned char *payload)
 {
 	struct iphdr *iphdr = (struct iphdr *)payload;
-
-	struct firewall_rule
-	{
-		uint32_t ip;
-		uint8_t action; // DROP or ACCEPT
-	};
-
-	struct firewall_rule rules[] = {
-		{.ip = inet_addr("192.168.9.9"), .action = NF_DROP},
-	};
 
 	const int num_rules = sizeof(rules) / sizeof(rules[0]);
 
@@ -59,14 +59,6 @@ firewall(unsigned char *payload)
 
 	for (int i = 0; i < num_rules; i++)
 	{
-		struct in_addr src_addr;
-		src_addr.s_addr = src_ip;
-		char *src_ip_str = inet_ntoa(src_addr);
-
-		struct in_addr rule_addr;
-		rule_addr.s_addr = rules[i].ip;
-		char *rule_ip_str = inet_ntoa(rule_addr);
-
 		if (src_ip == rules[i].ip)
 		{
 			return rules[i].action;
