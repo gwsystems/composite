@@ -21,25 +21,36 @@ static u16_t nf_port = 0;
 static u16_t nf_vmm = 0;
 static char *nf_ip = 0;
 
-char tx_nf_buffer[4096];
-char rx_nf_buffer[4096];
-
 #define RX_BATCH 1
 #define TX_BATCH 1
 
-#define RX_PROCESSING 0
+#define RX_PROCESSING 1
 #define TX_PROCESSING 1
 
-static void
-payloadscan(unsigned char *payload)
+static inline char *
+payloadscan(unsigned char *payload, u16_t len, char *pattern)
 {
-	const char *search_string = "VALUE";
+	int i,pattern_len,end;
+	char *cur = payload;
 
-	char *found_position = strstr((char *)payload, search_string);
+	if (payload == NULL || len <= 0 || pattern == NULL) return NULL;
 
-	if (found_position) {
-		printc("Found target payload:%s\n", found_position);
+	if (*pattern == '\0') return NULL;
+
+	pattern_len = strlen(pattern);
+
+	end = len - pattern_len + 1;
+
+	for (i = 0; i < end; i++) {
+		if (*cur == *pattern) {
+			if (memcmp(cur, pattern, pattern_len) == 0) {
+				return cur;
+			}
+		}
+		cur++;
 	}
+
+	return NULL;
 }
 
 static void
@@ -89,7 +100,7 @@ rx_task(void)
 			pkt_len = pkt_arr[i].pkt_len;
 			objid = pkt_arr[i].obj_id;
 			rx_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, objid);
-			payloadscan(netshmem_get_data_buf(rx_obj));
+			payloadscan(netshmem_get_data_buf(rx_obj), pkt_len, "select * from information_schema.schema or '1' = '1'");
 		}
 #endif
 
@@ -140,10 +151,9 @@ tx_task(void)
 			pkt_len = pkt_arr[i].pkt_len;
 			objid = pkt_arr[i].obj_id;
 			tx_obj = shm_bm_transfer_net_pkt_buf(tx_shmemd, objid);
-			payloadscan(netshmem_get_data_buf(tx_obj));
+			payloadscan(netshmem_get_data_buf(rx_obj), pkt_len, "information_lists:");
 		}
 #endif
-
 		nic_netio_tx_packet_batch(first_objid);
 	}
 }
@@ -172,7 +182,6 @@ cos_init(void)
 	}
 	printc("nf_ip:%s, nf_port:%d, nf_vmm:%u\n", nf_ip, nf_port, nf_vmm);
 }
-
 
 void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
