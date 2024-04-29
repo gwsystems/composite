@@ -1,5 +1,6 @@
 #include <cos_types.h>
 #include <initargs.h>
+#include <ps_plat.h>
 #include <string.h>
 #include <arpa/inet.h>
 #include <netshmem.h>
@@ -31,7 +32,7 @@ char rx_nf_buffer[4096];
 #define TX_PROCESSING 1
 
 extern int packet_handler(const char *pkt, int len);
-
+struct ps_lock ndpi_mem_lock = {.o = 0};
 static void
 rx_task(void)
 {
@@ -80,7 +81,9 @@ rx_task(void)
 			objid = pkt_arr[i].obj_id;
 			rx_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, objid);
 			// memcpy(rx_nf_buffer, netshmem_get_data_buf(rx_obj), pkt_len);
+			ps_lock_take(&ndpi_mem_lock);
 			packet_handler(netshmem_get_data_buf(rx_obj), pkt_len);
+			ps_lock_release(&ndpi_mem_lock);
 		}
 #endif
 
@@ -132,7 +135,9 @@ tx_task(void)
 			pkt_len = pkt_arr[i].pkt_len;
 			objid = pkt_arr[i].obj_id;
 			tx_obj = shm_bm_transfer_net_pkt_buf(tx_shmemd, objid);
+			ps_lock_take(&ndpi_mem_lock);
 			packet_handler(netshmem_get_data_buf(tx_obj), pkt_len);
+			ps_lock_release(&ndpi_mem_lock);
 		}
 #endif
 		nic_netio_tx_packet_batch(first_objid);
