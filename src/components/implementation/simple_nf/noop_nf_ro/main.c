@@ -155,9 +155,6 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	if (cid == nf_vmm) {
 		rx_tid = sched_thd_create((void *)rx_task, NULL);
 		netshmem_create(rx_tid);
-		tx_tid = sched_thd_create((void *)tx_task, NULL);
-		netshmem_create(tx_tid);
-		printc("NF rx tid:%ld, tx tid:%ld\n", rx_tid, tx_tid);
 	}
 }
 
@@ -166,7 +163,6 @@ parallel_main(coreid_t cid)
 {
 	if (cid == nf_vmm) {
 		sched_thd_param_set(rx_tid, sched_param_pack(SCHEDP_PRIO, NF_THD_PRIORITY));
-		sched_thd_param_set(tx_tid, sched_param_pack(SCHEDP_PRIO, NF_THD_PRIORITY));
 	}
 
 	sched_thd_block(0);

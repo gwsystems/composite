@@ -30,6 +30,12 @@ typedef unsigned int  shm_bm_objid_t;
 #define SHM_BM_REFC(shm, nobj) ((unsigned char *)((unsigned char *)shm + SHM_BM_BITS_TO_WORDS(nobj) * sizeof (word_t)))
 #define SHM_BM_DATA(shm, nobj) ((unsigned char *)(SHM_BM_REFC(shm, nobj) + (unsigned int)nobj))
 
+enum {
+	RO_BIFURCATE,
+	RO,
+	RW
+} nf_right;
+
 static inline void
 __shm_bm_set_contig(word_t *bm, int offset)
 {

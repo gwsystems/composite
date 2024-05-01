@@ -46,6 +46,7 @@ img  = "simple_nf.noop_nf_ro"
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}, {srv = "vmm", interface = "vmm_netio_rx"}, {srv = "vmm", interface = "vmm_netio_tx"}, {srv = "vmm", interface = "vmm_netio_shmem"}]
 params = [{key = "ip", value = "10.10.1.1"}, 
           {key = "port", value = "90"},
+          {key = "right", value = "0"},
 	  {key = "vmm_id", value = "0"}
          ]
 constructor = "booter"
