@@ -322,6 +322,65 @@ contigmem_alloc(unsigned long npages)
 }
 
 cbuf_t
+contigmem_ro_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_t *pgaddr)
+{
+	struct cm_comp *c;
+	struct mm_page *p, *initial = NULL;
+	struct mm_span *s;
+
+	struct mm_mapping *m;
+
+	vaddr_t vaddr;
+
+	unsigned long i;
+	int ret;
+
+	c = ss_comp_get(cos_inv_token());
+	if (!c) return 0;
+
+	void * page = contig_phy_pages;
+
+	if (crt_ro_page_aliasn_aligned_in(page, align, npages, &cm_self()->comp, &c->comp, &vaddr)) BUG();
+
+	s = ss_span_alloc();
+	if (!s) return 0;
+	for (i = 0; i < npages; i++) {
+		p = ss_page_alloc();
+		assert(p);
+
+		if (unlikely(i == 0)) {
+			initial = p;
+		}
+
+		m = &p->mappings[0];
+		if (ss_state_alloc(&m->comp)) BUG();
+
+		p->page = page + i * PAGE_SIZE;
+		m->addr = vaddr + i * PAGE_SIZE;
+
+		ss_state_activate_with(&m->comp, (word_t)c);
+		ss_page_activate(p);
+	}
+
+	/**
+	 * FIXME: Need to reslove concurrent issue here,
+	 * this is not multi-thread safe
+	 */
+	s->page_off = ss_page_id(initial);
+	s->n_pages  = npages;
+	ss_span_activate(s);
+
+	ret = ss_span_id(s);
+
+	*pgaddr = initial->mappings[0].addr;
+
+	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
+	contig_phy_pages += npages * PAGE_SIZE;
+	assert((word_t)contig_phy_pages < max_contig_phy_pages + CONTIG_PHY_PAGES * PAGE_SIZE);
+	return ret;
+}
+
+cbuf_t
 contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_t *pgaddr)
 {
 	struct cm_comp *c;
