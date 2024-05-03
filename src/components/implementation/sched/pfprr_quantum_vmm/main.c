@@ -27,6 +27,8 @@ struct slm_resources_thd {
 	compid_t comp;
 };
 
+struct slm_thd *nf_rx_table[256] = {0};
+
 struct slm_thd *slm_thd_static_cm_lookup(thdid_t id);
 
 SLM_MODULES_COMPOSE_DATA();
@@ -97,6 +99,18 @@ sched_thd_create_closure(thdclosure_index_t idx)
 	return t->tid;
 }
 
+thdid_t
+sched_thd_create_closure_nf_rx(thdclosure_index_t idx)
+{
+	sched_param_t p = 0;
+	struct slm_thd *t = thd_alloc_in(cos_inv_token(), idx, &p, 0);
+
+	if (!t) return 0;
+
+	nf_rx_table[t->tid] = t;
+	return t->tid;
+}
+
 int
 sched_thd_param_set(thdid_t tid, sched_param_t p)
 {
@@ -157,6 +171,9 @@ sched_thd_yield(void)
 	int ret;
 
 	slm_cs_enter(current, SLM_CS_NONE);
+	if (nf_rx_table[current->tid] == current) {
+		current->last_yield = 1;
+	}
 	slm_sched_yield(current, 0);
 	ret = slm_cs_exit_reschedule(current, SLM_CS_NONE);
 
