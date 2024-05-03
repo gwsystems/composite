@@ -69,6 +69,8 @@ slm_thd_init_internal(struct slm_thd *t, thdcap_t thd, thdid_t tid)
 		.state = SLM_THD_RUNNABLE,
 		.priority = TCAP_PRIO_MIN,
 		.cpuid = cos_cpuid(),
+		.block_count = 0,
+		.last_yield = 1,
 		.properties = 0
 	};
 	ps_list_init(t, thd_list);

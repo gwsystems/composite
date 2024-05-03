@@ -99,6 +99,8 @@ struct slm_thd {
 	asndcap_t   asnd;
 	tcap_prio_t priority;
 	cpuid_t     cpuid;
+	int last_yield;
+	int block_count;
 
 	/* Execution information retrieved by the scheduler thread */
 	struct event_info event_info;

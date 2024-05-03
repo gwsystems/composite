@@ -19,6 +19,8 @@ static inline int
 slm_state_is_dead(slm_thd_state_t s)
 { return s == SLM_THD_FREE || s == SLM_THD_DYING; }
 
+extern struct slm_thd *nf_rx_table[256];
+
 /**
  * Get the metadata about the critical section (CS). This includes the
  * owner thread (or `NULL`), and if the CS has been contended by another
@@ -189,6 +191,19 @@ try_again:
 	/* Make a policy decision! */
 	t = slm_sched_schedule();
 	if (unlikely(!t)) t = &g->idle_thd;
+
+	if (nf_rx_table[t->tid] == t) {
+		if (t->last_yield == 1) {
+			t->last_yield = 0;
+		} else {
+			if (t->block_count++ > 5) {
+				t->block_count = 0;
+			} else {
+				t = slm_sched_schedule();
+				if (unlikely(!t)) t = &g->idle_thd;
+			}
+		}
+	}
 
 	assert(slm_state_is_runnable(t->state));
 	slm_cs_exit(NULL, flags);
