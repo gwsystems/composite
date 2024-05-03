@@ -27,6 +27,7 @@ struct pkt_buf {
 	char   *pkt;
 	u64_t   paddr;
 	int     pkt_len;
+	thdid_t bifurcate_thd;
 };
 
 struct pkt_ring_buf {
@@ -37,14 +38,19 @@ struct pkt_ring_buf {
 /* per thread session */
 struct client_session {
 	struct shemem_info shemem_info;
+	struct bifurcate_shmem bifurcate_rx;
 
 	thdid_t thd;
 
 	u32_t ip_addr; 
 	u16_t port;
+	u8_t right;
 	int thd_state;
+	volatile shm_bm_objid_t first_objid;
+	volatile shm_bm_objid_t last_objid;
 
 	struct pkt_ring_buf pkt_ring_buf;
+	struct pkt_ring_buf pkt_ring_buf_bifurcate;
 	struct pkt_ring_buf pkt_tx_ring;
 
 	int tx_init_done;
@@ -77,6 +83,7 @@ extern struct client_session client_sessions[NIC_MAX_SESSION];
 #define FREE_PKT_RING_PAGES (round_up_to_page(FREE_PKT_RING_SZ)/PAGE_SIZE)
 
 void pkt_ring_buf_init(struct pkt_ring_buf *pkt_ring_buf, size_t ringbuf_num, size_t ringbuf_sz);
+void pkt_ring_buf_init_bifurcate(struct pkt_ring_buf *pkt_ring_buf, size_t ringbuf_num, size_t ringbuf_sz);
 
 int pkt_ring_buf_enqueue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf);
 int pkt_ring_buf_dequeue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf);
