@@ -210,10 +210,19 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 		}
 
 		buf.pkt = rx_pkts[i];
-		if (unlikely(!pkt_ring_buf_enqueue(&(session->pkt_ring_buf), &buf))){
-			cos_free_packet(rx_pkts[i]);
-			rx_enqueued_miss++;
-			continue;
+		if (session->right == BYWAY_RO_BIFURCATE) {
+			buf.bifurcate_thd = session->thd;
+			session = default_session;
+
+			if (unlikely(!pkt_ring_buf_enqueue(&(session->pkt_ring_buf_bifurcate), &buf))){
+				cos_free_packet(rx_pkts[i]);
+				continue;
+			}
+		} else {
+			if (unlikely(!pkt_ring_buf_enqueue(&(session->pkt_ring_buf), &buf))){
+				cos_free_packet(rx_pkts[i]);
+				continue;
+			}
 		}
 
 		// sync_sem_give(&session->sem);
