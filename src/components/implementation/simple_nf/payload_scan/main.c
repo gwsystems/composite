@@ -151,7 +151,7 @@ tx_task(void)
 			pkt_len = pkt_arr[i].pkt_len;
 			objid = pkt_arr[i].obj_id;
 			tx_obj = shm_bm_transfer_net_pkt_buf(tx_shmemd, objid);
-			payloadscan(netshmem_get_data_buf(rx_obj), pkt_len, "information_lists:");
+			payloadscan(netshmem_get_data_buf(tx_obj), pkt_len, "information_lists:");
 		}
 #endif
 		nic_netio_tx_packet_batch(first_objid);
