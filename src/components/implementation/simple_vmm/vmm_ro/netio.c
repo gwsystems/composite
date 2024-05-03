@@ -250,10 +250,51 @@ vmm_netio_tx_packet_batch(shm_bm_objid_t pktid)
 	return 0;
 }
 
+int
+vmm_netio_tx_packet_batch_bifurcate(shm_bm_t rx_shmemd, shm_bm_objid_t pktid)
+{
+	struct netshmem_pkt_buf *rx_obj;
+	shm_bm_objid_t first_objid;
+	struct netshmem_pkt_buf *first_obj;
+	struct netshmem_pkt_pri *first_obj_pri;
+	struct netshmem_meta_tuple *pkt_arr;
+	u16_t pkt_len;
+	u8_t batch_tc = 0;
+
+	first_objid = pktid;
+
+	first_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, first_objid);
+
+	first_obj_pri = netshmem_get_pri(first_obj);
+	pkt_arr = (struct netshmem_meta_tuple *)&(first_obj_pri->pkt_arr);
+	batch_tc = first_obj_pri->batch_len;
+
+	pkt_len = pkt_arr[0].pkt_len;
+	// pkt_hex_dump(netshmem_get_data_buf(first_obj), pkt_len);
+	virtio_net_rcv_one_pkt(netshmem_get_data_buf(first_obj), pkt_len);
+
+	for (u8_t i = 1; i < batch_tc; i++) {
+		pkt_len = pkt_arr[i].pkt_len;
+		pktid = pkt_arr[i].obj_id;
+		rx_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, pktid);
+		virtio_net_rcv_one_pkt(netshmem_get_data_buf(rx_obj), pkt_len);
+		shm_bm_free_net_pkt_buf(rx_obj);
+	}
+
+	shm_bm_free_net_pkt_buf(first_obj);
+
+	return 0;
+}
+
+extern shm_bm_t bifurcate_hash_tbl[2000];
+extern struct netshmem netshmems[NETSHMEM_REGION_SZ];
 void
 vmm_netio_shmem_map(cbuf_t shm_id)
 {
 	netshmem_map_shmem(shm_id);
+	thdid_t thd = cos_thdid();
+
+	bifurcate_hash_tbl[shm_id] = netshmems[thd].shm;
 }
 
 extern struct vmrt_vm_comp *vm_list[2];
