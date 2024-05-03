@@ -63,6 +63,7 @@ netshmem_map_shmem(cbuf_t shm_id)
 	printc("---mem accessibility ok---\n");
 	shm	= shm_bm_create_net_pkt_buf(mem, npages * PAGE_SIZE);
 	assert(shm);
+	shm_bm_init_net_pkt_buf(shm);
 
 	netshmems[thd].shm	= shm;
 	netshmems[thd].shm_id	= shm_id;
