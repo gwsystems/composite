@@ -19,6 +19,7 @@ cos_asm_stub(sched_blkpt_trigger) ;
 cos_asm_stub(sched_blkpt_block) ;
 cos_asm_stub_indirect(sched_thd_block_timeout);
 cos_asm_stub(sched_thd_create_closure);
+cos_asm_stub(sched_thd_create_closure_nf_rx);
 cos_asm_stub_indirect(sched_aep_create_closure);
 cos_asm_stub(sched_thd_param_set);
 cos_asm_stub(sched_thd_exit);
