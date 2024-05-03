@@ -26,8 +26,6 @@ netshmem_create(thdid_t tid)
 
 	/* shmem cannot be NULL */
 	assert(netshmems[thd].shm);
-
-	shm_bm_init_net_pkt_buf(netshmems[thd].shm);
 }
 
 cbuf_t
