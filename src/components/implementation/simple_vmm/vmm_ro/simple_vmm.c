@@ -67,6 +67,10 @@ SS_STATIC_SLAB(vm_io_apic, struct acrn_vioapics, VM_MAX_COMPS);
 SS_STATIC_SLAB(vcpu_mmio_req, struct acrn_mmio_request, VM_MAX_COMPS * VMRT_VM_MAX_VCPU);
 
 struct sync_lock vm_boot_lock;
+int vmm_netio_tx_packet_batch_bifurcate(shm_bm_t rx_shmemd, shm_bm_objid_t pktid);
+shm_bm_t bifurcate_hash_tbl[2000];
+
+struct bifurcate_shmem bifurcate_rx;
 
 void 
 pause_handler(struct vmrt_vm_vcpu *vcpu)
@@ -237,6 +241,7 @@ rx_task(void)
 	struct netshmem_pkt_buf   *first_obj;
 	struct netshmem_pkt_pri   *first_obj_pri;
 	struct netshmem_meta_tuple *pkt_arr;
+	struct bifurcate_shmem_header *bifurcate_rx_hdr;
 	u16_t pkt_len;
 	u32_t ip;
 
@@ -244,6 +249,7 @@ rx_task(void)
 
 	// vmm_netio_shmem_map(netshmem_get_shm_id());
 	nic_netio_shmem_map(netshmem_get_shm_id());
+	nic_netio_shmem_map_bifurcate(0, bifurcate_rx.shm_id);
 	ip = inet_addr("10.10.1.1");
 
 	nic_netio_shmem_bind_port(ip, 0);
@@ -255,30 +261,30 @@ rx_task(void)
 	shm_bm_t rx_shmemd = 0;
 
 	rx_shmemd = netshmem_get_shm();
+	bifurcate_rx_hdr = bifurcate_rx.shm;
 	while(1)
 	{
 		u8_t rx_batch_ct = 0;
-#if !RX_BATCH
-		objid = nic_netio_rx_packet(&pkt_len);
-		vmm_netio_tx_packet(objid, pkt_len);
-#else
+
 		first_objid = nic_netio_rx_packet_batch(batch_ct);
+		if (first_objid != (shm_bm_objid_t)0xF0000000) {
+			rx_shmemd = netshmem_get_shm();
+			first_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, first_objid);
+			first_obj_pri = netshmem_get_pri(first_obj);
+			pkt_arr = (struct netshmem_meta_tuple *)&(first_obj_pri->pkt_arr);
+			rx_batch_ct = first_obj_pri->batch_len;
 
-		first_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, first_objid);
-		first_obj_pri = netshmem_get_pri(first_obj);
-		pkt_arr = (struct netshmem_meta_tuple *)&(first_obj_pri->pkt_arr);
-		rx_batch_ct = first_obj_pri->batch_len;
-#if RX_PROCESSING
-		for (u8_t i = 0; i < rx_batch_ct; i++) {
-			pkt_len = pkt_arr[i].pkt_len;
-			objid = pkt_arr[i].obj_id;
-			rx_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, objid);
-			memcpy(rx_nf_buffer, netshmem_get_data_buf(rx_obj), pkt_len);
+			// vmm_netio_tx_packet_batch(first_objid);
+			vmm_netio_tx_packet_batch_bifurcate(rx_shmemd, first_objid);
 		}
-#endif
 
-		vmm_netio_tx_packet_batch(first_objid);
-#endif
+		rx_batch_ct = bifurcate_rx_hdr->len;
+		for (u8_t i = 0; i < rx_batch_ct; i++) {
+			rx_shmemd = bifurcate_hash_tbl[bifurcate_rx_hdr->nf_arr[i].shm_id];
+			assert(rx_shmemd);
+			first_objid = bifurcate_rx_hdr->nf_arr[i].first_objid;
+			vmm_netio_tx_packet_batch_bifurcate(rx_shmemd, first_objid);
+		}
 	}
 }
 
@@ -336,6 +342,7 @@ void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
 	struct vmrt_vm_vcpu *vcpu;
+	void  *mem;
 
 	if (cid == 0) {
 		rx_tid = sched_thd_create((void *)rx_task, NULL);
@@ -351,6 +358,9 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 		iinst_ctxt_init(vcpu);
 		mmio_init(vcpu);
 
+		bifurcate_rx.shm_id	= contigmem_shared_alloc_aligned(1, PAGE_SIZE, (vaddr_t *)&mem);
+		bifurcate_rx.shm	= mem;
+		assert(mem);
 	}
 
 	return;

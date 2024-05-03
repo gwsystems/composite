@@ -309,6 +309,7 @@ vq_retchain(struct virtio_vq_info *vq)
 	vq->last_avail--;
 }
 
+struct ps_lock virtio_rx_lock = {.o = 0};
 void
 virtio_net_rcv_one_pkt(void *data, int pkt_len)
 {
@@ -319,6 +320,7 @@ virtio_net_rcv_one_pkt(void *data, int pkt_len)
 	int n;
 	u16_t idx;
 	int ret;
+	ps_lock_take(&virtio_rx_lock);
 
 	vq = &virtio_net_vqs[VIRTIO_NET_RXQ];
 	
@@ -349,6 +351,8 @@ virtio_net_rcv_one_pkt(void *data, int pkt_len)
 	vq_relchain(vq, idx, pkt_len + sizeof(struct virtio_net_rxhdr));
 
 	vq_endchains(vcpu, vq, 1);
+
+	ps_lock_release(&virtio_rx_lock);
 	return;
 }
 
