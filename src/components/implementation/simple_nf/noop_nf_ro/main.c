@@ -20,6 +20,7 @@ thdid_t tx_tid = 0;
 static u16_t nf_port = 0;
 static u16_t nf_vmm = 0;
 static char *nf_ip = 0;
+static u8_t nf_right = 0;
 
 char tx_nf_buffer[4096];
 char rx_nf_buffer[4096];
@@ -27,7 +28,7 @@ char rx_nf_buffer[4096];
 #define RX_BATCH 1
 #define TX_BATCH 1
 
-#define RX_PROCESSING 0
+#define RX_PROCESSING 1
 #define TX_PROCESSING 0
 
 static void
@@ -42,13 +43,13 @@ rx_task(void)
 	u16_t pkt_len;
 	u32_t ip;
 	
-	u8_t batch_ct = 50;
+	u8_t batch_ct = 32;
 
 	vmm_netio_shmem_map(netshmem_get_shm_id());
 	nic_netio_shmem_map(netshmem_get_shm_id());
 
 	ip = inet_addr(nf_ip);
-	nic_netio_shmem_bind_port(ip, nf_port);
+	nic_netio_shmem_bind_port_right(ip, nf_port, nf_right);
 
 	int i = 0;
 	u64_t times = 0;
@@ -62,27 +63,23 @@ rx_task(void)
 	while(1)
 	{
 		u8_t rx_batch_ct = 0;
-#if !RX_BATCH
-		objid = nic_netio_rx_packet(&pkt_len);
-		vmm_netio_tx_packet(objid, pkt_len);
-#else
-		first_objid = nic_netio_rx_packet_batch(batch_ct);
 
-		first_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, first_objid);
+		first_objid = nic_netio_rx_packet_batch_ro(batch_ct);
+
+		first_obj = shm_bm_borrow_net_pkt_buf(rx_shmemd, first_objid);
 		first_obj_pri = netshmem_get_pri(first_obj);
 		pkt_arr = (struct netshmem_meta_tuple *)&(first_obj_pri->pkt_arr);
 		rx_batch_ct = first_obj_pri->batch_len;
+		// if (rx_batch_ct > 1)
 #if RX_PROCESSING
 		for (u8_t i = 0; i < rx_batch_ct; i++) {
 			pkt_len = pkt_arr[i].pkt_len;
 			objid = pkt_arr[i].obj_id;
-			rx_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, objid);
+			rx_obj = shm_bm_borrow_net_pkt_buf(rx_shmemd, objid);
 			memcpy(rx_nf_buffer, netshmem_get_data_buf(rx_obj), pkt_len);
 		}
 #endif
 
-		vmm_netio_tx_packet_batch(first_objid);
-#endif
 	}
 }
 
@@ -143,6 +140,8 @@ cos_init(void)
 			sscanf(nf_val, "%u", &nf_port);
 		} else if (!strcmp(nf_key, "vmm_id")) {
 			sscanf(nf_val, "%u", &nf_vmm);
+		} else if (!strcmp(nf_key, "right")) {
+			sscanf(nf_val, "%u", &nf_right);
 		}
 	}
 	printc("nf_ip:%s, nf_port:%d, nf_vmm:%u\n", nf_ip, nf_port, nf_vmm);
