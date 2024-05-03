@@ -37,6 +37,23 @@ struct pkt_ring_buf g_free_ring;
 rte_atomic64_t tx_enqueued_miss = {0};
 
 static char ring_buffers[NIC_MAX_SESSION][RX_PKT_RING_SZ];
+static char ring_buffers_bifurcate[NIC_MAX_SESSION][RX_PKT_RING_SZ];
+
+void
+pkt_ring_buf_init_bifurcate(struct pkt_ring_buf *pkt_ring_buf, size_t ringbuf_num, size_t ringbuf_sz)
+{
+	struct ck_ring *buf_addr;
+
+	/* prevent multiple thread from contending memory */
+	assert(cos_thdid() < NIC_MAX_SESSION);
+	buf_addr = (struct ck_ring *)&ring_buffers_bifurcate[cos_thdid()];
+
+	ck_ring_init(buf_addr, ringbuf_num);
+
+	pkt_ring_buf->ring    = buf_addr;
+	pkt_ring_buf->ringbuf = (struct pkt_buf *)((char *)buf_addr + sizeof(struct ck_ring));
+}
+
 void
 pkt_ring_buf_init(struct pkt_ring_buf *pkt_ring_buf, size_t ringbuf_num, size_t ringbuf_sz)
 {
@@ -119,6 +136,102 @@ nic_netio_rx_packet(u16_t *pkt_len)
 	return objid;
 }
 
+static shm_bm_objid_t
+__batch_packets(shm_bm_t shm, struct pkt_ring_buf *pkt_ring_buf, u8_t batch_limit)
+{
+	struct netshmem_pkt_buf   *obj;
+	struct pkt_buf             buf;
+	shm_bm_objid_t             objid;
+	shm_bm_objid_t             first_objid;
+	struct netshmem_pkt_buf   *first_obj;
+	struct netshmem_pkt_pri   *first_obj_pri;
+	struct netshmem_meta_tuple *pkt_arr;
+	char *data_buf;
+	char *pkt;
+	int len;
+	u8_t batch_ct = 0;
+
+	obj = first_obj = shm_bm_alloc_net_pkt_buf(shm, &objid);
+	assert(obj);
+	first_objid = objid;
+	first_obj_pri = netshmem_get_pri(obj);
+	pkt_arr = (struct netshmem_meta_tuple *)&first_obj_pri->pkt_arr;
+	first_obj_pri->batch_len = 0;
+
+	while (batch_ct < batch_limit && pkt_ring_buf_dequeue(pkt_ring_buf, &buf)) {
+		assert(buf.pkt);
+		if (likely(batch_ct > 0)) {
+			obj = shm_bm_alloc_net_pkt_buf(shm, &objid);
+			// sync_sem_take(&session->sem);
+			assert(obj);
+		}
+
+		pkt = cos_get_packet(buf.pkt, &len);
+		assert(len < netshmem_get_max_data_buf_sz());
+		
+		data_buf = netshmem_get_data_buf(obj);
+		// memcpy_fast(data_buf, pkt, len);
+		// memcpy(data_buf, pkt, len);
+		rte_memcpy(data_buf, pkt , len);
+		pkt_arr[batch_ct].obj_id = objid;
+		pkt_arr[batch_ct].pkt_len = len;
+		batch_ct++;
+
+		cos_free_packet(buf.pkt);
+	}
+	first_obj_pri->batch_len = batch_ct;
+
+	return first_objid;
+}
+
+shm_bm_objid_t
+nic_netio_rx_packet_batch_ro(u8_t batch_limit)
+{
+	thdid_t                    thd;	
+	struct pkt_buf             buf;
+	shm_bm_objid_t             objid;
+	struct client_session     *session;
+	struct netshmem_pkt_buf   *obj;
+	shm_bm_objid_t             first_objid;
+	struct netshmem_pkt_buf   *first_obj;
+	struct netshmem_pkt_pri   *first_obj_pri;
+	struct netshmem_meta_tuple *pkt_arr;
+	char *data_buf;
+	char *pkt;
+	int len;
+	u8_t batch_ct = 0;
+
+	thd = cos_thdid();
+
+	session = &client_sessions[thd];
+	shm_bm_t rx_shmemd = netshmem_get_shm();
+	assert(rx_shmemd);
+
+	first_objid = session->last_objid;
+	if (likely(first_objid != 0xF0000000)) {
+		first_obj = shm_bm_borrow_net_pkt_buf(rx_shmemd, first_objid);
+		first_obj_pri = netshmem_get_pri(first_obj);
+		pkt_arr = (struct netshmem_meta_tuple *)&(first_obj_pri->pkt_arr);
+		batch_ct = first_obj_pri->batch_len;
+		// printc("[nf]:ro batch read:%p, ct:%d\n", &session->pkt_ring_buf_bifurcate, batch_ct);
+
+		for (int i = batch_ct - 1; i >= 0; i--) {
+			objid = pkt_arr[i].obj_id;
+			obj = shm_bm_borrow_net_pkt_buf(rx_shmemd, objid);
+			shm_bm_free_net_pkt_buf(obj);
+		}
+	}
+
+	while(pkt_ring_buf_empty(&session->pkt_ring_buf_bifurcate)) {
+		sched_thd_yield();
+	}
+	shm_bm_objid_t ret = session->first_objid;
+	session->last_objid = ret;
+	pkt_ring_buf_dequeue(&client_sessions[thd].pkt_ring_buf_bifurcate, &buf);
+
+	return ret;
+}
+
 shm_bm_objid_t
 nic_netio_rx_packet_batch(u8_t batch_limit)
 {
@@ -143,46 +256,84 @@ nic_netio_rx_packet_batch(u8_t batch_limit)
 	// sync_sem_take(&session->sem);
 
 	// assert(!pkt_ring_buf_empty(&session->pkt_ring_buf));
-	while (pkt_ring_buf_empty(&session->pkt_ring_buf)) {
+	while (pkt_ring_buf_empty(&session->pkt_ring_buf) && pkt_ring_buf_empty(&session->pkt_ring_buf_bifurcate)) {
 		sched_thd_yield();
 	}
 
-	obj = first_obj = shm_bm_alloc_net_pkt_buf(session->shemem_info.shm, &objid);
-	assert(obj);
-	first_objid = objid;
-	first_obj_pri = netshmem_get_pri(obj);
-	pkt_arr = (struct netshmem_meta_tuple *)&first_obj_pri->pkt_arr;
-	first_obj_pri->batch_len = 0;
-
-	while (batch_ct < batch_limit && pkt_ring_buf_dequeue(&session->pkt_ring_buf, &buf)) {
+	if (pkt_ring_buf_dequeue(&session->pkt_ring_buf_bifurcate, &buf)) {
 		assert(buf.pkt);
-		if (likely(batch_ct > 0)) {
-			obj = shm_bm_alloc_net_pkt_buf(session->shemem_info.shm, &objid);
-			// sync_sem_take(&session->sem);
-			assert(obj);
-		}
+		thd = buf.bifurcate_thd;
+		obj = first_obj = shm_bm_alloc_net_pkt_buf(client_sessions[thd].shemem_info.shm, &objid);
+		assert(obj);
 
+		first_objid = objid;
+		first_obj_pri = netshmem_get_pri(obj);
+		pkt_arr = (struct netshmem_meta_tuple *)&first_obj_pri->pkt_arr;
+
+		data_buf = netshmem_get_data_buf(obj);
 		pkt = cos_get_packet(buf.pkt, &len);
 		assert(len < netshmem_get_max_data_buf_sz());
-		
-		data_buf = netshmem_get_data_buf(obj);
-		// memcpy_fast(data_buf, pkt, len);
-		// memcpy(data_buf, pkt, len);
 		rte_memcpy(data_buf, pkt , len);
 		pkt_arr[batch_ct].obj_id = objid;
 		pkt_arr[batch_ct].pkt_len = len;
 		batch_ct++;
 
-#if USE_CK_RING_FREE_MBUF
-		while (!pkt_ring_buf_enqueue(&g_free_ring, &buf));
-#else
 		cos_free_packet(buf.pkt);
-#endif
+
+		int bifurcate_flag = 0;
+		if (pkt_ring_buf_empty(&client_sessions[thd].pkt_ring_buf_bifurcate)) {
+			bifurcate_flag = 1;
+		}
+
+		if (bifurcate_flag) {
+			// add ref count
+			shm_bm_take_net_pkt_buf(client_sessions[thd].shemem_info.shm, objid);
+		}
+
+		while (batch_ct < batch_limit - 1 && pkt_ring_buf_dequeue(&session->pkt_ring_buf_bifurcate, &buf)) {
+			assert(buf.pkt);
+			if (likely(batch_ct > 0)) {
+				obj = shm_bm_alloc_net_pkt_buf(client_sessions[thd].shemem_info.shm, &objid);
+				// sync_sem_take(&session->sem);
+				assert(obj);
+			}
+
+			pkt = cos_get_packet(buf.pkt, &len);
+			assert(len < netshmem_get_max_data_buf_sz());
+			
+			data_buf = netshmem_get_data_buf(obj);
+			// memcpy_fast(data_buf, pkt, len);
+			// memcpy(data_buf, pkt, len);
+			rte_memcpy(data_buf, pkt , len);
+			pkt_arr[batch_ct].obj_id = objid;
+			pkt_arr[batch_ct].pkt_len = len;
+			batch_ct++;
+
+			cos_free_packet(buf.pkt);
+			if (bifurcate_flag) {
+				// add ref count
+				shm_bm_take_net_pkt_buf(client_sessions[thd].shemem_info.shm, objid);
+			}
+		}
+		first_obj_pri->batch_len = batch_ct;
+
+		struct bifurcate_shmem_header *hdr = session->bifurcate_rx.shm;
+		hdr->len = 1;
+		hdr->nf_arr[0].first_objid = first_objid;
+		hdr->nf_arr[0].shm_id = client_sessions[thd].shemem_info.shmid;
+		if (bifurcate_flag) {
+			client_sessions[thd].first_objid = first_objid;
+			pkt_ring_buf_enqueue(&client_sessions[thd].pkt_ring_buf_bifurcate, &buf);
+		}
 	}
 
-	first_obj_pri->batch_len = batch_ct;	
+	if (!pkt_ring_buf_empty(&session->pkt_ring_buf)) {
+		return __batch_packets(session->shemem_info.shm, &session->pkt_ring_buf, batch_limit);
+	} else {
+		return 0xF0000000;
+	}
 
-	return first_objid;
+;
 }
 
 static void
@@ -382,19 +533,77 @@ nic_netio_shmem_bind_port(u32_t ip_addr, u16_t port)
 	client_sessions[thd].shemem_info.shmid = shmid;
 	client_sessions[thd].shemem_info.shm   = shm;
 	client_sessions[thd].shemem_info.paddr = paddr;
-	// cos_hash_add(client_sessions[thd].port, &client_sessions[thd]);
+	client_sessions[thd].first_objid = 0xF0000000;
+	client_sessions[thd].last_objid = 0xF0000000;
 	simple_hash_add(client_sessions[thd].ip_addr, client_sessions[thd].port, &client_sessions[thd]);
 
 	sync_sem_init(&client_sessions[thd].sem, 0);
 
 	pkt_ring_buf_init(&client_sessions[thd].pkt_ring_buf, RX_PKT_RBUF_NUM, RX_PKT_RING_SZ);
-	// pkt_ring_buf_init(&client_sessions[thd].pkt_tx_ring, TX_PKT_RBUF_NUM, TX_PKT_RING_SZ);
+	pkt_ring_buf_init_bifurcate(&client_sessions[thd].pkt_ring_buf_bifurcate, RX_PKT_RBUF_NUM, RX_PKT_RING_SZ);
 
 	client_sessions[thd].blocked_loops_begin = 0;
 	client_sessions[thd].blocked_loops_end = 0;
 	client_sessions[thd].tx_init_done = 1;
 
 	return 0;
+}
+
+int
+nic_netio_shmem_bind_port_right(u32_t ip_addr, u16_t port, u8_t right)
+{
+	unsigned long npages;
+	void         *mem;
+
+	shm_bm_t    shm;
+	cbuf_t      shmid;
+	cos_paddr_t paddr = 0;
+	thdid_t     thd;
+
+	thd = cos_thdid();
+	assert(thd < NIC_MAX_SESSION);
+
+	client_sessions[thd].ip_addr = ip_addr;
+	client_sessions[thd].port    = port;
+	client_sessions[thd].thd     = thd;
+
+	shm   = netshmem_get_shm();
+	assert(shm);
+	shmid = netshmem_get_shm_id();
+	paddr = cos_map_virt_to_phys((cos_vaddr_t)shm);
+	assert(paddr);
+
+	client_sessions[thd].shemem_info.shmid = shmid;
+	client_sessions[thd].shemem_info.shm   = shm;
+	client_sessions[thd].shemem_info.paddr = paddr;
+	client_sessions[thd].right = right;
+	client_sessions[thd].first_objid = 0xF0000000;
+	client_sessions[thd].last_objid = 0xF0000000;
+	simple_hash_add(client_sessions[thd].ip_addr, client_sessions[thd].port, &client_sessions[thd]);
+
+	sync_sem_init(&client_sessions[thd].sem, 0);
+
+	pkt_ring_buf_init(&client_sessions[thd].pkt_ring_buf, RX_PKT_RBUF_NUM, RX_PKT_RING_SZ);
+	pkt_ring_buf_init_bifurcate(&client_sessions[thd].pkt_ring_buf_bifurcate, 2, sizeof(struct ck_ring) + 2 * sizeof(struct pkt_buf));
+
+	client_sessions[thd].blocked_loops_begin = 0;
+	client_sessions[thd].blocked_loops_end = 0;
+	client_sessions[thd].tx_init_done = 1;
+
+	return 0;
+}
+
+void
+nic_netio_shmem_map_bifurcate(u8_t dir, cbuf_t shm_id)
+{
+	thdid_t     thd;
+	void        *mem;
+	thd = cos_thdid();
+
+	memmgr_shared_page_map_aligned(shm_id, PAGE_SIZE, (vaddr_t *)&mem);
+
+	client_sessions[thd].bifurcate_rx.shm_id = shm_id;
+	client_sessions[thd].bifurcate_rx.shm = mem;
 }
 
 u64_t
