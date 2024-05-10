@@ -163,6 +163,7 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 	struct cos_defcompinfo       *defci     = cos_defcompinfo_curr_get();
 	struct cos_compinfo          *ci        = cos_compinfo_get(defci);
 	volatile struct cos_scb_info *scb       = (struct cos_scb_info*)ci->scb_uaddr + cos_cpuid();
+	struct cos_aep_info          *sched_aep = cos_sched_aep_get(defci);
 	
 	unsigned long pre_tok = tok;
 
@@ -179,6 +180,17 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		scb->timer_pre = timeout;
 		return cos_defswitch(next->thd, prio, timeout, tok);
 	}
+#if defined (__SVFSGS__)
+	unsigned long fs_value;
+	unsigned long gs_value;
+    	asm volatile (
+        	"rdfsbase %0\n\t"
+        	"rdgsbase %1\n\t"
+        	: "=r" (fs_value), "=r" (gs_value)
+        	: 
+        	: "memory"
+    	);
+#endif
 
 	/*
 	 * jump labels in the asm routine:
@@ -337,7 +349,7 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		"cmp %%r10, %%r15\n\t"                                    \
 		/* TODO: error handling */
 		/* Kernel path starts from here. */
-		"movabs $3f, %%r8\n\t"                                    \
+		/* "movabs $3f, %%r8\n\t"                                    \*/
 		/* Mov thdcap of next thread to rax. */
 		"mov %%r11, %%rax\n\t"                                    \
 		"inc %%rax\n\t"                                           \
@@ -345,7 +357,8 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		"mov $0, %%rsi\n\t"                                       \
 		/* Mov timeout into rdx */
 		"mov %%rdi, %%rdx\n\t"                                    \
-		"mov $0, %%rdi\n\t"                                       \
+		"mov %%r8, %%rdi\n\t"                                     \
+		"movabs $3f, %%r8\n\t"                                    \
 		"syscall\n\t"                                             \
 		"jmp 3f\n\t"                                              \
 		/*
@@ -384,7 +397,7 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		:
 		: "a" (next->thd), "S" (next->tid),
 		  "b" (tok), "D" (timeout),
-		  "d" (curr->tid)
+		  "d" (curr->tid), "c" (sched_aep->rcv)
 		: "memory", "cc", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");
 
 #else
@@ -414,7 +427,7 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		"shl $16, %%rax\n\t"            \
 		"mov $0, %%rsi\n\t"             \
 		"mov %%rdi, %%rdx\n\t"          \
-		"mov $0, %%rdi\n\t"             \
+		"mov %6, %%rdi\n\t"             \
 		"syscall\n\t"                   \
 		"jmp 3f\n\t"                    \
 		".align 8\n\t"                  \
@@ -426,15 +439,25 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		:
 		: "a" (cd), "S" (nd),
 		  "b" (tok), "D" (timeout),
-		  "c" (&(scb->thdpack)), "d" (thdpack)
-		: "memory", "cc", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");
+		  "c" (&(scb->thdpack)), "d" (thdpack), "r" (sched_aep->rcv)
+		: "memory", "cc", "r8", "r10", "r11", "r12", "r13", "r14", "r15");
 #endif
 	scb = slm_scb_info_core();
 	assert(scb);
 
-	if (pre_tok != scb->sched_tok) {
+	if (pre_tok <= scb->sched_tok) {
+		//printc("prek: %ld, %d, %d, %lx\n", pre_tok, scb->sched_tok, tok, ci);
 		return -EAGAIN;
 	}
+#if defined(__SVFSGS__)
+	asm volatile (
+        	"wrfsbase %0\n\t"
+        	"wrgsbase %1\n\t"
+        	:
+        	: "r" (fs_value), "r" (gs_value)
+        	: "memory"
+    	);
+#endif
 	return 0;
 }
 
@@ -466,16 +489,25 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 		}
 	}
 #if defined (__SLITE__)
+	//printc("curr: %d, next: %lx\n", curr->tid, t->tid);
 	if (!cd || !nd || (curr->vasid != t->vasid)) {
+		//if (curr->tid == 18)
+		//	printc("next: %d, vasid: %d, %d\n", t->tid, curr->vasid, t->vasid);
 		if (scb->timer_pre < timeout) {
 			scb->timer_pre = timeout;
 		}
 		ret = cos_defswitch(t->thd, prio, timeout, tok);
 	} else {
+		//ret = cos_defswitch(t->thd, prio, timeout, tok);
 		ret = cos_ulswitch(curr, t, cd, nd, prio, timeout, tok);
 	}
 #else
+	//if (cos_cpuid() == 1 && (t->tid == 16 || t->tid == 17)) printc("C");
+	int cached_state = t->state;
 	ret = cos_defswitch(t->thd, prio, timeout, tok);
+	//if (cached_state == SLM_THD_BLOCKED) {
+	//	printc("%d, %d, %d; %d %d", t->tid, ret, cos_thdid(), tok, cos_sched_sync(&cos_defcompinfo_curr_get()->ci));
+	//}
 #endif
 
 	if (unlikely(ret == -EPERM && !slm_thd_normal(t))) {
@@ -515,6 +547,16 @@ static inline int slm_cs_enter(struct slm_thd *current, slm_cs_flags_t flags);
  * ...which correctly handles any race-conditions on thread selection and
  * dispatch.
  */
+
+struct trace_stack {
+	unsigned long stack[10];
+	int head;
+};
+
+extern unsigned long res_cnt;
+extern thdid_t last_sched;
+extern struct trace_stack test_stack;
+
 static inline int
 slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 {
@@ -525,7 +567,9 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 	int                     ret;
 
 try_again:
+	res_cnt++;
 	tok  = cos_sched_sync(ci);
+	//printc("222: %d\n", tok);
 	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
 		cycles_t now = slm_now();
 
@@ -540,11 +584,24 @@ try_again:
 	/* Make a policy decision! */
 	t = slm_sched_schedule();
 	if (unlikely(!t)) t = &g->idle_thd;
+	assert(t->state != SLM_THD_BLOCKED);
+	//if (flags == 16&& cos_cpuid() == 1)
+	//	printc("{%lu}", t->tid);
 
 	assert(slm_state_is_runnable(t->state));
 	slm_cs_exit(NULL, flags);
 
+	last_sched = t->tid;
+	if (cos_cpuid() == 1) {
+		test_stack.stack[res_cnt % 10] = t->tid;
+		test_stack.head = res_cnt % 10;
+	}
+	int cached_state = t->state;
 	ret = slm_thd_activate(curr, t, tok, 0);
+	if (cached_state == SLM_THD_BLOCKED) {
+	//	printc("ret: %d\n", ret);
+		assert (ret == -EAGAIN);
+	}
 	/* Assuming only the single tcap with infinite budget...should not get EPERM */
 	assert(ret != -EPERM);
 	if (unlikely(ret != 0)) {
@@ -558,12 +615,11 @@ try_again:
 		 */
 		if (ret == -EBUSY) return ret;
 		/* If the slm_thd_activate returns -EAGAIN, this means this scheduling token is outdated, try again */
-		if (ret == -EBUSY) return ret;
 		assert(ret == -EAGAIN);
 		slm_cs_enter(curr, SLM_CS_NONE);
 		goto try_again;
 	}
-
+	//printc("once\n");
 	return ret;
 }
 

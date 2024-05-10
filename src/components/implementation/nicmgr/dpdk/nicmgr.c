@@ -107,6 +107,7 @@ nic_get_a_packet(u16_t *pkt_len)
 
 	memcpy(obj->data, pkt, len);
 
+
 #if USE_CK_RING_FREE_MBUF
 	while (!pkt_ring_buf_enqueue(&g_free_ring, &buf));
 #else
@@ -179,8 +180,9 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	tx_packets[0] = mbuf;
 
 	sync_lock_take(&tx_lock[core_id - 1]);
-	cos_dev_port_tx_burst(0, core_id - 1, tx_packets, 1);
+	int cnt = cos_dev_port_tx_burst(0, core_id - 1, tx_packets, 1);
 	sync_lock_release(&tx_lock[core_id - 1]);
+	//printc("nic send a packet: %d\n", cnt);
 #endif
 
 	return 0;

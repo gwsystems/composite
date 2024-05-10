@@ -17,7 +17,7 @@
 
 #include "cpu_ghz.h"
 
-#define NUM_CPU 1
+#define NUM_CPU 15
 #define NUM_CPU_BMP_BYTES ((NUM_CPU + 7) / 8)
 #define NUM_CPU_BMP_WORDS ((NUM_CPU_BMP_BYTES + 3) / 4)
 /*
@@ -38,7 +38,7 @@
  */
 #define COS_MEM_KERN_PA (0x00100000)
 #if defined(__x86_64__)
-#define COS_MEM_KERN_PA_ORDER (35)
+#define COS_MEM_KERN_PA_ORDER (33)
 #else
 #define COS_MEM_KERN_PA_ORDER (29)
 #endif

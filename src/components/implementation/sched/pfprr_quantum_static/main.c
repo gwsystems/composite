@@ -21,6 +21,10 @@
 
 #include <syncipc.h>
 
+#ifndef __IDLE_PROC__
+#define __IDLE_PROC__
+#endif
+
 struct slm_resources_thd {
 	thdcap_t cap;
 	thdid_t  tid;
@@ -139,11 +143,12 @@ int
 sched_thd_yield_to(thdid_t t)
 {
 	struct slm_thd *current = slm_thd_current();
-	struct slm_thd *to = slm_thd_lookup(t);
+	//struct slm_thd *to = slm_thd_lookup(t);
+	struct slm_thd *to = NULL;
 	int ret;
 
-	assert(to);
-	if (!to) return -1;
+	//assert(to);
+	//if (!to) return -1;
 	assert(current != to);
 	slm_cs_enter(current, SLM_CS_NONE);
         slm_sched_yield(current, to);
@@ -219,6 +224,7 @@ thd_wakeup(struct slm_thd *t)
 	struct slm_thd *current = slm_thd_current();
 
 	slm_cs_enter(current, SLM_CS_NONE);
+	assert(0);
 	ret = slm_thd_wakeup(t, 0);
 	if (ret < 0) {
 		slm_cs_exit(NULL, SLM_CS_NONE);
@@ -610,6 +616,32 @@ free:
 	goto done;
 }
 
+coreid_t _init_core_id = 0;
+unsigned long long start = 0;
+int wakeups = 0;
+int wakeup_xcpu = 0;
+unsigned long idle_cnt = 0;
+
+void
+slm_test_printlog(void)
+{
+	printc(".");
+	if (cos_cpuid()!= _init_core_id) return;
+	static int printed  = 0;
+	unsigned long long now = 0;
+	assert(start);
+
+	now = ps_tsc();
+	if (printed) return;
+
+	if (now > start + (unsigned long)3 * 1000 * 1000 * 1000) {
+		printed += 1;
+		printc("number of xcpu wakeups: %d, %d\n", wakeups, wakeup_xcpu);
+	}
+
+	return;
+}
+
 void
 slm_ipi_process(void *d)
 {
@@ -620,12 +652,15 @@ slm_ipi_process(void *d)
 	struct slm_thd         *current  = slm_thd_current();
 	struct slm_thd         *thd;
 
+	int  i = 0;
 	while (1) {
 		cos_rcv(r->rcv, RCV_ALL_PENDING, &rcvd);
 
 		while (!slm_ipi_event_empty(cos_cpuid())) {
 			slm_ipi_event_dequeue(&event, cos_cpuid());
 			thd = slm_thd_static_cm_lookup(event.tid);
+			//printc("curr: %d\n", current->tid);
+			wakeups++;
 			slm_cs_enter(current, SLM_CS_NONE);
 			ret = slm_thd_wakeup(thd, 0);
 			/*
@@ -633,13 +668,48 @@ slm_ipi_process(void *d)
 			 * Return "1" means the thread is already `RUNNABLE`.
 			 */
 			assert(ret == 0 || ret == 1);
-			slm_cs_exit(current, SLM_CS_NONE);
+			//slm_cs_exit(current, SLM_CS_NONE);
+			slm_cs_exit_reschedule(current, SLM_CS_NONE);
 		}
 	}
 	return;
 }
 
-coreid_t _init_core_id = 0;
+#if defined (__IDLE_PROC__)
+void
+slm_idle_iteration(void)
+{
+	assert(0);
+	struct slm_ipi_event event   = {0};
+	struct slm_global   *g = slm_global();
+	struct slm_thd      *current = &g->idle_thd;
+	struct slm_thd      *thd;
+	int ret;
+
+	//printc("curr: %lx, %d\n", cos_thdid(), cos_cpuid());
+	if (!slm_ipi_event_empty(cos_cpuid())) {
+		slm_ipi_event_dequeue(&event, cos_cpuid());
+		thd = slm_thd_static_cm_lookup(event.tid);
+		wakeups++;
+		slm_cs_enter(current, SLM_CS_NONE);
+		ret = slm_thd_wakeup(thd, 0);
+		// Return "0" means the thread is woken up in this call.
+		// Return "1" means the thread is already `RUNNABLE`.
+		assert(ret == 0 || ret == 1);
+		slm_cs_exit_reschedule(current, SLM_CS_NONE);
+		//printc(";\n");
+	}
+	slm_test_printlog();
+	//printc(".");
+	return;
+
+}
+#else
+void
+slm_idle_iteration(void){
+	slm_test_printlog();
+}
+#endif
 
 void
 parallel_main(coreid_t cid)
@@ -650,6 +720,7 @@ parallel_main(coreid_t cid)
 
 	slm_sched_loop_nonblock();
 }
+
 
 void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
@@ -674,9 +745,9 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 
 	slm_init(thdcap, tid, (struct cos_dcb_info *)init_dcb, dcb);
 
-	r = slm_ipithd_create(slm_ipi_process, NULL, 0, &ipithdcap, &ipitid);
-	if (!r) BUG();
-	sched_thd_param_set(ipitid, sched_param_pack(SCHEDP_PRIO, SLM_IPI_THD_PRIO));
+//	r = slm_ipithd_create(slm_ipi_process, NULL, 0, &ipithdcap, &ipitid);
+//	if (!r) BUG();
+//	sched_thd_param_set(ipitid, sched_param_pack(SCHEDP_PRIO, SLM_IPI_THD_PRIO));
 	ck_ring_init(&ipi_data->ring, PAGE_SIZE / sizeof(struct slm_ipi_event));
 }
 
@@ -691,4 +762,5 @@ cos_init(void)
 	cos_defcompinfo_init();
 
 	boot_info->scb_uaddr = capmgr_scb_map_ro();
+	start = ps_tsc();
 }

@@ -618,6 +618,7 @@ crt_sinv_create(struct crt_sinv *sinv, char *name, struct crt_comp *server, stru
 	assert(sinv->sinv_cap);
 
 	if (protdom_ns_vas_shared(client->ns_vas, server->ns_vas)) {
+		printc("==>user_sinv\n");
 		assert(s_altfn_addr && c_fast_callgate_addr);
 		/* values set for debugging; we need to implement a CSPRNG */
 		u64_t client_auth_tok = 0xfefefefefefefefe; /* = CSPRNG() */
@@ -1475,7 +1476,11 @@ crt_compinit_done(struct crt_comp *c, int parallel_init, init_main_t main_type)
 	}
 
 	/* switch back to the booter's thread in execute() */
-	if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync(ci))) BUG();
+	//if (cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync(ci))) BUG();
+	int test = cos_defswitch(BOOT_CAPTBL_SELF_INITTHD_CPU_BASE, TCAP_PRIO_MAX, TCAP_RES_INF, cos_sched_sync(ci));
+	if (test) {
+		BUG();
+	}
 
 	assert(c->init_state != CRT_COMP_INIT_PASSIVE);
 	assert(c->init_state != CRT_COMP_INIT_COS_INIT && c->init_state != CRT_COMP_INIT_PAR_INIT);

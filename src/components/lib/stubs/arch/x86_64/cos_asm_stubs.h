@@ -243,7 +243,7 @@ __cosrt_fast_callgate_##name:					\
 	/* TODO: jne     bad */					\
 	movabs	$0x1212121212121212, %rax;			\
 	movabs	$srv_call_ret_##name, %rcx;			\
-	jmpq   *%rax;						\
+	jmp     *%rax;                                           \
 srv_call_ret_##name:						\
 	movq	%rax, %r8;					\
 	/* save server authentication token */			\

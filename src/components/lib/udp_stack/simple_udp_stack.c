@@ -15,21 +15,21 @@ static u16_t host_port;
 static struct ether_addr nic_mac;
 #if 1
 static struct ether_addr gw_mac = {
+	.addr_bytes[0] = 0x80,
+	.addr_bytes[1] = 0x61,
+	.addr_bytes[2] = 0x5f,
+	.addr_bytes[3] = 0x06,
+	.addr_bytes[4] = 0x0f,
+	.addr_bytes[5] = 0xa3,
+};
+#else 
+static struct ether_addr gw_mac = {
 	.addr_bytes[0] = 0x10,
 	.addr_bytes[1] = 0x10,
 	.addr_bytes[2] = 0x10,
 	.addr_bytes[3] = 0x10,
 	.addr_bytes[4] = 0x10,
 	.addr_bytes[5] = 0x11,
-};
-#else 
-static struct ether_addr gw_mac = {
-	.addr_bytes[0] = 0x6c,
-	.addr_bytes[1] = 0xfe,
-	.addr_bytes[2] = 0x54,
-	.addr_bytes[3] = 0x40,
-	.addr_bytes[4] = 0x46,
-	.addr_bytes[5] = 0x09,
 };
 #endif
 static inline int 

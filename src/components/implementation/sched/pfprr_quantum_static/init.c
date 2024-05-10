@@ -250,7 +250,7 @@ slm_comp_init_loop(void)
 		n = &initialization_state[client];
 		init_schedule_current++;
 
-		//if (cos_coreid() == _init_core_id)	printc("\tScheduler %ld: initializing component %ld with thread %ld.\n", cos_compid(), client, t->tid);
+		if (cos_coreid() == _init_core_id)	printc("\tScheduler %ld: initializing component %ld with thread %ld.\n", cos_compid(), client, t->tid);
 		/*
 		 * This waits till init_done effective runs before
 		 * moving on. We need to be highest-priority, so that
@@ -263,6 +263,7 @@ slm_comp_init_loop(void)
 		 * resources.
 		 */
 		while (ps_load(&n->initialization_thds[cos_coreid()]) == NULL) {
+			printc("?");
 			cos_defswitch(t->thd, t->priority, slm_global()->timeout_next, cos_sched_sync(ci));
 		}
  	}

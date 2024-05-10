@@ -1453,12 +1453,19 @@ cos_thd_wakeup(thdcap_t thd, tcap_t tc, tcap_prio_t prio, tcap_res_t res)
 sched_tok_t
 cos_sched_sync(struct cos_compinfo *ci)
 {
-	struct cos_scb_info *scb_info = (struct cos_scb_info *)ci->scb_uaddr;
+//#if defined (__SSTOK__)
+//	struct cos_scb_info *scb_info = (struct cos_scb_info *)ci->scb_uaddr;
 
-	assert(scb_info);
-	sched_tok_t tok = ps_load(&(scb_info + cos_cpuid())->sched_tok);
+//	assert(scb_info);
+	//sched_tok_t tok = ps_load(&(scb_info + cos_cpuid())->sched_tok);
+//	sched_tok_t tok = ps_faa((unsigned long *)&(scb_info + cos_cpuid())->sched_tok, 1) + 1;
+//	printc("$$$: %d\n", tok);
+//	return tok;
 
-	return tok;
+//#else
+	static sched_tok_t stok[NUM_CPU] CACHE_ALIGNED;
+	return ps_faa((unsigned long *)&stok[cos_cpuid()], 1);
+//#endif
 }
 
 int

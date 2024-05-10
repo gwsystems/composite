@@ -87,9 +87,12 @@ sync_sem_take(struct sync_sem *s)
 		if (unlikely(!ps_cas(&s->rescnt, rescnt, rescnt - 1))) continue; /* retry */
 
 		/* If we don't need to block, return */
-		if (likely(rescnt > SYNC_SEM_ZERO)) return;
-
-		sync_blkpt_wait(&s->blkpt, 0, &chkpt);
+		if (likely(rescnt > SYNC_SEM_ZERO)) {
+			return;
+		}
+		sched_thd_yield_to(0);
+		//sync_blkpt_wait(&s->blkpt, 0, &chkpt);
+		
 		/*
 		 * When we wakeup, attempt to take the semaphore
 		 * again, so this assumes that when waking, the count
@@ -97,6 +100,7 @@ sync_sem_take(struct sync_sem *s)
 		 * (assuming we wake all blocked threads in the
 		 * blockpoint).
 		 */
+		//printc("2");
 	}
 }
 
@@ -159,7 +163,7 @@ sync_sem_give(struct sync_sem *s)
 			 */
 			if (!ps_cas(&s->rescnt, rescnt, SYNC_SEM_ZERO + 1)) continue; /* retry */
 			/* if there are blocked threads, wake 'em up! */
-			sync_blkpt_wake(&s->blkpt, 0);
+			//sync_blkpt_wake(&s->blkpt, 0);
 		}
 
 		return;

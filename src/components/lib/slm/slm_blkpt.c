@@ -149,7 +149,6 @@ slm_blkpt_block(sched_blkpt_id_t blkpt, struct slm_thd *current, sched_blkpt_epo
 		ps_lock_release(&m->lock);
 		ERR_THROW(0, unlock);
 	}
-
 	if (slm_thd_block(current)) {
 		ps_lock_release(&m->lock);
 		ERR_THROW(0, unlock);

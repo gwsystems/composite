@@ -442,7 +442,11 @@ uint16_t
 cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
 		 char**tx_pkts, const uint16_t nb_pkts)
 {
-	return rte_eth_tx_burst(ports_ids[port_id], queue_id, (struct rte_mbuf **)tx_pkts, nb_pkts);
+	int ret = 0;
+	ret = rte_eth_tx_burst(ports_ids[port_id], queue_id, (struct rte_mbuf **)tx_pkts, nb_pkts);
+
+	//ret = rte_eth_tx_buffer_flush(ports_ids[port_id], queue_id, struct rte_eth_dev_tx_buffer *buffer);
+	return ret;
 }
 
 /*

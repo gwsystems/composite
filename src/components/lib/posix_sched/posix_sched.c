@@ -232,6 +232,7 @@ libc_tls_init(unsigned int cpuid)
 	/* NOTE: GCC uses tls space similar to a stack, memory is accessed from high address to low address */
 	vaddr_t* tls_addr	= (vaddr_t *)((char *)&tls_space[cpuid] + PER_THD_TLS_MEM_SZ - sizeof(vaddr_t));
 	*tls_addr		= (vaddr_t)tls_addr;
+	printc("%lx\n", tls_space);
 
 	sched_set_tls((void*)tls_addr);
 }

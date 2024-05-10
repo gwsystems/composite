@@ -159,7 +159,7 @@ parallel_main(coreid_t cid)
 	assert(compid < (1 << 16));
 	port	= (u16_t)compid;
 
-	printc("tenant id:%d\n", port);
+	printc("%x\n", port);
 	ret = udp_stack_udp_bind(ip, port);
 	assert(ret == 0);
 	objid = 0;
@@ -170,7 +170,6 @@ parallel_main(coreid_t cid)
 	while (1)
 	{
 		objid  = udp_stack_shmem_read(&data_offset, &data_len, &remote_addr, &remote_port);
-
 		/* application would like to own the shmem because it does not want ohters to free it. */
 		rx_obj = shm_bm_borrow_net_pkt_buf(netshmem_get_shm(), objid);
 		if (unlikely(data_len == 0)) {

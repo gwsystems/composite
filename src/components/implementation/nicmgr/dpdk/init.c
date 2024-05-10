@@ -69,11 +69,14 @@ cos_hash_add(uint16_t tenant_id, struct client_session *session)
 	assert(ret >= 0);
 }
 
+int cnt = 0;
+unsigned long long tot = 0;
 struct client_session *
 cos_hash_lookup(uint16_t tenant_id)
 {
 	int ret;
 	struct client_session *session = NULL;
+	unsigned long long start, end;
 
 	/* If DPDK receives this port, it goes to process debug information */
 	if (unlikely(tenant_id == htons(NIC_DEBUG_PORT))) {
@@ -82,8 +85,16 @@ cos_hash_lookup(uint16_t tenant_id)
 		debug_flag = 1;
 		return NULL;
 	}
-
+	start = ps_tsc();
 	ret = rte_hash_lookup_data(tenant_hash_tbl, &tenant_id, (void *)&session);
+	end= ps_tsc();
+	tot += (end-start);
+	cnt++;
+	//if (cnt== 1000) {
+	//	cnt = 0;
+	//	printc("%llu\n", tot/1000);
+	//	tot = 0;
+	//}
 	if (ret < 0) return NULL;
 
 	return session;
@@ -177,8 +188,10 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 	struct client_session	*session;
 	char                    *pkt;
 	struct pkt_buf           buf;
+	unsigned long long       start=0, end=0;
 
 	for (i = 0; i < nb_pkts; i++) {
+		start = ps_tsc();
 		pkt = cos_get_packet(rx_pkts[i], &len);
 		eth = (struct eth_hdr *)pkt;
 
@@ -225,6 +238,14 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			// }
 
 			sync_sem_give(&session->sem);
+			end=ps_tsc();
+			tot += (end-start);
+			cnt++;
+			if (cnt > 100000) {
+				cnt = 0;
+				printc("%llu\n", tot/100000);
+				tot = 0;
+			}
 		} else if (htons(eth->ether_type) == 0x0806) {
 			cos_free_packet(buf.pkt);
 			continue;
@@ -285,6 +306,7 @@ cos_nic_start(){
 
 	char *rx_packets[MAX_PKT_BURST];
 
+	unsigned long loop = 100000000;
 	while (1) {
 #if USE_CK_RING_FREE_MBUF
 		cos_free_rx_buf();
@@ -298,6 +320,10 @@ cos_nic_start(){
 		nb_pkts = cos_dev_port_rx_burst(0, 0, rx_packets, MAX_PKT_BURST);
 		if (nb_pkts != 0) {
 			process_rx_packets(0, rx_packets, nb_pkts);
+		}
+		if (loop -- < 10) {
+			debug_print_stats();
+			assert(0);
 		}
 		/* These are the two test options */
 		// if (nb_pkts!= 0) transmit_back(0, rx_packets, nb_pkts);

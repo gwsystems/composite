@@ -90,8 +90,9 @@ cap_ulthd_lazyupdate(struct pt_regs *regs, struct cos_cpu_local_info *cos_info, 
 
 	if (unlikely(interrupt)) {
 
-		assert(scb_core->sched_tok < ~0U);
-		cos_faa((int *)&(scb_core->sched_tok), 1);
+		//assert(scb_core->sched_tok < ~0U);
+		//cos_faa((int *)&(scb_core->sched_tok), 1);
+		//printk("ss: %d\n", scb_core->sched_tok);
 
 		if (unlikely(thd->dcbinfo && thd->dcbinfo->sp)) {
 			regs->ip = thd->dcbinfo->ip + DCB_IP_KERN_OFF;
@@ -502,7 +503,7 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 		pgtbl_update(next_pt);
 	}
 
-#if defined (__SLITE__)
+#if defined (__SSTOK__)
 	if (next->dcbinfo && next->dcbinfo->sp) {
 		chal_protdom_write(SCHED_MPK_KEY);
 	} else {
@@ -513,7 +514,9 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 #endif
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
-	if (next->tls != curr->tls) chal_tls_update(next->tls);
+	if (next->tls != curr->tls) {
+		chal_tls_update(next->tls);
+	}
 
 	preempt = thd_switch_update(next, &next->regs, 0);
 	/* if switching to the preempted/awoken thread clear cpu local next_thdinfo */
@@ -674,10 +677,10 @@ cap_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, struc
 static int
 cap_sched_tok_validate(struct thread *rcvt, struct thread *curr, sched_tok_t usr_tok)
 {
-	assert(curr->scb_cached);
-	struct cos_scb_info *scb_core = curr->scb_cached + get_cpuid();
-
 	assert(rcvt && usr_tok < ~0U);
+//#if defined (__SLITE__)
+//	assert(curr->scb_cached);
+//	struct cos_scb_info *scb_core = curr->scb_cached + get_cpuid();
 
 	/*
 	 * Kernel increments the sched_tok on preemption only.
@@ -687,8 +690,20 @@ cap_sched_tok_validate(struct thread *rcvt, struct thread *curr, sched_tok_t usr
 	 * FIXME: make sure we're checking the scb of the scheduling component and not in any other component.
 	 *        I don't know if the comp_info here is of the scheduling component!
 	 */
-	if (unlikely(scb_core->sched_tok != usr_tok)) return -EAGAIN;
-
+//	if (unlikely(scb_core->sched_tok != usr_tok)) return -EAGAIN;
+//#else
+	//if (thd_rcvcap_get_counter(rcvt) > usr_tok) return -EAGAIN;
+	//thd_rcvcap_set_counter(rcvt, usr_tok);
+	assert(curr->scb_cached);
+	struct cos_scb_info *scb_core = curr->scb_cached + get_cpuid();
+	if (unlikely(scb_core->sched_tok > usr_tok)) {
+		
+		//printk("?: %d, %d\n", scb_core->sched_tok, usr_tok);
+		//assert(0);
+		return -EAGAIN;
+	}
+	scb_core->sched_tok = usr_tok;
+//#endif
 	return 0;
 }
 
@@ -743,7 +758,10 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs, st
 		}
 	} else {
 		/* TODO: set current thread as it's scheduler? */
-		if (!thd_scheduler(next)) thd_scheduler_set(next, thd);
+		if (!thd_scheduler(next)) {
+			printk("?????: %d\n", thd->tid);
+			thd_scheduler_set(next, thd);
+		}
 		assert(next->scheduler_thread);
 	}
 
@@ -1915,6 +1933,7 @@ static sword_t __attribute__((noinline)) composite_syscall_slowpath(struct pt_re
 			 * (i.e. on physical apertures presented by
 			 * PCI).
 			 */
+			//printk("HWMAP: %lx => %lx\n", va, pa);
 			ptc = (struct cap_pgtbl *)captbl_lkup(ci->captbl, ptcap);
 			if (!CAP_TYPECHK(ptc, CAP_PGTBL)) cos_throw(err, -EINVAL);
 
