@@ -1,4 +1,3 @@
-import register
 from capstone import *
 from capstone.x86 import *
 from debug import loginst,log

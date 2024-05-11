@@ -1,9 +1,7 @@
 import register
-import re
 import execute
 from debug import loginst, log, logresult
 from elftools.elf.elffile import ELFFile
-from elftools.elf.relocation import RelocationSection
 from capstone import *
 from elftools.elf.sections import (
     NoteSection, SymbolTableSection, SymbolTableIndexSection
