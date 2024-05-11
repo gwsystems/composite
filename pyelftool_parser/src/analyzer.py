@@ -1,6 +1,7 @@
 import register
 import re
 import execute
+from debug import loginst, log, logresult
 from elftools.elf.elffile import ELFFile
 from elftools.elf.relocation import RelocationSection
 from capstone import *
@@ -23,10 +24,8 @@ class disassembler:
             md = Cs(CS_ARCH_X86, CS_MODE_64)
             md.detail = True
             for i in md.disasm(ops, addr):
-                #print(i)
                 self.inst[i.address] = (i)
-                #print(f'0x{i.address:x}:\t{i.mnemonic}\t{i.op_str}')
-            #f.close()
+                log(f'0x{i.address:x}:\t{i.mnemonic}\t{i.op_str}')
 
     def disasmsymbol(self):
         with open(self.path, 'rb') as f:
@@ -37,9 +36,7 @@ class disassembler:
                 for symbol in section.iter_symbols():
                     self.symbol[symbol['st_value']] = symbol.name
                     self.vertex[symbol['st_value']] = symbol.name
-                            
-                    #print(symbol.name)
-            #f.close()
+                    log(symbol.name)
     def sym_analyzer(self):
         sym_info = {}
         with open(self.path, 'rb') as f:
@@ -105,8 +102,8 @@ class parser:
 
         self.stacklist.append(self.register.reg["stack"])
         self.stacklist = self.stacklist[1:]
-        print(self.stackfunction)
-        print(self.stacklist)
+        logresult(self.stackfunction)
+        logresult(self.stacklist)
         return (self.stackfunction,self.stacklist)
     
 
@@ -115,7 +112,7 @@ def driver(disassembler, register, execute, parser):
     disassembler.disasminst()
     disassembler.sym_analyzer()
     parser.stack_analyzer()
-    print(parser.edge)
+    logresult(parser.edge)
     return parser.stacklist
 
 
@@ -123,7 +120,9 @@ if __name__ == '__main__':
     #path = "../testbench/selftest/a.elf"
     #path = "../usr/bin/gcc"
     #path = "../testbench/dhrystone/dhrystone"
-    path = "../testbench/composite/tests.unit_pingpong.global.ping"
+    #path = "../testbench/composite/tests.unit_pingpong.global.ping"
+    path = "../testbench/composite/system_binaries/cos_build-ming/global.sched/sched.pfprr_quantum_static.global.sched"
+    
     
     disassembler = disassembler(path)
     disassembler.disasmsymbol()
@@ -133,6 +132,6 @@ if __name__ == '__main__':
     execute = execute.execute(register)
     parser = parser(disassembler.symbol, disassembler.inst, register, execute)
     driver(disassembler, register, execute, parser)
-    print(parser.edge)
+    log(parser.edge)
     
     

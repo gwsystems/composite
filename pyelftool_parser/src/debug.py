@@ -1,10 +1,15 @@
 
-DEBUG = True
-DEBUGinst = True
+DEBUG = False
+DEBUGinst = False
+DEBUGresult = True
 def loginst(*argv):
-    if DEBUG and DEBUGinst:
+    if DEBUGinst:
         print(argv)
 
 def log(*argv):
     if DEBUG:
+        print(argv)
+        
+def logresult(*argv):
+    if DEBUGresult:
         print(argv)

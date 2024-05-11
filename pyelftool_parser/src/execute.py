@@ -25,15 +25,14 @@ class execute:
         disp = 0
         memindex = 0
         if "ptr" in inst.op_str:    ## early exit for ptr, I do not handle the pointer to memory yet.
-            ##loginst(inst.address, inst.mnemonic, inst.op_str)
-            ##loginst("I do not handle memory yet")
+            loginst(inst.address, inst.mnemonic, inst.op_str)
+            loginst("I do not handle memory yet")
             return 0
         
         if len(inst.operands) >= 2:
             if(inst.id == X86_INS_FXCH):
                 dst = inst.op_str
-                print("HIHIHI")
-                print(dst)
+                log(dst)
             else:
                 src = inst.op_str.split(",")[1].replace(" ","")
                 dst = inst.op_str.split(",")[0]
@@ -96,12 +95,12 @@ class execute:
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 8
             else:
-                #loginst(inst.address, inst.mnemonic, inst.op_str)
-                #loginst("we have not catched this instruction")
+                loginst(inst.address, inst.mnemonic, inst.op_str)
+                loginst("we have not catched this instruction")
                 return 0
         else:
-            #loginst(inst.address, inst.mnemonic, inst.op_str)
-            #loginst("It is not about rsp")
+            loginst(inst.address, inst.mnemonic, inst.op_str)
+            loginst("It is not about rsp")
             return 0
         
     def checkcall(self, inst):        
@@ -113,18 +112,15 @@ class execute:
                 dst = inst.op_str
             for i in inst.operands:
                 if i.type == X86_OP_REG:
-                    log("aaaa")
                     log(inst.reg_name(i.reg))
                 if i.type == X86_OP_IMM:
                     imm = i.imm
-                    log("bbbb")
                     log(imm)
                     flagimm = 1
                 if i.type == X86_OP_MEM:
                     base = inst.reg_name(i.mem.base)
                     disp = i.mem.disp
                     memindex = i.mem.index
-                    log("cccc")
                     log(base, disp, memindex)
                     flagmem = 1
             return 1
