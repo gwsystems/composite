@@ -20,15 +20,12 @@ class execute:
         writereg = []
         flagimm = 0
         flagmem = 0
-        flagptr = 0
         imm = 0
         disp = 0
-        memindex = 0
         if "ptr" in inst.op_str:    ## early exit for ptr, I do not handle the pointer to memory yet.
             loginst(inst.address, inst.mnemonic, inst.op_str)
             loginst("I do not handle memory yet")
             return 0
-        
         if len(inst.operands) >= 2:
             if(inst.id == X86_INS_FXCH):
                 dst = inst.op_str
@@ -47,7 +44,6 @@ class execute:
             if i.type == X86_OP_MEM:
                 base = inst.reg_name(i.mem.base)
                 disp = i.mem.disp
-                memindex = i.mem.index
                 flagmem = 1
         for r in regs_read:  ## catch the implicity read register of stack
             readreg.append(inst.reg_name(r))
@@ -89,9 +85,9 @@ class execute:
                 self.reg["rsp"] -= 8
                 ## graph
                 if flagimm:
-                    edge.add((vertexfrom, imm))
+                    edge.add((hex(vertexfrom), hex(imm)))
                 elif flagmem:
-                    edge.add((vertexfrom, base + disp))
+                    edge.add((hex(vertexfrom), hex(base + disp)))
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 8
             else:
@@ -101,28 +97,4 @@ class execute:
         else:
             loginst(inst.address, inst.mnemonic, inst.op_str)
             loginst("It is not about rsp")
-            return 0
-        
-    def checkcall(self, inst):        
-        if inst.id == (X86_INS_CALL):
-            if len(inst.operands) >= 2:
-                src = inst.op_str.split(",")[1].replace(" ","")
-                dst = inst.op_str.split(",")[0]
-            elif len(inst.operands) == 1:
-                dst = inst.op_str
-            for i in inst.operands:
-                if i.type == X86_OP_REG:
-                    log(inst.reg_name(i.reg))
-                if i.type == X86_OP_IMM:
-                    imm = i.imm
-                    log(imm)
-                    flagimm = 1
-                if i.type == X86_OP_MEM:
-                    base = inst.reg_name(i.mem.base)
-                    disp = i.mem.disp
-                    memindex = i.mem.index
-                    log(base, disp, memindex)
-                    flagmem = 1
-            return 1
-        else:
             return 0
