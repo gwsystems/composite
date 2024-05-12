@@ -122,7 +122,7 @@ if __name__ == '__main__':
     #path = "../testbench/composite/tests.unit_pingpong.global.ping"
     path = "../testbench/composite/system_binaries/cos_build-ming/global.sched/sched.pfprr_quantum_static.global.sched"
     
-    mode = 0 ## simulator mode.
+    mode = 1 ## simulator mode.
     
     disassembler = disassembler(path)
     disassembler.disasmsymbol()

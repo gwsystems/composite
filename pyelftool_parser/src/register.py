@@ -1,7 +1,10 @@
 
 class register:
     def __init__(self):
-        self.reglist = ["rax", "rbx", "rcx", "rdx", "rdi" , "rsi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"]
+        self.reglist = ["rax", "rbx", "rcx", "rdx", "rdi", "rsi", "rbp", "rsp", 
+                        "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", 
+                        "eax", "ebx", "ecx", "edx", "edi", "esi", "ebp", "esp",
+                        "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7"]
         self.reg = dict()
         self.reg["pc"] = 0
         self.reg["rax"] = 0
@@ -20,6 +23,22 @@ class register:
         self.reg["r13"] = 0
         self.reg["r14"] = 0
         self.reg["r15"] = 0
+        self.reg["eax"] = 0
+        self.reg["ebx"] = 0
+        self.reg["ecx"] = 0
+        self.reg["edx"] = 0
+        self.reg["edi"] = 0 
+        self.reg["esi"] = 0
+        self.reg["ebp"] = 0
+        self.reg["esp"] = 0
+        self.reg["xmm0"] = 0
+        self.reg["xmm1"] = 0
+        self.reg["xmm2"] = 0
+        self.reg["xmm3"] = 0
+        self.reg["xmm4"] = 0
+        self.reg["xmm5"] = 0
+        self.reg["xmm6"] = 0
+        self.reg["xmm7"] = 0
         self.reg["stack"] = 0
     def clean(self):
         self.reg["rax"] = 0
@@ -38,6 +57,22 @@ class register:
         self.reg["r13"] = 0
         self.reg["r14"] = 0
         self.reg["r15"] = 0
+        self.reg["eax"] = 0
+        self.reg["ebx"] = 0
+        self.reg["ecx"] = 0
+        self.reg["edx"] = 0
+        self.reg["edi"] = 0 
+        self.reg["esi"] = 0
+        self.reg["ebp"] = 0
+        self.reg["esp"] = 0
+        self.reg["xmm0"] = 0
+        self.reg["xmm1"] = 0
+        self.reg["xmm2"] = 0
+        self.reg["xmm3"] = 0
+        self.reg["xmm4"] = 0
+        self.reg["xmm5"] = 0
+        self.reg["xmm6"] = 0
+        self.reg["xmm7"] = 0
         self.reg["stack"] = 0
     def Isreg(self, s):
         if s in self.reglist:
