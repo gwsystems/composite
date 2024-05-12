@@ -24,7 +24,7 @@ class execute:
         disp = 0
         if "ptr" in inst.op_str:    ## early exit for ptr, I do not handle the pointer to memory yet.
             loginst(inst.address, inst.mnemonic, inst.op_str)
-            loginst("I do not handle memory yet")
+            loginst("I do not handle ptr memory yet")
             return 0
         if len(inst.operands) >= 2:
             if(inst.id == X86_INS_FXCH):
@@ -32,8 +32,7 @@ class execute:
                 log(dst)
             elif(inst.id == X86_INS_LEA):
                 src = inst.op_str.split(",")[1].replace("[","").replace("]","")
-                addressval = eval(src,self.reg)
-                loginst(addressval)
+                src = eval(src,self.reg)
                 dst = inst.op_str.split(",")[0]
             else:
                 src = inst.op_str.split(",")[1].replace(" ","")
@@ -83,7 +82,7 @@ class execute:
                 else:
                     self.reg[dst] += self.reg[src]
             elif inst.id == (X86_INS_LEA):  ## catch lea instruction
-                loginst("LEA instruction have not yet handled")
+                self.reg[dst] = src
             elif inst.id == (X86_INS_CALL):  ## catch call instruction
                 self.reg["rsp"] -= 8
                 ## graph
@@ -95,7 +94,7 @@ class execute:
                 self.reg["rsp"] += 8
             else:
                 loginst(inst.address, inst.mnemonic, inst.op_str)
-                loginst("we have not catched this instruction and it is rsp instruction")
+                loginst("we have not catched this instruction and it is rsp instruction.")
                 return 0
         else: ## simulator mode or calculation mode
             if inst.id == (X86_INS_PUSH):  ## catch push
@@ -107,8 +106,10 @@ class execute:
                     self.reg[dst] = imm
                 else:
                     self.reg[dst] = self.reg[src]
+            elif inst.id == (X86_INS_LEA):  ## catch mov instruction
+                self.reg[dst] = src
             else:
                 loginst("This instruction is not yet handled in simulator mode which is not rsp instruction.")
             loginst(inst.address, inst.mnemonic, inst.op_str)
-            loginst("It is not about rsp")
+            loginst("this instruction is not about rsp.")
             return 0
