@@ -13,7 +13,7 @@ class execute:
         (regs_read, regs_write) = inst.regs_access()
         ##  catch the rsp reg in instruction.    
         flagrsp = 0
-        src =0
+        src = 0
         dst = 0
         reg = []
         readreg = []
@@ -30,6 +30,11 @@ class execute:
             if(inst.id == X86_INS_FXCH):
                 dst = inst.op_str
                 log(dst)
+            elif(inst.id == X86_INS_LEA):
+                src = inst.op_str.split(",")[1].replace("[","").replace("]","")
+                addressval = eval(src,self.reg)
+                loginst(addressval)
+                dst = inst.op_str.split(",")[0]
             else:
                 src = inst.op_str.split(",")[1].replace(" ","")
                 dst = inst.op_str.split(",")[0]
@@ -56,47 +61,54 @@ class execute:
         
         ##------------------------------------------
         ## execute stage.
-        if self.mode == 1: ## simulator mode
-            log("simulator mode")
-        else:  ## rsp-only mode
-            if flagrsp:  ## if rsp is in the instruction  
-                if inst.id == (X86_INS_PUSH):  ## catch push
-                    self.reg["rsp"] -= 8
-                elif inst.id == (X86_INS_POP): ## catch pop instruction
-                    #loginst(inst.address, inst.mnemonic, inst.op_str)
-                    self.reg["rsp"] += 8
-                elif inst.id == (X86_INS_MOV):  ## catch mov instruction
-                    if flagimm:
-                        self.reg[dst] = imm
-                    else:
-                        self.reg[dst] = self.reg[src]
-                elif inst.id == (X86_INS_SUB):  ## catch sub instruction
-                    if flagimm:
-                        self.reg[dst] -= imm
-                    else:
-                        self.reg[dst] -= self.reg[src]
-
-                elif inst.id == (X86_INS_ADD):  ## catch add instruction
-                    if flagimm:
-                        self.reg[dst] += imm
-                    else:
-                        self.reg[dst] += self.reg[src]
-                elif inst.id == (X86_INS_LEA):  ## catch lea instruction
-                    loginst("LEA instruction have not yet handled")
-                elif inst.id == (X86_INS_CALL):  ## catch call instruction
-                    self.reg["rsp"] -= 8
-                    ## graph
-                    if flagimm:
-                        edge.add((hex(vertexfrom), hex(imm)))
-                    elif flagmem:
-                        edge.add((hex(vertexfrom), hex(base + disp)))
-                elif inst.id == (X86_INS_RET):  ## catch RET instruction
-                    self.reg["rsp"] += 8
+        if flagrsp:  ## if rsp is in the instruction
+            if inst.id == (X86_INS_PUSH):  ## catch push
+                self.reg["rsp"] -= 8
+            elif inst.id == (X86_INS_POP): ## catch pop instruction
+                #loginst(inst.address, inst.mnemonic, inst.op_str)
+                self.reg["rsp"] += 8
+            elif inst.id == (X86_INS_MOV):  ## catch mov instruction
+                if flagimm:
+                    self.reg[dst] = imm
                 else:
-                    loginst(inst.address, inst.mnemonic, inst.op_str)
-                    loginst("we have not catched this instruction")
-                    return 0
+                    self.reg[dst] = self.reg[src]
+            elif inst.id == (X86_INS_SUB):  ## catch sub instruction
+                if flagimm:
+                    self.reg[dst] -= imm
+                else:
+                    self.reg[dst] -= self.reg[src]
+            elif inst.id == (X86_INS_ADD):  ## catch add instruction
+                if flagimm:
+                    self.reg[dst] += imm
+                else:
+                    self.reg[dst] += self.reg[src]
+            elif inst.id == (X86_INS_LEA):  ## catch lea instruction
+                loginst("LEA instruction have not yet handled")
+            elif inst.id == (X86_INS_CALL):  ## catch call instruction
+                self.reg["rsp"] -= 8
+                ## graph
+                if flagimm:
+                    edge.add((hex(vertexfrom), hex(imm)))
+                elif flagmem:
+                    edge.add((hex(vertexfrom), hex(base + disp)))
+            elif inst.id == (X86_INS_RET):  ## catch RET instruction
+                self.reg["rsp"] += 8
             else:
                 loginst(inst.address, inst.mnemonic, inst.op_str)
-                loginst("It is not about rsp")
+                loginst("we have not catched this instruction and it is rsp instruction")
                 return 0
+        else: ## simulator mode or calculation mode
+            if inst.id == (X86_INS_PUSH):  ## catch push
+                pass
+            elif inst.id == (X86_INS_POP): ## catch pop instruction
+                pass
+            elif inst.id == (X86_INS_MOV):  ## catch mov instruction
+                if flagimm:
+                    self.reg[dst] = imm
+                else:
+                    self.reg[dst] = self.reg[src]
+            else:
+                loginst("This instruction is not yet handled in simulator mode which is not rsp instruction.")
+            loginst(inst.address, inst.mnemonic, inst.op_str)
+            loginst("It is not about rsp")
+            return 0
