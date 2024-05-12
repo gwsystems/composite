@@ -76,11 +76,16 @@ class execute:
                     self.reg[dst] -= imm
                 else:
                     self.reg[dst] -= self.reg[src]
-            elif inst.id == (X86_INS_ADD):  ## catch add instruction
+            elif inst.id == (X86_INS_AND):  ## catch sub instruction
                 if flagimm:
                     self.reg[dst] += imm
                 else:
                     self.reg[dst] += self.reg[src]
+            elif inst.id == (X86_INS_ADD):  ## catch add instruction
+                if flagimm:
+                    self.reg[dst] -= imm
+                else:
+                    self.reg[dst] -= self.reg[src]
             elif inst.id == (X86_INS_LEA):  ## catch lea instruction
                 self.reg[dst] = src
             elif inst.id == (X86_INS_CALL):  ## catch call instruction
@@ -92,6 +97,9 @@ class execute:
                     edge.add((hex(vertexfrom), hex(base + disp)))
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 8
+            elif inst.id == (X86_INS_LEAVE):  ## catch RET instruction
+                ## TODO:(minghwu) to implemtn leave instruction
+                pass
             else:
                 loginst(hex(inst.address), inst.mnemonic, inst.op_str)
                 loginst("we have not catched this instruction and it is rsp instruction.")
@@ -107,12 +115,28 @@ class execute:
                 else:
                     self.reg[dst] = self.reg[src]
             elif inst.id == (X86_INS_MOVABS):  ## catch mov instruction
-                pass
+                loginst(hex(inst.address), inst.mnemonic, inst.op_str)
+                loginst("We have not handle movabs.")
             elif inst.id == (X86_INS_LEA):  ## catch mov instruction
                 self.reg[dst] = src
+            elif inst.id == (X86_INS_SUB):  ## catch sub instruction
+                if flagimm:
+                    self.reg[dst] -= imm
+                else:
+                    self.reg[dst] -= self.reg[src]
+            elif inst.id == (X86_INS_AND):  ## catch sub instruction
+                if flagimm:
+                    self.reg[dst] &= imm
+                else:
+                    self.reg[dst] &= self.reg[src]
+            elif inst.id == (X86_INS_ADD):  ## catch add instruction
+                if flagimm:
+                    self.reg[dst] += imm
+                else:
+                    self.reg[dst] += self.reg[src]
             else:
-                loginst(inst.address, inst.mnemonic, inst.op_str)
+                loginst(hex(inst.address), inst.mnemonic, inst.op_str)
                 loginst("This instruction is not yet handled in simulator mode which is not rsp instruction.")
-            loginst(inst.address, inst.mnemonic, inst.op_str)
+            loginst(hex(inst.address), inst.mnemonic, inst.op_str)
             loginst("this instruction is not about rsp.")
             return 0
