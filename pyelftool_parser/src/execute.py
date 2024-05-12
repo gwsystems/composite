@@ -2,9 +2,10 @@ from capstone import *
 from capstone.x86 import *
 from debug import loginst,log
 class execute:
-    def __init__(self, register):
+    def __init__(self, register, mode):
         self.register = register
         self.reg = register.reg
+        self.mode = mode
     def exe(self, inst, edge, vertexfrom):
         ## -----------------------------------------------
         ## decode stage.
@@ -55,45 +56,47 @@ class execute:
         
         ##------------------------------------------
         ## execute stage.
+        if self.mode == 1: ## simulator mode
+            log("simulator mode")
+        else:  ## rsp-only mode
+            if flagrsp:  ## if rsp is in the instruction  
+                if inst.id == (X86_INS_PUSH):  ## catch push
+                    self.reg["rsp"] -= 8
+                elif inst.id == (X86_INS_POP): ## catch pop instruction
+                    #loginst(inst.address, inst.mnemonic, inst.op_str)
+                    self.reg["rsp"] += 8
+                elif inst.id == (X86_INS_MOV):  ## catch mov instruction
+                    if flagimm:
+                        self.reg[dst] = imm
+                    else:
+                        self.reg[dst] = self.reg[src]
+                elif inst.id == (X86_INS_SUB):  ## catch sub instruction
+                    if flagimm:
+                        self.reg[dst] -= imm
+                    else:
+                        self.reg[dst] -= self.reg[src]
 
-        if flagrsp:  ## if rsp is in the instruction
-            if inst.id == (X86_INS_PUSH):  ## catch push
-                self.reg["rsp"] -= 8
-            elif inst.id == (X86_INS_POP): ## catch pop instruction
-                #loginst(inst.address, inst.mnemonic, inst.op_str)
-                self.reg["rsp"] += 8
-            elif inst.id == (X86_INS_MOV):  ## catch mov instruction
-                if flagimm:
-                    self.reg[dst] = imm
+                elif inst.id == (X86_INS_ADD):  ## catch add instruction
+                    if flagimm:
+                        self.reg[dst] += imm
+                    else:
+                        self.reg[dst] += self.reg[src]
+                elif inst.id == (X86_INS_LEA):  ## catch lea instruction
+                    loginst("LEA instruction have not yet handled")
+                elif inst.id == (X86_INS_CALL):  ## catch call instruction
+                    self.reg["rsp"] -= 8
+                    ## graph
+                    if flagimm:
+                        edge.add((hex(vertexfrom), hex(imm)))
+                    elif flagmem:
+                        edge.add((hex(vertexfrom), hex(base + disp)))
+                elif inst.id == (X86_INS_RET):  ## catch RET instruction
+                    self.reg["rsp"] += 8
                 else:
-                    self.reg[dst] = self.reg[src]
-            elif inst.id == (X86_INS_SUB):  ## catch sub instruction
-                if flagimm:
-                    self.reg[dst] -= imm
-                else:
-                    self.reg[dst] -= self.reg[src]
-                
-            elif inst.id == (X86_INS_ADD):  ## catch add instruction
-                if flagimm:
-                    self.reg[dst] += imm
-                else:
-                    self.reg[dst] += self.reg[src]
-            elif inst.id == (X86_INS_LEA):  ## catch lea instruction
-                loginst("LEA instruction have not yet handled")
-            elif inst.id == (X86_INS_CALL):  ## catch call instruction
-                self.reg["rsp"] -= 8
-                ## graph
-                if flagimm:
-                    edge.add((hex(vertexfrom), hex(imm)))
-                elif flagmem:
-                    edge.add((hex(vertexfrom), hex(base + disp)))
-            elif inst.id == (X86_INS_RET):  ## catch RET instruction
-                self.reg["rsp"] += 8
+                    loginst(inst.address, inst.mnemonic, inst.op_str)
+                    loginst("we have not catched this instruction")
+                    return 0
             else:
                 loginst(inst.address, inst.mnemonic, inst.op_str)
-                loginst("we have not catched this instruction")
+                loginst("It is not about rsp")
                 return 0
-        else:
-            loginst(inst.address, inst.mnemonic, inst.op_str)
-            loginst("It is not about rsp")
-            return 0

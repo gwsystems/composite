@@ -34,7 +34,7 @@ class disassembler:
                 for symbol in section.iter_symbols():
                     self.symbol[symbol['st_value']] = symbol.name
                     self.vertex[symbol['st_value']] = symbol.name
-                    log(symbol.name)
+                    log(symbol.name, symbol['st_value'])
     def sym_analyzer(self):
         sym_info = {}
         with open(self.path, 'rb') as f:
@@ -96,6 +96,7 @@ class parser:
                 vertexfrom = key
                 self.vertex.add(vertexfrom)
             self.execute.exe(self.inst[key],self.edge,vertexfrom)
+            logresult(self.register.reg["stack"], hex(key))
             self.register.updatestackreg()
 
         self.stacklist.append(self.register.reg["stack"])
@@ -121,13 +122,14 @@ if __name__ == '__main__':
     #path = "../testbench/composite/tests.unit_pingpong.global.ping"
     path = "../testbench/composite/system_binaries/cos_build-ming/global.sched/sched.pfprr_quantum_static.global.sched"
     
+    mode = 0 ## simulator mode.
     
     disassembler = disassembler(path)
     disassembler.disasmsymbol()
     disassembler.disasminst()
 
     register = register.register()
-    execute = execute.execute(register)
+    execute = execute.execute(register, mode)
     parser = parser(disassembler.symbol, disassembler.inst, register, execute)
     driver(disassembler, register, execute, parser)
     log(parser.edge)
