@@ -68,24 +68,24 @@ class execute:
                 self.reg["rsp"] += 8
             elif inst.id == (X86_INS_MOV):  ## catch mov instruction
                 if flagimm:
-                    self.reg[dst] = imm
+                    self.register.Setreg(dst, imm)
                 else:
-                    self.reg[dst] = self.reg[src]
+                    self.register.Setregwithregname(dst, src)
             elif inst.id == (X86_INS_SUB):  ## catch sub instruction
                 if flagimm:
-                    self.reg[dst] -= imm
+                    self.register.Setreg(dst, self.register.Getregwithname(dst) - imm)
                 else:
-                    self.reg[dst] -= self.reg[src]
+                    self.register.Setreg(dst, self.register.Getregwithname(dst) - self.register.Getregwithname(src))
             elif inst.id == (X86_INS_AND):  ## catch sub instruction
                 if flagimm:
-                    self.reg[dst] += imm
+                    self.register.Setreg(dst, self.register.Getregwithname(dst) & imm)
                 else:
-                    self.reg[dst] += self.reg[src]
+                    self.register.Setreg(dst, self.register.Getregwithname(dst) & self.register.Getregwithname(src))
             elif inst.id == (X86_INS_ADD):  ## catch add instruction
                 if flagimm:
-                    self.reg[dst] -= imm
+                    self.register.Setreg(dst, self.register.Getregwithname(dst) + imm)
                 else:
-                    self.reg[dst] -= self.reg[src]
+                    self.register.Setreg(dst, self.register.Getregwithname(dst) + self.register.Getregwithname(src))
             elif inst.id == (X86_INS_LEA):  ## catch lea instruction
                 self.reg[dst] = src
             elif inst.id == (X86_INS_CALL):  ## catch call instruction
@@ -111,9 +111,9 @@ class execute:
                 pass
             elif inst.id == (X86_INS_MOV):  ## catch mov instruction
                 if flagimm:
-                    self.reg[dst] = imm
+                    self.register.Setreg(dst, imm)
                 else:
-                    self.reg[dst] = self.reg[src]
+                    self.register.Setregwithregname(dst, src)
             elif inst.id == (X86_INS_MOVABS):  ## catch mov instruction
                 loginst(hex(inst.address), inst.mnemonic, inst.op_str)
                 loginst("We have not handle movabs.")
@@ -121,19 +121,19 @@ class execute:
                 self.reg[dst] = src
             elif inst.id == (X86_INS_SUB):  ## catch sub instruction
                 if flagimm:
-                    self.reg[dst] -= imm
+                    self.register.Setreg(dst, self.register.Getregwithname(dst) - imm)
                 else:
-                    self.reg[dst] -= self.reg[src]
+                    self.register.Setreg(dst, self.register.Getregwithname(dst) - self.register.Getregwithname(src))
             elif inst.id == (X86_INS_AND):  ## catch sub instruction
                 if flagimm:
-                    self.reg[dst] &= imm
+                    self.register.Setreg(dst, self.register.Getregwithname(dst) & imm)
                 else:
-                    self.reg[dst] &= self.reg[src]
+                    self.register.Setreg(dst, self.register.Getregwithname(dst) & self.register.Getregwithname(src))
             elif inst.id == (X86_INS_ADD):  ## catch add instruction
                 if flagimm:
-                    self.reg[dst] += imm
+                     self.register.Setreg(dst, self.register.Getregwithname(dst) + imm)
                 else:
-                    self.reg[dst] += self.reg[src]
+                    self.register.Setreg(dst, self.register.Getregwithname(dst) + self.register.Getregwithname(src))
             else:
                 loginst(hex(inst.address), inst.mnemonic, inst.op_str)
                 loginst("This instruction is not yet handled in simulator mode which is not rsp instruction.")

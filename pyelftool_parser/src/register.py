@@ -7,78 +7,95 @@ class register:
                         "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7"]
         self.reg = dict()
         self.reg["pc"] = 0
-        self.reg["rax"] = 0
-        self.reg["rbx"] = 0
-        self.reg["rcx"] = 0
-        self.reg["rdx"] = 0
-        self.reg["rdi"] = 0 
-        self.reg["rsi"] = 0
-        self.reg["rbp"] = 0
-        self.reg["rsp"] = 0
-        self.reg["r8"] = 0
-        self.reg["r9"] = 0
-        self.reg["r10"] = 0
-        self.reg["r11"] = 0
-        self.reg["r12"] = 0
-        self.reg["r13"] = 0
-        self.reg["r14"] = 0
-        self.reg["r15"] = 0
-        self.reg["eax"] = 0
-        self.reg["ebx"] = 0
-        self.reg["ecx"] = 0
-        self.reg["edx"] = 0
-        self.reg["edi"] = 0 
-        self.reg["esi"] = 0
-        self.reg["ebp"] = 0
-        self.reg["esp"] = 0
-        self.reg["xmm0"] = 0
-        self.reg["xmm1"] = 0
-        self.reg["xmm2"] = 0
-        self.reg["xmm3"] = 0
-        self.reg["xmm4"] = 0
-        self.reg["xmm5"] = 0
-        self.reg["xmm6"] = 0
-        self.reg["xmm7"] = 0
+        self.reg["rax"] = -1
+        self.reg["rbx"] = -1
+        self.reg["rcx"] = -1
+        self.reg["rdx"] = -1
+        self.reg["rdi"] = -1
+        self.reg["rsi"] = -1
+        self.reg["rbp"] = -1
+        self.reg["rsp"] = -1
+        self.reg["r8"] = -1
+        self.reg["r9"] = -1
+        self.reg["r10"] = -1
+        self.reg["r11"] = -1
+        self.reg["r12"] = -1
+        self.reg["r13"] = -1
+        self.reg["r14"] = -1
+        self.reg["r15"] = -1
+        self.reg["xmm0"] = -1
+        self.reg["xmm1"] = -1
+        self.reg["xmm2"] = -1
+        self.reg["xmm3"] = -1
+        self.reg["xmm4"] = -1
+        self.reg["xmm5"] = -1
+        self.reg["xmm6"] = -1
+        self.reg["xmm7"] = -1
         self.reg["stack"] = 0
     def clean(self):
-        self.reg["rax"] = 0
-        self.reg["rbx"] = 0
-        self.reg["rcx"] = 0
-        self.reg["rdx"] = 0
-        self.reg["rdi"] = 0 
-        self.reg["rsi"] = 0
-        self.reg["rbp"] = 0
-        self.reg["rsp"] = 0
-        self.reg["r8"] = 0
-        self.reg["r9"] = 0
-        self.reg["r10"] = 0
-        self.reg["r11"] = 0
-        self.reg["r12"] = 0
-        self.reg["r13"] = 0
-        self.reg["r14"] = 0
-        self.reg["r15"] = 0
-        self.reg["eax"] = 0
-        self.reg["ebx"] = 0
-        self.reg["ecx"] = 0
-        self.reg["edx"] = 0
-        self.reg["edi"] = 0 
-        self.reg["esi"] = 0
-        self.reg["ebp"] = 0
-        self.reg["esp"] = 0
-        self.reg["xmm0"] = 0
-        self.reg["xmm1"] = 0
-        self.reg["xmm2"] = 0
-        self.reg["xmm3"] = 0
-        self.reg["xmm4"] = 0
-        self.reg["xmm5"] = 0
-        self.reg["xmm6"] = 0
-        self.reg["xmm7"] = 0
+        self.reg["rax"] = -1
+        self.reg["rbx"] = -1
+        self.reg["rcx"] = -1
+        self.reg["rdx"] = -1
+        self.reg["rdi"] = -1 
+        self.reg["rsi"] = -1
+        self.reg["rbp"] = -1
+        self.reg["rsp"] = -1
+        self.reg["r8"] = -1
+        self.reg["r9"] = -1
+        self.reg["r10"] = -1
+        self.reg["r11"] = -1
+        self.reg["r12"] = -1
+        self.reg["r13"] = -1
+        self.reg["r14"] = -1
+        self.reg["r15"] = -1
+        self.reg["xmm0"] = -1
+        self.reg["xmm1"] = -1
+        self.reg["xmm2"] = -1
+        self.reg["xmm3"] = -1
+        self.reg["xmm4"] = -1
+        self.reg["xmm5"] = -1
+        self.reg["xmm6"] = -1
+        self.reg["xmm7"] = -1
         self.reg["stack"] = 0
     def Isreg(self, s):
         if s in self.reglist:
             return True
         else:
             return False
+    def Getregwithname(self, s):
+        if s == "al" or s == "bl" or s == "cl" or s == "dl":
+            return (self.reg["r" + s.replace("l","x")] & 0xff)
+        elif s == "ah" or s == "bh" or s == "ch" or s == "dh":
+            return (( self.reg["r" + s.replace("h","x")] & 0xff00) >> 8)
+        elif s == "ax" or s == "bx" or s == "cx" or s == "dx" or s == "bp" or s == "si" or s == "di" or s == "sp":
+            return (self.reg["r" + s] & 0xffff)
+        elif s == "eax" or s == "ebx" or s == "ecx" or s == "edx" or s == "edi" or s == "esi" or s == "ebp" or s == "esp":
+            return self.reg[s.replace("e","r")] & 0xffffffff
+        else:
+            return self.reg[s]
+    def Setreg(self, dst, value):
+        if dst == "al" or dst == "bl" or dst == "cl" or dst == "dl":
+            self.reg["r" + dst.replace("l","x")] = (value & 0xff)
+        elif dst == "ah" or dst == "bh" or dst == "ch" or dst == "dh":
+            self.reg["r" + dst.replace("h","x")] = ((value) << 8)
+        elif dst == "ax" or dst == "bx" or dst == "cx" or dst == "dx" or dst == "bp" or dst == "si" or dst == "di" or dst == "sp":
+             self.reg["r" + dst] = (value & 0xffff)
+        elif dst == "eax" or dst == "ebx" or dst == "ecx" or dst == "edx" or dst == "edi" or dst == "esi" or dst == "ebp" or dst == "esp":
+            self.reg[dst.replace("e","r")] = (value & 0xffffffff)
+        else:
+            self.reg[dst] = value
+    def Setregwithregname(self, dst, src):
+        if dst == "al" or dst == "bl" or dst == "cl" or dst == "dl":
+            self.reg["r" + dst.replace("l","x")] = (self.Getregwithname(src) & 0xff)
+        elif dst == "ah" or dst == "bh" or dst == "ch" or dst == "dh":
+            self.reg["r" + dst.replace("h","x")] = ((self.Getregwithname(src)) << 8)
+        elif dst == "ax" or dst == "bx" or dst == "cx" or dst == "dx" or dst == "bp" or dst == "si" or dst == "di" or dst == "sp":
+             self.reg["r" + dst] = (self.Getregwithname(src))
+        elif dst == "eax" or dst == "ebx" or dst == "ecx" or dst == "edx" or dst == "edi" or dst == "esi" or dst == "ebp" or dst == "esp":
+            self.reg[dst.replace("e","r")] = (self.Getregwithname(src))
+        else:
+            self.reg[dst] = self.Getregwithname(src)
     def updaterip(self, key):
         if key != -1:
             self.reg["rip"] = key
