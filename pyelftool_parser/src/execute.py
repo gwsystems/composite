@@ -93,7 +93,7 @@ class execute:
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 8
             else:
-                loginst(inst.address, inst.mnemonic, inst.op_str)
+                loginst(hex(inst.address), inst.mnemonic, inst.op_str)
                 loginst("we have not catched this instruction and it is rsp instruction.")
                 return 0
         else: ## simulator mode or calculation mode
@@ -106,9 +106,12 @@ class execute:
                     self.reg[dst] = imm
                 else:
                     self.reg[dst] = self.reg[src]
+            elif inst.id == (X86_INS_MOVABS):  ## catch mov instruction
+                pass
             elif inst.id == (X86_INS_LEA):  ## catch mov instruction
                 self.reg[dst] = src
             else:
+                loginst(inst.address, inst.mnemonic, inst.op_str)
                 loginst("This instruction is not yet handled in simulator mode which is not rsp instruction.")
             loginst(inst.address, inst.mnemonic, inst.op_str)
             loginst("this instruction is not about rsp.")
