@@ -32,6 +32,7 @@ class execute:
                 log(dst)
             elif(inst.id == X86_INS_LEA):
                 src = inst.op_str.split(",")[1].replace("[","").replace("]","")
+                ## This eval might be buggy because I assume we have only bit 64 register in the ptr for LEA instruction.
                 src = eval(src,self.reg)
                 dst = inst.op_str.split(",")[0]
             else:
