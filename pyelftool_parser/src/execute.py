@@ -91,6 +91,12 @@ class execute:
                 self.reg[dst] = src
             elif inst.id == (X86_INS_CALL):  ## catch call instruction
                 self.reg["rsp"] -= 8
+                if (not flagimm):
+                    loginst(hex(inst.address), inst.mnemonic, inst.op_str)
+                    loginst("here is an dynamic call")
+                else:
+                    loginst(hex(inst.address), inst.mnemonic, inst.op_str)
+                    loginst("here is an static call")
                 ## graph
                 if flagimm:
                     edge.add((hex(vertexfrom), hex(imm)))
@@ -135,6 +141,13 @@ class execute:
                      self.register.Setreg(dst, self.register.Getregwithname(dst) + imm)
                 else:
                     self.register.Setreg(dst, self.register.Getregwithname(dst) + self.register.Getregwithname(src))
+            elif inst.id == (X86_INS_JMP): ## NOT yet implemented in simulation machine
+                if (not flagimm):
+                    loginst(hex(inst.address), inst.mnemonic, inst.op_str)
+                    loginst("here is an dynamic jump")
+                else:
+                    loginst(hex(inst.address), inst.mnemonic, inst.op_str)
+                    loginst("here is an static jump")     
             else:
                 loginst(hex(inst.address), inst.mnemonic, inst.op_str)
                 loginst("This instruction is not yet handled in simulator mode which is not rsp instruction.")
