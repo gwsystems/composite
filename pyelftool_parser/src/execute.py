@@ -28,10 +28,10 @@ class execute:
             loginst("I do not handle ptr memory yet")
             return 0
         if len(inst.operands) >= 2:
-            if(inst.id == X86_INS_FXCH):
+            if (inst.id == X86_INS_FXCH):
                 dst = inst.op_str
                 log(dst)
-            elif(inst.id == X86_INS_LEA):
+            elif (inst.id == X86_INS_LEA):
                 src = inst.op_str.split(",")[1].replace("[","").replace("]","")
                 ## This eval might be buggy because I assume we have only bit 64 register in the ptr for LEA instruction.
                 src = eval(src,self.reg)
@@ -133,8 +133,10 @@ class execute:
                 else:
                     self.register.Setregwithregname(dst, src)
             elif inst.id == (X86_INS_MOVABS):  ## catch mov instruction
-                loginst(hex(inst.address), inst.mnemonic, inst.op_str)
-                loginst("We have not handle movabs.")
+                if flagimm:
+                    self.register.Setreg(dst, imm)
+                else: 
+                    self.register.Setregwithregname(dst, src)
             elif inst.id == (X86_INS_LEA):  ## catch mov instruction
                 self.reg[dst] = src
             elif inst.id == (X86_INS_SUB):  ## catch sub instruction
