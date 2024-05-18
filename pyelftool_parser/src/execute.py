@@ -8,7 +8,7 @@ class execute:
         self.mode = mode
     def exe(self, inst, edge, vertexfrom):
         ## -----------------------------------------------
-        ## decode stage.
+        
 
         (regs_read, regs_write) = inst.regs_access()
         ##  catch the rsp reg in instruction.    
@@ -22,6 +22,7 @@ class execute:
         flagmem = 0
         imm = 0
         disp = 0
+        ############# decode stage.
         if "ptr" in inst.op_str:    ## early exit for ptr, I do not handle the pointer to memory yet.
             loginst(inst.address, inst.mnemonic, inst.op_str)
             loginst("I do not handle ptr memory yet")
@@ -58,7 +59,7 @@ class execute:
             writereg.append(inst.reg_name(r))
             if "rsp" in inst.reg_name(r):
                 flagrsp = 1
-        
+        ############################################
         ##------------------------------------------
         ## execute stage.
         if flagrsp:  ## if rsp is in the instruction
@@ -68,6 +69,11 @@ class execute:
                 #loginst(inst.address, inst.mnemonic, inst.op_str)
                 self.reg["rsp"] += 8
             elif inst.id == (X86_INS_MOV):  ## catch mov instruction
+                if flagimm:
+                    self.register.Setreg(dst, imm)
+                else:
+                    self.register.Setregwithregname(dst, src)
+            elif inst.id == (X86_INS_MOVABS):  ## catch mov instruction
                 if flagimm:
                     self.register.Setreg(dst, imm)
                 else:
@@ -117,6 +123,11 @@ class execute:
             elif inst.id == (X86_INS_POP): ## catch pop instruction
                 pass
             elif inst.id == (X86_INS_MOV):  ## catch mov instruction
+                if flagimm:
+                    self.register.Setreg(dst, imm)
+                else:
+                    self.register.Setregwithregname(dst, src)
+            elif inst.id == (X86_INS_MOVABS):  ## catch mov instruction
                 if flagimm:
                     self.register.Setreg(dst, imm)
                 else:
