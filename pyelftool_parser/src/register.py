@@ -13,8 +13,8 @@ class register:
         self.reg["rdx"] = -1
         self.reg["rdi"] = -1
         self.reg["rsi"] = -1
-        self.reg["rbp"] = -1
-        self.reg["rsp"] = -1
+        self.reg["rbp"] = 0
+        self.reg["rsp"] = 0
         self.reg["r8"] = -1
         self.reg["r9"] = -1
         self.reg["r10"] = -1
@@ -31,6 +31,7 @@ class register:
         self.reg["xmm5"] = -1
         self.reg["xmm6"] = -1
         self.reg["xmm7"] = -1
+        self.reg["enter"] = 0
         self.reg["stack"] = 0
     def clean(self):
         self.reg["rax"] = -1
@@ -39,8 +40,8 @@ class register:
         self.reg["rdx"] = -1
         self.reg["rdi"] = -1 
         self.reg["rsi"] = -1
-        self.reg["rbp"] = -1
-        self.reg["rsp"] = -1
+        self.reg["rbp"] = 0
+        self.reg["rsp"] = 0
         self.reg["r8"] = -1
         self.reg["r9"] = -1
         self.reg["r10"] = -1
@@ -57,6 +58,7 @@ class register:
         self.reg["xmm5"] = -1
         self.reg["xmm6"] = -1
         self.reg["xmm7"] = -1
+        self.reg["enter"] = 0
         self.reg["stack"] = 0
     def Isreg(self, s):
         if s in self.reglist:

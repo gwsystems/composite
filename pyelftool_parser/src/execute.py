@@ -9,7 +9,6 @@ class execute:
     def exe(self, inst, edge, vertexfrom):
         ## -----------------------------------------------
         
-
         (regs_read, regs_write) = inst.regs_access()
         ##  catch the rsp reg in instruction.    
         flagrsp = 0
@@ -23,6 +22,7 @@ class execute:
         imm = 0
         disp = 0
         ############# decode stage.
+        loginst(hex(inst.address), inst.mnemonic, inst.op_str)
         if "ptr" in inst.op_str:    ## early exit for ptr, I do not handle the pointer to memory yet.
             loginst(inst.address, inst.mnemonic, inst.op_str)
             loginst("I do not handle ptr memory yet")
@@ -101,26 +101,37 @@ class execute:
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                     if (self.register.Getregwithname(dst) != -1):
                         logcall(self.register.Getregwithname(dst))
+                        logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                         logcall("here is an dynamic call, but value is predictable.")
+                        edge.add((hex(vertexfrom), hex(self.register.Getregwithname(dst))))  ## graph
                     else:
-                        logcall("here is an dynamic call")
+                        logcall(hex(inst.address), inst.mnemonic, inst.op_str)
+                        logcall("here is an dynamic call, should be reported, but it is still possible be calculated.")
                 else:
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                     logcall("here is an static call")
-                ## graph
-                if flagimm:
-                    edge.add((hex(vertexfrom), hex(imm)))
-                elif flagmem:
-                    edge.add((hex(vertexfrom), hex(base + disp)))
+                    edge.add((hex(vertexfrom), hex(imm)))  ## graph
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 8
-            elif inst.id == (X86_INS_LEAVE):  ## catch RET instruction
-                ## TODO:(minghwu) to implemtn leave instruction
-                pass
+            elif inst.id == (X86_INS_ENTER):  ## catch enter instruction, here is a problem, I am not sure how much the imm.
+                logcall(hex(inst.address), inst.mnemonic, inst.op_str)
+                logcall("enter")
+                logcall(imm)
+                self.reg["rsp"] -= imm
+                self.reg["enter"] = imm
+                ## TODO: here is problematic, We need a stack to store what is inside the 
+            elif inst.id == (X86_INS_LEAVE):  ## catch Leave instruction
+                logcall(hex(inst.address), inst.mnemonic, inst.op_str)
+                logcall("leave")
+                logcall(imm)
+                self.reg["rsp"] += self.reg["enter"]
+                ## here need to be think about rsp, I think I need to put stacl
+
             else:
                 loginst(hex(inst.address), inst.mnemonic, inst.op_str)
                 loginst("we have not catched this instruction and it is rsp instruction.")
                 return 0
+            return 0
         else: ## simulator mode or calculation mode
             if inst.id == (X86_INS_PUSH):  ## catch push
                 pass
@@ -164,7 +175,9 @@ class execute:
                     logcall("here is an dynamic jump")
                 else:
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
-                    logcall("here is an static jump")     
+                    logcall("here is an static jump")
+            elif inst.id == (X86_INS_ENTER):
+                loginst(hex(inst.address), inst.mnemonic, inst.op_str)
             else:
                 loginst(hex(inst.address), inst.mnemonic, inst.op_str)
                 loginst("This instruction is not yet handled in simulator mode which is not rsp instruction.")
