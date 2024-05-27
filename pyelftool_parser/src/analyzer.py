@@ -12,6 +12,7 @@ class disassembler:
         self.inst = dict()
         self.symbol = dict()
         self.vertex = dict()
+        self.entry_pc = 0
 
     def disasminst(self):
         with open(self.path, 'rb') as f:
@@ -35,6 +36,11 @@ class disassembler:
                     self.symbol[symbol['st_value']] = symbol.name
                     self.vertex[symbol['st_value']] = symbol.name
                     log(symbol.name, symbol['st_value'])
+                    if(symbol.name == '__cosrt_upcall_entry'): ## set up the entry pc.
+                        self.entry_pc = symbol['st_value']
+                        log("Set up entry point")
+                        log(hex(self.entry_pc))
+                        
     def sym_analyzer(self):
         sym_info = {}
         with open(self.path, 'rb') as f:
@@ -127,8 +133,9 @@ if __name__ == '__main__':
     disassembler = disassembler(path)
     disassembler.disasmsymbol()
     disassembler.disasminst()
-
+    
     register = register.register()
+    register.reg["pc"] = disassembler.entry_pc
     execute = execute.execute(register, mode)
     parser = parser(disassembler.symbol, disassembler.inst, register, execute)
     driver(disassembler, register, execute, parser)
