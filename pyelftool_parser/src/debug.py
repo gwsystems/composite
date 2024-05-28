@@ -1,7 +1,6 @@
-
 DEBUG = False
 DEBUGinst = False
-DEBUGresult = True
+DEBUGresult = False
 DEBUGcall = False
 def loginst(*argv):
     if DEBUGinst:
