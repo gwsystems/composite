@@ -40,7 +40,6 @@ class disassembler:
                         self.entry_pc = symbol['st_value']
                         log("Set up entry point")
                         log(hex(self.entry_pc))
-                        
     def sym_analyzer(self):
         sym_info = {}
         with open(self.path, 'rb') as f:
@@ -86,29 +85,34 @@ class parser:
         self.execute = execute
         self.edge = set()
         self.vertex = set()
+        self.index = 0
     def stack_analyzer(self):
-        nextinstkey = list(self.inst.keys())
-        nextinstkey.append(-1) ## dummy value for last iteration.
-        index = 0
-        for key in self.inst.keys():
-            self.register.reg["pc"] = key
-            self.register.updaterip(nextinstkey[index + 1]) ## catch the rip for memory instruction.
-            index = index + 1
+        index_list = list(self.inst.keys())
+        index_list.append(-1) ## dummy value for last iteration.
+        self.index = index_list.index(self.register.reg["pc"])
+        while 1:  ## need to find out a place to exit.
+            key = self.register.reg["pc"]
+            self.register.updaterip(index_list[self.index + 1]) ## catch the rip for memory instruction.
+            self.index = self.index + 1
             if key in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
-                self.stackfunction.append(self.symbol[key])
-                self.stacklist.append(self.register.reg["stack"])
-                self.register.clean()
+                ## self.stackfunction.append(self.symbol[key])
+                ## self.stacklist.append(self.register.reg["stack"])
+                ## self.register.clean()
                 ###### Graph
                 vertexfrom = key
                 self.vertex.add(vertexfrom)
+            print("index and pc here")
+            print(self.index)
+            print(hex(key))
+            print(self.inst[key])
             self.execute.exe(self.inst[key],self.edge,vertexfrom)
-            logresult(self.register.reg["stack"], hex(key))
+            ## logresult(self.register.reg["stack"], hex(key))
             self.register.updatestackreg()
-
-        self.stacklist.append(self.register.reg["stack"])
-        self.stacklist = self.stacklist[1:]
-        logresult(self.stackfunction)
-        logresult(self.stacklist)
+            self.register.reg["pc"] = index_list[self.index] 
+        ## self.stacklist.append(self.register.reg["stack"])
+        ## self.stacklist = self.stacklist[1:]
+        ## logresult(self.stackfunction)
+        ## logresult(self.stacklist)
         return (self.stackfunction,self.stacklist)
     
 

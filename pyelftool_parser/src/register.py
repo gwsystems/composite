@@ -1,4 +1,4 @@
-
+from debug import log
 class register:
     def __init__(self):
         self.reglist = ["rax", "rbx", "rcx", "rdx", "rdi", "rsi", "rbp", "rsp", 
@@ -74,6 +74,15 @@ class register:
             return (self.reg["r" + s] & 0xffff)
         elif s == "eax" or s == "ebx" or s == "ecx" or s == "edx" or s == "edi" or s == "esi" or s == "ebp" or s == "esp":
             return self.reg[s.replace("e","r")] & 0xffffffff
+        elif ("r8" in s) or ("r9" in s) or ("r10" in s) or ("r11" in s) or ("r12" in s) or ("r13" in s) or ("r14" in s) or (("r15" in s)):
+            if s[-1] == "d":
+                return self.reg[s[:-1]] & 0xffffffff
+            elif s[-1] == "w":
+                return self.reg[s[:-1]] & 0xffff
+            elif s[-1] == "b":
+                return self.reg[s[:-1]] & 0xff
+            else:
+                return self.reg[s]
         else:
             return self.reg[s]
     def Setreg(self, dst, value):
@@ -85,6 +94,15 @@ class register:
              self.reg["r" + dst] = (value & 0xffff)
         elif dst == "eax" or dst == "ebx" or dst == "ecx" or dst == "edx" or dst == "edi" or dst == "esi" or dst == "ebp" or dst == "esp":
             self.reg[dst.replace("e","r")] = (value & 0xffffffff)
+        elif ("r8" in dst) or ("r9" in dst) or ("r10" in dst) or ("r11" in dst) or ("r12" in dst) or ("r13" in dst) or ("r14" in dst) or (("r15" in dst)):
+            if dst[-1] == "d":
+                self.reg[dst[:-1]] = value & 0xffffffff
+            elif dst[-1] == "w":
+                self.reg[dst[:-1]] = value & 0xffff
+            elif dst[-1] == "b":
+                self.reg[dst[:-1]] = value & 0xff
+            else:
+                self.reg[dst] = value
         else:
             self.reg[dst] = value
     def Setregwithregname(self, dst, src):
@@ -96,6 +114,15 @@ class register:
              self.reg["r" + dst] = (self.Getregwithname(src))
         elif dst == "eax" or dst == "ebx" or dst == "ecx" or dst == "edx" or dst == "edi" or dst == "esi" or dst == "ebp" or dst == "esp":
             self.reg[dst.replace("e","r")] = (self.Getregwithname(src))
+        elif ("r8" in dst) or ("r9" in dst) or ("r10" in dst) or ("r11" in dst) or ("r12" in dst) or ("r13" in dst) or ("r14" in dst) or (("r15" in dst)):
+            if dst[-1] == "d":
+                self.reg[dst[:-1]] = self.Getregwithname(src) & 0xffffffff
+            elif dst[-1] == "w":
+                self.reg[dst[:-1]] = self.Getregwithname(src) & 0xffff
+            elif dst[-1] == "b":
+                self.reg[dst[:-1]] = self.Getregwithname(src) & 0xff
+            else:
+                self.reg[dst] = self.Getregwithname(src)
         else:
             self.reg[dst] = self.Getregwithname(src)
     def updaterip(self, key):
