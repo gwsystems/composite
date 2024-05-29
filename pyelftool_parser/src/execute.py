@@ -1,6 +1,6 @@
 from capstone import *
 from capstone.x86 import *
-from debug import loginst,log, logcall
+from debug import loginst,log, logcall, logerror
 class execute:
     def __init__(self, register, mode):
         self.register = register
@@ -107,6 +107,8 @@ class execute:
                     else:
                         logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                         logcall("here is an dynamic call, should be reported, but it is still possible be calculated.")
+                        logerror(hex(inst.address), inst.mnemonic, inst.op_str)
+                        logerror("here is an dynamic call, should be reported, but it is still possible be calculated.")
                 else:
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                     logcall("here is an static call")
@@ -171,8 +173,14 @@ class execute:
                     self.register.Setreg(dst, self.register.Getregwithname(dst) + self.register.Getregwithname(src))
             elif inst.id == (X86_INS_JMP): ## NOT yet implemented in simulation machine
                 if (not flagimm):
-                    logcall(hex(inst.address), inst.mnemonic, inst.op_str)
-                    logcall("here is an dynamic jump")
+                    if (self.register.Getregwithname(dst) != -1):
+                        logcall(hex(inst.address), inst.mnemonic, inst.op_str)
+                        logcall("here is an dynamic jump")
+                    else:
+                        logcall(hex(inst.address), inst.mnemonic, inst.op_str)
+                        logcall("here is an dynamic jump, but it is unpredicatble")
+                        logerror(hex(inst.address), inst.mnemonic, inst.op_str)
+                        logerror("here is an dynamic jump, but it is unpredicatble")
                 else:
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                     logcall("here is an static jump")
