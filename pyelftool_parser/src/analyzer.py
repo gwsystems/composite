@@ -93,7 +93,7 @@ class parser:
         while 1:  ## need to find out a place to exit.
             key = self.register.reg["pc"]
             self.register.updaterip(index_list[self.index + 1]) ## catch the rip for memory instruction.
-            self.index = self.index + 1
+            
             if key in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
                 ## self.stackfunction.append(self.symbol[key])
                 ## self.stacklist.append(self.register.reg["stack"])
@@ -108,6 +108,12 @@ class parser:
             self.execute.exe(self.inst[key],self.edge,vertexfrom)
             ## logresult(self.register.reg["stack"], hex(key))
             self.register.updatestackreg()
+            #### set up next instruction pc
+            if (self.index == index_list.index(self.register.reg["pc"])):
+                self.index = self.index + 1
+            else:
+                self.index = index_list.index(self.register.reg["pc"])
+            ####
             self.register.reg["pc"] = index_list[self.index] 
         ## self.stacklist.append(self.register.reg["stack"])
         ## self.stacklist = self.stacklist[1:]
