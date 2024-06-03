@@ -5,6 +5,7 @@
 #include <netshmem.h>
 #include <mc.h>
 #include <cos_memcached.h>
+#include <initargs.h>
 
 void
 mc_map_shmem(cbuf_t shm_id)
@@ -33,12 +34,25 @@ mc_process_command(int fd, shm_bm_objid_t objid, u16_t data_offset, u16_t data_l
 void
 cos_init(void)
 {
+	struct initargs params, curr;
+	struct initargs_iter i;
 	int argc, ret;
+	char port_arg[20];
+	int port = 11211;
 
+	ret = args_get_entry("param", &params);
+	assert(!ret);
+	for (ret = args_iter(&params, &i, &curr); ret; ret = args_iter_next(&i, &curr)) {
+		port = atoi(args_value(&curr));
+		printc("len: %d, %d\n", args_len(&params), port);
+	}
+
+	sprintf(port_arg, "--udp-port=%d", port);
+	//if (port == 11211) {
 	char *argv[] =	{
 		"--listen=10.10.2.2",
 		"--port=0",// close tcp initialization
-		"--udp-port=11211",
+		port_arg,
 		"--threads=512",
 		"--conn-limit=4096",
 		"--protocol=auto",
@@ -46,6 +60,7 @@ cos_init(void)
 		"--extended=no_lru_crawler,no_lru_maintainer,no_hashexpand,no_slab_reassign,no_slab_automove",
 	};
 
+	printc("memcached port: %s\n", argv[2]);
 	argc = ARRAY_SIZE(argv);
 
 	/* 1. do initialization of memcached */

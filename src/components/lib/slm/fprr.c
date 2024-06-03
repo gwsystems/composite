@@ -53,9 +53,10 @@ debug_dump_info(void)
 struct slm_thd *
 slm_sched_fprr_schedule(void)
 {
-	int i;
+	int i, cnt=0;
 	struct slm_sched_thd *t;
 	struct ps_list_head *prios = threads[cos_cpuid()].prio;
+	struct slm_sched_thd *itr;
 
 #if ENABLE_DEBUG_INFO
 	debug_dump_info();
@@ -72,6 +73,10 @@ slm_sched_fprr_schedule(void)
 		ps_list_rem_d(t);
 		ps_list_head_append_d(&prios[i], t);
 
+		//ps_list_foreach_d(&prios[i], itr) {
+		//	cnt++;
+		//}
+		//if (cos_cpuid() == 1) printc("size: %d\n", cnt);
 		//if (cos_cpuid() == 0) printc("Schedule -> %ld\n", slm_thd_from_sched(t)->tid);
 		return slm_thd_from_sched(t);
 	}

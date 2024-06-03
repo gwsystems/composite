@@ -33,12 +33,12 @@
 #define __SVFSGS__
 #endif
 
-//#ifndef __SLITE__
-//#define __SLITE__
+#ifndef __SLITE__
+#define __SLITE__
 //#ifndef __PROTECTED_DISPATCH__
 //#define __PROTECTED_DISPATCH__
 //#endif
-//#endif
+#endif
 
 #define MAX_SERVICE_DEPTH 31
 //#define MAX_NUM_THREADS (25 * NUM_CPU)
@@ -158,7 +158,7 @@
 #define COS_DCB_SP_OFFSET 8
 
 #define ULK_MPK_KEY 0x01
-#define SCHED_MPK_KEY 0x0
+#define SCHED_MPK_KEY 0x02
 #define MPK_KEY2REG(k) ((~(0b11 << (k * 2))) & 0xFFFFFFFC)
 
 /* We save information on the user level stack for fast access. The

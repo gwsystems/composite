@@ -20,6 +20,7 @@ typedef unsigned long cos_vaddr_t; /* virtual address */
 
 extern cos_paddr_t cos_map_virt_to_phys(cos_vaddr_t addr);
 extern char *g_tx_mp[NIC_TX_QUEUE_NUM];
+int num_pkts[16] = {0};
 
 /* indexed by thread id */
 struct client_session client_sessions[NIC_MAX_SESSION];
@@ -71,6 +72,10 @@ pkt_ring_buf_empty(struct pkt_ring_buf *pkt_ring_buf)
 	return (!ck_ring_size(pkt_ring_buf->ring));
 }
 
+int cnt_nic = 0;
+unsigned long tot_nic = 0;
+unsigned long tot_sem = 0;
+
 shm_bm_objid_t
 nic_get_a_packet(u16_t *pkt_len)
 {
@@ -80,6 +85,7 @@ nic_get_a_packet(u16_t *pkt_len)
 	struct client_session     *session;
 	struct netshmem_pkt_buf   *obj;
 	int len;
+	unsigned long start = ps_tsc();
 
 	thd = cos_thdid();
 	assert(thd < NIC_MAX_SESSION);
@@ -99,6 +105,15 @@ nic_get_a_packet(u16_t *pkt_len)
 	while (!pkt_ring_buf_dequeue(&session->pkt_ring_buf, &buf))
 	assert(buf.pkt);
 
+	tot_nic += (ps_tsc()-buf.rcv_time);
+	tot_sem += (ps_tsc()-start);
+	cnt_nic ++;
+	if (cnt_nic > 10000 && cos_cpuid() == 1) {
+		printc("%lu -> %lu\n", tot_nic/cnt_nic, tot_sem/cnt_nic);
+		tot_nic = 0;
+		cnt_nic = 0;
+		tot_sem = 0;
+	}
 	char *pkt = cos_get_packet(buf.pkt, &len);
 	assert(len < PKT_BUF_SIZE);
 

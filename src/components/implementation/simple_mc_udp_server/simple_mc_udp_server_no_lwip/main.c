@@ -1,3 +1,4 @@
+#include "initargs.h"
 #include <cos_types.h>
 #include <string.h>
 #include <arpa/inet.h>
@@ -8,10 +9,21 @@
 
 static int fd;
 static volatile thdid_t init_thd = 0;
+static volatile int dst_core = -1;
 
 void
 cos_init(void)
 {
+	struct initargs params, curr;
+	struct initargs_iter i;
+
+	int ret = args_get_entry("param", &params);
+	assert(!ret);
+	for (ret = args_iter(&params, &i, &curr); ret; ret = args_iter_next(&i, &curr)) {
+		dst_core = atoi(args_value(&curr));
+	//	printc("dst: %d\n", dst_core);
+	}
+
 	shm_bm_objid_t objid;
 	struct netshmem_pkt_buf *obj;
 	init_thd = cos_thdid();
@@ -21,58 +33,8 @@ cos_init(void)
 void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)
 {
-	if (cid == 0) {
-		return;
-	}
-
-	if (cos_compid() == 6 && cid != 1) {
-		return;
-	}
-	if (cos_compid() == 7 && cid != 2) {
-		return;
-	}
-	if (cos_compid() == 8 && cid != 3) {
-		return;
-	}
-	if (cos_compid() == 9 && cid != 4) {
-		return;
-	}
-	if (cos_compid() == 10 && cid != 5) {
-		return;
-	}
-	if (cos_compid() == 11 && cid != 6) {
-		return;
-	}
-	if (cos_compid() == 12 && cid != 7) {
-		return;
-	}
-	if (cos_compid() == 13 && cid != 8) {
-		return;
-	}
-	if (cos_compid() == 14 && cid != 9) {
-		return;
-	}
-	if (cos_compid() == 15 && cid != 10) {
-		return;
-	}
-	if (cos_compid() == 16 && cid != 11) {
-		return;
-	}
-	if (cos_compid() == 17 && cid != 12) {
-		return;
-	}
-	if (cos_compid() == 18 && cid != 13) {
-		return;
-	}
-	if (cos_compid() == 19 && cid != 14) {
-		return;
-	}
-	if (cos_compid() == 20 && cid != 15) {
-		return;
-	}
-	if (cos_compid() == 21 && cid != 16) {
-		return;
-	}
+	assert(dst_core >= 0);
+	if (cos_cpuid() != dst_core) return;
 
 	if (init_thd != cos_thdid()) {
 		netshemem_move(init_thd, cos_thdid());
@@ -88,57 +50,6 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 int
 parallel_main(coreid_t cid)
 {
-	if (cid == 0) {
-		return 0;
-	}
-	if (cos_compid() == 6 && cid != 1) {
-		return 0;
-	}
-	if (cos_compid() == 7 && cid != 2) {
-		return 0;
-	}
-	if (cos_compid() == 8 && cid != 3) {
-		return 0;
-	}
-	if (cos_compid() == 9 && cid != 4) {
-		return 0;
-	}
-	if (cos_compid() == 10 && cid != 5) {
-		return 0;
-	}
-	if (cos_compid() == 11 && cid != 6) {
-		return 0;
-	}
-	if (cos_compid() == 12 && cid != 7) {
-		return 0;
-	}
-	if (cos_compid() == 13 && cid != 8) {
-		return 0;
-	}
-	if (cos_compid() == 14 && cid != 9) {
-		return 0;
-	}
-	if (cos_compid() == 15 && cid != 10) {
-		return 0;
-	}
-	if (cos_compid() == 16 && cid != 11) {
-		return 0;
-	}
-	if (cos_compid() == 17 && cid != 12) {
-		return 0;
-	}
-	if (cos_compid() == 18 && cid != 13) {
-		return 0;
-	}
-	if (cos_compid() == 19 && cid != 14) {
-		return 0;
-	}
-	if (cos_compid() == 20 && cid != 15) {
-		return 0;
-	}
-	if (cos_compid() == 21 && cid != 16) {
-		return 0;
-	}
 	int ret;
 	u32_t ip;
 	compid_t compid;
@@ -150,6 +61,9 @@ parallel_main(coreid_t cid)
 	u16_t data_offset, data_len;
 	u16_t remote_port;
 	u32_t remote_addr;
+
+	assert(dst_core >= 0);
+	if (cos_cpuid() != dst_core)  return 0;
 
 	ret = 0;
 	ip = inet_addr("10.10.1.2");
@@ -165,10 +79,12 @@ parallel_main(coreid_t cid)
 	objid = 0;
 	remote_addr = inet_addr("10.10.1.1");
 	remote_port = 6;
-	cycles_t    before, after;
+	cycles_t    before, after, tot;
+	int cnt = 0 ;
 	
 	while (1)
 	{
+		before = ps_tsc();
 		objid  = udp_stack_shmem_read(&data_offset, &data_len, &remote_addr, &remote_port);
 		/* application would like to own the shmem because it does not want ohters to free it. */
 		rx_obj = shm_bm_borrow_net_pkt_buf(netshmem_get_shm(), objid);
@@ -179,5 +95,13 @@ parallel_main(coreid_t cid)
 		}
 		data_len = mc_process_command(fd, objid, data_offset, data_len);
 		udp_stack_shmem_write(objid, netshmem_get_data_offset(), data_len, remote_addr, remote_port);
+		after = ps_tsc();
+		tot += (after-before);
+		cnt++;
+		if (cnt > 100000 && cos_cpuid() == 1) {
+			//printc("%llu\n", tot/cnt);
+			tot = 0;
+			cnt = 0;
+		}
 	}
 }

@@ -625,7 +625,6 @@ unsigned long idle_cnt = 0;
 void
 slm_test_printlog(void)
 {
-	printc(".");
 	if (cos_cpuid()!= _init_core_id) return;
 	static int printed  = 0;
 	unsigned long long now = 0;
@@ -679,7 +678,6 @@ slm_ipi_process(void *d)
 void
 slm_idle_iteration(void)
 {
-	assert(0);
 	struct slm_ipi_event event   = {0};
 	struct slm_global   *g = slm_global();
 	struct slm_thd      *current = &g->idle_thd;

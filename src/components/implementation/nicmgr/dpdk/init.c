@@ -16,7 +16,7 @@
 
 #define ENABLE_DEBUG_INFO 0
 
-#define NB_RX_DESC_DEFAULT 2048
+#define NB_RX_DESC_DEFAULT 4096
 #define NB_TX_DESC_DEFAULT 1024
 
 #define MAX_PKT_BURST NB_RX_DESC_DEFAULT
@@ -25,7 +25,8 @@ unsigned long enqueued_rx = 0, dequeued_tx = 0;
 int debug_flag = 0;
 
 /* rx and tx stats */
-u64_t rx_enqueued_miss = 0;
+u64_t rx_enqueued_miss[24] = {0};
+u64_t rx_unrecognized  = 0;
 extern rte_atomic64_t tx_enqueued_miss;
 
 char *g_rx_mp[NIC_RX_QUEUE_NUM];
@@ -106,16 +107,24 @@ debug_print_stats(void)
 	cos_get_port_stats(0);
 
 	printc("rx mempool in use:%u\n", cos_mempool_in_use_count(g_rx_mp[0]));
-	printc("rx enqueued miss:%llu\n", rx_enqueued_miss);
+	for (int i = 0; i < 24; i++) {
+		if (rx_enqueued_miss[i]) {
+			printc("rx enqueued miss[%d]:%llu\n", i, rx_enqueued_miss[i]);
+		}
+	}
+	printc("rx unrecognized packets:%llu\n", rx_unrecognized);
 	printc("tx enqueued miss:%lu\n", tx_enqueued_miss.cnt);
 	printc("enqueue:%lu, txqneueue:%lu\n", enqueued_rx, dequeued_tx);
+	for (int i = 0; i< 16; i++)
+		printc("lock_time[%d] : %lu\n", i, per_core_locktm[i]);
 	struct client_session	*session1, *session2;
 	session1 = cos_hash_lookup(ntohs(6));
 	session2 = cos_hash_lookup(ntohs(7));
-	int ret1 = sched_debug_thd_state(session1->thd);
-	int ret2 = sched_debug_thd_state(session2->thd);
-	printc("com 6:%u\n", ret1);
-	printc("com 7:%u\n", ret2);
+	//int ret1 = sched_debug_thd_state(session1->thd);
+	//int ret2 = sched_debug_thd_state(session2->thd);
+	printc("com 6:%p\n", &session1->pkt_ring_buf);
+	printc("com 7:%p\n", &session2->pkt_ring_buf);
+	printc("RX_PKT_RING_SZ: %lu, %lu\n", RX_PKT_RING_SZ, sizeof(struct ck_ring));
 }
 
 static void
@@ -175,6 +184,7 @@ process_tx_packets(void)
 	}
 }
 
+extern int num_pkts[16];
 static void
 process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 {
@@ -191,16 +201,14 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 	unsigned long long       start=0, end=0;
 
 	for (i = 0; i < nb_pkts; i++) {
-		start = ps_tsc();
 		pkt = cos_get_packet(rx_pkts[i], &len);
 		eth = (struct eth_hdr *)pkt;
 
 		if (htons(eth->ether_type) == 0x0800) {
 			iph	= (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
 			if (unlikely(iph->proto != UDP_PROTO)) {
-				// assert(0);
 				cos_free_packet(rx_pkts[i]);
-				rx_enqueued_miss++;
+				rx_unrecognized++;
 				continue;
 			}
 			port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
@@ -227,23 +235,25 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			// } else {
 			// 	assert(0);
 			// }
+			start = ps_tsc();
+			buf.rcv_time = ps_tsc();
 			if (unlikely(!pkt_ring_buf_enqueue(&(session->pkt_ring_buf), &buf))){
 				cos_free_packet(buf.pkt);
-				rx_enqueued_miss++;
+				rx_enqueued_miss[ntohs(session->port)]++;
 				continue;
 			}
+			end = ps_tsc();
 			enqueued_rx++;
 			// if (unlikely(debug_flag)) {
 			// 	session->sem.debug = 1;
 			// }
-
+			//ps_faa(&num_pkts[(port->dst_port - 5)], 1);
 			sync_sem_give(&session->sem);
-			end=ps_tsc();
 			tot += (end-start);
 			cnt++;
 			if (cnt > 100000) {
+				//printc("%llu\n", tot/cnt);
 				cnt = 0;
-				printc("%llu\n", tot/100000);
 				tot = 0;
 			}
 		} else if (htons(eth->ether_type) == 0x0806) {
@@ -306,7 +316,7 @@ cos_nic_start(){
 
 	char *rx_packets[MAX_PKT_BURST];
 
-	unsigned long loop = 100000000;
+	unsigned long loop = 1000000000;
 	while (1) {
 #if USE_CK_RING_FREE_MBUF
 		cos_free_rx_buf();

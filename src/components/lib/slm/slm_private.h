@@ -600,7 +600,7 @@ try_again:
 	ret = slm_thd_activate(curr, t, tok, 0);
 	if (cached_state == SLM_THD_BLOCKED) {
 	//	printc("ret: %d\n", ret);
-		assert (ret == -EAGAIN);
+		//assert (ret == -EAGAIN);
 	}
 	/* Assuming only the single tcap with infinite budget...should not get EPERM */
 	assert(ret != -EPERM);
