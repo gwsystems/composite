@@ -15,6 +15,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use initargs::ArgsKV;
 use std::fmt;
+use cossystem::ConstantVal;
+
 
 pub struct SystemState {
     spec: String,
@@ -213,6 +215,7 @@ pub struct Component {
     pub base_vaddr: String,  // The lowest virtual address for the component -- could be hex, so not a VAddr
     pub params: Vec<ArgsKV>, // initialization parameters
     pub fsimg: Option<String>,
+    pub constants: Vec<ConstantVal>, //field for constants
 }
 
 // Input/frontend pass taking the specification, and outputing the

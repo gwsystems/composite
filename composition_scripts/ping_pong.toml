@@ -11,6 +11,8 @@ constructor = "kernel"
 [[components]]
 name = "ping"
 img  = "tests.unit_pingpong"
+constants = [{variable = "COS_NUM_CPU", value = "1"},
+             {variable = "COS_NUM_THD", value = "1"} ]
 deps = [{srv = "pong", interface = "pong"},
         {srv = "booter", interface = "init"}]
 baseaddr = "0x1600000"
@@ -19,6 +21,8 @@ constructor = "booter"
 [[components]]
 name = "pong"
 img  = "pong.pingpong"
+constants = [{variable = "COS_NUM_CPU", value = "2"},
+             {variable = "COS_NUM_THD", value = "4"} ]
 deps = [{srv = "booter", interface = "init"}]
 implements = [{interface = "pong"}]
 constructor = "booter"

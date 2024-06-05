@@ -24,3 +24,9 @@ init:
 
 component:
 	$(MAKE) $(MAKEOPTIONS) -C implementation component
+
+single_lib:
+	$(MAKE) $(MAKEOPTIONS) -C lib single_lib
+
+scan_libs_for_constants:
+	$(MAKE) $(MAKEOPTIONS) -C lib scan_libs_for_constants

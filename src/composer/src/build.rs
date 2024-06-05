@@ -4,6 +4,8 @@ use std::env;
 use std::fs::File;
 use syshelpers::{dir_exists, emit_file, exec_pipeline, reset_dir};
 use tar::Builder;
+use std::process::Command;
+use std::io::{self, BufRead, BufReader};
 
 // Interact with the composite build system to "seal" the components.
 // This requires linking them with all dependencies, and with libc,
@@ -248,12 +250,58 @@ fn constructor_serialize_args(
     Ok(args_file_path)
 }
 
+fn comp_gen_make_cmd_scan_lib_constant(constants: &[String]) -> Result<Vec<String>, String> {
+    println!("Scanning libraries for constants: {:?}", constants); // Print the constants being scanned for
+    let constants_str = constants.join(" ");
+    let output = Command::new("make")
+        .arg("-C")
+        .arg("src")
+        .arg("--no-print-directory")
+        .arg("scan_libs_for_constants")
+        .env("CONSTANTS", constants_str)
+        .output()
+        .expect("Failed to execute make command");
+    
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    }
+
+    let rebuild_libs_file = File::open("src/components/lib/rebuild_libs.txt").expect("Failed to open rebuild_libs.txt");
+    let reader = BufReader::new(rebuild_libs_file);
+    let libs_to_rebuild: Vec<String> = reader
+        .lines()
+        .map(|line| line.expect("Could not read line"))
+        .collect();
+
+    Ok(libs_to_rebuild)
+}
+
+fn comp_gen_make_cmd_rebuild_lib(libs_to_rebuild: Vec<String>, header_file_path: &str) -> Result<(), String> {
+    println!("Libraries to rebuild: {:?}", libs_to_rebuild); // Print the list of libraries to rebuild
+    for lib in libs_to_rebuild {
+        println!("Rebuilding library: {}", lib);
+        let lib_output = Command::new("make")
+            .arg("-C")
+            .arg("src")
+            .arg("single_lib")
+            .arg(format!("LIBRARY={}", lib))
+            .arg(format!("COMP_CONSTANTS_HEADER={}", header_file_path))
+            .output()
+            .expect("Failed to execute make command for single library");
+
+        if !lib_output.status.success() {
+            return Err(String::from_utf8_lossy(&lib_output.stderr).to_string());
+        }
+    }
+    Ok(())
+}
 fn comp_gen_make_cmd(
     output_name: &String,
     args_file: &String,
     tar_file: &Option<String>,
     id: &ComponentId,
     s: &SystemState,
+    header_file_path: Option<String>,
 ) -> String {
     let c = component(&s, id);
     let ds = deps(&s, id);
@@ -284,11 +332,31 @@ fn comp_gen_make_cmd(
             (false, ifpath)
         });
 
+
     let mut optional_cmds = String::from("");
     optional_cmds.push_str(&format!("COMP_INITARGS_FILE={} ", args_file));
     if let Some(s) = tar_file {
         optional_cmds.push_str(&format!("COMP_TAR_FILE={} ", s));
     }
+
+    if !c.constants.is_empty() {
+        let mut header_content = String::from("#ifndef COMPONENT_CONSTANTS_H\n#define COMPONENT_CONSTANTS_H\n\n");
+        let mut constants = Vec::new();
+        for constant in &c.constants {
+            header_content.push_str(&format!("#define {} {}\n", constant.variable, constant.value));
+            constants.push(constant.variable.clone());
+        }
+        header_content.push_str("\n#endif // COMPONENT_CONSTANTS_H\n");
+
+        if let Some(header_path) = header_file_path {
+            emit_file(&header_path, header_content.as_bytes()).expect("Failed to write header file");
+            optional_cmds.push_str(&format!("COMP_CONSTANTS_HEADER={} ", header_path));
+
+            let libs_to_rebuild = comp_gen_make_cmd_scan_lib_constant(&constants).expect("Error scanning libraries for constants");
+            comp_gen_make_cmd_rebuild_lib(libs_to_rebuild, &header_path).expect("Error rebuilding libraries");
+        }
+    }
+
     let decomp: Vec<&str> = c.source.split(".").collect();
     assert!(decomp.len() == 2);
     // unwrap as we've already validated the name.
@@ -377,8 +445,9 @@ impl BuildState for DefaultBuilder {
         compdir_check_build(&comp_dir)?;
         let p = state.get_param_id(&id);
         let output_path = self.comp_obj_path(&id, &state)?;
-
-        let cmd = comp_gen_make_cmd(&output_path, p.param_prog(), p.param_fs(), &id, &state);
+        
+        let header_file_path = self.comp_file_path(&id, &"component_constants.h".to_string(), &state)?;
+        let cmd = comp_gen_make_cmd(&output_path, p.param_prog(), p.param_fs(), &id, &state, Some(header_file_path));
 
         let name = state.get_named().ids().get(id).unwrap();
         println!(
@@ -413,7 +482,7 @@ impl BuildState for DefaultBuilder {
         let binary = self.comp_obj_path(&c, &s)?;
         let argsfile = constructor_serialize_args(&c, &s, self)?;
         let tarfile = constructor_tarball_create(&c, &s, self)?;
-        let cmd = comp_gen_make_cmd(&binary, &argsfile, &tarfile, &c, &s);
+        let cmd = comp_gen_make_cmd(&binary, &argsfile, &tarfile, &c, &s, None);
 
         let name = s.get_named().ids().get(c).unwrap();
         println!(

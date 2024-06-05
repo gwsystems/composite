@@ -28,6 +28,12 @@ pub struct InterfaceVariant {
     pub variant: Option<String>,
 }
 
+#[derive(Debug, Deserialize,Clone)]
+pub struct ConstantVal {
+    pub variable: String,
+    pub value: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct TomlComponent {
     name: String,
@@ -35,6 +41,7 @@ pub struct TomlComponent {
     baseaddr: Option<String>,
     deps: Option<Vec<Dep>>,
     params: Option<Vec<Parameters>>,
+    constants: Option<Vec<ConstantVal>>, // field for constants
     implements: Option<Vec<InterfaceVariant>>,
     initfs: Option<String>,
     constructor: String, // the booter
@@ -524,6 +531,11 @@ impl Transition for SystemSpec {
                     .map(|p| ArgsKV::new_key(p.key.clone(), p.value.as_ref().unwrap_or(&String::from("")).clone()))
                     .collect(),
                 fsimg: c.initfs.clone(),
+                constants: c
+                    .constants
+                    .as_ref()
+                    .unwrap_or(&Vec::new())
+                    .clone(), // Parse constants directly
             };
             components.insert(ComponentName::new(&c.name, &String::from("global")), comp);
             deps.insert(ComponentName::new(&c.name, &String::from("global")), ds);

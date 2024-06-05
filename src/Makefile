@@ -20,6 +20,12 @@ composer:
 component:
 	$(MAKE) $(MAKEOPTIONS) -C components component
 
+single_lib:
+	$(MAKE) $(MAKEOPTIONS) -C components single_lib
+
+scan_libs_for_constants:
+	$(MAKE) $(MAKEOPTIONS) -C components scan_libs_for_constants
+
 comps:
 	$(info )
 	$(info ***********************************************)

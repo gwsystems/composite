@@ -90,6 +90,31 @@ all:
 		echo ""; \
 	done
 
+single_lib:
+	$(info **************************************************)
+	$(info **********[ Building Single Library ]*************)
+	$(info **************************************************)
+	@echo "*************************[TASK START]*************************";\
+	echo "                    [ Cleaning $(LIBRARY) ]";\
+	$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C $(LIBRARY) clean || exit $$?; \
+	echo "                    [ Building $(LIBRARY) with header file $(COMP_CONSTANTS_HEADER)]";\
+	$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C $(LIBRARY) $(COMP_CONSTANTS_HEADER) || exit $$?; \
+	echo "*************************[TASK  STOP]*************************";\
+	echo ""; \
+
+scan_libs_for_constants:
+	@echo "Scanning libraries for constants..."
+	@for lib in $(SUBDIRS); do \
+		for obj in $$lib/*.o; do \
+			for constant in $(CONSTANTS); do \
+				if nm $$obj | grep -q -e $$constant; then \
+					echo $$lib; \
+					break 2; \
+				fi \
+			done \
+		done \
+	done | sort -u > rebuild_libs.txt
+
 clean:
 	$(info |     [RM]   Cleaning up library directories)
 	@for dir in $(SUBDIRS) ; do \
