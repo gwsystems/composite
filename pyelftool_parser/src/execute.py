@@ -1,6 +1,6 @@
 from capstone import *
 from capstone.x86 import *
-from debug import loginst,log, logcall
+from debug import loginst,log, logcall, logerror
 class execute:
     def __init__(self, register, mode):
         self.register = register
@@ -100,16 +100,21 @@ class execute:
                 if (not flagimm):
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                     if (self.register.Getregwithname(dst) != -1):
-                        logcall(self.register.Getregwithname(dst))
-                        logcall(hex(inst.address), inst.mnemonic, inst.op_str)
-                        logcall("here is an dynamic call, but value is predictable.")
+                        print(self.register.Getregwithname(dst))
+                        print(hex(inst.address), inst.mnemonic, inst.op_str)
+                        print("here is an dynamic call, but value is predictable.")
+                        self.reg["pc"] = self.register.Getregwithname(dst)
                         edge.add((hex(vertexfrom), hex(self.register.Getregwithname(dst))))  ## graph
+                        
                     else:
                         logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                         logcall("here is an dynamic call, should be reported, but it is still possible be calculated.")
+                        logerror(hex(inst.address), inst.mnemonic, inst.op_str)
+                        logerror("here is an dynamic call, should be reported, but it is still possible be calculated.")
                 else:
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                     logcall("here is an static call")
+                    self.reg["pc"] = int(dst, 0)  ## hex to int
                     edge.add((hex(vertexfrom), hex(imm)))  ## graph
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 8
@@ -171,11 +176,23 @@ class execute:
                     self.register.Setreg(dst, self.register.Getregwithname(dst) + self.register.Getregwithname(src))
             elif inst.id == (X86_INS_JMP): ## NOT yet implemented in simulation machine
                 if (not flagimm):
-                    logcall(hex(inst.address), inst.mnemonic, inst.op_str)
-                    logcall("here is an dynamic jump")
+                    if (self.register.Getregwithname(dst) != -1):
+                        logcall(hex(inst.address), inst.mnemonic, inst.op_str)
+                        logcall("here is an dynamic jump")
+                        self.reg["pc"] = self.register.Getregwithname(dst)
+                        edge.add((hex(vertexfrom), hex(self.register.Getregwithname(dst))))  ## graph
+                    else:
+                        logcall(hex(inst.address), inst.mnemonic, inst.op_str)
+                        logcall("here is an dynamic jump, but it is unpredicatble")
+                        logerror(hex(inst.address), inst.mnemonic, inst.op_str)
+                        logerror("here is an dynamic jump, but it is unpredicatble")
                 else:
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                     logcall("here is an static jump")
+                    print(int(dst, 0))
+                    print(src)
+                    self.reg["pc"] = int(dst, 0)
+                    edge.add((hex(vertexfrom), dst))  ## graph
             elif inst.id == (X86_INS_ENTER):
                 loginst(hex(inst.address), inst.mnemonic, inst.op_str)
             else:
