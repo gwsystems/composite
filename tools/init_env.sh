@@ -11,7 +11,7 @@ ubuntu64()
 {
 	# This is used to set evnironment deps in Ubuntu-64 for compile&run x86_32/x86_64 bit Composite
 	# Tested Ubuntu version: 18.04/20.04/21.04
-	local dependencies="build-essential git cargo xorriso mtools qemu-system-i386 gcc-multilib python2.7 python3-pip"
+	local dependencies="build-essential git cargo xorriso mtools qemu-system-i386 gcc-multilib grub-pc-bin python3-pip"
 	sudo apt install ${dependencies} -y
 
 	if [ "${grub}" == "" ] && [ "${grub2}" == "" ]

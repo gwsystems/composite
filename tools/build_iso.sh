@@ -13,7 +13,7 @@ fi
 build_iso()
 {
 	echo "[cos generating ISO image]"
-	local dir=$(cd "$(dirname "$1")"; pwd)  
+	local dir=$(cd "$(dirname "$1")"; pwd)
 	local bin_name=$(basename $1 .img)
 
 	set +e
@@ -33,6 +33,14 @@ build_iso()
 		exit 1
 	fi
 
+	if [ -d "/usr/lib/grub/i386-pc" ]
+	then
+	    grub_dir="/usr/lib/grub/i386-pc"
+	else
+	    echo "Cannot find an appropriate grub-mkrescue/grub2-mkrescue directory to use to generate ISO image. If using Ubuntu, make sure to install the grub-pc-bin package."
+	    exit 1
+	fi
+
 	cd ${dir}
 	echo "set timeout=0" > grub.cfg
 	echo "set default=0" >> grub.cfg
@@ -43,7 +51,7 @@ build_iso()
 	mkdir -p iso/boot/grub
 	cp grub.cfg iso/boot/grub/
 	cp ${bin_name}.img iso/boot/
-	${grub_command} -d /usr/lib/grub/i386-pc -o ${bin_name}.iso iso
+	${grub_command} -d ${grub_dir} -o ${bin_name}.iso iso
 
 	rm -rf iso grub.cfg
 

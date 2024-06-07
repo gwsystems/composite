@@ -79,13 +79,15 @@ distclean: clean
 
 i386_init:
 	$(info Building libcxx for i386...)
-	make LIBCXX_ARCH=-m32 -C ./libstdc++-v3-4.8/libsupc++
-	make LIBCXX_ARCH=-m32 -C ./libstdc++-v3-4.8
+#	make LIBCXX_ARCH=-m32 -C ./libstdc++-v3-4.8/libsupc++
+# This breaks in the current build, so we'd need to debug/update if we want to support c++.
+#	make LIBCXX_ARCH=-m32 -C ./libstdc++-v3-4.8
 
 x86_64_init:
-	$(info Building libcxx for x86_64...)
-	make LIBCXX_ARCH=-m64 -C ./libstdc++-v3-4.8/libsupc++
-	make LIBCXX_ARCH=-m64 -C ./libstdc++-v3-4.8
+	$(info Building libcxx for x86_64...NOT CURRENTLY SUPPORTED)
+#	make LIBCXX_ARCH=-m64 -C ./libstdc++-v3-4.8/libsupc++
+# This breaks in the current build, so we'd need to debug/update if we want to support c++.
+#	make LIBCXX_ARCH=-m64 -C ./libstdc++-v3-4.8
 
 armv7a_init:
 	$(info Building libcxx for armv7-a...)
