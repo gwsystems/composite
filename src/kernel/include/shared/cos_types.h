@@ -40,6 +40,7 @@ typedef u64_t              tcap_prio_t;
 typedef u64_t              tcap_uid_t;
 typedef u32_t              sched_tok_t;
 typedef u32_t              asid_t;
+typedef s64_t	           budget_t;
 
 /*
  * This is more complicated than a direct comparison due to

@@ -99,6 +99,9 @@ struct slm_thd {
 	asndcap_t   asnd;
 	tcap_prio_t priority;
 	cpuid_t     cpuid;
+	//TODO: Added for getting execution and switch count, remove after
+	cycles_t    total_exec_time;
+	u16_t	    switch_cnt;
 
 	/* Execution information retrieved by the scheduler thread */
 	struct event_info event_info;
@@ -121,6 +124,14 @@ slm_now(void)
 }
 
 unsigned long slm_get_cycs_per_usec(void);
+
+//TODO: Added for getting execution and switch count, remove after
+typedef enum {
+	SLM_THD_EXEC_TIME = 0,
+	SLM_THD_SWITCH_CNT = 1,
+} slm_thd_params_t;
+
+void slm_thd_get_param(thdid_t tid, slm_thd_params_t param, void *value);
 
 #include <slm_private.h>
 
