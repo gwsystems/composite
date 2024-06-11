@@ -136,7 +136,7 @@ if __name__ == '__main__':
     #path = "../usr/bin/gcc"
     #path = "../testbench/dhrystone/dhrystone"
     #path = "../testbench/composite/tests.unit_pingpong.global.ping"
-    path = "../testbench/composite/system_binaries/cos_build-ming/global.sched/sched.pfprr_quantum_static.global.sched"
+    path = "../testbench/composite/system_binaries/cos_build-ming_without_mcmodel/global.sched/sched.pfprr_quantum_static.global.sched"
     
     mode = 1 ## simulator mode.
     
