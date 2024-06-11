@@ -89,15 +89,21 @@ class parser:
     def stack_analyzer(self):
         index_list = list(self.inst.keys())
         index_list.append(-1) ## dummy value for last iteration.
-        self.index = index_list.index(self.register.reg["pc"])
-        while 1:  ## need to find out a place to exit.
-            key = self.register.reg["pc"]
-            self.register.updaterip(index_list[self.index + 1]) ## catch the rip for memory instruction.
+        # self.index = index_list.index(self.register.reg["pc"])
+        nextinstkey = list(self.inst.keys())
+        nextinstkey.append(-1) ## dummy value for last iteration.
+        for key in self.inst.keys():
+            self.register.reg["pc"] = key
+            self.register.updaterip(nextinstkey[index + 1]) ## catch the rip for memory instruction.
+            index = index + 1
+        ## while 1:  ## need to find out a place to exit.
+        ##    key = self.register.reg["pc"]
+        ##    self.register.updaterip(index_list[self.index + 1]) ## catch the rip for memory instruction.
             
             if key in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
-                ## self.stackfunction.append(self.symbol[key])
-                ## self.stacklist.append(self.register.reg["stack"])
-                ## self.register.clean()
+                self.stackfunction.append(self.symbol[key])
+                self.stacklist.append(self.register.reg["stack"])
+                self.register.clean()
                 ###### Graph
                 vertexfrom = key
                 self.vertex.add(vertexfrom)
