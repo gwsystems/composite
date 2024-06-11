@@ -2,10 +2,9 @@ from capstone import *
 from capstone.x86 import *
 from debug import loginst,log, logcall, logerror
 class execute:
-    def __init__(self, register, mode):
+    def __init__(self, register):
         self.register = register
         self.reg = register.reg
-        self.mode = mode
     def exe(self, inst, edge, vertexfrom):
         ## -----------------------------------------------
         
