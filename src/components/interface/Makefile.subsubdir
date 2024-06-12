@@ -38,10 +38,11 @@ print:
 
 %.o:%.c
 	$(info |     [CC]   Compiling c file $< into $@)
-	@$(CC) $(CFLAGS) $(DEP_INC) -c -o $(@) $<
+	@$(CC) $(CFLAGS) $(CFLAGS_MINLIB) $(DEP_INC) -c -o $(@) $<
 
 $(S_SSTUB_OBJ):$(SSTUB_FILE)
 	$(info |     [AS]   Creating server asm stubs for $(IFNAME))
+	$(info |     include paths are $(DEP_INC))
 	@$(AS) -DCOS_SERVER_STUBS $(ASFLAGS) $(DEP_INC) -c -o $@ $^
 
 $(C_UCAP_STUB_OBJ):$(SSTUB_FILE)

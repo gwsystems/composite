@@ -24,3 +24,11 @@ init:
 
 component:
 	$(MAKE) $(MAKEOPTIONS) -C implementation component
+
+component_minlib:
+	$(MAKE) $(MAKEOPTIONS) -C lib component_minlib
+	$(MAKE) $(MAKEOPTIONS) -C interface component_minlib 
+
+component_dir:
+	$(MAKE) $(MAKEOPTIONS) -C implementation component_dir
+

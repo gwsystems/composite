@@ -37,17 +37,20 @@ pub fn exec() -> Result<(), String> {
 
     let arg1 = args.next();
     let arg2 = args.next();
+    let arg3 = args.next(); // Optional third argument
 
     if None == arg1 || None == arg2 {
         return Err(format!(
-            "usage: {} <sysspec>.toml <buildname>",
+            "usage: {} <sysspec>.toml <buildname> [minlib]",
             program_name.unwrap()
         ));
     }
 
+    let b_minlib= arg3.as_ref().map(|s| s == "minlib").unwrap_or(false);
+
     let mut sys = SystemState::new(arg1.unwrap());
     let mut build = DefaultBuilder::new();
-    build.initialize(&arg2.unwrap(), &sys)?;
+    build.initialize(&arg2.unwrap(), &sys, b_minlib)?;
 
     sys.add_parsed(SystemSpec::transition(&sys, &mut build)?);
     sys.add_named(CompTotOrd::transition(&sys, &mut build)?);

@@ -8,6 +8,7 @@ all:
 	$(info ***********************************************)
 	$(info *********[ Building Implementations ]**********)
 	$(info ***********************************************)
+	$(info $(SUBDIRS))
 	@for dir in $(SUBDIRS) ; do \
 		$(MAKE) $(MAKEOPTIONS) -C $$dir ; \
 	done
@@ -25,3 +26,7 @@ distclean:
 
 component:
 	$(MAKE) $(MAKEOPTIONS) -C $(COMP_INTERFACE) component
+
+component_dir:
+	$(MAKE) $(MAKEOPTIONS) -C $(COMP_INTERFACE) component_dir
+

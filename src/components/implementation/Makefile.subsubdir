@@ -79,6 +79,11 @@ COMP_DEPLIBDIRS_CLEAN=$(foreach D,$(COMP_DEPS_CLEAN),$(if $(wildcard $(INTERDIR)
 COMP_EXPIF_OBJS=$(foreach I,$(COMP_INTERFACES_CLEAN),$(INTERDIR)/$(I)/cosrt_s_stub.o)
 COMP_DEP_OBJS=$(foreach D,$(COMP_IFDEPS_CLEAN),$(INTERDIR)/$(D)/cosrt_c_stub.o)
 
+DEP_DIRS := $(foreach obj,$(COMP_DEP_OBJS),$(dir $(obj)))
+DEP_DIRS := $(foreach dir,$(DEP_DIRS),$(dir $(patsubst %/,%,$(dir))))
+DEP_OBJS := $(foreach obj,$(DEPENDENCY_LIBOBJS),$(dir $(obj)))
+LIB_DIRS := $(foreach lib,$(DEPENDENCY_LIBPATH),$(subst -L,,$(lib)))
+
 # NOTE: we're currently ignoring the *variants* library requirements,
 # which will break if an interface's code requires a library
 
@@ -86,21 +91,25 @@ comp_header:
 	$(info | Composing $(COMP_INTERFACE).$(COMP_NAME) for variable $(COMP_VARNAME) by linking with:)
 	$(info |     Exported interfaces: $(COMP_INTERFACES_CLEAN))
 	$(info |     Interface dependencies: $(COMP_IFDEPS_CLEAN))
-	$(info |     Libraries: $(DEPENDENCY_LIBS) $(DEPENDENCY_LIBOBJS))
+	$(info |     Libraries:$(DEPENDENCY_LIBS) $(DEPENDENCY_LIBOBJS))
 
 .PHONY: component
 component: clean comp_header $(COMPOBJ)
-	$(if $(COMP_INITARGS_FILE), $(CC) $(INCLUDE) $(CFLAGS) -c -o $(COMP_INITARGS_FILE:%.c=%.o) $(COMP_INITARGS_FILE))
+	$(if $(COMP_INITARGS_FILE), $(CC) $(INCLUDE) $(CFLAGS) $(CFLAGS_MINLIB) -c -o $(COMP_INITARGS_FILE:%.c=%.o) $(COMP_INITARGS_FILE))
 	$(if $(COMP_TAR_FILE), cp $(COMP_TAR_FILE) $(TAR_SYMBOL_NAME))
 	$(if $(COMP_TAR_FILE), $(LD) $(LDFLAGS) -r -b binary $(TAR_SYMBOL_NAME) -o $(COMP_TAR_FILE).o; rm $(TAR_SYMBOL_NAME))
 	$(LD) $(LDFLAGS) -r -o $(COMPNAME).linked_libs_ifs.o $(COMPOBJ) $(COMP_EXPIF_OBJS) $(COMP_DEP_OBJS) $(if $(COMP_INITARGS_FILE), $(COMP_INITARGS_FILE:%.c=%.o)) $(if $(COMP_TAR_FILE), $(COMP_TAR_FILE).o) $(COMP_DEPLIBDIRS_CLEAN) $(COMP_DEPLIBS_CLEAN) $(LIB_FLAGS)
 	$(MUSLCC) $(COMPNAME).linked_libs_ifs.o $(MUSLCFLAGS) $(LINKFLAG) -o $(COMPNAME).linked_musl.o
-	$(LD) $(LDFLAGS) -Ttext=$(COMP_BASEADDR) -T $(COMP_LD_SCRIPT) -o $(COMP_OUTPUT) $(COMPNAME).linked_musl.o
+	$(LD) $(LDFLAGS) $(LDFLAGS_MINLIB) -Ttext=$(COMP_BASEADDR) -T $(COMP_LD_SCRIPT) -o $(COMP_OUTPUT) $(COMPNAME).linked_musl.o
+
+.PHONY: component_dir
+component_dir:
+	$(info $(LIB_DIRS) $(DEP_DIRS) $(DEP_OBJS))
 
 # NOTE: make CFLAGS/CXXFLAGS/ASFLAGS argument first because it includes kernel headers/musl headers first 
 %.o:%.c
 	$(info |     [CC]   $<: Compiling)
-	@$(CC) $(CFLAGS) $(INCLUDE) -o $@ -c $<
+	@$(CC) $(CFLAGS) $(CFLAGS_MINLIB) $(INCLUDE) -o $@ -c $<
 
 %.o:%.cc
 	$(info |     [CXX]  $<: Compiling)

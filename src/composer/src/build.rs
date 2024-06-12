@@ -254,6 +254,7 @@ fn comp_gen_make_cmd(
     tar_file: &Option<String>,
     id: &ComponentId,
     s: &SystemState,
+    is_minlib: bool,
 ) -> String {
     let c = component(&s, id);
     let ds = deps(&s, id);
@@ -295,12 +296,29 @@ fn comp_gen_make_cmd(
     let compid = s.get_named().rmap().get(&c.name).unwrap();
     let baseaddr = s.get_address_assignments().component_baseaddr(compid);
 
-    let cmd = format!(
+    let cmd = if is_minlib {
+        format!(
+            r#"make --quiet -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} component_dir"#,
+            if_exp, if_deps, &decomp[0], &decomp[1]
+        )
+    }
+    else {format!(
         r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={:#X} {} component"#,
         if_exp, if_deps, &decomp[0], &decomp[1], &c.name, output_name, baseaddr, &optional_cmds
-    );
+    )
+    };
 
     cmd
+}
+
+fn comp_gen_minlib_make_cmd(
+    minlib_dirs: &String,
+    cflags_minlib: &String
+) -> String {
+    format!(
+        r#"make -C src MINLIB_DIRS="{}" CFLAGS_MINLIB="{}" component_minlib"#,
+        minlib_dirs, cflags_minlib
+    )
 }
 
 fn kern_gen_make_cmd(input_constructor: &String, kern_output: &String, _s: &SystemState) -> String {
@@ -312,12 +330,14 @@ fn kern_gen_make_cmd(input_constructor: &String, kern_output: &String, _s: &Syst
 
 pub struct DefaultBuilder {
     builddir: String,
+    minlib: bool,
 }
 
 impl DefaultBuilder {
     pub fn new() -> Self {
         DefaultBuilder {
             builddir: "/dev/null".to_string(), // must initialize, so error out if you don't
+            minlib: false,
         }
     }
 }
@@ -330,15 +350,21 @@ fn compdir_check_build(comp_dir: &String) -> Result<(), String> {
 
     Ok(())
 }
+use std::process::Command;
 
 impl BuildState for DefaultBuilder {
-    fn initialize(&mut self, name: &String, _s: &SystemState) -> Result<(), String> {
+    fn initialize(&mut self, name: &String, _s: &SystemState, minlib: bool) -> Result<(), String> {
         let pwd = env::current_dir().unwrap();
-        let dir = format!("{}/system_binaries/cos_build-{}", pwd.display(), name);
+
+        let dir = if minlib {
+            format!("{}/system_binaries/cos_build-{}-minlib", pwd.display(), name)
+        } else {
+            format!("{}/system_binaries/cos_build-{}", pwd.display(), name)
+        };
 
         reset_dir(&dir)?;
         self.builddir = dir;
-
+        self.minlib = minlib;
         Ok(())
     }
 
@@ -378,7 +404,37 @@ impl BuildState for DefaultBuilder {
         let p = state.get_param_id(&id);
         let output_path = self.comp_obj_path(&id, &state)?;
 
-        let cmd = comp_gen_make_cmd(&output_path, p.param_prog(), p.param_fs(), &id, &state);
+        if self.minlib {
+            //get the related sub directories
+            let subdirs_cmd = comp_gen_make_cmd(&output_path, p.param_prog(), p.param_fs(), &id, &state, true);
+            let (out1, err1) = exec_pipeline(vec![subdirs_cmd.clone()]);
+
+            if !err1.is_empty() {
+                return Err(format!("Error in executing pipeline for component_dir: {}", err1));
+            }
+
+            let mut cflag_minlib = "-ffunction-sections -fdata-sections";
+
+            //rebuild the files under the related sub directories
+            let output = Command::new("make")
+            .arg("-C")
+            .arg("src")
+            .arg(format!("MINLIB_DIRS={}", out1))
+            .arg(format!("CFLAGS_MINLIB={}", cflag_minlib))
+            .arg("component_minlib")
+            .output()
+            .expect("Failed to execute make command");
+
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                println!("Output: {}", stdout);
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                eprintln!("Error: {}", stderr);
+            }
+        }
+
+        let cmd = comp_gen_make_cmd(&output_path, p.param_prog(), p.param_fs(), &id, &state, false);
 
         let name = state.get_named().ids().get(id).unwrap();
         println!(
@@ -413,7 +469,7 @@ impl BuildState for DefaultBuilder {
         let binary = self.comp_obj_path(&c, &s)?;
         let argsfile = constructor_serialize_args(&c, &s, self)?;
         let tarfile = constructor_tarball_create(&c, &s, self)?;
-        let cmd = comp_gen_make_cmd(&binary, &argsfile, &tarfile, &c, &s);
+        let cmd = comp_gen_make_cmd(&binary, &argsfile, &tarfile, &c, &s, false);
 
         let name = s.get_named().ids().get(c).unwrap();
         println!(
