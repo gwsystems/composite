@@ -21,6 +21,7 @@ class execute:
         imm = 0
         disp = 0
         ############# decode stage.
+        loginst("instruction")
         loginst(hex(inst.address), inst.mnemonic, inst.op_str)
         if "ptr" in inst.op_str:    ## early exit for ptr, I do not handle the pointer to memory yet.
             loginst(inst.address, inst.mnemonic, inst.op_str)
@@ -102,7 +103,7 @@ class execute:
                         print(self.register.Getregwithname(dst))
                         print(hex(inst.address), inst.mnemonic, inst.op_str)
                         print("here is an dynamic call, but value is predictable.")
-                        self.reg["pc"] = self.register.Getregwithname(dst)
+                        # self.reg["pc"] = self.register.Getregwithname(dst)
                         edge.add((hex(vertexfrom), hex(self.register.Getregwithname(dst))))  ## graph
                         
                     else:
@@ -113,7 +114,7 @@ class execute:
                 else:
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                     logcall("here is an static call")
-                    self.reg["pc"] = int(dst, 0)  ## hex to int
+                    # self.reg["pc"] = int(dst, 0)  ## hex to int
                     edge.add((hex(vertexfrom), hex(imm)))  ## graph
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 8
@@ -176,21 +177,21 @@ class execute:
             elif inst.id == (X86_INS_JMP): ## NOT yet implemented in simulation machine
                 if (not flagimm):
                     if (self.register.Getregwithname(dst) != -1):
-                        logcall(hex(inst.address), inst.mnemonic, inst.op_str)
-                        logcall("here is an dynamic jump")
-                        self.reg["pc"] = self.register.Getregwithname(dst)
+                        loginst(hex(inst.address), inst.mnemonic, inst.op_str)
+                        loginst("here is an dynamic jump")
+                        ## self.reg["pc"] = self.register.Getregwithname(dst)
                         edge.add((hex(vertexfrom), hex(self.register.Getregwithname(dst))))  ## graph
                     else:
-                        logcall(hex(inst.address), inst.mnemonic, inst.op_str)
-                        logcall("here is an dynamic jump, but it is unpredicatble")
+                        loginst(hex(inst.address), inst.mnemonic, inst.op_str)
+                        loginst("here is an dynamic jump, but it is unpredicatble")
                         logerror(hex(inst.address), inst.mnemonic, inst.op_str)
                         logerror("here is an dynamic jump, but it is unpredicatble")
                 else:
-                    logcall(hex(inst.address), inst.mnemonic, inst.op_str)
-                    logcall("here is an static jump")
+                    loginst(hex(inst.address), inst.mnemonic, inst.op_str)
+                    loginst("here is an static jump")
                     print(int(dst, 0))
                     print(src)
-                    self.reg["pc"] = int(dst, 0)
+                    #self.reg["pc"] = int(dst, 0)
                     edge.add((hex(vertexfrom), dst))  ## graph
             elif inst.id == (X86_INS_ENTER):
                 loginst(hex(inst.address), inst.mnemonic, inst.op_str)
