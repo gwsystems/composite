@@ -641,7 +641,7 @@ resource_comp_destroy(pageref_t compref)
 cos_retval_t
 resource_thd_create(pageref_t sched_thd_ref, pageref_t comp_ref, thdid_t id, coreid_t coreid, id_token_t sched_token, pageref_t untyped_src_ref)
 {
-	struct page_type *ptype, *sched_ptype;
+	struct page_type *ptype, *sched_ptype = NULL;
 	struct page *thd_page;
 	struct component_ref ref;
 	struct component *comp;

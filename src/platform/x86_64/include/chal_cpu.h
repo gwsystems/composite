@@ -79,7 +79,7 @@ static inline word_t
 chal_cpu_cr0_get(void)
 {
 	word_t config;
-	asm("mov %%cr0, %0" : "=r"(config));
+	asm volatile("mov %%cr0, %0" : "=r"(config));
 
 	return config;
 }
@@ -87,7 +87,7 @@ chal_cpu_cr0_get(void)
 static inline void
 chal_cpu_cr0_set(word_t config)
 {
-	asm("mov %0, %%cr0" : : "r"(config));
+	asm volatile("mov %0, %%cr0" : : "r"(config));
 }
 
 static inline unsigned long
@@ -95,7 +95,8 @@ chal_cpu_cr4_get(void)
 {
 	unsigned long config;
 
-	asm("movq %%cr4, %0" : "=r"(config));
+	asm volatile("movq %%cr4, %0" : "=r"(config));
+	printk("CR4 get returning %lx\n", config);
 
 	return config;
 }
@@ -105,7 +106,7 @@ chal_cpu_cr4_set(cr4_flags_t flags)
 {
 	unsigned long config = chal_cpu_cr4_get();
 	config |= (unsigned long)flags;
-	asm("movq %0, %%cr4" : : "r"(config));
+	asm volatile("movq %0, %%cr4" : : "r"(config));
 }
 
 static inline u64_t
@@ -275,7 +276,7 @@ chal_va2pa(void *address)
 /* FIXME:find a better way to do this */
 #define EXTRACT_SUB_PAGE(super) ((super) & SUPER_PAGE_PTE_MASK)
 
-// #define MPK_ENABLE 1
+//#define MPK_ENABLE 1
 
 #ifdef MPK_ENABLE
 static inline void
@@ -418,8 +419,8 @@ chal_cpu_init(void)
 		cr4 |= CR4_PKE;
 		printk("\tCPU supports MPK: enabling.\n");
 #ifndef MPK_ENABLE
-		printk("\tERROR: CPU supports MPK, but not enabled in build system. Please set MPK_ENABLE.\n");
-		assert(0);
+		printk("\tERROR: CPU supports MPK, but not enabled in build system. Please set MPK_ENABLE. For now, ignoring MPK.\n");
+		//assert(0);
 #endif
 	} else {
 		printk("\tCPU does NOT support MPK: not enabling.\n");
@@ -429,14 +430,17 @@ chal_cpu_init(void)
 #endif
 	}
 
+	printk("\tTODO: add back in pcid logic w/ CR4_PCIDE.\n");
+
 	/* CR4_OSXSAVE has to be set to enable xgetbv/xsetbv */
-	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE | CR4_PCIDE);
+	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE | CR4_OSXSAVE);
 
 	/* I'm not sure this is the best spot for this */
 	assert(sizeof(struct ulk_invstk) == ULK_INVSTK_SZ);
 
 	/* Check if the CPU support XSAVE and AVX */
 	a = 0x01;
+	c = 0;
 	chal_cpuid(&a, &b, &c, &d);
 	/* bit 26 is XSAVE, bit 27 is OS-activated OSXSAVE, and bit 28 is AVX */
 	assert((c & (1 << 26)) && (c & (1 << 27)) && (c & (1 << 28)));
@@ -477,17 +481,20 @@ chal_cpu_init(void)
 	cr0 |= (word_t)(CR0_MP);    /* set MP bit */
 	chal_cpu_cr0_set(cr0);
 	/* Note that we are no longer enabling SSE with CR4_OSFXSR as that seems to trip up avx */
+	printk("cr4 %lx\n", chal_cpu_cr4_get());
+	chal_cpu_cr4_set(CR4_OSFXSR);
 
-	a = 0x01;
+	unsigned long cr4_val = chal_cpu_cr4_get();
+	a = 1;
+	c = 0;
 	chal_cpuid(&a, &b, &c, &d);
-	assert(c & (1 << 27));
-
+	printk("cr4 %lx, cpuid %lx\n", cr4_val, c);
 	/* 2. Enable AVX */
 	xcr0_config = chal_cpu_xgetbv(XCR0);
 	xcr0_config |= XCR0_x87 | XCR0_SSE | XCR0_AVX;
 	chal_cpu_xsetbv(XCR0, xcr0_config);
-	printk("\tAVX enabled\n");
 	assert(chal_cpu_xgetbv(XCR0) == xcr0_config);
+	printk("\tAVX enabled\n");
 
 	readmsr(MSR_IA32_EFER, &low, &high);
 	writemsr(MSR_IA32_EFER,low | 0x1, high);

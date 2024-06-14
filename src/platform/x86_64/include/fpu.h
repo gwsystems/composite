@@ -23,7 +23,7 @@ enum {
 /* fucntions called outside */
 static inline int  fpu_init(void);
 static inline int  fpu_disabled_exception_handler(void);
-static inline void fpu_thread_init(struct thread *thd);
+static inline void fpu_thread_init(struct fpu_regs *thd);
 static inline int  fpu_switch(struct thread *next);
 static inline void fpu_save(struct thread *);
 static inline void fpu_restore(struct thread *);
@@ -181,18 +181,18 @@ fpu_disabled_exception_handler(void)
 }
 
 static inline void
-fpu_thread_init(struct thread *thd)
+fpu_thread_init(struct fpu_regs *fpregs)
 {
-	memset(&thd->fpregs, 0, sizeof(struct fpu_regs));
+	memset(fpregs, 0, sizeof(struct fpu_regs));
 	/* Have to set bit 63 of xcomp_bv to 1, or it will cause a #GP */
-	thd->fpregs.xcomp_bv |= ((u64_t)1 << 63);
-	thd->fpregs.cwd = 0x37f;
+	fpregs->xcomp_bv |= ((u64_t)1 << 63);
+	fpregs->cwd = 0x37f;
 #if FPU_SUPPORT_SSE > 0
 	/*
 	 * Mask all SSE exceptions, this will make processor ingore the exceptions
 	 * and the user program has to deal with invalid SSE results.
 	 */
-	thd->fpregs.mxcsr = 0x1f80;
+	fpregs->mxcsr = 0x1f80;
 #endif
 	return;
 }
@@ -330,7 +330,7 @@ fpu_disabled_exception_handler(void)
 	return 1;
 }
 static inline void
-fpu_thread_init(struct thread *thd)
+fpu_thread_init(struct fpu_regs *thd)
 {
 	return;
 }

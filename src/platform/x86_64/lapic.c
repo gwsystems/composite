@@ -521,7 +521,7 @@ smp_boot_all_ap(volatile int *cores_ready)
 	memcpy((char *)chal_pa2va(SMP_BOOT_PATCH_ADDR), &smppatchstart, &smppatchend - &smppatchstart);
 	stackpatch  = (char **)chal_pa2va(SMP_BOOT_PATCH_ADDR + (&smpstack - &smppatchstart));
 
-	for (i = 1; i < ncpus; i++) {
+	for (i = 1; i < ncpus && i < COS_NUM_CPU; i++) {
 		int 	j;
 		u16_t   *warm_reset_vec;
 

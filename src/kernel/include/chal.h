@@ -90,6 +90,8 @@ void chal_timer_program(cos_time_t timeout);
 
 void chal_init(void);
 
+void chal_thread_init(struct regs *regs, struct fpu_regs *fpregs);
+
 /* int cos_syscall_idle(void); */
 /* int cos_syscall_switch_thread(void); */
 /* int cos_syscall_buff_mgmt(void); */

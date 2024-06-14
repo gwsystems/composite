@@ -111,3 +111,9 @@ chal_init(void)
 		chal_msr_mhz = a * 100;
 	}
 }
+
+void
+chal_thread_init(struct regs *regs, struct fpu_regs *fpregs) {
+	(void)regs;
+	fpu_thread_init(fpregs);
+}

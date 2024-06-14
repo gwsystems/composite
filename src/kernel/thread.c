@@ -309,6 +309,7 @@ thread_initialize(struct thread *thd, thdid_t id, coreid_t coreid, id_token_t sc
 		},
 	};
 
+	chal_thread_init(&thd->regs, &thd->fpregs);
 	/* Make sure that the scheduler thread properly understands its role. */
 	sched->sched_thd = schedthd_ref;
 
