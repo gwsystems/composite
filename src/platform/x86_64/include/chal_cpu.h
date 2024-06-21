@@ -348,6 +348,14 @@ static inline void chal_protdom_write(prot_domain_tag_t protdom) {}
 static inline prot_domain_tag_t chal_protdom_read(void) { return 0; }
 #endif /* MPK_ENABLE */
 
+static inline void
+chal_fpu_switch(struct fpu_regs *curr, struct fpu_regs *next)
+{ fpu_switch(curr, next); }
+
+static inline void
+chal_fpu_thread_init(struct fpu_regs *r)
+{ fpu_thread_init(r); }
+
 struct cpu_tlb_asid_map {
 	pgtbl_t mapped_pt[NUM_ASID_MAX];
 } COS_CACHE_ALIGNED;
@@ -438,6 +446,7 @@ chal_cpu_init(void)
 	/* I'm not sure this is the best spot for this */
 	assert(sizeof(struct ulk_invstk) == ULK_INVSTK_SZ);
 
+	printk("\tFloating point/SIMD unit checks:");
 	/* Check if the CPU support XSAVE and AVX */
 	a = 0x01;
 	c = 0;
@@ -451,50 +460,48 @@ chal_cpu_init(void)
 	c = 0;
 	chal_cpuid(&a, &b, &c, &d);
 	assert(b & (1 << 5));
-	printk("\tThe CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE\n");
+	printk("\t\tThe CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE\n");
 
 	/* Check if the CPU suppor XSAVEOPT, XSAVEC and XSAVES instructions*/
 	a = 0x0d;
 	c = 1;
 	chal_cpuid(&a, &b, &c, &d);
 	assert((a & (1 << 0)) && (a & (1 << 1)) && (a & (1 << 3)));
-	printk("\tThe CPU supports XSAVEOPT, XSAVEC and XSAVES instructions\n");
+	printk("\t\tThe CPU supports XSAVEOPT, XSAVEC and XSAVES instructions\n");
 
 	/* Get the maximum size of XSAVE area of available XCR0 features */
 	a = 0x0d;
 	c = 0;
 	chal_cpuid(&a, &b, &c, &d);
 	assert(c > 0);
-	printk("\tThe CPU maximum XSAVE area is: %u\n", c);
+	printk("\t\tThe CPU maximum XSAVE area is: %u\n", c);
 
 	/* Check the AVX state component offset from the beginning of XSAVE Area*/
 	a = 0x0d;
 	c = 2;
 	chal_cpuid(&a, &b, &c, &d);
-	printk("\tThe AVX area offset is: %u\n", b);
+	printk("\t\tThe AVX area offset is: %u\n", b);
 
 	/* Now enable SSE and AVX in XCR0, so that XSAVE features can be used */
 
 	/* 1. Enable SSE */
 	cr0  = chal_cpu_cr0_get();
-	cr0 &= ~((word_t)(CR0_EM)); /* clear EM bit*/
+	cr0 &= ~((word_t)(CR0_EM | CR0_TS)); /* clear EM and TS bits */
 	cr0 |= (word_t)(CR0_MP);    /* set MP bit */
 	chal_cpu_cr0_set(cr0);
-	/* Note that we are no longer enabling SSE with CR4_OSFXSR as that seems to trip up avx */
-	printk("cr4 %lx\n", chal_cpu_cr4_get());
 	chal_cpu_cr4_set(CR4_OSFXSR);
 
-	unsigned long cr4_val = chal_cpu_cr4_get();
-	a = 1;
-	c = 0;
-	chal_cpuid(&a, &b, &c, &d);
-	printk("cr4 %lx, cpuid %lx\n", cr4_val, c);
 	/* 2. Enable AVX */
 	xcr0_config = chal_cpu_xgetbv(XCR0);
 	xcr0_config |= XCR0_x87 | XCR0_SSE | XCR0_AVX;
 	chal_cpu_xsetbv(XCR0, xcr0_config);
 	assert(chal_cpu_xgetbv(XCR0) == xcr0_config);
-	printk("\tAVX enabled\n");
+	printk("\t\tAVX enabled\n");
+
+	if (fpu_init()) {
+		printk("FXSR or SSE are enabled, but not found in the hardware.\n");
+	}
+	printk("\t\tFPU/SIMD units enabled\n");
 
 	readmsr(MSR_IA32_EFER, &low, &high);
 	writemsr(MSR_IA32_EFER,low | 0x1, high);
@@ -506,7 +513,6 @@ chal_cpu_init(void)
 	writemsr(MSR_KERNEL_GSBASE, (u32_t)((u64_t)(&s->gs_stack_ptr)), (u32_t)((u64_t)(&s->gs_stack_ptr) >> 32));
 	printk("\tSegments and syscall entry points initialized.\n");
 
-	fpu_init();
 	chal_cpu_eflags_init();
 }
 

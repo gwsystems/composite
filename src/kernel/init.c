@@ -1,5 +1,4 @@
-#include "chal_cpu.h"
-#include "cos_chal_consts.h"
+#include <chal_cpu.h>
 #include <state.h>
 #include <consts.h>
 #include <cos_regs.h>
@@ -462,22 +461,22 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 	}
 
 	/* ...Third, construct the capability table for the constructor... */
-	printk("\tCaptbl construction...\n");
+	printk("\tCaptbl construction (for %ld capabilities)...\n", caps_needed);
 	for (lvl = 0; lvl < COS_CAPTBL_MAX_DEPTH - 1; lvl++) {
 		uword_t top_off;         /* top nodes to iterate through */
 		uword_t bottom_upper, bottom_lower; /* bottom node, upper and lower addresses */
 		uword_t bottom_off, nentries, cons_off;
 
 		/* Where are the top nodes? */
-		COS_CHECK(cos_captbl_node_offset(lvl, 1, 1, captbl_num, &top_off));
+		COS_CHECK(cos_captbl_node_offset(lvl, 1, 1, caps_needed, &top_off));
 		COS_CHECK(cos_captbl_intern_offset(lvl, 1, &cons_off));
 
-		COS_CHECK(cos_captbl_node_offset(lvl + 1, 1, 1, captbl_num, &bottom_lower));
-		COS_CHECK(cos_captbl_node_offset(lvl + 1, 1 + captbl_num - 1, 1, captbl_num, &bottom_upper));
+		COS_CHECK(cos_captbl_node_offset(lvl + 1, 1, 1, caps_needed, &bottom_lower));
+		COS_CHECK(cos_captbl_node_offset(lvl + 1, 1 + captbl_num - 1, 1, caps_needed, &bottom_upper));
 
 		nentries = COS_CAPTBL_INTERNAL_NENT;
-		for (bottom_off = bottom_lower; bottom_off < bottom_upper; bottom_off++, cons_off = (cons_off + 1) % nentries) {
-			COS_CHECK(captbl_construct(captbl_offset + top_off, cons_off, captbl_offset + bottom_off));
+		for (bottom_off = bottom_lower; bottom_off <= bottom_upper; bottom_off++, cons_off = (cons_off + 1) % nentries) {
+			COS_CHECK(captbl_construct(captbl_offset + top_off, captbl_offset + bottom_off, cons_off));
 
 			/* roll over onto the next top-level node */
 			if (cons_off == nentries - 1) top_off++;

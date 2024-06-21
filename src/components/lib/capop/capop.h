@@ -23,8 +23,8 @@
 
 #pragma once
 
-#include "cos_chal_regs.h"
-#include "cos_consts.h"
+#include <cos_regs.h>
+#include <cos_consts.h>
 #include <cos_types.h>
 #include <cos_error.h>
 #include <cos_regs.h>

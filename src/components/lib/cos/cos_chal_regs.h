@@ -410,8 +410,6 @@ struct fpu_regs {
 	 * closing to save AVX512 component in XCR0.
 	 */
 	u8_t xsave_ext_area[800];
-
-	int status;
 } __attribute__((aligned(64)));
 
 /**

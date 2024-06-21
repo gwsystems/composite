@@ -644,7 +644,6 @@ capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
                 return rs;
 	}
 	r = -COS_ERR_NO_OPERATION;
-
 	if (cap->type == COS_CAP_TYPE_THD) {
 		struct thread *target;
 		pageref_t targetref;
@@ -718,10 +717,12 @@ capability_activation(struct regs *rs)
          * switch threads, thus all of the global register update
          * logic is here.
 	 */
-	if (likely(captbl_lookup_cap_type_deref(cap_slot, COS_CAP_TYPE_THD, ops, &ref) == COS_RET_SUCCESS)) {
+	if (likely(captbl_cap_typecheck(cap_slot, COS_CAP_TYPE_THD, ops) == COS_RET_SUCCESS)) {
 		struct thread *t;
 		cos_retval_t ret;
 
+		ret = captbl_lookup_cap_type_deref(cap_slot, COS_CAP_TYPE_THD, ops, &ref);
+		assert(ret == COS_RET_SUCCESS);
 		t = (struct thread *)ref2page_ptr(ref);
 		ret = thread_scheduler_update(&ops, t, rs);
 		if (unlikely(ret != COS_RET_SUCCESS)) {

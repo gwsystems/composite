@@ -8,6 +8,7 @@
 #include <component.h>
 #include <resources.h>
 #include <types.h>
+#include <chal.h>
 
 /*
  * The per-core, global data-structure. This includes the per-core

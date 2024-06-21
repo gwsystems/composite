@@ -28,6 +28,7 @@
 #include <component.h>
 #include <chal_state.h>
 #include <consts.h>
+#include <chal_cpu.h>
 
 struct invstk_entry {
 	struct component_ref component;
@@ -160,6 +161,7 @@ thread_switch(struct thread *t, struct regs *rs)
 
 	/* Save the current registers */
 	if (likely(&curr->regs != rs)) curr->regs = *rs;
+	chal_fpu_switch(&curr->fpregs, &t->fpregs);
 
 	/*
 	 * Formulate return values in a manner consistent with the

@@ -189,7 +189,7 @@ cos_print_str(char *s, uword_t len)
 		uword_t max_amnt = (REGS_MAX_NUM_ARGS - 1) * sizeof(uword_t);
 		uword_t left = len - written;
 		uword_t as[REGS_MAX_NUM_ARGS - 1];
-		uword_t amnt;
+		uword_t amnt, na;
 		int i;
 
 		if (left > max_amnt) {
@@ -202,7 +202,7 @@ cos_print_str(char *s, uword_t len)
 
 		cos_syscall_9_4(COS_CAPTBL_DEFAULT_HW, COS_OP_HW_PRINT,
 				amnt, as[0], as[1], as[2], as[3], as[4], as[5], as[6], as[7],
-				(uword_t *)&ret, &amnt, NULL, NULL);
+				(uword_t *)&ret, &amnt, &na, &na);
 
 		written += amnt;
 
@@ -303,6 +303,9 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	static int first = 1;
 	static	struct ps_lock _lock = {0};
+
+	printc("hello world\n");
+	printc("hello world\n");
 
 	/*
 	 * There should be no concurrency at initialization (the init

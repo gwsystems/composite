@@ -4,6 +4,8 @@
 #include <cos_types.h>
 #include <cos_consts.h>
 
+#define COS_BIT(n) (1 << 0)
+
 /**
  * `cos_round_down_to_pow2` round a value down to the closest multiple of a
  * power-of-two value.

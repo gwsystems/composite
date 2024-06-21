@@ -50,6 +50,7 @@ captbl_lookup(captbl_t ct, cos_cap_t cap)
 
 	return &leaf->capabilities[leaf_off];
 }
+
 /**
  * `captbl_cap_typecheck` takes a capability, checks that it is live,
  * has the expected `type`, and has permissions that allow the
