@@ -5,6 +5,7 @@
  * Public License v2.
  */
 
+#include "cos_chal_regs.h"
 #include <stdio.h>
 #include <sys/auxv.h>
 
@@ -189,8 +190,9 @@ cos_print_str(char *s, uword_t len)
 		uword_t max_amnt = (REGS_MAX_NUM_ARGS - 1) * sizeof(uword_t);
 		uword_t left = len - written;
 		uword_t as[REGS_MAX_NUM_ARGS - 1];
-		uword_t amnt, na;
+		uword_t amnt, amnt_ret, na;
 		int i;
+		uword_t rets[REGS_MAX_NUM_ARGS];
 
 		if (left > max_amnt) {
 			amnt = max_amnt;
@@ -202,9 +204,8 @@ cos_print_str(char *s, uword_t len)
 
 		cos_syscall_9_4(COS_CAPTBL_DEFAULT_HW, COS_OP_HW_PRINT,
 				amnt, as[0], as[1], as[2], as[3], as[4], as[5], as[6], as[7],
-				(uword_t *)&ret, &amnt, &na, &na);
-
-		written += amnt;
+				(uword_t *)&ret, &amnt_ret, &na, &na);
+		written += amnt_ret;
 
 		if (cos_retval_error(ret)) break;
 	}
@@ -306,6 +307,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 	printc("hello world\n");
 	printc("hello world\n");
+	while (1);
 
 	/*
 	 * There should be no concurrency at initialization (the init

@@ -4,6 +4,18 @@
 #include <cos_types.h>
 #include <cos_consts.h>
 
+/**
+ * The following macros assume that all arguments <= number of bits in
+ * a word (MAX).
+ *
+ * - `l` - bits `0` through `l`
+ * - `u` - bits `u` through `MAX`
+ * - `n` - single bit, `n`
+ */
+#define COS_MASK_LOWER(l) ((~0) << ((COS_WORD_SIZE * 8) - l))
+#define COS_MASK_UPPER(u) ((~0) >> ((COS_WORD_SIZE * 8) - u))
+/* Bits in the range from `l` to `u` (inclusive) */
+#define COS_BITS(l, u) (~(COS_MASK_LOWER(l) | COS_MASK_UPPER(u)))
 #define COS_BIT(n) (1 << 0)
 
 /**

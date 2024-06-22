@@ -55,7 +55,7 @@ void smp_init(volatile int *cores_ready);
 void tls_update(u32_t addr);
 
 void puts(const char *s);
-int  putc_try(char c);
+void debug_putc(char c);
 void print_regs(struct regs *r);
 
 void khalt(void) __attribute__((noreturn));

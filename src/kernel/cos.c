@@ -609,7 +609,7 @@ hw_activation(struct regs *rs, struct capability_hw *cap, cos_cap_t capno, cos_o
 		for (i = 0; i < len; i++) {
 			uword_t r = regs_arg(rs, 1 + (i / sizeof(uword_t)));
 
-			if (putc_try(((char *)&r)[i % sizeof(uword_t)])) break;
+			debug_putc(((char *)&r)[i % sizeof(uword_t)]);
 		}
 
 		/* How many bytes did we end up writing? */
@@ -626,10 +626,9 @@ capability_activation_slowpath(struct regs *rs, struct capability_generic *cap)
 {
 	cos_op_bitmap_t ops;
 	cos_cap_t capno;
-	cos_retval_t r;
+	cos_retval_t r = COS_RET_SUCCESS;
 
 	regs_cap_op(rs, &capno, &ops);
-	regs_retval(rs, 0, COS_RET_SUCCESS);
 
 	/*
 	 * Validate that all of the requested operations are allowed.

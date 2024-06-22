@@ -77,6 +77,7 @@
 #define COS_OP_CAP_COPY                 8388608
 #define COS_OP_ALL                      16777215
 
+
 /*
  * - captbl cons/decons: target = {pg|cap}tbl & op == (COS_OP_MODIFY_{ADD|REMOVE} | COS_OP_RESTBL_CONSTRUCT)
  * - retype to/from untyped: target = pgtbl leaf & op == COS_OP_RETYPE_{CREATE|DEALLOCATE}

@@ -28,13 +28,10 @@ serial_putc(char out)
 	outb(SERIAL_PORT_A, out);
 }
 
-int
-putc_try(char c)
+void
+debug_putc(char c)
 {
-	if ((inb(SERIAL_PORT_A + 5) & 0x20) == 0) return -1;
-	outb(SERIAL_PORT_A, c);
-
-	return 0;
+	serial_putc(c);
 }
 
 static inline void
