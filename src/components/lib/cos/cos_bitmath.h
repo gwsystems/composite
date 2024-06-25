@@ -9,7 +9,7 @@
  * a word (MAX).
  *
  * - `l` - bits `0` through `l`
- * - `u` - bits `u` through `MAX`
+ * - `u` - bits `u` through `MAX - 1`
  * - `n` - single bit, `n`
  */
 #define COS_MASK_LOWER(l) ((~0) << ((COS_WORD_SIZE * 8) - l))

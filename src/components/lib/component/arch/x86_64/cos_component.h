@@ -259,7 +259,7 @@ __rdpid(void)
 {
 	u64_t pid64;
 
-	__asm__("rdpid %0;" : "=r"(pid64));
+	__asm__ __volatile__("rdpid %0;" : "=r"(pid64));
 
 	return pid64;
 }
