@@ -188,6 +188,36 @@
 	sti;						\
 	iretq;
 
+/*
+ * Used at user-level upon upcall to save the context necessary for
+ * execution -- including the coreid, invocation token, thread id.
+ *
+ * Should push the invocation token threadid, and then coreid to match
+ * the structure of `struct regs_user_context`.
+ */
+#define PUSH_REGS_USER_CONTEXT		\
+	pushq PREFIX(rdx);		\
+	pushq PREFIX(rbx);		\
+	pushq PREFIX(rax);
+
+/*
+ * The calling convention passes arguments 0 through 5 in :
+ *
+ * rdi, rsi, rdx, rcx, r8, r9
+ */
+#define PUSH_REGS_USER_ARG6		\
+	movq PREFIX(rsi), PREFIX(rdx);	\
+	movq PREFIX(rdi), PREFIX(rsi);	\
+	movq PREFIX(rdx), PREFIX(rdi);	\
+	movq PREFIX(r8),  PREFIX(rdx);	\
+	movq PREFIX(r9),  PREFIX(rcx);	\
+	movq PREFIX(r10), PREFIX(r8);	\
+	movq PREFIX(r12), PREFIX(r9);
+
+#define PUSH_REGS_USER				\
+	PUSH_REGS_USER_CONTEXT			\
+	PUSH_REGS_USER_ARG6
+
 #ifndef __ASSEMBLER__
 
 #include <cos_compiler.h>
@@ -315,6 +345,53 @@ COS_STATIC_ASSERT(sizeof(struct trap_frame) == REGS_TRAPFRAME_SZ,
 		  "Trap frame register structure of incorrect size.");
 
 /*
+ * Upon an upcall into a component (at user-level), these values are
+ * saved on the stack. Thus, this structure defines an interface
+ * between the values of the registers upon upcall, and the C code
+ * that accesses these values.
+ *
+ * The rest of the arguments are passed to the destination C function
+ * using the architecture's calling conventions (i.e. in registers, on
+ * the stack, etc...). The best documentation (outside of the Sys-V
+ * ABI documentation):
+ *
+ * https://www.agner.org/optimize/calling_conventions.pdf
+ *
+ * We lay this out to directly write the registers onto the stack as
+ * `uword_t`s (even though the actual types are smaller). This
+ * optimizes for the fast-path of setting up the context, at a slight
+ * cost for access.
+ */
+struct regs_user_context {
+	uword_t coreid;
+	uword_t thdid;
+	uword_t inv_token;
+};
+
+#define REGS_USER_CONTEXT_SZ 24
+
+COS_STATIC_ASSERT(sizeof(struct regs_user_context) == REGS_USER_CONTEXT_SZ,
+		  "The user register context struct size doesn't match REGS_USER_CONTEXT_SZ.");
+
+static inline coreid_t
+regs_user_context_coreid(struct regs_user_context *c)
+{
+	return c->coreid;
+}
+
+static inline id_token_t
+regs_user_context_thdid(struct regs_user_context *c)
+{
+	return c->thdid;
+}
+
+static inline inv_token_t
+regs_user_context_invtoken(struct regs_user_context *c)
+{
+	return c->inv_token;
+}
+
+/*
  * Provides the format string, and arguments for printing out a register set.
  */
 #define COS_REGS_PRINT_ARGS(r)                                                                                     \
@@ -328,9 +405,9 @@ COS_STATIC_ASSERT(sizeof(struct trap_frame) == REGS_TRAPFRAME_SZ,
 	r->clobbered.r11, r->args[8], r->args[9], r->args[10], r->args[11], r->frame.cs, r->frame.ss, r->frame.flags
 
 /*
- * `userlevel_eager_return_syscall` returns back to user-level
- * immediately, under the assumption that the registers have `state ==
- * 1`, thus we can return using the sysret fastpath.
+ * `userlevel_eager_return_syscall` returns from kernel back to
+ * user-level immediately, under the assumption that the registers
+ * have `state == 1`, thus we can return using the sysret fastpath.
  */
 COS_FASTPATH COS_NO_RETURN static inline void
 userlevel_eager_return_syscall(struct regs *rs)
@@ -341,9 +418,9 @@ userlevel_eager_return_syscall(struct regs *rs)
 }
 
 /*
- * `userlevel_eager_return` immediately returns to user-level using
- * the syscall or trap logic, depending on the format of the
- * registers.
+ * `userlevel_eager_return` immediately returns from kernel to
+ * user-level using the syscall or trap logic, depending on the format
+ * of the registers.
  */
 COS_FASTPATH COS_NO_RETURN static inline void
 userlevel_eager_return(struct regs *rs)
