@@ -434,3 +434,8 @@ cos_initargs_tar(void)
 	if (_binary_tar_binary_end - _binary_tar_binary_start < 512) return NULL;
 	return (char *)_binary_tar_binary_start;
 }
+
+#if COS_STATIC_DIRECT_MAPPED_STACKS
+struct cos_stack_layout __first_stack __attribute__((aligned(COS_STACK_SIZE)));
+struct cos_stack_layout cos_static_stack[COS_MAX_NUM_THREADS - 1] __attribute__((aligned(COS_STACK_SIZE)));
+#endif	/* COS_STATIC_DIRECT_MAPPED_STACKS */

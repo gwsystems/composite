@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <cos_environ_constants.h>
+
 #define REG_STATE_PREEMPTED 0 /* The registers must be fully restored as they represent preempted state */
 #define REG_STATE_SYSCALL   1 /* The registers don't require full restoration, and can use fastpaths */
 
@@ -188,24 +190,63 @@
 	sti;						\
 	iretq;
 
+/**
+ * User-level assembly logic for handling upcalls. When an upcall
+ * executes, it must be in assembly, as it does *not yet have a C
+ * execution stack*. Additionally, many registers contain arguments
+ * and threadid/coreid/token, which cannot be clobbered. As such,
+ * the upcall logic needs to:
+ *
+ * 1. acquire a stack, without clobbering argument registers,
+ * 2. populate the `regs_user_context` structure at the top of the
+ *    stack that includes the threadid/coreid/token for component
+ *    access,
+ * 3. setup the arguments and return values, and
+ * 4. call the C function associated with the upcall.
+ */
+
 /*
  * Used at user-level upon upcall to save the context necessary for
- * execution -- including the coreid, invocation token, thread id.
+ * execution -- including the coreid (rax), thread id (rbx), and
+ * invocation token (rdx). Step 2 above.
  *
  * Should push the invocation token threadid, and then coreid to match
  * the structure of `struct regs_user_context`.
+ *
+ * This assumes that the `stack_context` has already been placed onto
+ * the stack by the stack "getting" code (in `REGS_USER_GET_STACK`).
  */
-#define PUSH_REGS_USER_CONTEXT		\
+#define REGS_PUSH_USER_CONTEXT		\
 	pushq PREFIX(rdx);		\
 	pushq PREFIX(rbx);		\
 	pushq PREFIX(rax);
 
 /*
+ * REGS_PUSH_USER_ARG6 sets up the system to pass the arguments from
+ * the kernel, to the user-level function. This essentially translates
+ * the argument layout from how the kernel passed it up to the upcall,
+ * into what the x86_64 ABI requires.
+ *
+ * REGS_POP_USER_ARG6 prepares the return values for a return from
+ * synchronous invocation.
+ *
+ * Assumptions:
+ *
+ * - PUSH assumes that we have a stack.
+ * - All modifications to the stack maintain a 16-byte alignment as
+ *   required by the ABI.
+ *
  * The calling convention passes arguments 0 through 5 in :
  *
  * rdi, rsi, rdx, rcx, r8, r9
+ *
+ * Then pass the rest in right-to-left argument order on the stack.
+ *
+ * Step 3 above.
+ *
+ * TODO: stack passing of the next three.
  */
-#define PUSH_REGS_USER_ARG6		\
+#define REGS_USER_SETUP_ARG6		\
 	movq PREFIX(rsi), PREFIX(rdx);	\
 	movq PREFIX(rdi), PREFIX(rsi);	\
 	movq PREFIX(rdx), PREFIX(rdi);	\
@@ -214,9 +255,92 @@
 	movq PREFIX(r10), PREFIX(r8);	\
 	movq PREFIX(r12), PREFIX(r9);
 
-#define PUSH_REGS_USER				\
-	PUSH_REGS_USER_CONTEXT			\
-	PUSH_REGS_USER_ARG6
+#define REGS_USER_SETUP_ARG_REST					\
+	/* Add stack ctxt entry to maintain proper stack alignment */	\
+	pushq $0;							\
+	pushq PREFIX(r15);						\
+	pushq PREFIX(r14);						\
+	pushq PREFIX(r13);
+
+#define REGS_USER_TEARDOWN_ARG6
+#define REGS_USER_TEARDOWN_ARG_REST		\
+	/* sub-away the 4 arguments  */		\
+	add $(8 * 4), PREFIX(rsp);
+
+#define REGS_USER_SETUP_ARGS			\
+	REGS_USER_SETUP_ARG6			\
+	REGS_USER_SETUP_ARG_REST
+
+#define REGS_USER_TEARDOWN_ARGS			\
+	REGS_USER_TEARDOWN_ARG_REST		\
+	REGS_USER_TEARDOWN_ARG6
+
+#if COS_STATIC_DIRECT_MAPPED_STACKS
+
+/*
+ * REGS_USER_GET_STACK establishes a stack to use for further
+ * execution. This is trivial, and just relies on stacks of a fixed
+ * size, allocated in an array.
+ *
+ * This clobbers rcx, and initializes rsp.
+ *
+ * REGS_USER_PUT_STACK gives up the stack. Nothing to be done for this
+ * policy! Assumes that the stack is no longer accessed after this
+ * macro is used.
+ *
+ * Find the structures backing stacks in `struct cos_stack_layout` (below),
+ * and the memory for the stacks in `cos_component.h`.
+ *
+ * TODO: customization of stack allocation policies and size.
+ */
+#define REGS_USER_GET_STACK                                                     \
+	movabs $cos_static_stack, PREFIX(rsp);                                  \
+	/* rbx holds the thread id */                                           \
+	movq PREFIX(rbx), PREFIX(rcx);                                          \
+	/* simple math: this thread's stack offset = stack_size * tid */        \
+	shl $COS_STACK_SIZE_ORDER, PREFIX(rcx);					\
+	/* add the stack offset to the base to get the current thread's stack*/ \
+	add PREFIX(rcx), PREFIX(rsp);
+
+#define REGS_USER_PUT_STACK
+
+#endif	/* COS_STATIC_DIRECT_MAPPED_STACKS */
+
+/*
+ * Core upcall logic in user-level. Upon upcall, the following
+ * registers are *free* and available for scratch use:
+ *
+ * rcx, r11, rsp, rbp
+ *
+ * Further, the core id and thread id are in:
+ *
+ * - core id = rax
+ * - thread id = rbx
+ *
+ * TODO: return more than one value from sync invs.
+ */
+#define REGS_USER_UPCALL(asmfn, cfn)				\
+.text;								\
+.globl asmfn;							\
+.globl cfn;							\
+.type  asmfn, @function;					\
+.align 16;							\
+asmfn##:							\
+	REGS_USER_GET_STACK					\
+	REGS_PUSH_USER_CONTEXT					\
+	/* ABI mandate a 16-byte alignment stack pointer*/	\
+	and $~0xF, PREFIX(rsp);					\
+	REGS_USER_SETUP_ARGS					\
+	xor PREFIX(rbp), PREFIX(rbp);				\
+	call cfn;						\
+	/* return value is in rax, save it if clobbered */	\
+	REGS_USER_TEARDOWN_ARGS					\
+	REGS_USER_PUT_STACK					\
+	/* move the return value to the first argument */	\
+	movq PREFIX(rax), PREFIX(rdx);				\
+	/* capability 0 = "sinv return" */			\
+	xor PREFIX(rax), PREFIX(rax);				\
+	syscall;
 
 #ifndef __ASSEMBLER__
 
@@ -352,44 +476,60 @@ COS_STATIC_ASSERT(sizeof(struct trap_frame) == REGS_TRAPFRAME_SZ,
  *
  * The rest of the arguments are passed to the destination C function
  * using the architecture's calling conventions (i.e. in registers, on
- * the stack, etc...). The best documentation (outside of the Sys-V
- * ABI documentation):
+ * the stack, etc...). The best documentation includes:
  *
- * https://www.agner.org/optimize/calling_conventions.pdf
+ * - https://www.agner.org/optimize/calling_conventions.pdf
+ * - https://refspecs.linuxbase.org/elf/x86_64-abi-0.99.pdf
  *
  * We lay this out to directly write the registers onto the stack as
  * `uword_t`s (even though the actual types are smaller). This
  * optimizes for the fast-path of setting up the context, at a slight
  * cost for access.
+ *
+ * The last item (`stack_context`) can be used by the stack management
+ * code to track the meta-data necessary. This is mainly used in
+ * `REGS_USER_GET/PUT_STACK`.
  */
 struct regs_user_context {
 	uword_t coreid;
 	uword_t thdid;
 	uword_t inv_token;
+	uword_t stack_context;	/* Can be used by the stack tracking code */
 };
 
-#define REGS_USER_CONTEXT_SZ 24
+#define REGS_USER_CONTEXT_SZ 32
 
 COS_STATIC_ASSERT(sizeof(struct regs_user_context) == REGS_USER_CONTEXT_SZ,
 		  "The user register context struct size doesn't match REGS_USER_CONTEXT_SZ.");
 
 static inline coreid_t
 regs_user_context_coreid(struct regs_user_context *c)
-{
-	return c->coreid;
-}
+{ return c->coreid; }
 
 static inline id_token_t
 regs_user_context_thdid(struct regs_user_context *c)
-{
-	return c->thdid;
-}
+{ return c->thdid; }
 
 static inline inv_token_t
 regs_user_context_invtoken(struct regs_user_context *c)
-{
-	return c->inv_token;
-}
+{ return c->inv_token; }
+
+/*
+ * This is the layout for a user-level execution stack. Whenever we
+ * upcall into a component (i.e. for a new thread, or due to a
+ * synchronous invocation). A static stack has an overflow detection
+ * word (that should always be 0), the actual stack to memory to be
+ * used as the runtime stack, and, finally, the context placed on the
+ * stack upon upcall which includes the thread id, core id, and
+ * invocation token.
+ */
+struct cos_stack_layout {
+	uword_t overflow_detection;
+	u8_t stack[COS_STACK_SIZE - sizeof(uword_t) - sizeof(struct regs_user_context)];
+	struct regs_user_context context;
+} __attribute__((packed));
+COS_STATIC_ASSERT(((sizeof(uword_t) + COS_STACK_SIZE - sizeof(uword_t) - sizeof(struct regs_user_context)) % sizeof(uword_t)) == 0,
+                  "The stack context in cos_stack_layout is not aligned on a word boundary.");
 
 /*
  * Provides the format string, and arguments for printing out a register set.
@@ -648,10 +788,13 @@ COS_STATIC_ASSERT(REGS_CTXT_BP_OFF == offsetof(struct regs_frame_ctx, bp),
 /*
  * The `syscall` instruction saves the instruction pointer after the
  * `syscall` into `rcx`, and the `rflags` into `r11`. This assembly
- * assumes that incoming 1. `rcx` holds a pointer to the `struct
- * regs_frame_ctx` we'll use to save sp/bp, 2. that we cannot include
- * `rbp` in any of the inline-assembly input/output/clobber lists, so
- * we need to manually save/restore that.
+ * assumes that incoming
+ *
+ * 1. `rcx` holds a pointer to the `struct regs_frame_ctx` we'll use
+ *    to save sp/bp,
+ * 2. that we cannot include `rbp` in any of the inline-assembly
+ *    input/output/clobber lists, so we need to manually save/restore
+ *    that.
  */
 #define REGS_SYSCALL_TEMPLATE				\
 	"movq %%rbp, " EXPAND(REGS_CTXT_BP_OFF) "(%%r11)\n\t"	\

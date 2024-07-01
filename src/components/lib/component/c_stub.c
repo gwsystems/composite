@@ -2,6 +2,8 @@
 #include <cos_kernel_api.h>
 #include <cos_types.h>
 #include <c_stub.h>
+#include <cos_environ_constants.h>
+#include <stddef.h>
 
 COS_CLIENT_STUB(int, cosrtdefault, word_t p0, word_t p1, word_t p2, word_t p3)
 {

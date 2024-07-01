@@ -5,6 +5,8 @@
  * Public License v2.
  */
 
+#include <cos_regs.h>
+
 #define COS_STATIC_STACK				\
 /* .bss declaration must be put at the beginning */	\
 .bss;							\
@@ -17,33 +19,35 @@ cos_static_stack:					\
 .globl cos_static_stack_end;				\
 cos_static_stack_end:
 
-#define COS_UPCALL_ENTRY 		\
-.text;					\
-.globl __cosrt_upcall_entry;		\
-.type __cosrt_upcall_entry, @function;	\
-.align 16;				\
-__cosrt_upcall_entry:			\
-	COS_ASM_GET_STACK		\
-	push $0;			\
-	mov %rsp, -16(%rsp);		\
-	push $0;			\
-	mov %rsp, -16(%rsp);		\
-	sub $16, %rsp;			\
-	mov %rsi, %rcx;			\
-	mov %rdi, %rdx;			\
-	mov %rbx, %rsi;			\
-	xor %rbp, %rbp;			\
-	mov %r12, %rdi;			\
-	/* ABI mandate a 16-byte alignment stack pointer*/ \
-	and $~0xf, %rsp;		\
-	call cos_upcall_fn;		\
-	addl $24, %esp;			\
-	pop %rsi;			\
-	pop %rdi;			\
-	movl %eax, %ecx;		\
-	movl $RET_CAP, %eax;		\
-	COS_ASM_RET_STACK		\
-	sysenter;
+#define COS_UPCALL_ENTRY                        \
+.text;                                          \
+.globl __cosrt_upcall_entry;			\
+.type  __cosrt_upcall_entry, @function;		\
+.align 16;					\
+__cosrt_upcall_entry:				\
+	REGS_USER_UPCALL(cos_upcall_fn)
+
+	/* COS_ASM_GET_STACK		\ */
+	/* push $0;			\ */
+	/* mov %rsp, -16(%rsp);		\ */
+	/* push $0;			\ */
+	/* mov %rsp, -16(%rsp);		\ */
+	/* sub $16, %rsp;			\ */
+	/* mov %rsi, %rcx;			\ */
+	/* mov %rdi, %rdx;			\ */
+	/* mov %rbx, %rsi;			\ */
+	/* xor %rbp, %rbp;			\ */
+	/* mov %r12, %rdi;			\ */
+	/* /\* ABI mandate a 16-byte alignment stack pointer*\/ \ */
+	/* and $~0xf, %rsp;		\ */
+	/* call cos_upcall_fn;		\ */
+	/* addl $24, %esp;			\ */
+	/* pop %rsi;			\ */
+	/* pop %rdi;			\ */
+	/* movl %eax, %ecx;		\ */
+	/* movl $RET_CAP, %eax;		\ */
+	/* COS_ASM_RET_STACK		\ */
+	/* sysenter; */
 
 #define COS_ATOMIC_CMPXCHG 		\
 	movl %eax, %edx;		\
