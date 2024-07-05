@@ -34,6 +34,20 @@ unsigned int timer_heap[sizeof(struct heap) / sizeof(unsigned int) + MAX_NUM_TMR
 thdid_t main_thdid;
 unsigned long modifying;
 
+int
+timer_cmp_fn(void* a, void* b)
+{
+	return ((struct tmr_info*)a)->timeout_cyc <= ((struct tmr_info*)b)->timeout_cyc;
+}
+
+void
+timer_update_fn(void* e, int pos)
+{
+	((struct tmr_info*)e)->index = pos;
+}
+
+DECLARE_HEAP(tmrmgr, timer_cmp_fn, timer_update_fn);
+
 tmr_id_t
 tmrmgr_create(unsigned int usecs, tmr_flags_t flags)
 {
@@ -80,7 +94,7 @@ tmrmgr_start(tmr_id_t id)
 	lock = ps_faa(&modifying, 1);
 	if (lock == 0) {
 		t->timeout_cyc = time_now() + time_usec2cyc(t->usecs);
-		assert(heap_add(timer_active, t) == 0);
+		assert(tmrmgr_heap_add(timer_active, t) == 0);
 		ps_faa(&modifying, -1);
 	} else return -2;
 
@@ -106,7 +120,7 @@ tmrmgr_stop(tmr_id_t id)
 
 	lock = ps_faa(&modifying, 1);
 	if (lock == 0) {
-		heap_remove(timer_active, t->index);
+		tmrmgr_heap_remove(timer_active, t->index);
 		t->timeout_cyc = 0;
 		ps_faa(&modifying, -1);
 	} else return -2;
@@ -181,12 +195,12 @@ main(void)
 			while(t->timeout_cyc <= (wakeup + time_usec2cyc(MIN_USECS_LIMIT))) {
 				debug("Timer manager: id %d expired.\n", ss_timer_id(t));
 				evt_trigger(t->evt_id);
-				t = heap_highest((struct heap *)timer_heap);
+				t = tmrmgr_heap_highest((struct heap *)timer_heap);
 
 				if (t->flags == TMR_PERIODIC) {
 					debug("Timer manager: added back id %d to heap.\n", ss_timer_id(t));
 					t->timeout_cyc = time_now() + time_usec2cyc(t->usecs);
-					assert(heap_add((struct heap *)timer_heap, t) == 0);
+					assert(tmrmgr_heap_add((struct heap *)timer_heap, t) == 0);
 				} else {
 					t->timeout_cyc = 0;
 				}
@@ -209,18 +223,6 @@ main(void)
 	return 0;
 }
 
-int
-timer_cmp_fn(void* a, void* b)
-{
-	return ((struct tmr_info*)a)->timeout_cyc <= ((struct tmr_info*)b)->timeout_cyc;
-}
-
-void
-timer_update_fn(void* e, int pos)
-{
-	((struct tmr_info*)e)->index = pos;
-}
-
 void
 cos_init(void)
 {
@@ -229,5 +231,5 @@ cos_init(void)
 	/* Initialize active timer heap */
 	modifying = 0;
 	timer_active = (struct heap*)timer_heap;
-	heap_init(timer_active, MAX_NUM_TMR, timer_cmp_fn, timer_update_fn);
+	heap_init(timer_active, MAX_NUM_TMR);
 }

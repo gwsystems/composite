@@ -8,7 +8,18 @@
 /***
  * Quantum-based time management. Wooo. Periodic timer FTW.
  */
+static int
+__slm_timeout_compare_min(void *a, void *b)
+{
+	/* FIXME: logic for wraparound in either timeout_cycs */
+	return slm_thd_timer_policy((struct slm_thd *)a)->abs_wakeup <= slm_thd_timer_policy((struct slm_thd *)b)->abs_wakeup;
+}
 
+static void
+__slm_timeout_update_idx(void *e, int pos)
+{ slm_thd_timer_policy((struct slm_thd *)e)->timeout_idx = pos; }
+
+DECLARE_HEAP(timer, __slm_timeout_compare_min, __slm_timeout_update_idx);
 struct timer_global {
 	struct heap  h;
 	void        *data[MAX_NUM_THREADS];
@@ -43,7 +54,7 @@ quantum_wakeup_expired(cycles_t now)
 		if (cycles_greater_than(tt->abs_wakeup, now)) break;
 
 		/* Dequeue thread with closest wakeup */
-		th = heap_highest(&g->h);
+		th = timer_heap_highest(&g->h);
 		assert(th == tp);
 
 		tt->timeout_idx = -1;
@@ -94,7 +105,7 @@ slm_timer_quantum_add(struct slm_thd *t, cycles_t absolute_timeout)
 	assert(heap_size(&g->h) < MAX_NUM_THREADS);
 
 	tt->abs_wakeup = absolute_timeout;
-	heap_add(&g->h, t);
+	timer_heap_add(&g->h, t);
 
 	return 0;
 }
@@ -110,7 +121,7 @@ slm_timer_quantum_cancel(struct slm_thd *t)
 	assert(heap_size(&g->h));
 	assert(tt->timeout_idx > 0);
 
-	heap_remove(&g->h, tt->timeout_idx);
+	timer_heap_remove(&g->h, tt->timeout_idx);
 	tt->timeout_idx = -1;
 
 	return 0;
@@ -135,17 +146,6 @@ slm_timer_quantum_thd_deinit(struct slm_thd *t)
 	return;
 }
 
-static int
-__slm_timeout_compare_min(void *a, void *b)
-{
-	/* FIXME: logic for wraparound in either timeout_cycs */
-	return slm_thd_timer_policy((struct slm_thd *)a)->abs_wakeup <= slm_thd_timer_policy((struct slm_thd *)b)->abs_wakeup;
-}
-
-static void
-__slm_timeout_update_idx(void *e, int pos)
-{ slm_thd_timer_policy((struct slm_thd *)e)->timeout_idx = pos; }
-
 static void
 slm_policy_timer_init(microsec_t period)
 {
@@ -154,7 +154,7 @@ slm_policy_timer_init(microsec_t period)
 
 	memset(g, 0, sizeof(struct timer_global));
 	g->period = slm_usec2cyc(period);
-	heap_init(&g->h, MAX_NUM_THREADS, __slm_timeout_compare_min, __slm_timeout_update_idx);
+	heap_init(&g->h, MAX_NUM_THREADS);
 
 	next_timeout = slm_now() + g->period;
 	g->current_timeout = next_timeout;
