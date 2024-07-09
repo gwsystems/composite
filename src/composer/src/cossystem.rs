@@ -28,6 +28,12 @@ pub struct InterfaceVariant {
     pub variant: Option<String>,
 }
 
+#[derive(Debug, Deserialize,Clone)]
+pub struct ConstantVal {
+    pub variable: String,
+    pub value: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct TomlComponent {
     name: String,
@@ -35,6 +41,7 @@ pub struct TomlComponent {
     baseaddr: Option<String>,
     deps: Option<Vec<Dep>>,
     params: Option<Vec<Parameters>>,
+    constants: Option<Vec<ConstantVal>>,
     implements: Option<Vec<InterfaceVariant>>,
     initfs: Option<String>,
     constructor: String, // the booter
@@ -79,6 +86,10 @@ impl TomlComponent {
             self.implements = Some(vs);
         }
 
+        if self.constants.is_none() {
+            let vs = Vec::new();
+            self.constants = Some(vs);
+        }
         // TODO: should fill in the default variants here
     }
 
@@ -323,6 +334,20 @@ impl TomlSpecification {
         }
 
         for c in self.comps() {
+            if let Some(constants) = &c.constants {
+                for constant in constants {
+                    if constant.variable.is_empty() || constant.value.is_empty() {
+                        err_accum.push_str(&format!(
+                            "Error: Component {} has an invalid constant with an empty variable or value.",
+                            c.name
+                        ));
+                        fail = true;
+                    }
+                }
+            }
+        }
+
+        for c in self.comps() {
             if !self.comps().iter().fold(false, |accum, c2| {
                 c.constructor == "kernel" || c.constructor == c2.name || accum
             }) {
@@ -524,6 +549,11 @@ impl Transition for SystemSpec {
                     .map(|p| ArgsKV::new_key(p.key.clone(), p.value.as_ref().unwrap_or(&String::from("")).clone()))
                     .collect(),
                 fsimg: c.initfs.clone(),
+                constants: c
+                    .constants
+                    .as_ref()
+                    .unwrap_or(&Vec::new())
+                    .clone(),
             };
             components.insert(ComponentName::new(&c.name, &String::from("global")), comp);
             deps.insert(ComponentName::new(&c.name, &String::from("global")), ds);

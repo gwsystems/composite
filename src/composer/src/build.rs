@@ -254,6 +254,7 @@ fn comp_gen_make_cmd(
     tar_file: &Option<String>,
     id: &ComponentId,
     s: &SystemState,
+    header_file: Option<&String>,
 ) -> String {
     let c = component(&s, id);
     let ds = deps(&s, id);
@@ -289,6 +290,11 @@ fn comp_gen_make_cmd(
     if let Some(s) = tar_file {
         optional_cmds.push_str(&format!("COMP_TAR_FILE={} ", s));
     }
+
+    if let Some(hf) = header_file {
+        optional_cmds.push_str(&format!("COMP_CONST_H=-include {} ", hf));
+    }
+
     let decomp: Vec<&str> = c.source.split(".").collect();
     assert!(decomp.len() == 2);
     // unwrap as we've already validated the name.
@@ -371,6 +377,35 @@ impl BuildState for DefaultBuilder {
     fn comp_obj_path(&self, c: &ComponentId, s: &SystemState) -> Result<String, String> {
         self.comp_file_path(&c, &self.comp_obj_file(&c, &s), &s)
     }
+    
+    fn comp_const_h(
+        &self, id: &ComponentId, s: &SystemState, header_file: &mut Option<String>
+    ) -> Result<(), String> {
+        let c = component(&s, id);
+        let header_file_path = self.comp_file_path(id, &"component_constants.h".to_string(), &s)?;
+
+        if std::path::Path::new(&header_file_path).exists() {
+            //check the existing header file for constructor_build()
+            *header_file = Some(header_file_path);
+            return Ok(());
+        }
+
+        if !c.constants.is_empty() {    
+            let mut header_content = String::from("#ifndef COMPONENT_CONSTANTS_H\n#define COMPONENT_CONSTANTS_H\n\n");
+            
+            for constant in &c.constants {
+                header_content.push_str(&format!("#define {} {}\n", constant.variable, constant.value));
+            }
+    
+            header_content.push_str("\n#endif // COMPONENT_CONSTANTS_H\n");
+        
+            emit_file(&header_file_path, header_content.as_bytes()).unwrap();
+
+            *header_file = Some(header_file_path);
+        }
+
+        Ok(())
+    }
 
     fn comp_build(&self, id: &ComponentId, state: &SystemState) -> Result<String, String> {
         let comp_dir = self.comp_dir_path(&id, &state)?;
@@ -378,7 +413,10 @@ impl BuildState for DefaultBuilder {
         let p = state.get_param_id(&id);
         let output_path = self.comp_obj_path(&id, &state)?;
 
-        let cmd = comp_gen_make_cmd(&output_path, p.param_prog(), p.param_fs(), &id, &state);
+        let mut header_file: Option<String> = None;
+        self.comp_const_h(&id, &state, &mut header_file)?;
+
+        let cmd = comp_gen_make_cmd(&output_path, p.param_prog(), p.param_fs(), &id, &state, header_file.as_ref());
 
         let name = state.get_named().ids().get(id).unwrap();
         println!(
@@ -413,7 +451,11 @@ impl BuildState for DefaultBuilder {
         let binary = self.comp_obj_path(&c, &s)?;
         let argsfile = constructor_serialize_args(&c, &s, self)?;
         let tarfile = constructor_tarball_create(&c, &s, self)?;
-        let cmd = comp_gen_make_cmd(&binary, &argsfile, &tarfile, &c, &s);
+
+        let mut header_file: Option<String> = None;
+        self.comp_const_h(&c, &s, &mut header_file)?;
+
+        let cmd = comp_gen_make_cmd(&binary, &argsfile, &tarfile, &c, &s,header_file.as_ref());
 
         let name = s.get_named().ids().get(c).unwrap();
         println!(

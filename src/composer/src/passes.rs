@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use initargs::ArgsKV;
 use std::fmt;
+use cossystem::ConstantVal;
 
 pub struct SystemState {
     spec: String,
@@ -139,6 +140,7 @@ pub trait BuildState {
     ) -> Result<String, String>; // path of a file associated with a component
     fn comp_obj_file(&self, c: &ComponentId, s: &SystemState) -> String; // name of the object file
     fn comp_obj_path(&self, c: &ComponentId, s: &SystemState) -> Result<String, String>; // the path to the component's object
+    fn comp_const_h(&self, id: &ComponentId, s: &SystemState, header_file: &mut Option<String>) -> Result<(), String>; // path of header file of component constants value
 
     fn comp_build(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // build the component, and return the path to the resulting object
     fn constructor_build(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // build a constructor, including all components it is responsible for booting
@@ -213,6 +215,7 @@ pub struct Component {
     pub base_vaddr: String,  // The lowest virtual address for the component -- could be hex, so not a VAddr
     pub params: Vec<ArgsKV>, // initialization parameters
     pub fsimg: Option<String>,
+    pub constants: Vec<ConstantVal>,
 }
 
 // Input/frontend pass taking the specification, and outputing the
