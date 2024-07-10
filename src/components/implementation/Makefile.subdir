@@ -77,4 +77,8 @@ clean:
 component:
 	$(MAKE) -C $(COMP_NAME) component
 
+.PHONY: dependencies_info
+dependencies_info:
+	$(MAKE) -C $(COMP_NAME) dependencies_info
+
 -include $(SOURCE_DEPENDENCIES)

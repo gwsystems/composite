@@ -13,6 +13,7 @@
 /// of these phases composed together.
 use std::collections::{BTreeMap, HashMap};
 
+use cossystem::ConstantVal;
 use initargs::ArgsKV;
 use std::fmt;
 
@@ -36,7 +37,7 @@ impl SystemState {
             spec,
             parse: None,
             named: None,
-	    address_assignment: None,
+            address_assignment: None,
             properties: None,
             restbls: None,
             param: HashMap::new(),
@@ -139,10 +140,21 @@ pub trait BuildState {
     ) -> Result<String, String>; // path of a file associated with a component
     fn comp_obj_file(&self, c: &ComponentId, s: &SystemState) -> String; // name of the object file
     fn comp_obj_path(&self, c: &ComponentId, s: &SystemState) -> Result<String, String>; // the path to the component's object
+    fn comp_const_header_file(
+        &self,
+        header_file_path: &String,
+        id: &ComponentId,
+        s: &SystemState,
+    ) -> Result<(), String>; // path of header file of component constants value
 
     fn comp_build(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // build the component, and return the path to the resulting object
     fn constructor_build(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // build a constructor, including all components it is responsible for booting
-    fn kernel_build(&self, kern_output: &String, constructor_input: &String, s: &SystemState) -> Result<(), String>; // build the final kernel image
+    fn kernel_build(
+        &self,
+        kern_output: &String,
+        constructor_input: &String,
+        s: &SystemState,
+    ) -> Result<(), String>; // build the final kernel image
 }
 
 // The following describes the means of transitioning the system
@@ -195,7 +207,7 @@ impl ComponentName {
 
 impl fmt::Display for ComponentName {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-	write!(f, "{}.{}", self.scope_name, self.var_name)
+        write!(f, "{}.{}", self.scope_name, self.var_name)
     }
 }
 
@@ -210,9 +222,10 @@ pub struct Component {
     pub scheduler: ComponentName,   // our scheduler (that creates or initial thread)
 
     pub source: String,      // Where is the component source located?
-    pub base_vaddr: String,  // The lowest virtual address for the component -- could be hex, so not a VAddr
+    pub base_vaddr: String, // The lowest virtual address for the component -- could be hex, so not a VAddr
     pub params: Vec<ArgsKV>, // initialization parameters
     pub fsimg: Option<String>,
+    pub constants: Vec<ConstantVal>,
 }
 
 // Input/frontend pass taking the specification, and outputing the
@@ -231,7 +244,7 @@ pub struct AddrSpace {
     pub name: AddrSpcName,
     pub components: Vec<ComponentName>,
     pub parent: Option<AddrSpcName>,
-    pub children: Vec<AddrSpcName>
+    pub children: Vec<AddrSpcName>,
 }
 
 pub type AddrSpaces = HashMap<AddrSpcName, AddrSpace>;

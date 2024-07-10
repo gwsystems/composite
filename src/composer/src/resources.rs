@@ -15,7 +15,7 @@ enum CapRes {
     Comp(ComponentId),
 }
 
-const BOOT_CAPTBL_FREE: u32 = 52;
+const BOOT_CAPTBL_FREE: u32 = 88;
 
 // The equivalent of the C __captbl_cap2sz(c)
 fn cap_sz(cap: &CapRes) -> u32 {
@@ -248,7 +248,8 @@ fn capmgr_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
         .push(ArgsKV::new_arr("captbl".to_string(), ct_args));
     cfg.args
         .push(ArgsKV::new_arr("names".to_string(), names_args));
-    cfg.args.push(ArgsKV::new_arr("addrspc_shared".to_string(), shared_vas));
+    cfg.args
+        .push(ArgsKV::new_arr("addrspc_shared".to_string(), shared_vas));
 }
 
 fn constructor_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {

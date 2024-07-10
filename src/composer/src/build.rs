@@ -248,10 +248,17 @@ fn constructor_serialize_args(
     Ok(args_file_path)
 }
 
+enum CmdOpts {
+    DEPINFO,
+    REGULAR,
+}
+
 fn comp_gen_make_cmd(
     output_name: &String,
     args_file: &String,
     tar_file: &Option<String>,
+    header_file: &String,
+    opts: CmdOpts,
     id: &ComponentId,
     s: &SystemState,
 ) -> String {
@@ -289,18 +296,25 @@ fn comp_gen_make_cmd(
     if let Some(s) = tar_file {
         optional_cmds.push_str(&format!("COMP_TAR_FILE={} ", s));
     }
+
+    optional_cmds.push_str(&format!("COMP_CONST_H=\"-include {}\" ", header_file));
+
     let decomp: Vec<&str> = c.source.split(".").collect();
     assert!(decomp.len() == 2);
     // unwrap as we've already validated the name.
     let compid = s.get_named().rmap().get(&c.name).unwrap();
     let baseaddr = s.get_address_assignments().component_baseaddr(compid);
 
-    let cmd = format!(
-        r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={:#X} {} component"#,
-        if_exp, if_deps, &decomp[0], &decomp[1], &c.name, output_name, baseaddr, &optional_cmds
-    );
-
-    cmd
+    match opts {
+        CmdOpts::DEPINFO => format!(
+            r#"make --quiet -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} dependencies_info"#,
+            if_exp, if_deps, &decomp[0], &decomp[1]
+        ),
+        CmdOpts::REGULAR => format!(
+            r#"make -C src COMP_INTERFACES="{}" COMP_IFDEPS="{}" COMP_LIBDEPS="" COMP_INTERFACE={} COMP_NAME={} COMP_VARNAME={} COMP_OUTPUT={} COMP_BASEADDR={:#X} {} component"#,
+            if_exp, if_deps, &decomp[0], &decomp[1], &c.name, output_name, baseaddr, &optional_cmds
+        ),
+    }
 }
 
 fn kern_gen_make_cmd(input_constructor: &String, kern_output: &String, _s: &SystemState) -> String {
@@ -372,35 +386,95 @@ impl BuildState for DefaultBuilder {
         self.comp_file_path(&c, &self.comp_obj_file(&c, &s), &s)
     }
 
+    fn comp_const_header_file(
+        &self,
+        header_file_path: &String,
+        id: &ComponentId,
+        s: &SystemState,
+    ) -> Result<(), String> {
+        let c = component(&s, id);
+
+        if std::path::Path::new(header_file_path).exists() {
+            std::fs::remove_file(header_file_path).unwrap();
+        }
+
+        let mut header_content =
+            String::from("#ifndef COMPONENT_CONSTANTS_H\n#define COMPONENT_CONSTANTS_H\n\n");
+
+        for constant in &c.constants {
+            header_content.push_str(&format!(
+                "#define {} {}\n",
+                constant.variable, constant.value
+            ));
+        }
+
+        header_content.push_str("\n#endif /* COMPONENT_CONSTANTS_H */\n");
+
+        emit_file(&header_file_path, header_content.as_bytes()).unwrap();
+
+        Ok(())
+    }
+
     fn comp_build(&self, id: &ComponentId, state: &SystemState) -> Result<String, String> {
         let comp_dir = self.comp_dir_path(&id, &state)?;
         compdir_check_build(&comp_dir)?;
         let p = state.get_param_id(&id);
         let output_path = self.comp_obj_path(&id, &state)?;
 
-        let cmd = comp_gen_make_cmd(&output_path, p.param_prog(), p.param_fs(), &id, &state);
+        let c = component(&state, &id);
+        //rebuild process starts
+        let header_file_path =
+            self.comp_file_path(&id, &"component_constants.h".to_string(), &state)?;
+        self.comp_const_header_file(&header_file_path, &id, &state)?;
 
+        let dep_cmd = comp_gen_make_cmd(
+            &output_path,
+            p.param_prog(),
+            p.param_fs(),
+            &header_file_path,
+            CmdOpts::DEPINFO,
+            &id,
+            &state,
+        );
+        let (out1, err1) = exec_pipeline(vec![dep_cmd.clone()]);
+
+        let rebuild_cmd = format!(
+            r#"make -C src REBUILD_DIRS="{}" COMP_CONST_H="-include {}" component_rebuild"#,
+            out1, header_file_path
+        );
+        let (out2, err2) = exec_pipeline(vec![rebuild_cmd.clone()]);
+        //rebuild process ends
+        let cmd = comp_gen_make_cmd(
+            &output_path,
+            p.param_prog(),
+            p.param_fs(),
+            &header_file_path,
+            CmdOpts::REGULAR,
+            &id,
+            &state,
+        );
         let name = state.get_named().ids().get(id).unwrap();
         println!(
             "Compiling component {} with the following command line:\n\t{}",
             name, cmd
         );
-
-        let (out, err) = exec_pipeline(vec![cmd.clone()]);
+        let (out3, err3) = exec_pipeline(vec![cmd.clone()]);
         let comp_log = self.comp_file_path(&id, &"compilation.log".to_string(), &state)?;
         emit_file(
             &comp_log,
             format!(
-                "Command: {}\nCompilation output:{}\nComponent compilation errors:{}",
-                cmd, out, err
+                "Dep Command: {}\nCompilation output:{}\ncompilation errors:{}\n
+                 Rebuild Command: {}\nCompilation output:{}\nComponent compilation errors:{}\n
+                 Command: {}\nCompilation output:{}\nComponent compilation errors:{}",
+                dep_cmd, out1, err1, rebuild_cmd, out2, err2, cmd, out3, err3
             )
             .as_bytes(),
         )?;
-        if err.len() != 0 {
+        if err1.len() != 0 || err2.len() != 0 || err3.len() != 0 {
             println!(
                 "Errors in compiling component {}. See {}.",
                 &output_path, comp_log
-            )
+            );
         }
 
         Ok(output_path)
@@ -413,7 +487,18 @@ impl BuildState for DefaultBuilder {
         let binary = self.comp_obj_path(&c, &s)?;
         let argsfile = constructor_serialize_args(&c, &s, self)?;
         let tarfile = constructor_tarball_create(&c, &s, self)?;
-        let cmd = comp_gen_make_cmd(&binary, &argsfile, &tarfile, &c, &s);
+
+        let header_file_path = self.comp_file_path(&c, &"component_constants.h".to_string(), &s)?;
+
+        let cmd = comp_gen_make_cmd(
+            &binary,
+            &argsfile,
+            &tarfile,
+            &header_file_path,
+            CmdOpts::REGULAR,
+            &c,
+            &s,
+        );
 
         let name = s.get_named().ids().get(c).unwrap();
         println!(

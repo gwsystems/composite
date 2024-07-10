@@ -17,7 +17,12 @@
 
 #include "cpu_ghz.h"
 
-#define NUM_CPU 1
+#define NUM_CPU_KERNEL 8 
+
+#ifndef NUM_CPU
+#define NUM_CPU NUM_CPU_KERNEL
+#endif
+
 #define NUM_CPU_BMP_BYTES ((NUM_CPU + 7) / 8)
 #define NUM_CPU_BMP_WORDS ((NUM_CPU_BMP_BYTES + 3) / 4)
 /*

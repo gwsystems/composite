@@ -1,4 +1,5 @@
 use std::process::{Child, Command, Output, Stdio};
+extern crate shell_words;
 
 pub struct Pipe {
     cur: Child,
@@ -6,10 +7,12 @@ pub struct Pipe {
 
 impl Pipe {
     pub fn new(cmd: &str) -> Self {
-        let args: Vec<&str> = cmd.split_whitespace().collect();
+        let args = shell_words::split(cmd).expect("Failed to parse command in pipe fn init");
+        let command = &args[0];
+        let args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
 
         Self {
-            cur: Command::new(args[0])
+            cur: Command::new(command)
                 .args(&args[1..])
                 .stdout(Stdio::piped())
                 .spawn()
@@ -22,8 +25,11 @@ impl Pipe {
     }
 
     pub fn next(self, next: &str) -> Self {
-        let args: Vec<&str> = next.split_whitespace().collect();
-        let new_cmd = Command::new(args[0])
+        let args = shell_words::split(next).expect("Failed to parse command in pipe fn next");
+        let command = &args[0];
+        let args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+
+        let new_cmd = Command::new(command)
             .args(&args[1..])
             .stdin(self.cur.stdout.unwrap()) // It's spawned, so it's ok to unwrap
             .stdout(Stdio::piped())

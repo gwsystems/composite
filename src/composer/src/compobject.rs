@@ -254,7 +254,7 @@ fn compute_exports<'a>(symbs: &Vec<Symb<'a>>) -> Result<Vec<ServerSymbol>, Strin
         .map(|s| {
             let altstub = alt_symbs
                 .iter()
-                .fold(None, |found, next|{
+                .fold(None, |found, next| {
                     if next.name() == s.name() {
                         Some(next.addr())
                     } else {
@@ -307,7 +307,7 @@ fn compute_elfobj(
             ServerSymb {
                 func_addr: e.addr,
                 altfn_addr: e.altfn_addr,
-            }
+            },
         );
     }
 

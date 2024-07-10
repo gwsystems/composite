@@ -25,3 +25,6 @@ distclean:
 
 component:
 	$(MAKE) $(MAKEOPTIONS) -C $(COMP_INTERFACE) component
+
+dependencies_info:
+	$(MAKE) $(MAKEOPTIONS) -C $(COMP_INTERFACE) dependencies_info

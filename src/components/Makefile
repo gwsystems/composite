@@ -24,3 +24,10 @@ init:
 
 component:
 	$(MAKE) $(MAKEOPTIONS) -C implementation component
+
+component_rebuild:
+	$(MAKE) $(MAKEOPTIONS) -C lib component_rebuild
+	$(MAKE) $(MAKEOPTIONS) -C interface component_rebuild 
+
+dependencies_info:
+	$(MAKE) $(MAKEOPTIONS) -C implementation dependencies_info

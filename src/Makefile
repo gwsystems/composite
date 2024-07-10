@@ -20,6 +20,12 @@ composer:
 component:
 	$(MAKE) $(MAKEOPTIONS) -C components component
 
+component_rebuild:
+	$(MAKE) $(MAKEOPTIONS) -C components component_rebuild
+
+dependencies_info:
+	$(MAKE) $(MAKEOPTIONS) -C components dependencies_info
+
 comps:
 	$(info )
 	$(info ***********************************************)
