@@ -1,6 +1,5 @@
 use passes::{
-    component, deps, BuildState, ComponentId, InvocationsPass, SInv, SystemState,
-    TransitionIter,
+    component, deps, BuildState, ComponentId, InvocationsPass, SInv, SystemState, TransitionIter,
 };
 
 pub struct Invocations {

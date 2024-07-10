@@ -14,9 +14,9 @@ pub enum SymbType {
 
 impl<'a> Symb<'a> {
     pub fn new(name: &'a str, addr: u64, t: SymbType) -> Option<Symb<'a>> {
-	if t == SymbType::Other {
-	    return None;
-	}
+        if t == SymbType::Other {
+            return None;
+        }
 
         Some(Symb {
             name: name,
@@ -31,6 +31,6 @@ impl<'a> Symb<'a> {
         self.addr
     }
     pub fn stype(&self) -> SymbType {
-	self.stype
+        self.stype
     }
 }

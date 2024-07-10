@@ -18,7 +18,7 @@ pub struct Dep {
 #[derive(Debug, Deserialize)]
 pub struct Parameters {
     pub key: String,
-    pub value: Option<String>,	// optional as we might provide simple keys without values.
+    pub value: Option<String>, // optional as we might provide simple keys without values.
     pub at: Option<String>,
 }
 
@@ -28,7 +28,7 @@ pub struct InterfaceVariant {
     pub variant: Option<String>,
 }
 
-#[derive(Debug, Deserialize,Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ConstantVal {
     pub variable: String,
     pub value: String,
@@ -546,14 +546,15 @@ impl Transition for SystemSpec {
                     .as_ref()
                     .unwrap_or(&Vec::new())
                     .iter()
-                    .map(|p| ArgsKV::new_key(p.key.clone(), p.value.as_ref().unwrap_or(&String::from("")).clone()))
+                    .map(|p| {
+                        ArgsKV::new_key(
+                            p.key.clone(),
+                            p.value.as_ref().unwrap_or(&String::from("")).clone(),
+                        )
+                    })
                     .collect(),
                 fsimg: c.initfs.clone(),
-                constants: c
-                    .constants
-                    .as_ref()
-                    .unwrap_or(&Vec::new())
-                    .clone(),
+                constants: c.constants.as_ref().unwrap_or(&Vec::new()).clone(),
             };
             components.insert(ComponentName::new(&c.name, &String::from("global")), comp);
             deps.insert(ComponentName::new(&c.name, &String::from("global")), ds);

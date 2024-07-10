@@ -125,3 +125,18 @@ distclean:
 		echo "*************************[TASK  STOP]*************************";\
 		echo ""; \
 	done
+
+LIB_DIRS := $(shell echo "$(REBUILD_DIRS)" | tr ' ' '\n' | grep '/lib/')
+component_rebuild:
+	$(info **************************************************)
+	$(info **********[ Rebuilding Related Libraries]*********)
+	$(info **************************************************)
+	$(info LIB_DIRS: $(LIB_DIRS))
+	@for dir in $(LIB_DIRS) ; do \
+		echo "*************************[TASK START]*************************";\
+		echo "                    [ Building $$dir ]";\
+		$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C $$dir clean || exit $$?; \
+		$(MAKE) PLATFORM=$(PLATFORM) $(MAKEOPTIONS) -C $$dir  || exit $$?; \
+ 		echo "*************************[TASK  STOP]*************************";\
+		echo ""; \
+	done

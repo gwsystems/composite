@@ -75,6 +75,9 @@ COMP_DEPLIBS_CLEAN   =$(foreach D,$(COMP_DEPS_CLEAN),$(if $(wildcard $(INTERDIR)
 COMP_DEPLIBS_CLEAN  :=$(COMP_DEPLIBS_CLEAN) # handle all necessary orderings
 COMP_DEPLIBDIRS_CLEAN=$(foreach D,$(COMP_DEPS_CLEAN),$(if $(wildcard $(INTERDIR)/$(D)/lib$(D).a), -L$(INTERDIR)/$(D)/))
 
+LIB_DIRS := $(foreach lib,$(DEPENDENCY_LIBPATH),$(subst -L,,$(lib)))
+LIB_MAND_DIR := $(dir $(LIB_MANDATORY))
+
 # The actual lists of objects to be compiled with the components...
 COMP_EXPIF_OBJS=$(foreach I,$(COMP_INTERFACES_CLEAN),$(INTERDIR)/$(I)/cosrt_s_stub.o)
 COMP_DEP_OBJS=$(foreach D,$(COMP_IFDEPS_CLEAN),$(INTERDIR)/$(D)/cosrt_c_stub.o)
@@ -96,6 +99,10 @@ component: clean comp_header $(COMPOBJ)
 	$(LD) $(LDFLAGS) -r -o $(COMPNAME).linked_libs_ifs.o $(COMPOBJ) $(COMP_EXPIF_OBJS) $(COMP_DEP_OBJS) $(if $(COMP_INITARGS_FILE), $(COMP_INITARGS_FILE:%.c=%.o)) $(if $(COMP_TAR_FILE), $(COMP_TAR_FILE).o) $(COMP_DEPLIBDIRS_CLEAN) $(COMP_DEPLIBS_CLEAN) $(LIB_FLAGS)
 	$(MUSLCC) $(COMPNAME).linked_libs_ifs.o $(MUSLCFLAGS) $(LINKFLAG) -o $(COMPNAME).linked_musl.o
 	$(LD) $(LDFLAGS) -Ttext=$(COMP_BASEADDR) -T $(COMP_LD_SCRIPT) -o $(COMP_OUTPUT) $(COMPNAME).linked_musl.o
+
+.PHONY: dependencies_info
+dependencies_info:
+	$(info $(LIB_DIRS) $(LIB_MAND_DIR))
 
 # NOTE: make CFLAGS/CXXFLAGS/ASFLAGS argument first because it includes kernel headers/musl headers first 
 %.o:%.c

@@ -5,31 +5,31 @@ extern crate itertools;
 extern crate tar;
 extern crate xmas_elf;
 
+mod address_assignment;
 mod build;
 mod compobject;
 mod cossystem;
 mod initargs;
 mod invocations;
 mod passes;
+mod pipe;
+mod properties;
 mod resources;
 mod symbols;
 mod syshelpers;
 mod tot_order;
-mod properties;
-mod address_assignment;
-mod pipe;
 
+use address_assignment::AddressAssignmentx86_64;
 use build::DefaultBuilder;
 use compobject::{Constructor, ElfObject};
 use cossystem::SystemSpec;
 use initargs::Parameters;
 use invocations::Invocations;
 use passes::{BuildState, ComponentId, SystemState, Transition, TransitionIter};
-use resources::ResAssignPass;
 use properties::CompProperties;
+use resources::ResAssignPass;
 use std::env;
 use tot_order::CompTotOrd;
-use address_assignment::AddressAssignmentx86_64;
 
 pub fn exec() -> Result<(), String> {
     let mut args = env::args();
@@ -70,7 +70,10 @@ pub fn exec() -> Result<(), String> {
     }
     sys.add_constructor(Constructor::transition(&sys, &mut build)?);
 
-    println!("System object generated:\n\t{}", sys.get_constructor().image_path());
+    println!(
+        "System object generated:\n\t{}",
+        sys.get_constructor().image_path()
+    );
 
     Ok(())
 }

@@ -69,9 +69,11 @@ impl Transition for CompProperties {
             }
 
             // Capability manager properties
-            let (is_a_capmgr, mut prop, parent) = interface_dependencies(&s, &id, "capmgr".to_string());
+            let (is_a_capmgr, mut prop, parent) =
+                interface_dependencies(&s, &id, "capmgr".to_string());
             // Capability manager (with only thread creation) properties
-            let (is_a_capmgrthd, mut prop2, parent2) = interface_dependencies(&s, &id, "capmgr_create".to_string());
+            let (is_a_capmgrthd, mut prop2, parent2) =
+                interface_dependencies(&s, &id, "capmgr_create".to_string());
             if prop.len() + prop2.len() > 0 || is_a_capmgr || is_a_capmgrthd {
                 prop.append(&mut prop2);
                 props.push(ServiceClients::CapMgr(prop));
