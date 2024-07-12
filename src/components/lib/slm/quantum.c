@@ -21,10 +21,10 @@ __slm_timeout_update_idx(void *e, int pos)
 
 DECLARE_HEAP(timer, __slm_timeout_compare_min, __slm_timeout_update_idx);
 struct timer_global {
-	struct heap  h;
-	void        *data[MAX_NUM_THREADS];
-	cycles_t     period;
-	cycles_t     current_timeout;
+	heap_t   h;
+	void     *data[MAX_NUM_THREADS];
+	cycles_t period;
+	cycles_t current_timeout;
 } CACHE_ALIGNED;
 
 static struct timer_global __timer_globals[NUM_CPU];
