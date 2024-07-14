@@ -89,15 +89,21 @@ class parser:
     def stack_analyzer(self):
         index_list = list(self.inst.keys())
         index_list.append(-1) ## dummy value for last iteration.
-        self.index = index_list.index(self.register.reg["pc"])
-        while 1:  ## need to find out a place to exit.
-            key = self.register.reg["pc"]
-            self.register.updaterip(index_list[self.index + 1]) ## catch the rip for memory instruction.
+        # self.index = index_list.index(self.register.reg["pc"])
+        nextinstkey = list(self.inst.keys())
+        nextinstkey.append(-1) ## dummy value for last iteration.
+        log(self.inst.keys())
+        for key in self.inst.keys():
+            self.register.reg["pc"] = key
+            self.register.updaterip(nextinstkey[self.index + 1]) ## catch the rip for memory instruction.
+        ## while 1:  ## need to find out a place to exit.
+        ##    key = self.register.reg["pc"]
+        ##    self.register.updaterip(index_list[self.index + 1]) ## catch the rip for memory instruction.
             
             if key in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
-                ## self.stackfunction.append(self.symbol[key])
-                ## self.stacklist.append(self.register.reg["stack"])
-                ## self.register.clean()
+                self.stackfunction.append(self.symbol[key])
+                self.stacklist.append(self.register.reg["stack"])
+                self.register.clean()
                 ###### Graph
                 vertexfrom = key
                 self.vertex.add(vertexfrom)
@@ -109,12 +115,13 @@ class parser:
             ## logresult(self.register.reg["stack"], hex(key))
             self.register.updatestackreg()
             #### set up next instruction pc
-            if (self.index == index_list.index(self.register.reg["pc"])):
-                self.index = self.index + 1
-            else:
-                self.index = index_list.index(self.register.reg["pc"])
+            self.index = self.index + 1
+            #if (self.index == index_list.index(self.register.reg["pc"])):
+            #    self.index = self.index + 1
+            #else:
+            #    self.index = index_list.index(self.register.reg["pc"])
             ####
-            self.register.reg["pc"] = index_list[self.index] 
+            # self.register.reg["pc"] = index_list[self.index] 
         ## self.stacklist.append(self.register.reg["stack"])
         ## self.stacklist = self.stacklist[1:]
         ## logresult(self.stackfunction)
@@ -136,9 +143,8 @@ if __name__ == '__main__':
     #path = "../usr/bin/gcc"
     #path = "../testbench/dhrystone/dhrystone"
     #path = "../testbench/composite/tests.unit_pingpong.global.ping"
-    path = "../testbench/composite/system_binaries/cos_build-ming_without_mcmodel/global.sched/sched.pfprr_quantum_static.global.sched"
+    path = "../testbench/composite/system_binaries/cos_build-test/global.sched/sched.pfprr_quantum_static.global.sched"
     
-    mode = 1 ## simulator mode.
     
     disassembler = disassembler(path)
     disassembler.disasmsymbol()
@@ -146,7 +152,7 @@ if __name__ == '__main__':
     
     register = register.register()
     register.reg["pc"] = disassembler.entry_pc
-    execute = execute.execute(register, mode)
+    execute = execute.execute(register)
     parser = parser(disassembler.symbol, disassembler.inst, register, execute)
     driver(disassembler, register, execute, parser)
     log(parser.edge)
