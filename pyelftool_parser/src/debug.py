@@ -1,6 +1,6 @@
-DEBUG = True
+DEBUG = False
 DEBUGinst = False
-DEBUGresult = False
+DEBUGresult = True
 DEBUGcall = False
 DEBUGerror = False
 def log(*argv):

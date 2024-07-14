@@ -137,6 +137,7 @@ class execute:
                 loginst("we have not catched this instruction and it is rsp instruction.")
                 return 0
             return 0
+        '''
         else: ## simulator mode or calculation mode
             if inst.id == (X86_INS_PUSH):  ## catch push
                 pass
@@ -201,3 +202,4 @@ class execute:
             loginst(hex(inst.address), inst.mnemonic, inst.op_str)
             loginst("this instruction is not about rsp.")
             return 0
+        '''
