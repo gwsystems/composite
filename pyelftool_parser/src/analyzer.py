@@ -13,8 +13,10 @@ class disassembler:
         self.symbol = dict()
         self.vertex = dict()
         self.entry_pc = 0
+        self.exit_pc = 0
 
     def disasminst(self):
+        pc_flag = 0
         with open(self.path, 'rb') as f:
             elf = ELFFile(f)
             code = elf.get_section_by_name('.text')
@@ -24,6 +26,12 @@ class disassembler:
             md.detail = True
             for i in md.disasm(ops, addr):
                 self.inst[i.address] = (i)
+                if (i.address in self.symbol):  ## it is to catch the next symbol start. @minghwu: I think it could have a better way to do this.
+                    pc_flag = 0
+                if (i.address == self.entry_pc): ## when it is entry point, set the flag = 1 to catch exitpoint.
+                    pc_flag = 1
+                if (pc_flag == 1):               ## catch the point until the next symbol, means it is exit point.
+                    self.exit_pc = i.address
                 log(f'0x{i.address:x}:\t{i.mnemonic}\t{i.op_str}')
 
     def disasmsymbol(self):
@@ -35,6 +43,7 @@ class disassembler:
                 for symbol in section.iter_symbols():
                     self.symbol[symbol['st_value']] = symbol.name
                     self.vertex[symbol['st_value']] = symbol.name
+                    log("here")
                     log(symbol.name, symbol['st_value'])
                     if(symbol.name == '__cosrt_upcall_entry'): ## set up the entry pc.
                         self.entry_pc = symbol['st_value']
@@ -96,10 +105,6 @@ class parser:
         for key in self.inst.keys():
             self.register.reg["pc"] = key
             self.register.updaterip(nextinstkey[self.index + 1]) ## catch the rip for memory instruction.
-        ## while 1:  ## need to find out a place to exit.
-        ##    key = self.register.reg["pc"]
-        ##    self.register.updaterip(index_list[self.index + 1]) ## catch the rip for memory instruction.
-            
             if key in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
                 self.stackfunction.append(self.symbol[key])
                 self.stacklist.append(self.register.reg["stack"])
@@ -149,7 +154,8 @@ if __name__ == '__main__':
     disassembler = disassembler(path)
     disassembler.disasmsymbol()
     disassembler.disasminst()
-    
+    log("entry:"+ str(disassembler.entry_pc))
+    log("entry:"+ str(disassembler.exit_pc))
     register = register.register()
     register.reg["pc"] = disassembler.entry_pc
     execute = execute.execute(register)
