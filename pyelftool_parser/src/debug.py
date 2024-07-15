@@ -2,7 +2,7 @@ DEBUG = True
 DEBUGinst = False
 DEBUGresult = False
 DEBUGcall = False
-DEBUGerror = False
+DEBUGerror = True
 def log(*argv):
     if DEBUG:
         print(argv)

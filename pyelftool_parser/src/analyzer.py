@@ -85,7 +85,7 @@ class disassembler:
                 )
     
 class parser:
-    def __init__(self, symbol, inst, register, execute):
+    def __init__(self, symbol, inst, register, execute, exit_pc):
         self.symbol = symbol 
         self.inst = inst
         self.stacklist = []
@@ -95,38 +95,39 @@ class parser:
         self.edge = set()
         self.vertex = set()
         self.index = 0
+        self.exit_pc = exit_pc
     def stack_analyzer(self):
         index_list = list(self.inst.keys())
         index_list.append(-1) ## dummy value for last iteration.
-        # self.index = index_list.index(self.register.reg["pc"])
-        nextinstkey = list(self.inst.keys())
-        nextinstkey.append(-1) ## dummy value for last iteration.
-        log(self.inst.keys())
-        for key in self.inst.keys():
-            self.register.reg["pc"] = key
-            self.register.updaterip(nextinstkey[self.index + 1]) ## catch the rip for memory instruction.
-            if key in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
-                self.stackfunction.append(self.symbol[key])
+        self.index = index_list.index(self.register.reg["pc"])
+        
+        nextinstRip = list(self.inst.keys())
+        nextinstRip.append(-1) ## dummy value for last iteration.
+        while(self.register.reg["pc"] != self.exit_pc):
+            
+            self.register.updaterip(nextinstRip[self.index + 1]) ## catch the rip for memory instruction.
+            if self.register.reg["pc"] in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
+                self.stackfunction.append(self.symbol[self.register.reg["pc"]])
                 self.stacklist.append(self.register.reg["stack"])
                 self.register.clean()
                 ###### Graph
-                vertexfrom = key
+                vertexfrom = self.register.reg["pc"]
                 self.vertex.add(vertexfrom)
-            print("index and pc here")
-            print(self.index)
-            print(hex(key))
-            print(self.inst[key])
-            self.execute.exe(self.inst[key],self.edge,vertexfrom)
+            self.execute.exe(self.inst[self.register.reg["pc"]], self.edge, vertexfrom)
             ## logresult(self.register.reg["stack"], hex(key))
             self.register.updatestackreg()
+            
             #### set up next instruction pc
-            self.index = self.index + 1
-            #if (self.index == index_list.index(self.register.reg["pc"])):
-            #    self.index = self.index + 1
-            #else:
-            #    self.index = index_list.index(self.register.reg["pc"])
+            log(self.inst[self.register.reg["pc"]])
+            if (self.index == index_list.index(self.register.reg["pc"])):
+                self.index = self.index + 1
+            else:
+                self.index = index_list.index(self.register.reg["pc"])
+
             ####
-            # self.register.reg["pc"] = index_list[self.index] 
+            self.register.reg["pc"] = index_list[self.index]
+            log(self.index)
+            log(hex(self.register.reg["pc"]))
         ## self.stacklist.append(self.register.reg["stack"])
         ## self.stacklist = self.stacklist[1:]
         ## logresult(self.stackfunction)
@@ -159,7 +160,7 @@ if __name__ == '__main__':
     register = register.register()
     register.reg["pc"] = disassembler.entry_pc
     execute = execute.execute(register)
-    parser = parser(disassembler.symbol, disassembler.inst, register, execute)
+    parser = parser(disassembler.symbol, disassembler.inst, register, execute, disassembler.exit_pc)
     driver(disassembler, register, execute, parser)
     log(parser.edge)
     

@@ -99,11 +99,12 @@ class execute:
                 self.reg["rsp"] -= 8
                 if (not flagimm):
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
+                    '''
                     if (self.register.Getregwithname(dst) != -1):
                         print(self.register.Getregwithname(dst))
                         print(hex(inst.address), inst.mnemonic, inst.op_str)
                         print("here is an dynamic call, but value is predictable.")
-                        # self.reg["pc"] = self.register.Getregwithname(dst)
+                        self.reg["pc"] = self.register.Getregwithname(dst)
                         edge.add((hex(vertexfrom), hex(self.register.Getregwithname(dst))))  ## graph
                         
                     else:
@@ -111,10 +112,13 @@ class execute:
                         logcall("here is an dynamic call, should be reported, but it is still possible be calculated.")
                         logerror(hex(inst.address), inst.mnemonic, inst.op_str)
                         logerror("here is an dynamic call, should be reported, but it is still possible be calculated.")
+                    '''
+                    logerror("here is dynamic that we do not handle.")
+                    logerror(hex(inst.address), inst.mnemonic, inst.op_str)
                 else:
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                     logcall("here is an static call")
-                    # self.reg["pc"] = int(dst, 0)  ## hex to int
+                    self.reg["pc"] = int(dst, 0)  ## hex to int
                     edge.add((hex(vertexfrom), hex(imm)))  ## graph
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 8
