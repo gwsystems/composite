@@ -170,7 +170,7 @@ impl Graph {
         Graph { graph: g }
     }
 
-    fn render(&self, out: Vec<GraphOutput>) -> String {
+    fn render(&self, out: &[GraphOutput]) -> String {
         let output_interfaces = out
             .iter()
             .find(|&opt| *opt == GraphOutput::Interfaces)
@@ -210,12 +210,12 @@ impl Transition for Graph {
         let dotpath_comp = b.file_path(&"component_graph.dot".to_string())?;
         let dotpath_if = b.file_path(&"interfaces_graph.dot".to_string())?;
 
-        if let Err(s) = emit_file(&dotpath_comp, g.render(vec![]).as_bytes()) {
+        if let Err(s) = emit_file(&dotpath_comp, g.render(&[]).as_bytes()) {
             return Err(s);
         }
         if let Err(s) = emit_file(
             &dotpath_if,
-            g.render(vec![GraphOutput::Interfaces]).as_bytes(),
+            g.render(&[GraphOutput::Interfaces]).as_bytes(),
         ) {
             return Err(s);
         }
