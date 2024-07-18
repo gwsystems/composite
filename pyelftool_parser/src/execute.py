@@ -5,9 +5,9 @@ class execute:
     def __init__(self, register):
         self.register = register
         self.reg = register.reg
+        self.retflag = 0
     def exe(self, inst, edge, vertexfrom):
         ## -----------------------------------------------
-        
         (regs_read, regs_write) = inst.regs_access()
         ##  catch the rsp reg in instruction.    
         flagrsp = 0
@@ -20,6 +20,7 @@ class execute:
         flagmem = 0
         imm = 0
         disp = 0
+        self.retflag = 0
         ############# decode stage.
         loginst("instruction")
         loginst(hex(inst.address), inst.mnemonic, inst.op_str)
@@ -122,6 +123,8 @@ class execute:
                     edge.add((hex(vertexfrom), hex(imm)))  ## graph
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 8
+                self.retflag = 1
+                
             elif inst.id == (X86_INS_ENTER):  ## catch enter instruction, here is a problem, I am not sure how much the imm.
                 logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                 self.reg["rsp"] -= imm
@@ -227,4 +230,3 @@ class execute:
             loginst(hex(inst.address), inst.mnemonic, inst.op_str)
             loginst("this instruction is not about rsp.")
             return 0
-        '''
