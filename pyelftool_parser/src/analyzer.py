@@ -105,11 +105,11 @@ class parser:
         index_list = list(self.inst.keys())
         index_list.append(-1) ## dummy value for last iteration.
         self.index = index_list.index(self.register.reg["pc"])
-        
         nextinstRip = list(self.inst.keys())
         nextinstRip.append(-1) ## dummy value for last iteration.
         while(self.register.reg["pc"] != self.exit_pc):
-            self.register.updaterip(nextinstRip[self.index + 1]) ## catch the rip for memory instruction.
+            print(nextinstRip[self.index + 1 if self.index + 1 in nextinstRip else self.index])
+            self.register.updaterip(nextinstRip[self.index + 1 if self.index + 1 in nextinstRip else self.index]) ## catch the rip for memory instruction.
             if self.register.reg["pc"] in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
                 self.stackfunction.append(self.symbol[self.register.reg["pc"]])
                 self.stacklist.append(self.register.reg["stack"])
@@ -122,26 +122,34 @@ class parser:
             self.register.updatestackreg()
             
             #### set up next instruction pc
-            log(self.inst[self.register.reg["pc"]])
+           
             if (self.index == index_list.index(self.register.reg["pc"])):  ## fetch next instruction
-                self.index = self.index + 1
-                if: ## ret instruction
-                
-                elif index_list[self.index] in self.symbol.keys() and self.retjmpflag == 1: ## handle the return if there is no ret.
+                print("aaaaa")
+                if self.inst[self.register.reg["pc"]].id == (X86_INS_RET): ## encounter ret instruction to set pc
+                    self.index = index_list.index(self.retcallpc)
+                elif index_list[self.index + 1] in self.symbol.keys() and self.retjmpflag == 1: ## handle the return if there is no ret.
                     self.index = index_list.index(self.retjmppc)
                     self.retjmpflag = 0
-                
+                else:
+                    self.index = self.index + 1
             else:     ## handle the call and jmp instruction
-                if self.inst[index_list[self.index]]== (X86_INS_CALL): ## handle ret
+                print("bbbbb")
+                print(self.inst[index_list[self.index]] )
+                if self.inst[index_list[self.index]].id == (X86_INS_CALL): ## here is error. handle ret
                     self.retcallpc = index_list[self.index + 1]
+                    self.index = index_list.index(self.register.reg["pc"])
+                    print("in the call")
                 else:  ## handle the while jmp.
                     self.retjmppc = index_list[self.index + 1]  ## set the return point
                     self.retjmpflag = 1
+                    
                     if self.register.reg["pc"] not in self.seenlist:
                         self.index = index_list.index(self.register.reg["pc"])
                         self.seenlist.append(self.register.reg["pc"])
+                        print("Hi it is error2")
                     else:
                         self.index = self.index + 1
+                        print("Hi it is error")
             ####
             self.register.reg["pc"] = index_list[self.index]
             log(self.index)

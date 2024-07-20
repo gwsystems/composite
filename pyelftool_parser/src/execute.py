@@ -98,6 +98,7 @@ class execute:
                 self.reg[dst] = src
             elif inst.id == (X86_INS_CALL):  ## catch call instruction
                 self.reg["rsp"] -= 8
+                print("catch call")
                 if (not flagimm):
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                     '''
@@ -116,10 +117,13 @@ class execute:
                     '''
                     logerror("here is dynamic that we do not handle.")
                     logerror(hex(inst.address), inst.mnemonic, inst.op_str)
+                    print("call one")
                 else:
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                     logcall("here is an static call")
+                    print("call two") 
                     self.reg["pc"] = int(dst, 0)  ## hex to int
+                    print(hex(self.reg["pc"]))
                     edge.add((hex(vertexfrom), hex(imm)))  ## graph
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 8
