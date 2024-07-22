@@ -29,8 +29,8 @@ struct tmr_info {
 };
 
 SS_STATIC_SLAB(timer, struct tmr_info, MAX_NUM_TMR);
-heap_t * timer_active;
-unsigned int timer_heap[sizeof(heap_t) / sizeof(unsigned int) + MAX_NUM_TMR];
+struct heap * timer_active;
+unsigned int timer_heap[sizeof(struct heap) / sizeof(unsigned int) + MAX_NUM_TMR];
 thdid_t main_thdid;
 unsigned long modifying;
 
@@ -188,24 +188,24 @@ main(void)
 		}
 
 		wakeup = time_now();
-		t = heap_peek((heap_t *)timer_heap);
+		t = heap_peek((struct heap *)timer_heap);
 
 		if (t != NULL) {
 			/* At least one timer expired. Process all of them. */
 			while(t->timeout_cyc <= (wakeup + time_usec2cyc(MIN_USECS_LIMIT))) {
 				debug("Timer manager: id %d expired.\n", ss_timer_id(t));
 				evt_trigger(t->evt_id);
-				t = tmrmgr_heap_highest((heap_t *)timer_heap);
+				t = tmrmgr_heap_highest((struct heap *)timer_heap);
 
 				if (t->flags == TMR_PERIODIC) {
 					debug("Timer manager: added back id %d to heap.\n", ss_timer_id(t));
 					t->timeout_cyc = time_now() + time_usec2cyc(t->usecs);
-					assert(tmrmgr_heap_add((heap_t *)timer_heap, t) == 0);
+					assert(tmrmgr_heap_add((struct heap *)timer_heap, t) == 0);
 				} else {
 					t->timeout_cyc = 0;
 				}
 
-				t = heap_peek((heap_t *)timer_heap);
+				t = heap_peek((struct heap *)timer_heap);
 				if (t == NULL) break;
 			}
 		}
@@ -230,6 +230,6 @@ cos_init(void)
 
 	/* Initialize active timer heap */
 	modifying = 0;
-	timer_active = (heap_t *)timer_heap;
+	timer_active = (struct heap *)timer_heap;
 	heap_init(timer_active, MAX_NUM_TMR);
 }

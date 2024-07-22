@@ -14,34 +14,33 @@
 #define debug(format, ...)
 #endif
 
-typedef struct {
-	int    e, max_sz;
-	void **data;
-} heap_t;
+struct heap {                                                  
+    int e, max_sz;                                                    
+    void **data;                                                      
+}; 
+struct hentry {
+	int index, value;
+};
 
-typedef struct {
-    int index, value;
-} hentry_t;
-
-static inline void    heap_init(heap_t *h, int max_sz);
-static inline void    heap_destroy(heap_t *h);
-static inline int     heap_size(heap_t *h);
-static inline int     heap_empty(heap_t *h);
-static inline void   *heap_peek(heap_t *h);
-static inline heap_t *heap_alloc(int max_sz);
+static inline void    heap_init(struct heap *h, int max_sz);
+static inline void    heap_destroy(struct heap *h);
+static inline int     heap_size(struct heap *h);
+static inline int     heap_empty(struct heap *h);
+static inline void   *heap_peek(struct heap *h);
+static inline struct heap *heap_alloc(int max_sz);
 
 // Macro to generate type-specific heap structures and functions
 #define DECLARE_HEAP(NAME, CMP_FN, UPDATE_FN)                              \
                                                                            \
 	static inline void  NAME##_swap_entries(void *arr[], int a, int b);    \
-	static inline int   NAME##_swap_down(heap_t *h, int c);                \
-	static inline int   NAME##_swap_up(heap_t *h, int c);                  \
-	static inline int   NAME##_heapify(heap_t *h, int c);                  \
-	static inline void  NAME##_heap_adjust(heap_t *h, int c);              \
-	static inline void *NAME##_heap_remove(heap_t *h, int c);              \
-	static inline void *NAME##_heap_highest(heap_t *h);                    \
-	static inline int   NAME##_heap_add(heap_t *h, void *new);             \
-	static inline int   NAME##_heap_verify(heap_t *h, int c);              \
+	static inline int   NAME##_swap_down(struct heap *h, int c);           \
+	static inline int   NAME##_swap_up(struct heap *h, int c);             \
+	static inline int   NAME##_heapify(struct heap *h, int c);             \
+	static inline void  NAME##_heap_adjust(struct heap *h, int c);         \
+	static inline void *NAME##_heap_remove(struct heap *h, int c);         \
+	static inline void *NAME##_heap_highest(struct heap *h);               \
+	static inline int   NAME##_heap_add(struct heap *h, void *new);        \
+	static inline int   NAME##_heap_verify(struct heap *h, int c);         \
                                                                            \
 	static inline void  NAME##_swap_entries(void *arr[], int a, int b)     \
 	{                                                                      \
@@ -53,7 +52,7 @@ static inline heap_t *heap_alloc(int max_sz);
 		UPDATE_FN(arr[b], b);                                              \
 	}                                                                      \
                                                                            \
-	static inline int NAME##_swap_down(heap_t *h, int c)                   \
+	static inline int NAME##_swap_down(struct heap *h, int c)              \
 	{                                                                      \
 		int l;                                                             \
 		assert(c != 0);                                                    \
@@ -76,7 +75,7 @@ static inline heap_t *heap_alloc(int max_sz);
 		return c;                                                          \
 	}                                                                      \
                                                                            \
-	static inline int NAME##_swap_up(heap_t *h, int c)                     \
+	static inline int NAME##_swap_up(struct heap *h, int c)                \
 	{                                                                      \
 		assert(c <= h->e);                                                 \
 		assert(c > 0);                                                     \
@@ -92,38 +91,38 @@ static inline heap_t *heap_alloc(int max_sz);
 		return c;                                                          \
 	}                                                                      \
                                                                            \
-	static inline int NAME##_heapify(heap_t *h, int c)                     \
+	static inline int NAME##_heapify(struct heap *h, int c)                \
 	{                                                                      \
 		c = NAME##_swap_up(h, c);                                          \
 		return NAME##_swap_down(h, c);                                     \
 	}                                                                      \
                                                                            \
-	static inline int NAME##_heap_verify(heap_t *h, int c)                 \
+	static inline int NAME##_heap_verify(struct heap *h, int c)            \
 	{                                                                      \
 		int left, right;                                                   \
                                                                            \
 		left  = c * 2;                                                     \
 		right = c * 2 + 1;                                                 \
 		if (left < h->e) {                                                 \
-			assert(((hentry_t *)h->data[left])->index == left);            \
-			if (!CMP_FN(h->data[c], h->data[left]) || NAME##_heap_verify(h, left)) {        \
-				printc("Left data %d @ %d < %d @ %d\n", ((hentry_t *)h->data[c])->value, c, \
-				       ((hentry_t *)h->data[left])->value, left);                           \
+			assert(((struct hentry *)h->data[left])->index == left);       \
+			if (!CMP_FN(h->data[c], h->data[left]) || NAME##_heap_verify(h, left)) {             \
+				printc("Left data %d @ %d < %d @ %d\n", ((struct hentry *)h->data[c])->value, c, \
+				       ((struct hentry *)h->data[left])->value, left);                           \
 				return 1;                                                  \
 			}                                                              \
 		}                                                                  \
 		if (right < h->e) {                                                \
-			assert(((hentry_t *)h->data[right])->index == right);          \
-			if (!CMP_FN(h->data[c], h->data[right]) || NAME##_heap_verify(h, right)) {      \
-				printc("Right data %d @ %d < %d @ %d\n", ((hentry_t *)h->data[c])->value, c,\
-				       ((hentry_t *)h->data[left])->value, left);                           \
+			assert(((struct hentry *)h->data[right])->index == right);     \
+			if (!CMP_FN(h->data[c], h->data[right]) || NAME##_heap_verify(h, right)) {           \
+				printc("Right data %d @ %d < %d @ %d\n", ((struct hentry *)h->data[c])->value, c,\
+				       ((struct hentry *)h->data[left])->value, left);                           \
 				return 1;                                                  \
 			}                                                              \
 		}                                                                  \
 		return 0;                                                          \
 	}                                                                      \
                                                                            \
-	static inline void NAME##_heap_adjust(heap_t *h, int c)                \
+	static inline void NAME##_heap_adjust(struct heap *h, int c)           \
 	{                                                                      \
 		assert(c < h->e);                                                  \
 		assert(c > 0);                                                     \
@@ -131,7 +130,7 @@ static inline heap_t *heap_alloc(int max_sz);
 		NAME##_heapify(h, c);                                              \
 	}                                                                      \
                                                                            \
-	static inline void *NAME##_heap_remove(heap_t *h, int c)               \
+	static inline void *NAME##_heap_remove(struct heap *h, int c)          \
 	{                                                                      \
 		void *removed;                                                     \
                                                                            \
@@ -151,7 +150,7 @@ static inline heap_t *heap_alloc(int max_sz);
 		return removed;                                                    \
 	}                                                                      \
                                                                            \
-	void *NAME##_heap_highest(heap_t *h)                                   \
+	void *NAME##_heap_highest(struct heap *h)                              \
 	{                                                                      \
 		void *r;                                                           \
 		if (h->e == 1) return NULL;                                        \
@@ -167,7 +166,7 @@ static inline heap_t *heap_alloc(int max_sz);
 		return r;                                                          \
 	}                                                                      \
                                                                            \
-	int NAME##_heap_add(heap_t *h, void *new)                              \
+	int NAME##_heap_add(struct heap *h, void *new)                         \
 	{                                                                      \
 		int c;                                                             \
                                                                            \
@@ -184,25 +183,25 @@ static inline heap_t *heap_alloc(int max_sz);
 	}
 
 void *
-heap_peek(heap_t *h)
+heap_peek(struct heap *h)
 {
 	if (h->e == 1) return NULL;
 	return h->data[1];
 }
 
 void
-heap_destroy(heap_t *h)
+heap_destroy(struct heap *h)
 {
 	assert(h && h->data);
 	free(h);
 }
 
-heap_t *
+struct heap *
 heap_alloc(int max_sz)
 {
-	heap_t *h = NULL;
+	struct heap *h = NULL;
 
-	h = malloc(sizeof(heap_t) + (max_sz * sizeof(void *)) + 1);
+	h = malloc(sizeof(struct heap) + (max_sz * sizeof(void *)) + 1);
 	if (NULL == h) return NULL;
 
 	heap_init(h, max_sz);
@@ -210,7 +209,7 @@ heap_alloc(int max_sz)
 }
 
 void
-heap_init(heap_t *h, int max_sz)
+heap_init(struct heap *h, int max_sz)
 {
 	assert(h);
 	h->e      = 1;
@@ -219,13 +218,13 @@ heap_init(heap_t *h, int max_sz)
 }
 
 int
-heap_size(heap_t *h)
+heap_size(struct heap *h)
 {
 	return h->e - 1;
 }
 
 int
-heap_empty(heap_t *h)
+heap_empty(struct heap *h)
 {
 	return heap_size(h) == 0;
 }
