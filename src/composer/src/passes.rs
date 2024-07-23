@@ -29,6 +29,7 @@ pub struct SystemState {
     objs: HashMap<ComponentId, Box<dyn ObjectsPass>>,
     invs: HashMap<ComponentId, Box<dyn InvocationsPass>>,
     constructor: Option<Box<dyn ConstructorPass>>,
+    graph: Option<Box<dyn GraphPass>>,
 }
 
 impl SystemState {
@@ -44,6 +45,7 @@ impl SystemState {
             objs: HashMap::new(),
             invs: HashMap::new(),
             constructor: None,
+	    graph: None,
         }
     }
 
@@ -81,6 +83,10 @@ impl SystemState {
 
     pub fn add_constructor(&mut self, c: Box<dyn ConstructorPass>) {
         self.constructor = Some(c);
+    }
+
+    pub fn add_graph(&mut self, c: Box<dyn GraphPass>) {
+        self.graph = Some(c);
     }
 
     pub fn get_input(&self) -> String {
@@ -121,6 +127,10 @@ impl SystemState {
 
     pub fn get_constructor(&self) -> &dyn ConstructorPass {
         &**(self.constructor.as_ref().unwrap())
+    }
+
+    pub fn get_graph(&self) -> &dyn GraphPass {
+        &**(self.graph.as_ref().unwrap())
     }
 }
 
@@ -298,7 +308,7 @@ pub fn exports<'a>(s: &'a SystemState, id: &ComponentId) -> &'a Vec<Export> {
 //
 // The ServiceType is used in API calls to select which service we're
 // querying about.
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash)]
 pub enum ServiceType {
     Scheduler,
     CapMgr,
@@ -413,4 +423,8 @@ pub trait InvocationsPass {
 
 pub trait ConstructorPass {
     fn image_path(&self) -> &String;
+}
+
+pub trait GraphPass {
+
 }

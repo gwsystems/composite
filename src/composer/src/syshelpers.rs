@@ -4,6 +4,14 @@ use std::fs;
 // FIXME: progs should be a more general iteration type
 // return a tuple of stdout/stderr
 pub fn exec_pipeline(progs: Vec<String>) -> (String, String) {
+    let err_str = format!(
+        "Failure in executing command: {}",
+        progs.iter().fold("".to_string(), |s, p| if s.len() == 0 {
+            format!("{}", p)
+        } else {
+            format!("{} | {}", s, p)
+        })
+    );
     let output = progs
         .iter()
         .fold(None, |upstream: Option<Pipe>, cmd| match upstream {
@@ -12,7 +20,7 @@ pub fn exec_pipeline(progs: Vec<String>) -> (String, String) {
         })
         .unwrap_or_else(|| Pipe::new("cat /dev/null"))
         .output()
-        .expect("Failure in executing pipe.");
+        .expect(&err_str);
     (
         String::from_utf8(output.stdout).unwrap(),
         String::from_utf8(output.stderr).unwrap(),

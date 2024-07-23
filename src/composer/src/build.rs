@@ -421,7 +421,6 @@ impl BuildState for DefaultBuilder {
         let p = state.get_param_id(&id);
         let output_path = self.comp_obj_path(&id, &state)?;
 
-        let c = component(&state, &id);
         //rebuild process starts
         let header_file_path =
             self.comp_file_path(&id, &"component_constants.h".to_string(), &state)?;
