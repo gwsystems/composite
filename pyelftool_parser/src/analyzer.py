@@ -99,7 +99,7 @@ class parser:
         self.exit_pc = exit_pc
         self.retjmppc = 0
         self.retjmpflag = 0
-        self.retcallpc = 0
+        self.retcallpc = []
         self.seenlist = [] ## handle the while loop jmp.
     def stack_analyzer(self):
         index_list = list(self.inst.keys())
@@ -125,7 +125,7 @@ class parser:
            
             if (self.index == index_list.index(self.register.reg["pc"])):  ## fetch next instruction
                 if self.inst[self.register.reg["pc"]].id == (X86_INS_RET): ## encounter ret instruction to set pc
-                    self.index = index_list.index(self.retcallpc)
+                    self.index = index_list.index(self.retcallpc.pop())
                 elif index_list[self.index + 1] in self.symbol.keys() and self.retjmpflag == 1: ## handle the return if there is no ret.
                     self.index = index_list.index(self.retjmppc)
                     self.retjmpflag = 0
@@ -133,7 +133,7 @@ class parser:
                     self.index = self.index + 1
             else:     ## handle the call and jmp instruction
                 if self.inst[index_list[self.index]].id == (X86_INS_CALL): ## here is error. handle ret
-                    self.retcallpc = index_list[self.index + 1]
+                    self.retcallpc.append(index_list[self.index + 1])
                     self.index = index_list.index(self.register.reg["pc"])
                 else:  ## handle the while jmp.
                     self.retjmppc = index_list[self.index + 1]  ## set the return point
