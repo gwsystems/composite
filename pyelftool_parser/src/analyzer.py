@@ -147,10 +147,10 @@ class parser:
             self.register.reg["pc"] = index_list[self.index]
             log(self.index)
             log(hex(self.register.reg["pc"]))
-        ## self.stacklist.append(self.register.reg["stack"])
-        ## self.stacklist = self.stacklist[1:]
-        ## logresult(self.stackfunction)
-        ## logresult(self.stacklist)
+        self.stacklist.append(self.register.reg["stack"])
+        self.stacklist = self.stacklist[1:]
+        logresult(self.stackfunction)
+        logresult(self.stacklist)
         return (self.stackfunction,self.stacklist)
     
 
