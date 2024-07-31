@@ -98,32 +98,14 @@ class execute:
                 self.reg[dst] = src
             elif inst.id == (X86_INS_CALL):  ## catch call instruction
                 self.reg["rsp"] -= 8
-                print("catch call")
                 if (not flagimm):
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
-                    '''
-                    if (self.register.Getregwithname(dst) != -1):
-                        print(self.register.Getregwithname(dst))
-                        print(hex(inst.address), inst.mnemonic, inst.op_str)
-                        print("here is an dynamic call, but value is predictable.")
-                        self.reg["pc"] = self.register.Getregwithname(dst)
-                        edge.add((hex(vertexfrom), hex(self.register.Getregwithname(dst))))  ## graph
-                        
-                    else:
-                        logcall(hex(inst.address), inst.mnemonic, inst.op_str)
-                        logcall("here is an dynamic call, should be reported, but it is still possible be calculated.")
-                        logerror(hex(inst.address), inst.mnemonic, inst.op_str)
-                        logerror("here is an dynamic call, should be reported, but it is still possible be calculated.")
-                    '''
                     logerror("here is dynamic that we do not handle.")
                     logerror(hex(inst.address), inst.mnemonic, inst.op_str)
-                    print("call one")
                 else:
                     logcall(hex(inst.address), inst.mnemonic, inst.op_str)
-                    logcall("here is an static call")
-                    print("call two") 
+                    logcall("here is an static call") 
                     self.reg["pc"] = int(dst, 0)  ## hex to int
-                    print(hex(self.reg["pc"]))
                     edge.add((hex(vertexfrom), hex(imm)))  ## graph
             elif inst.id == (X86_INS_RET):  ## catch RET instruction
                 self.reg["rsp"] += 8
@@ -137,7 +119,6 @@ class execute:
             elif inst.id == (X86_INS_LEAVE):  ## catch Leave instruction
                 logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                 self.reg["rsp"] += self.reg["enter"]
-                ## here need to be think about rsp, I think I need to put stacl
 
             else:
                 loginst(hex(inst.address), inst.mnemonic, inst.op_str)

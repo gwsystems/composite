@@ -108,7 +108,6 @@ class parser:
         nextinstRip = list(self.inst.keys())
         nextinstRip.append(-1) ## dummy value for last iteration.
         while(self.register.reg["pc"] != self.exit_pc):
-            print(nextinstRip[self.index + 1 if self.index + 1 in nextinstRip else self.index])
             self.register.updaterip(nextinstRip[self.index + 1 if self.index + 1 in nextinstRip else self.index]) ## catch the rip for memory instruction.
             if self.register.reg["pc"] in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
                 self.stackfunction.append(self.symbol[self.register.reg["pc"]])
