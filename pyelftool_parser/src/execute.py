@@ -67,7 +67,6 @@ class execute:
             if inst.id == (X86_INS_PUSH):  ## catch push
                 self.reg["rsp"] -= 8
             elif inst.id == (X86_INS_POP): ## catch pop instruction
-                #loginst(inst.address, inst.mnemonic, inst.op_str)
                 self.reg["rsp"] += 8
             elif inst.id == (X86_INS_MOV):  ## catch mov instruction
                 if flagimm:
@@ -126,11 +125,7 @@ class execute:
                 return 0
             return 0
         else: ## simulator mode or calculation mode
-            if inst.id == (X86_INS_PUSH):  ## catch push
-                pass
-            elif inst.id == (X86_INS_POP): ## catch pop instruction
-                pass
-            elif inst.id == (X86_INS_MOV):  ## catch mov instruction
+            if inst.id == (X86_INS_MOV):  ## catch mov instruction
                 if flagimm:
                     self.register.Setreg(dst, imm)
                 else:
