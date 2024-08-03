@@ -125,18 +125,18 @@ class parser:
             #### set up next instruction pc
     
             if (self.index == index_list.index(self.register.reg["pc"])):  ## fetch next instruction
-                if self.inst[self.register.reg["pc"]].id == (X86_INS_RET): ## encounter ret instruction to set pc
+                if self.inst[self.register.reg["pc"]].id == (X86_INS_RET): ## ret instruction, go to return address.
                     self.index = index_list.index(self.retcallpc.pop())
-                elif index_list[self.index + 1] in self.symbol.keys() and self.retjmpflag == 1: ## handle the return if there is no ret.
+                elif index_list[self.index + 1] in self.symbol.keys() and self.retjmpflag == 1: ## Assuming the return to return address if going to the end of function.
                     self.index = index_list.index(self.retjmppc)
                     self.retjmpflag = 0
                 else:
                     self.index = self.index + 1
             else:     ## handle the call and jmp instruction
-                if self.inst[index_list[self.index]].id == (X86_INS_CALL): ## here is error. handle ret
+                if self.inst[index_list[self.index]].id == (X86_INS_CALL): ## if this is call, append the return address to stack.
                     self.retcallpc.append(index_list[self.index + 1])
                     self.index = index_list.index(self.register.reg["pc"])
-                else:  ## handle the while jmp.
+                else:  ## handle the while loop of jmp.
                     self.retjmppc = index_list[self.index + 1]  ## set the return point
                     self.retjmpflag = 1
                     if self.register.reg["pc"] not in self.seenlist:
@@ -145,18 +145,14 @@ class parser:
                     else:
                         self.index = self.index + 1
             ####
-            self.register.reg["pc"] = index_list[self.index]
-            log(self.index)
-            log(hex(self.register.reg["pc"]))
+            self.register.reg["pc"] = index_list[self.index] ## Setting the pc from index.
             
         self.stacklist.append(self.register.reg["stack"])
         self.stacklist = self.stacklist[1:]
-        logresult(self.stackfunction)
-        logresult(self.stacklist)
         return (self.stackfunction,self.stacklist)
     
 
-def driver(disassembler, register, execute, parser):
+def driver(disassembler, parser):
     disassembler.disasmsymbol()
     disassembler.disasminst()
     disassembler.sym_analyzer()
@@ -166,23 +162,21 @@ def driver(disassembler, register, execute, parser):
 
 
 if __name__ == '__main__':
-    #path = "../testbench/selftest/a.elf"
-    #path = "../usr/bin/gcc"
-    #path = "../testbench/dhrystone/dhrystone"
-    #path = "../testbench/composite/tests.unit_pingpong.global.ping"
-    path = "../testbench/composite/system_binaries/cos_build-test/global.sched/sched.pfprr_quantum_static.global.sched"
     
+    path = "../testbench/composite/system_binaries/cos_build-test/global.sched/sched.pfprr_quantum_static.global.sched"
     
     disassembler = disassembler(path)
     disassembler.disasmsymbol()
     disassembler.disasminst()
-    log("entry:"+ str(disassembler.entry_pc))
-    log("entry:"+ str(disassembler.exit_pc))
+    log("program entry:"+ str(disassembler.entry_pc))
+    log("program exit:"+ str(disassembler.exit_pc))
     register = register.register()
     register.reg["pc"] = disassembler.entry_pc
     execute = execute.execute(register)
     parser = parser(disassembler.symbol, disassembler.inst, register, execute, disassembler.exit_pc)
-    driver(disassembler, register, execute, parser)
-    log(parser.edge)
+    driver(disassembler, parser)
+    logresult(parser.stackfunction)
+    logresult(parser.stacklist)
+    logresult(parser.edge)
     
     
