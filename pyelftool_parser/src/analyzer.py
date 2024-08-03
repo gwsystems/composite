@@ -101,6 +101,7 @@ class parser:
         self.retjmpflag = 0
         self.retcallpc = []
         self.seenlist = [] ## handle the while loop jmp.
+        
     def stack_analyzer(self):
         index_list = list(self.inst.keys())
         index_list.append(-1) ## dummy value for last iteration.
@@ -113,15 +114,16 @@ class parser:
                 self.stackfunction.append(self.symbol[self.register.reg["pc"]])
                 self.stacklist.append(self.register.reg["stack"])
                 self.register.clean()
+                
                 ###### Graph
                 vertexfrom = self.register.reg["pc"]
                 self.vertex.add(vertexfrom)
+                ######
             self.execute.exe(self.inst[self.register.reg["pc"]], self.edge, vertexfrom)
-            ## logresult(self.register.reg["stack"], hex(key))
             self.register.updatestackreg()
             
             #### set up next instruction pc
-           
+    
             if (self.index == index_list.index(self.register.reg["pc"])):  ## fetch next instruction
                 if self.inst[self.register.reg["pc"]].id == (X86_INS_RET): ## encounter ret instruction to set pc
                     self.index = index_list.index(self.retcallpc.pop())
@@ -146,6 +148,7 @@ class parser:
             self.register.reg["pc"] = index_list[self.index]
             log(self.index)
             log(hex(self.register.reg["pc"]))
+            
         self.stacklist.append(self.register.reg["stack"])
         self.stacklist = self.stacklist[1:]
         logresult(self.stackfunction)
