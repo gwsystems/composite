@@ -301,7 +301,7 @@ comps_init(void)
 			if (crt_comp_create(comp, name, id, elf_hdr, info, pd)) {
 				printc("Error constructing the resource tables and image of component %s.\n", comp->name);
 				BUG();
-			}	
+			}
 		}
 	}
 
@@ -394,8 +394,8 @@ comps_init(void)
 		sinv = ss_sinv_alloc();
 		assert(sinv);
 		crt_sinv_create(sinv, args_get_from("name", &curr), boot_comp_get(serv_id), boot_comp_get(cli_id),
-				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10), 
-				strtoul(args_get_from("c_fast_callgate_addr", &curr), NULL, 10), 
+				strtoul(args_get_from("c_fn_addr", &curr), NULL, 10),
+				strtoul(args_get_from("c_fast_callgate_addr", &curr), NULL, 10),
 				strtoul(args_get_from("c_ucap_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_fn_addr", &curr), NULL, 10),
 				strtoul(args_get_from("s_altfn_addr", &curr), NULL, 10)
