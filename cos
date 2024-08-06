@@ -4,6 +4,7 @@ set -e
 
 script=
 name=
+rebuild_flag=
 binary=
 arch=
 
@@ -64,6 +65,24 @@ compose()
 
 	echo "[cos executing] src/composer/target/debug/compose $script $name"
 	src/composer/target/debug/compose $script $name
+
+	local dir="system_binaries/cos_build-${name}"
+
+	tools/build_iso.sh ${dir}/cos.img
+}
+
+compose_opt(){
+	if [ -z "$script" ] || [ -z "$name" ] || [ -z "$rebuild_flag" ]; then
+		usage
+	fi
+
+	if ! [ -e "src/composer/target/debug/compose" ]; then
+		echo "Must \"cos build\" before composition. Could not find src/composer/target/debug/compose"
+	exit 1
+	fi
+
+	echo "[cos executing] src/composer/target/debug/compose $script $name $rebuild_flag"
+	src/composer/target/debug/compose $script $name $rebuild_flag
 
 	local dir="system_binaries/cos_build-${name}"
 
@@ -158,6 +177,12 @@ case $1 in
 		script=$2
 		name=$3
 		compose
+		;;
+	compose_opt )
+		script=$2
+		name=$3
+		rebuild_flag=$4
+		compose_opt
 		;;
 	run )
 		binary=$2

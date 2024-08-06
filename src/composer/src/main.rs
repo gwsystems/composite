@@ -37,6 +37,7 @@ pub fn exec() -> Result<(), String> {
 
     let arg1 = args.next();
     let arg2 = args.next();
+    let arg3 = args.next();
 
     if None == arg1 || None == arg2 {
         return Err(format!(
@@ -44,10 +45,10 @@ pub fn exec() -> Result<(), String> {
             program_name.unwrap()
         ));
     }
-
+    
     let mut sys = SystemState::new(arg1.unwrap());
     let mut build = DefaultBuilder::new();
-    build.initialize(&arg2.unwrap(), &sys)?;
+    build.initialize(&arg2.unwrap(), arg3, &sys)?;
 
     sys.add_parsed(SystemSpec::transition(&sys, &mut build)?);
     sys.add_named(CompTotOrd::transition(&sys, &mut build)?);
