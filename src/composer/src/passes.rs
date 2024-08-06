@@ -129,7 +129,12 @@ impl SystemState {
 // that file already exists. Use unique names for files, and use the
 // component-namespacing of names for per-component files.
 pub trait BuildState {
-    fn initialize(&mut self, name: &String, flag: Option<String>, s: &SystemState) -> Result<(), String>; // must be called *before* the following functions
+    fn initialize(
+        &mut self,
+        name: &String,
+        flag: Option<String>,
+        s: &SystemState,
+    ) -> Result<(), String>; // must be called *before* the following functions
     fn file_path(&self, file: &String) -> Result<String, String>; // create a path in the build directory for a file
     fn comp_dir_path(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // the component's object
     fn comp_file_path(

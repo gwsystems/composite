@@ -350,7 +350,12 @@ fn compdir_check_build(comp_dir: &String) -> Result<(), String> {
 }
 
 impl BuildState for DefaultBuilder {
-    fn initialize(&mut self, name: &String, flag: Option<String>, _s: &SystemState) -> Result<(), String> {
+    fn initialize(
+        &mut self,
+        name: &String,
+        flag: Option<String>,
+        _s: &SystemState,
+    ) -> Result<(), String> {
         let pwd = env::current_dir().unwrap();
         let dir = format!("{}/system_binaries/cos_build-{}", pwd.display(), name);
 
@@ -428,13 +433,13 @@ impl BuildState for DefaultBuilder {
         let comp_log = self.comp_file_path(&id, &"compilation.log".to_string(), &state)?;
 
         let header_file_path =
-        self.comp_file_path(&id, &"component_constants.h".to_string(), &state)?;
+            self.comp_file_path(&id, &"component_constants.h".to_string(), &state)?;
+
         self.comp_const_header_file(&header_file_path, &id, &state)?;
 
         //rebuild process starts
         if let Some(flag) = &self.rebuildflag {
             if flag == "REBUILD" {
-
                 let dep_cmd = comp_gen_make_cmd(
                     &output_path,
                     p.param_prog(),

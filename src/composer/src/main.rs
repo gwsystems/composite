@@ -45,7 +45,7 @@ pub fn exec() -> Result<(), String> {
             program_name.unwrap()
         ));
     }
-    
+
     let mut sys = SystemState::new(arg1.unwrap());
     let mut build = DefaultBuilder::new();
     build.initialize(&arg2.unwrap(), arg3, &sys)?;
