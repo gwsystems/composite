@@ -322,7 +322,7 @@
 #define REGS_USER_UPCALL(asmfn, cfn)				\
 .text;								\
 .globl asmfn;							\
-.globl cfn;							\
+.extern cfn;							\
 .type  asmfn, @function;					\
 .align 16;							\
 asmfn##:							\

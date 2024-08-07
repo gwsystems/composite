@@ -35,7 +35,7 @@ $(SHLIB_FILE): $(OBJS)
 
 %.o:%.c
 	$(info |     [CC]   Compiling C file $< into $@)
-	$(CC) $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $<
+	@$(CC) $(CFLAGS) $(CINC) $(DEPENDENCY_INCPATH) -c -o $@ $<
 
 compile_flags.txt:
 	echo $(DEPENDENCY_INCPATH) | tr " " "\n" > $@
