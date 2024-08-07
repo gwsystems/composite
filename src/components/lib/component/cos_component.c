@@ -5,7 +5,7 @@
  * Public License v2.
  */
 
-#include "cos_chal_regs.h"
+#include <cos_regs.h>
 #include <stdio.h>
 #include <sys/auxv.h>
 
@@ -362,7 +362,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		start_execution(cos_coreid(), ps_cas(&first_core, 1, 0), init_parallelism());
 	} else {
 		word_t idx = (word_t)arg1 - 1;
-			printc("%s: %d\n", __FILE__, __LINE__);
+		printc("%s: %d\n", __FILE__, __LINE__);
+		printc("index %d\n", (int)idx);
 		if (idx >= COS_THD_INIT_REGION_SIZE) {
 			/* This means static defined entry */
 			cos_thd_entry_static(idx - COS_THD_INIT_REGION_SIZE);
