@@ -6,6 +6,9 @@
 
 #include <cos_environ_constants.h>
 
+/* See `struct regs_user_context` below */
+#define REGS_USER_CONTEXT_SZ 32
+
 #define REG_STATE_PREEMPTED 0 /* The registers must be fully restored as they represent preempted state */
 #define REG_STATE_SYSCALL   1 /* The registers don't require full restoration, and can use fastpaths */
 
@@ -217,6 +220,7 @@
  * the stack by the stack "getting" code (in `REGS_USER_GET_STACK`).
  */
 #define REGS_PUSH_USER_CONTEXT		\
+	pushq $0;			\
 	pushq PREFIX(rdx);		\
 	pushq PREFIX(rbx);		\
 	pushq PREFIX(rax);
@@ -262,9 +266,13 @@
 	pushq PREFIX(r14);						\
 	pushq PREFIX(r13);
 
+/*
+ * TODO: Pass return values. For now, this is ignored.
+ */
 #define REGS_USER_TEARDOWN_ARG6
+
+/* sub-away the 4 arguments pushed in REGS_USER_SETUP_ARG_REST  */
 #define REGS_USER_TEARDOWN_ARG_REST		\
-	/* sub-away the 4 arguments  */		\
 	add $(8 * 4), PREFIX(rsp);
 
 #define REGS_USER_SETUP_ARGS			\
@@ -282,7 +290,8 @@
  * execution. This is trivial, and just relies on stacks of a fixed
  * size, allocated in an array.
  *
- * This clobbers rcx, and initializes rsp.
+ * - Assumes: rbx holds the thread id.
+ * - Clobbers: rcx, and initializes rsp.
  *
  * REGS_USER_PUT_STACK gives up the stack. Nothing to be done for this
  * policy! Assumes that the stack is no longer accessed after this
@@ -495,8 +504,6 @@ struct regs_user_context {
 	uword_t inv_token;
 	uword_t stack_context;	/* Can be used by the stack tracking code */
 };
-
-#define REGS_USER_CONTEXT_SZ 32
 
 COS_STATIC_ASSERT(sizeof(struct regs_user_context) == REGS_USER_CONTEXT_SZ,
 		  "The user register context struct size doesn't match REGS_USER_CONTEXT_SZ.");

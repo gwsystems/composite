@@ -48,17 +48,3 @@ __cosrt_upcall_entry:				\
 	/* movl $RET_CAP, %eax;		\ */
 	/* COS_ASM_RET_STACK		\ */
 	/* sysenter; */
-
-#define COS_ATOMIC_CMPXCHG 		\
-	movl %eax, %edx;		\
-	cmpl (%ebx), %eax;		\
-	jne cos_atomic_cmpxchg_end;	\
-	movl %ecx, %edx;		\
-	movl %ecx, (%ebx);
-
-#define COS_ATOMIC_CMPXCHG_END		\
-	ret;
-
-#define COS_ATOMIC_USER4_END		\
-	movl $0, %eax;			\
-	movl (%eax), %eax;

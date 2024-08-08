@@ -394,14 +394,7 @@ cos_init_args_cpubmp(u32_t *cpubmp)
 static inline long
 cos_cmpxchg(volatile void *memory, long anticipated, long result)
 {
-	long ret;
-
-	__asm__ __volatile__("call cos_atomic_cmpxchg"
-	                     : "=d"(ret)
-	                     : "a"(anticipated), "b"(memory), "c"(result)
-	                     : "cc", "memory");
-
-	return ret;
+	return (long)ps_cas((unsigned long *)memory, anticipated, result);
 }
 
 /* A uni-processor variant with less overhead but that doesn't
