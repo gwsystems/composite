@@ -132,7 +132,7 @@ pub trait BuildState {
     fn initialize(
         &mut self,
         name: &String,
-        flag: Option<String>,
+        is_rebuild: bool,
         s: &SystemState,
     ) -> Result<(), String>; // must be called *before* the following functions
     fn file_path(&self, file: &String) -> Result<String, String>; // create a path in the build directory for a file

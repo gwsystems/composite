@@ -46,9 +46,15 @@ pub fn exec() -> Result<(), String> {
         ));
     }
 
+    let is_rebuild = match arg3 {
+        Some(ref val) if val == "REBUILD" => true,
+        Some(_) => return Err(format!("Invalid third argument. Expected 'REBUILD'.")),
+        None => false,
+    };
+
     let mut sys = SystemState::new(arg1.unwrap());
     let mut build = DefaultBuilder::new();
-    build.initialize(&arg2.unwrap(), arg3, &sys)?;
+    build.initialize(&arg2.unwrap(), is_rebuild, &sys)?;
 
     sys.add_parsed(SystemSpec::transition(&sys, &mut build)?);
     sys.add_named(CompTotOrd::transition(&sys, &mut build)?);

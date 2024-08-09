@@ -328,14 +328,14 @@ fn kern_gen_make_cmd(input_constructor: &String, kern_output: &String, _s: &Syst
 
 pub struct DefaultBuilder {
     builddir: String,
-    rebuildflag: Option<String>,
+    rebuildflag: bool,
 }
 
 impl DefaultBuilder {
     pub fn new() -> Self {
         DefaultBuilder {
             builddir: "/dev/null".to_string(), // must initialize, so error out if you don't
-            rebuildflag: None,
+            rebuildflag: false,
         }
     }
 }
@@ -353,7 +353,7 @@ impl BuildState for DefaultBuilder {
     fn initialize(
         &mut self,
         name: &String,
-        flag: Option<String>,
+        is_rebuild: bool,
         _s: &SystemState,
     ) -> Result<(), String> {
         let pwd = env::current_dir().unwrap();
@@ -361,7 +361,8 @@ impl BuildState for DefaultBuilder {
 
         reset_dir(&dir)?;
         self.builddir = dir;
-        self.rebuildflag = flag;
+        self.rebuildflag = is_rebuild;
+
         Ok(())
     }
 
@@ -438,44 +439,43 @@ impl BuildState for DefaultBuilder {
         self.comp_const_header_file(&header_file_path, &id, &state)?;
 
         //rebuild process starts
-        if let Some(flag) = &self.rebuildflag {
-            if flag == "REBUILD" {
-                let dep_cmd = comp_gen_make_cmd(
-                    &output_path,
-                    p.param_prog(),
-                    p.param_fs(),
-                    &Some(header_file_path.clone()),
-                    CmdOpts::DEPINFO,
-                    &id,
-                    &state,
+        if self.rebuildflag {
+            let dep_cmd = comp_gen_make_cmd(
+                &output_path,
+                p.param_prog(),
+                p.param_fs(),
+                &Some(header_file_path.clone()),
+                CmdOpts::DEPINFO,
+                &id,
+                &state,
+            );
+            let (out1, err1) = exec_pipeline(vec![dep_cmd.clone()]);
+
+            let rebuild_cmd = format!(
+                r#"make -C src REBUILD_DIRS="{}" COMP_CONST_H="-include {}" component_rebuild"#,
+                out1, header_file_path
+            );
+            let (out2, err2) = exec_pipeline(vec![rebuild_cmd.clone()]);
+
+            emit_file(
+                &comp_log,
+                format!(
+                    "Command to determine a component's dependencies:: {}\nCompilation output:{}\ncompilation errors:{}\n
+                        Rebuild Command: {}\nCompilation output:{}\nComponent compilation errors:{}\n",
+                    dep_cmd, out1, err1, rebuild_cmd, out2, err2
+                )
+                .as_bytes(),
+            )?;
+
+            if err1.len() != 0 || err2.len() != 0 {
+                println!(
+                    "Errors in compiling component {}. See {}.",
+                    &output_path, comp_log
                 );
-                let (out1, err1) = exec_pipeline(vec![dep_cmd.clone()]);
-
-                let rebuild_cmd = format!(
-                    r#"make -C src REBUILD_DIRS="{}" COMP_CONST_H="-include {}" component_rebuild"#,
-                    out1, header_file_path
-                );
-                let (out2, err2) = exec_pipeline(vec![rebuild_cmd.clone()]);
-
-                emit_file(
-                    &comp_log,
-                    format!(
-                        "Dep Command: {}\nCompilation output:{}\ncompilation errors:{}\n
-                         Rebuild Command: {}\nCompilation output:{}\nComponent compilation errors:{}\n",
-                        dep_cmd, out1, err1, rebuild_cmd, out2, err2
-                    )
-                    .as_bytes(),
-                )?;
-
-                if err1.len() != 0 || err2.len() != 0 {
-                    println!(
-                        "Errors in compiling component {}. See {}.",
-                        &output_path, comp_log
-                    );
-                }
             }
         }
         //rebuild process ends
+
         let cmd = comp_gen_make_cmd(
             &output_path,
             p.param_prog(),

@@ -71,7 +71,8 @@ compose()
 	tools/build_iso.sh ${dir}/cos.img
 }
 
-compose_opt(){
+compose_opt()
+{
 	if [ -z "$script" ] || [ -z "$name" ] || [ -z "$rebuild_flag" ]; then
 		usage
 	fi
