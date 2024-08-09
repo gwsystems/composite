@@ -1,3 +1,4 @@
+#include "cos_chal_consts.h"
 #include <chal_cpu.h>
 #include <state.h>
 #include <consts.h>
@@ -428,7 +429,7 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 	/* ...Second, lets add the constructor's virtual memory into the page-tables... */
 	printk("\tVirtual memory mapping...read-only...");
 	COS_CHECK(cos_pgtbl_node_offset(COS_PGTBL_MAX_DEPTH - 1, constructor_lower_page, constructor_lower_page, mappings_num, &pgtbl_leaf_off));
-	for (i = 0; i < ro_sz / COS_PAGE_SIZE; i++) {
+	for (i = 0; i < cos_round_up_to_pow2(ro_sz, COS_PAGE_SIZE) / COS_PAGE_SIZE; i++) {
 		uword_t offset = (constructor_lower_page + i) % COS_PGTBL_LEAF_NENT;
 		uword_t vm_page = constructor_offset + (ro_off / COS_PAGE_SIZE) + i;
 
@@ -438,7 +439,7 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 		if (offset == (COS_PGTBL_LEAF_NENT - 1)) pgtbl_leaf_off++;
 	}
 	printk("RW initialized data...");
-	for (j = 0; j < data_sz / COS_PAGE_SIZE; i++, j++) {
+	for (j = 0; j < cos_round_up_to_pow2(data_sz, COS_PAGE_SIZE) / COS_PAGE_SIZE; i++, j++) {
 		uword_t offset = (constructor_lower_page + i) % COS_PGTBL_LEAF_NENT;
 		uword_t vm_page = constructor_offset + (data_off / COS_PAGE_SIZE) + j;
 
@@ -452,7 +453,6 @@ constructor_init(vaddr_t constructor_lower_vaddr, vaddr_t constructor_entry,
 		uword_t offset = (constructor_lower_page + i) % COS_PGTBL_LEAF_NENT;
 		uword_t vm_page = zeroed_page_offset + j;
 
-//		printk("\t%d[%d] = %d, %x\n", pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_RW);
 		COS_CHECK(resource_vm_create(vm_page));
 		COS_CHECK(pgtbl_map(pgtbl_offset + pgtbl_leaf_off, offset, vm_page, COS_PGTBL_PERM_VM_RW));
 
