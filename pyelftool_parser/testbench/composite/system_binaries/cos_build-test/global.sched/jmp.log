@@ -1,0 +1,961 @@
+  400133:	eb 0f                	jmp    400144 <exit_init_thd+0x94>
+  4001df:	e9 ea fe ff ff       	jmp    4000ce <exit_init_thd+0x1e>
+  4006d1:	e9 d5 00 00 00       	jmp    4007ab <slm_idle_comp_initialization+0x1fb>
+  40075a:	e9 cf fe ff ff       	jmp    40062e <slm_idle_comp_initialization+0x7e>
+  40078e:	e9 41 fe ff ff       	jmp    4005d4 <slm_idle_comp_initialization+0x24>
+  4007a6:	e9 cb fe ff ff       	jmp    400676 <slm_idle_comp_initialization+0xc6>
+  400812:	eb 10                	jmp    400824 <slm_idle_comp_initialization+0x274>
+  400a39:	eb d7                	jmp    400a12 <slm_idle_comp_initialization+0x462>
+  400a41:	e9 47 ff ff ff       	jmp    40098d <slm_idle_comp_initialization+0x3dd>
+  400a6c:	e9 56 ff ff ff       	jmp    4009c7 <slm_idle_comp_initialization+0x417>
+  400a8f:	e9 33 ff ff ff       	jmp    4009c7 <slm_idle_comp_initialization+0x417>
+  400aaf:	e9 1a fe ff ff       	jmp    4008ce <slm_idle_comp_initialization+0x31e>
+  400d02:	eb 15                	jmp    400d19 <slm_ipi_process+0x179>
+  400d46:	eb d1                	jmp    400d19 <slm_ipi_process+0x179>
+  400dc9:	e9 42 fe ff ff       	jmp    400c10 <slm_ipi_process+0x70>
+  400dec:	e9 1f fe ff ff       	jmp    400c10 <slm_ipi_process+0x70>
+  400ebb:	eb 0f                	jmp    400ecc <slm_blkpt_alloc+0xcc>
+  400f59:	e9 45 ff ff ff       	jmp    400ea3 <slm_blkpt_alloc+0xa3>
+  40101e:	eb 10                	jmp    401030 <slm_blkpt_trigger+0xc0>
+  40105c:	eb 0e                	jmp    40106c <slm_blkpt_trigger+0xfc>
+  4010ce:	eb 16                	jmp    4010e6 <slm_blkpt_trigger+0x176>
+  401153:	eb 0f                	jmp    401164 <slm_blkpt_trigger+0x1f4>
+  4011e6:	e9 a9 fe ff ff       	jmp    401094 <slm_blkpt_trigger+0x124>
+  40120b:	e9 df fe ff ff       	jmp    4010ef <slm_blkpt_trigger+0x17f>
+  40126c:	e9 d3 fd ff ff       	jmp    401044 <slm_blkpt_trigger+0xd4>
+  401356:	eb d1                	jmp    401329 <slm_blkpt_trigger+0x3b9>
+  4013ac:	e9 fa fe ff ff       	jmp    4012ab <slm_blkpt_trigger+0x33b>
+  4013cf:	e9 0f ff ff ff       	jmp    4012e3 <slm_blkpt_trigger+0x373>
+  4013fa:	e9 e4 fe ff ff       	jmp    4012e3 <slm_blkpt_trigger+0x373>
+  40141a:	e9 0f fe ff ff       	jmp    40122e <slm_blkpt_trigger+0x2be>
+  401533:	eb 0f                	jmp    401544 <slm_blkpt_block+0xe4>
+  4015d3:	eb 15                	jmp    4015ea <slm_blkpt_block+0x18a>
+  40166a:	e9 ac fe ff ff       	jmp    40151b <slm_blkpt_block+0xbb>
+  4016cc:	e9 4a fe ff ff       	jmp    40151b <slm_blkpt_block+0xbb>
+  401732:	eb 10                	jmp    401744 <slm_blkpt_block+0x2e4>
+  4018f8:	eb d1                	jmp    4018cb <slm_blkpt_block+0x46b>
+  401922:	e9 2b ff ff ff       	jmp    401852 <slm_blkpt_block+0x3f2>
+  401945:	e9 3f ff ff ff       	jmp    401889 <slm_blkpt_block+0x429>
+  40196f:	e9 15 ff ff ff       	jmp    401889 <slm_blkpt_block+0x429>
+  40198f:	e9 fa fc ff ff       	jmp    40168e <slm_blkpt_block+0x22e>
+  401a14:	e9 c7 25 01 00       	jmp    413fe0 <slm_timer_quantum_expire>
+  401a24:	e9 d7 28 01 00       	jmp    414300 <slm_timer_quantum_thd_init>
+  401a34:	e9 e7 28 01 00       	jmp    414320 <slm_timer_quantum_thd_deinit>
+  401a44:	e9 67 27 01 00       	jmp    4141b0 <slm_timer_quantum_add>
+  401a54:	e9 07 28 01 00       	jmp    414260 <slm_timer_quantum_cancel>
+  401a64:	e9 c7 28 01 00       	jmp    414330 <slm_timer_quantum_init>
+  401a74:	e9 87 24 01 00       	jmp    413f00 <slm_sched_fprr_init>
+  401a84:	e9 b7 22 01 00       	jmp    413d40 <slm_sched_fprr_thd_init>
+  401a94:	e9 d7 22 01 00       	jmp    413d70 <slm_sched_fprr_thd_deinit>
+  401aa4:	e9 f7 22 01 00       	jmp    413da0 <slm_sched_fprr_thd_update>
+  401ab4:	e9 67 21 01 00       	jmp    413c20 <slm_sched_fprr_block>
+  401ac4:	e9 87 21 01 00       	jmp    413c50 <slm_sched_fprr_wakeup>
+  401ad4:	e9 f7 21 01 00       	jmp    413cd0 <slm_sched_fprr_yield>
+  401ae4:	e9 b7 20 01 00       	jmp    413ba0 <slm_sched_fprr_schedule>
+  401af4:	e9 97 20 01 00       	jmp    413b90 <slm_sched_fprr_execution>
+  401f42:	e9 59 1e 01 00       	jmp    413da0 <slm_sched_fprr_thd_update>
+  402087:	eb 13                	jmp    40209c <sched_thd_exit+0x12c>
+  402210:	eb d2                	jmp    4021e4 <sched_thd_exit+0x274>
+  40228a:	e9 86 fe ff ff       	jmp    402115 <sched_thd_exit+0x1a5>
+  402299:	e9 cc fe ff ff       	jmp    40216a <sched_thd_exit+0x1fa>
+  4022f6:	e9 a6 fe ff ff       	jmp    4021a1 <sched_thd_exit+0x231>
+  402324:	e9 78 fe ff ff       	jmp    4021a1 <sched_thd_exit+0x231>
+  402364:	e9 54 ff ff ff       	jmp    4022bd <sched_thd_exit+0x34d>
+  4024d9:	eb 11                	jmp    4024ec <sched_thd_yield_to+0x15c>
+  4025cb:	e9 14 fe ff ff       	jmp    4023e4 <sched_thd_yield_to+0x54>
+  402698:	eb 6b                	jmp    402705 <sched_thd_yield_to+0x375>
+  402765:	eb da                	jmp    402741 <sched_thd_yield_to+0x3b1>
+  40276e:	e9 ed fe ff ff       	jmp    402660 <sched_thd_yield_to+0x2d0>
+  402791:	e9 6f ff ff ff       	jmp    402705 <sched_thd_yield_to+0x375>
+  4027d0:	e9 19 fe ff ff       	jmp    4025ee <sched_thd_yield_to+0x25e>
+  402862:	e9 29 57 00 00       	jmp    407f90 <__cosrt_extern_capmgr_set_tls>
+  402990:	eb 12                	jmp    4029a4 <thd_block+0x134>
+  402a58:	eb 12                	jmp    402a6c <thd_block+0x1fc>
+  402a94:	eb d6                	jmp    402a6c <thd_block+0x1fc>
+  402bdc:	eb d4                	jmp    402bb2 <thd_block+0x342>
+  402c2a:	e9 05 ff ff ff       	jmp    402b34 <thd_block+0x2c4>
+  402c4e:	e9 1b ff ff ff       	jmp    402b6e <thd_block+0x2fe>
+  402c79:	e9 f0 fe ff ff       	jmp    402b6e <thd_block+0x2fe>
+  402cb8:	e9 21 fe ff ff       	jmp    402ade <thd_block+0x26e>
+  402ce2:	e9 3e fd ff ff       	jmp    402a25 <thd_block+0x1b5>
+  402e19:	eb 11                	jmp    402e2c <sched_thd_block+0x13c>
+  402ed8:	eb 12                	jmp    402eec <sched_thd_block+0x1fc>
+  402f14:	eb d6                	jmp    402eec <sched_thd_block+0x1fc>
+  40305c:	eb d4                	jmp    403032 <sched_thd_block+0x342>
+  4030aa:	e9 fe fd ff ff       	jmp    402ead <sched_thd_block+0x1bd>
+  4030b5:	e9 fa fe ff ff       	jmp    402fb4 <sched_thd_block+0x2c4>
+  4030d9:	e9 10 ff ff ff       	jmp    402fee <sched_thd_block+0x2fe>
+  403104:	e9 e5 fe ff ff       	jmp    402fee <sched_thd_block+0x2fe>
+  403143:	e9 16 fe ff ff       	jmp    402f5e <sched_thd_block+0x26e>
+  403172:	e9 36 fd ff ff       	jmp    402ead <sched_thd_block+0x1bd>
+  4032a1:	eb 11                	jmp    4032b4 <thd_wakeup+0x134>
+  403368:	eb 12                	jmp    40337c <thd_wakeup+0x1fc>
+  4033a4:	eb d6                	jmp    40337c <thd_wakeup+0x1fc>
+  4034f1:	eb d6                	jmp    4034c9 <thd_wakeup+0x349>
+  403543:	e9 fc fe ff ff       	jmp    403444 <thd_wakeup+0x2c4>
+  403573:	e9 08 ff ff ff       	jmp    403480 <thd_wakeup+0x300>
+  40359a:	e9 e1 fe ff ff       	jmp    403480 <thd_wakeup+0x300>
+  4035d9:	e9 10 fe ff ff       	jmp    4033ee <thd_wakeup+0x26e>
+  403781:	eb 11                	jmp    403794 <sched_thd_wakeup+0x194>
+  403817:	e9 21 fe ff ff       	jmp    40363d <sched_thd_wakeup+0x3d>
+  403838:	eb 16                	jmp    403850 <sched_thd_wakeup+0x250>
+  40387c:	eb d2                	jmp    403850 <sched_thd_wakeup+0x250>
+  4039a1:	eb d6                	jmp    403979 <sched_thd_wakeup+0x379>
+  4039f3:	e9 fc fe ff ff       	jmp    4038f4 <sched_thd_wakeup+0x2f4>
+  403a23:	e9 08 ff ff ff       	jmp    403930 <sched_thd_wakeup+0x330>
+  403a4a:	e9 e1 fe ff ff       	jmp    403930 <sched_thd_wakeup+0x330>
+  403a89:	e9 10 fe ff ff       	jmp    40389e <sched_thd_wakeup+0x29e>
+  403c40:	eb 13                	jmp    403c55 <sched_thd_block_timeout+0x155>
+  403d3c:	e9 22 fe ff ff       	jmp    403b63 <sched_thd_block_timeout+0x63>
+  403e05:	eb d6                	jmp    403ddd <sched_thd_block_timeout+0x2dd>
+  403e18:	e9 c2 fd ff ff       	jmp    403bdf <sched_thd_block_timeout+0xdf>
+  403e23:	e9 3b fd ff ff       	jmp    403b63 <sched_thd_block_timeout+0x63>
+  403f28:	e9 32 fe ff ff       	jmp    403d5f <sched_thd_block_timeout+0x25f>
+  403f4d:	e9 47 fe ff ff       	jmp    403d99 <sched_thd_block_timeout+0x299>
+  403f7a:	e9 1a fe ff ff       	jmp    403d99 <sched_thd_block_timeout+0x299>
+  40413e:	eb 0d                	jmp    40414d <thd_sleep+0x14d>
+  40422c:	e9 30 fe ff ff       	jmp    404061 <thd_sleep+0x61>
+  404240:	e9 98 fe ff ff       	jmp    4040dd <thd_sleep+0xdd>
+  40424b:	e9 11 fe ff ff       	jmp    404061 <thd_sleep+0x61>
+  40431b:	eb 78                	jmp    404395 <thd_sleep+0x395>
+  404367:	e9 74 ff ff ff       	jmp    4042e0 <thd_sleep+0x2e0>
+  4043fe:	eb da                	jmp    4043da <thd_sleep+0x3da>
+  404403:	e9 f1 fd ff ff       	jmp    4041f9 <thd_sleep+0x1f9>
+  404429:	e9 67 ff ff ff       	jmp    404395 <thd_sleep+0x395>
+  404484:	e9 e5 fd ff ff       	jmp    40426e <thd_sleep+0x26e>
+  404597:	eb 13                	jmp    4045ac <sched_blkpt_alloc+0x11c>
+  40463d:	e9 3d ff ff ff       	jmp    40457f <sched_blkpt_alloc+0xef>
+  4046b6:	e9 b5 c8 ff ff       	jmp    400f70 <slm_blkpt_trigger>
+  4046c5:	e9 a6 c8 ff ff       	jmp    400f70 <slm_blkpt_trigger>
+  404727:	e9 34 cd ff ff       	jmp    401460 <slm_blkpt_block>
+  404735:	e9 26 cd ff ff       	jmp    401460 <slm_blkpt_block>
+  40490c:	e9 9a fe ff ff       	jmp    4047ab <syncipc_call+0x6b>
+  40491a:	e9 8c fe ff ff       	jmp    4047ab <syncipc_call+0x6b>
+  404940:	e9 df fe ff ff       	jmp    404824 <syncipc_call+0xe4>
+  404958:	e9 7c ff ff ff       	jmp    4048d9 <syncipc_call+0x199>
+  4049bf:	eb 58                	jmp    404a19 <syncipc_call+0x2d9>
+  4049f3:	e9 e1 fe ff ff       	jmp    4048d9 <syncipc_call+0x199>
+  404a2f:	e9 71 fe ff ff       	jmp    4048a5 <syncipc_call+0x165>
+  404a47:	eb d5                	jmp    404a1e <syncipc_call+0x2de>
+  404a4f:	e9 85 fe ff ff       	jmp    4048d9 <syncipc_call+0x199>
+  404be8:	eb e2                	jmp    404bcc <syncipc_reply_wait+0x16c>
+  404bf8:	e9 12 ff ff ff       	jmp    404b0f <syncipc_reply_wait+0xaf>
+  404c50:	e9 2a ff ff ff       	jmp    404b7f <syncipc_reply_wait+0x11f>
+  404c8a:	e9 3d ff ff ff       	jmp    404bcc <syncipc_reply_wait+0x16c>
+  404d24:	e9 a3 fe ff ff       	jmp    404bcc <syncipc_reply_wait+0x16c>
+  404d33:	e9 91 fd ff ff       	jmp    404ac9 <syncipc_reply_wait+0x69>
+  404d56:	e9 24 fe ff ff       	jmp    404b7f <syncipc_reply_wait+0x11f>
+  404d89:	e9 f1 fd ff ff       	jmp    404b7f <syncipc_reply_wait+0x11f>
+  404dcc:	e9 fb fd ff ff       	jmp    404bcc <syncipc_reply_wait+0x16c>
+  404df4:	e9 b7 10 01 00       	jmp    415eb0 <slm_get_cycs_per_usec>
+  405003:	eb 0f                	jmp    405014 <slm_ipithd_create+0x214>
+  40506f:	eb cb                	jmp    40503c <slm_ipithd_create+0x23c>
+  40512d:	e9 ae 0d 01 00       	jmp    415ee0 <slm_sched_loop_nonblock>
+  405149:	e9 92 0d 01 00       	jmp    415ee0 <slm_sched_loop_nonblock>
+  4052c0:	e9 1b 63 00 00       	jmp    40b5e0 <cos_defcompinfo_init>
+  405440:	eb 46                	jmp    405488 <thd_alloc+0x118>
+  4054fb:	eb 0f                	jmp    40550c <thd_alloc+0x19c>
+  4055f2:	eb d3                	jmp    4055c7 <thd_alloc+0x257>
+  405640:	eb 16                	jmp    405658 <thd_alloc+0x2e8>
+  405684:	eb d2                	jmp    405658 <thd_alloc+0x2e8>
+  4057bb:	eb 80                	jmp    40573d <thd_alloc+0x3cd>
+  4057c3:	e9 3c ff ff ff       	jmp    405704 <thd_alloc+0x394>
+  4057e6:	e9 52 ff ff ff       	jmp    40573d <thd_alloc+0x3cd>
+  405822:	e9 87 fe ff ff       	jmp    4056ae <thd_alloc+0x33e>
+  405920:	eb 46                	jmp    405968 <thd_alloc_in+0x118>
+  4059db:	eb 0f                	jmp    4059ec <thd_alloc_in+0x19c>
+  405ac9:	eb d3                	jmp    405a9e <thd_alloc_in+0x24e>
+  405b18:	eb 16                	jmp    405b30 <thd_alloc_in+0x2e0>
+  405b5c:	eb d2                	jmp    405b30 <thd_alloc_in+0x2e0>
+  405c89:	eb 81                	jmp    405c0c <thd_alloc_in+0x3bc>
+  405c91:	e9 3e ff ff ff       	jmp    405bd4 <thd_alloc_in+0x384>
+  405cb4:	e9 53 ff ff ff       	jmp    405c0c <thd_alloc_in+0x3bc>
+  405cf0:	e9 89 fe ff ff       	jmp    405b7e <thd_alloc_in+0x32e>
+  405d2a:	e9 51 57 00 00       	jmp    40b480 <custom_acquire_stack>
+  405d6d:	e9 0e 57 00 00       	jmp    40b480 <custom_acquire_stack>
+  405d9a:	e9 e1 56 00 00       	jmp    40b480 <custom_acquire_stack>
+  405ddd:	e9 9e 56 00 00       	jmp    40b480 <custom_acquire_stack>
+  405e0a:	e9 71 56 00 00       	jmp    40b480 <custom_acquire_stack>
+  405e4d:	e9 2e 56 00 00       	jmp    40b480 <custom_acquire_stack>
+  405e7a:	e9 01 56 00 00       	jmp    40b480 <custom_acquire_stack>
+  405ebd:	e9 be 55 00 00       	jmp    40b480 <custom_acquire_stack>
+  405eea:	e9 91 55 00 00       	jmp    40b480 <custom_acquire_stack>
+  405f2d:	e9 4e 55 00 00       	jmp    40b480 <custom_acquire_stack>
+  405f5a:	e9 21 55 00 00       	jmp    40b480 <custom_acquire_stack>
+  405f9d:	e9 de 54 00 00       	jmp    40b480 <custom_acquire_stack>
+  405fca:	e9 b1 54 00 00       	jmp    40b480 <custom_acquire_stack>
+  40600d:	e9 6e 54 00 00       	jmp    40b480 <custom_acquire_stack>
+  40603a:	e9 41 54 00 00       	jmp    40b480 <custom_acquire_stack>
+  40607d:	e9 fe 53 00 00       	jmp    40b480 <custom_acquire_stack>
+  4060aa:	e9 d1 53 00 00       	jmp    40b480 <custom_acquire_stack>
+  4060ed:	e9 8e 53 00 00       	jmp    40b480 <custom_acquire_stack>
+  40611a:	e9 61 53 00 00       	jmp    40b480 <custom_acquire_stack>
+  40616d:	e9 0e 53 00 00       	jmp    40b480 <custom_acquire_stack>
+  4061aa:	e9 d1 52 00 00       	jmp    40b480 <custom_acquire_stack>
+  4061ed:	e9 8e 52 00 00       	jmp    40b480 <custom_acquire_stack>
+  40621a:	e9 61 52 00 00       	jmp    40b480 <custom_acquire_stack>
+  40626d:	e9 0e 52 00 00       	jmp    40b480 <custom_acquire_stack>
+  4062aa:	e9 d1 51 00 00       	jmp    40b480 <custom_acquire_stack>
+  4062ed:	e9 8e 51 00 00       	jmp    40b480 <custom_acquire_stack>
+  40631a:	e9 61 51 00 00       	jmp    40b480 <custom_acquire_stack>
+  40635d:	e9 1e 51 00 00       	jmp    40b480 <custom_acquire_stack>
+  40638a:	e9 f1 50 00 00       	jmp    40b480 <custom_acquire_stack>
+  4063cd:	e9 ae 50 00 00       	jmp    40b480 <custom_acquire_stack>
+  4063fa:	e9 81 50 00 00       	jmp    40b480 <custom_acquire_stack>
+  40643d:	e9 3e 50 00 00       	jmp    40b480 <custom_acquire_stack>
+  4064ea:	e9 91 4f 00 00       	jmp    40b480 <custom_acquire_stack>
+  40652d:	e9 4e 4f 00 00       	jmp    40b480 <custom_acquire_stack>
+  40655a:	e9 21 4f 00 00       	jmp    40b480 <custom_acquire_stack>
+  40659d:	e9 de 4e 00 00       	jmp    40b480 <custom_acquire_stack>
+  406640:	eb 0d                	jmp    40664f <__cosrt_c_init_done+0x8f>
+  40664d:	eb 05                	jmp    406654 <__cosrt_c_init_done+0x94>
+  406656:	eb 9d                	jmp    4065f5 <__cosrt_c_init_done+0x35>
+  406772:	ff e0                	jmp    rax
+  406912:	ff e0                	jmp    rax
+  406a68:	eb 0f                	jmp    406a79 <__cosrt_c_capmgr_rcv_create+0xb9>
+  406a77:	eb 07                	jmp    406a80 <__cosrt_c_capmgr_rcv_create+0xc0>
+  406a8a:	e9 71 ff ff ff       	jmp    406a00 <__cosrt_c_capmgr_rcv_create+0x40>
+  406b08:	eb 0f                	jmp    406b19 <__cosrt_c_capmgr_shared_kernel_page_create+0x89>
+  406b17:	eb 07                	jmp    406b20 <__cosrt_c_capmgr_shared_kernel_page_create+0x90>
+  406b26:	eb 97                	jmp    406abf <__cosrt_c_capmgr_shared_kernel_page_create+0x2f>
+  406ba8:	eb 0f                	jmp    406bb9 <__cosrt_c_capmgr_vm_lapic_create+0x89>
+  406bb7:	eb 07                	jmp    406bc0 <__cosrt_c_capmgr_vm_lapic_create+0x90>
+  406bc6:	eb 97                	jmp    406b5f <__cosrt_c_capmgr_vm_lapic_create+0x2f>
+  406c48:	eb 0f                	jmp    406c59 <__cosrt_c_capmgr_vm_shared_region_create+0x89>
+  406c57:	eb 07                	jmp    406c60 <__cosrt_c_capmgr_vm_shared_region_create+0x90>
+  406c66:	eb 97                	jmp    406bff <__cosrt_c_capmgr_vm_shared_region_create+0x2f>
+  406cf0:	eb 0f                	jmp    406d01 <__cosrt_c_capmgr_vm_vcpu_create+0x91>
+  406cff:	eb 07                	jmp    406d08 <__cosrt_c_capmgr_vm_vcpu_create+0x98>
+  406d0e:	eb 90                	jmp    406ca0 <__cosrt_c_capmgr_vm_vcpu_create+0x30>
+  406d98:	eb 0f                	jmp    406da9 <__cosrt_c_capmgr_initthd_create+0x99>
+  406da7:	eb 07                	jmp    406db0 <__cosrt_c_capmgr_initthd_create+0xa0>
+  406db6:	eb 91                	jmp    406d49 <__cosrt_c_capmgr_initthd_create+0x39>
+  406e48:	eb 0f                	jmp    406e59 <__cosrt_c_capmgr_thd_create_thunk+0x99>
+  406e57:	eb 07                	jmp    406e60 <__cosrt_c_capmgr_thd_create_thunk+0xa0>
+  406e66:	eb 90                	jmp    406df8 <__cosrt_c_capmgr_thd_create_thunk+0x38>
+  406ef8:	eb 0f                	jmp    406f09 <__cosrt_c_capmgr_thd_create_ext+0x99>
+  406f07:	eb 07                	jmp    406f10 <__cosrt_c_capmgr_thd_create_ext+0xa0>
+  406f16:	eb 92                	jmp    406eaa <__cosrt_c_capmgr_thd_create_ext+0x3a>
+  407028:	eb 0f                	jmp    407039 <__cosrt_c_capmgr_aep_create_thunk+0x119>
+  407037:	eb 07                	jmp    407040 <__cosrt_c_capmgr_aep_create_thunk+0x120>
+  40704a:	e9 3d ff ff ff       	jmp    406f8c <__cosrt_c_capmgr_aep_create_thunk+0x6c>
+  407160:	eb 0f                	jmp    407171 <__cosrt_c_capmgr_aep_create_ext+0x121>
+  40716f:	eb 07                	jmp    407178 <__cosrt_c_capmgr_aep_create_ext+0x128>
+  407182:	e9 33 ff ff ff       	jmp    4070ba <__cosrt_c_capmgr_aep_create_ext+0x6a>
+  407250:	eb 0f                	jmp    407261 <__cosrt_c_capmgr_vm_vmcb_create+0xd1>
+  40725f:	eb 07                	jmp    407268 <__cosrt_c_capmgr_vm_vmcb_create+0xd8>
+  407390:	eb 0f                	jmp    4073a1 <__cosrt_c_capmgr_initaep_create+0x121>
+  40739f:	eb 07                	jmp    4073a8 <__cosrt_c_capmgr_initaep_create+0x128>
+  4073b2:	e9 27 ff ff ff       	jmp    4072de <__cosrt_c_capmgr_initaep_create+0x5e>
+  4074bb:	ff e0                	jmp    rax
+  40766b:	ff e0                	jmp    rax
+  40781b:	ff e0                	jmp    rax
+  4079cb:	ff e0                	jmp    rax
+  407b7b:	ff e0                	jmp    rax
+  407d2b:	ff e0                	jmp    rax
+  407edb:	ff e0                	jmp    rax
+  408082:	ff e0                	jmp    rax
+  408222:	ff e0                	jmp    rax
+  4083c2:	ff e0                	jmp    rax
+  408562:	ff e0                	jmp    rax
+  408702:	ff e0                	jmp    rax
+  4088a2:	ff e0                	jmp    rax
+  408a42:	ff e0                	jmp    rax
+  408be2:	ff e0                	jmp    rax
+  408d82:	ff e0                	jmp    rax
+  408f2b:	ff e0                	jmp    rax
+  4090db:	ff e0                	jmp    rax
+  40928b:	ff e0                	jmp    rax
+  40943b:	ff e0                	jmp    rax
+  4095eb:	ff e0                	jmp    rax
+  409720:	eb 0f                	jmp    409731 <__cosrt_c_memmgr_shared_page_allocn+0x91>
+  40972f:	eb 07                	jmp    409738 <__cosrt_c_memmgr_shared_page_allocn+0x98>
+  40973e:	eb 92                	jmp    4096d2 <__cosrt_c_memmgr_shared_page_allocn+0x32>
+  4097c8:	eb 0f                	jmp    4097d9 <__cosrt_c_memmgr_shared_page_map+0x99>
+  4097d7:	eb 07                	jmp    4097e0 <__cosrt_c_memmgr_shared_page_map+0xa0>
+  4097e6:	eb 90                	jmp    409778 <__cosrt_c_memmgr_shared_page_map+0x38>
+  409870:	eb 0f                	jmp    409881 <__cosrt_c_memmgr_shared_page_allocn_aligned+0x91>
+  40987f:	eb 07                	jmp    409888 <__cosrt_c_memmgr_shared_page_allocn_aligned+0x98>
+  40988e:	eb 90                	jmp    409820 <__cosrt_c_memmgr_shared_page_allocn_aligned+0x30>
+  409910:	eb 0f                	jmp    409921 <__cosrt_c_memmgr_shared_page_map_aligned+0x91>
+  40991f:	eb 07                	jmp    409928 <__cosrt_c_memmgr_shared_page_map_aligned+0x98>
+  40992e:	eb 96                	jmp    4098c6 <__cosrt_c_memmgr_shared_page_map_aligned+0x36>
+  4099c0:	eb 0f                	jmp    4099d1 <__cosrt_c_memmgr_shared_page_map_aligned_in_vm+0xa1>
+  4099cf:	eb 07                	jmp    4099d8 <__cosrt_c_memmgr_shared_page_map_aligned_in_vm+0xa8>
+  4099de:	eb 8b                	jmp    40996b <__cosrt_c_memmgr_shared_page_map_aligned_in_vm+0x3b>
+  409ad2:	ff e0                	jmp    rax
+  409c72:	ff e0                	jmp    rax
+  409e12:	ff e0                	jmp    rax
+  409fb2:	ff e0                	jmp    rax
+  40a15b:	ff e0                	jmp    rax
+  40a30b:	ff e0                	jmp    rax
+  40a4bb:	ff e0                	jmp    rax
+  40a66b:	ff e0                	jmp    rax
+  40a81b:	ff e0                	jmp    rax
+  40a966:	eb d6                	jmp    40a93e <capmgr_thd_create+0x1e>
+  40a99d:	e9 ce cb ff ff       	jmp    407570 <__cosrt_extern_capmgr_thd_create_thunk>
+  40aa26:	eb d6                	jmp    40a9fe <capmgr_rcv_alloc+0x2e>
+  40aa64:	e9 77 d3 ff ff       	jmp    407de0 <__cosrt_extern_capmgr_rcv_create>
+  40ab37:	e9 44 cf ff ff       	jmp    407a80 <__cosrt_extern_capmgr_aep_create_thunk>
+  40ab5e:	e9 5e ff ff ff       	jmp    40aac1 <capmgr_aep_create+0x31>
+  40abe6:	e9 e5 ff ff ff       	jmp    40abd0 <pre_syscall_default_setup>
+  40ac4e:	e9 3d bd 00 00       	jmp    416990 <__init_libc>
+  40aca6:	eb 10                	jmp    40acb8 <cos_print_str+0x38>
+  40acf0:	eb 0d                	jmp    40acff <cos_print_str+0x7f>
+  40acfd:	eb 05                	jmp    40ad04 <cos_print_str+0x84>
+  40ae0c:	e9 6f fe ff ff       	jmp    40ac80 <cos_print_str>
+  40ae94:	e9 b7 ff ff ff       	jmp    40ae50 <cos_syscall_handler>
+  40aeb1:	e9 ba fc ff ff       	jmp    40ab70 <main>
+  40b0a0:	eb ac                	jmp    40b04e <cos_upcall_fn+0x14e>
+  40b15c:	eb 14                	jmp    40b172 <cos_upcall_fn+0x272>
+  40b194:	e9 51 ff ff ff       	jmp    40b0ea <cos_upcall_fn+0x1ea>
+  40b1ba:	e9 39 ff ff ff       	jmp    40b0f8 <cos_upcall_fn+0x1f8>
+  40b360:	eb 0d                	jmp    40b36f <__cosrt_c_cosrtdefault+0x7f>
+  40b36d:	eb 05                	jmp    40b374 <__cosrt_c_cosrtdefault+0x84>
+  40b3cd:	41 ff e2             	jmp    r10
+  40b3f8:	eb 0f                	jmp    40b409 <__cosrt_c_cosrtretdefault+0x79>
+  40b407:	eb 07                	jmp    40b410 <__cosrt_c_cosrtretdefault+0x80>
+  40b4a2:	ff e1                	jmp    rcx
+  40b4ba:	e9 c1 ff ff ff       	jmp    40b480 <custom_acquire_stack>
+  40bac0:	e9 fc fe ff ff       	jmp    40b9c1 <cos_defcompinfo_child_alloc+0x71>
+  40bcee:	e9 0c ff ff ff       	jmp    40bbff <cos_initaep_alloc+0x4f>
+  40bebd:	e9 10 ff ff ff       	jmp    40bdd2 <cos_initaep_tcap_alloc+0x52>
+  40c252:	e9 3a ff ff ff       	jmp    40c191 <cos_aep_tcap_alloc_ext+0x41>
+  40c470:	e9 47 ff ff ff       	jmp    40c3bc <cos_aep_alloc+0x5c>
+  40c608:	e9 48 ff ff ff       	jmp    40c555 <cos_aep_tcap_alloc+0x65>
+  40c6d8:	e9 53 54 00 00       	jmp    411b30 <cos_switch>
+  40c8a8:	eb 0d                	jmp    40c8b7 <__mem_bump_alloc.constprop.0+0x107>
+  40c8b5:	eb 05                	jmp    40c8bc <__mem_bump_alloc.constprop.0+0x10c>
+  40c8f2:	e9 1f ff ff ff       	jmp    40c816 <__mem_bump_alloc.constprop.0+0x66>
+  40c903:	eb bd                	jmp    40c8c2 <__mem_bump_alloc.constprop.0+0x112>
+  40c994:	eb d8                	jmp    40c96e <__capid_captbl_check_expand+0x2e>
+  40cac0:	eb 0d                	jmp    40cacf <__capid_captbl_check_expand+0x18f>
+  40cacd:	eb 05                	jmp    40cad4 <__capid_captbl_check_expand+0x194>
+  40cb10:	eb 0d                	jmp    40cb1f <__capid_captbl_check_expand+0x1df>
+  40cb1d:	eb 05                	jmp    40cb24 <__capid_captbl_check_expand+0x1e4>
+  40cb42:	e9 2f fe ff ff       	jmp    40c976 <__capid_captbl_check_expand+0x36>
+  40cb9c:	e9 91 fe ff ff       	jmp    40ca32 <__capid_captbl_check_expand+0xf2>
+  40cbe5:	e9 63 fe ff ff       	jmp    40ca4d <__capid_captbl_check_expand+0x10d>
+  40cc65:	eb 33                	jmp    40cc9a <__bump_mem_expand_range+0xaa>
+  40cd80:	eb 0d                	jmp    40cd8f <__bump_mem_expand_range+0x19f>
+  40cd8d:	eb 05                	jmp    40cd94 <__bump_mem_expand_range+0x1a4>
+  40cdc8:	eb 0d                	jmp    40cdd7 <__bump_mem_expand_range+0x1e7>
+  40cdd5:	eb 05                	jmp    40cddc <__bump_mem_expand_range+0x1ec>
+  40ce39:	e9 5c fe ff ff       	jmp    40cc9a <__bump_mem_expand_range+0xaa>
+  40cea5:	e9 68 fe ff ff       	jmp    40cd12 <__bump_mem_expand_range+0x122>
+  40d07c:	eb df                	jmp    40d05d <__page_bump_valloc+0x18d>
+  40d228:	eb 0d                	jmp    40d237 <__page_bump_alloc+0x147>
+  40d235:	eb 05                	jmp    40d23c <__page_bump_alloc+0x14c>
+  40d2a0:	eb 0d                	jmp    40d2af <__page_bump_alloc+0x1bf>
+  40d2ad:	eb 05                	jmp    40d2b4 <__page_bump_alloc+0x1c4>
+  40d30b:	e9 4a ff ff ff       	jmp    40d25a <__page_bump_alloc+0x16a>
+  40d3d0:	eb 0d                	jmp    40d3df <__bump_mem_expand_intern+0x6f>
+  40d3dd:	eb 05                	jmp    40d3e4 <__bump_mem_expand_intern+0x74>
+  40d4c8:	eb 0d                	jmp    40d4d7 <__bump_mem_expand_intern+0x167>
+  40d4d5:	eb 05                	jmp    40d4dc <__bump_mem_expand_intern+0x16c>
+  40d527:	e9 26 ff ff ff       	jmp    40d452 <__bump_mem_expand_intern+0xe2>
+  40d880:	eb 8b                	jmp    40d80d <cos_compinfo_init+0xfd>
+  40d9d4:	e9 6a ff ff ff       	jmp    40d943 <cos_capid_bump_alloc+0x43>
+  40d9f4:	e9 4a ff ff ff       	jmp    40d943 <cos_capid_bump_alloc+0x43>
+  40da1e:	e9 51 ff ff ff       	jmp    40d974 <cos_capid_bump_alloc+0x74>
+  40da9b:	e9 50 f1 ff ff       	jmp    40cbf0 <__bump_mem_expand_range>
+  40db78:	eb 85                	jmp    40daff <cos_pgtbl_intern_expand+0x5f>
+  40dcf0:	eb cc                	jmp    40dcbe <cos_meminfo_alloc+0x4e>
+  40dd7f:	eb 13                	jmp    40dd94 <cos_meminfo_alloc+0x124>
+  40ddc8:	eb 0d                	jmp    40ddd7 <cos_meminfo_alloc+0x167>
+  40ddd5:	eb 05                	jmp    40dddc <cos_meminfo_alloc+0x16c>
+  40df00:	eb 0d                	jmp    40df0f <missing_captbl_node_expand+0x7f>
+  40df0d:	eb 05                	jmp    40df14 <missing_captbl_node_expand+0x84>
+  40df4f:	eb 18                	jmp    40df69 <missing_captbl_node_expand+0xd9>
+  40dfa0:	eb 0d                	jmp    40dfaf <missing_captbl_node_expand+0x11f>
+  40dfad:	eb 05                	jmp    40dfb4 <missing_captbl_node_expand+0x124>
+  40e070:	eb 0d                	jmp    40e07f <missing_captbl_node_expand+0x1ef>
+  40e07d:	eb 05                	jmp    40e084 <missing_captbl_node_expand+0x1f4>
+  40e0c0:	eb 0d                	jmp    40e0cf <missing_captbl_node_expand+0x23f>
+  40e0cd:	eb 05                	jmp    40e0d4 <missing_captbl_node_expand+0x244>
+  40e110:	eb 0d                	jmp    40e11f <missing_captbl_node_expand+0x28f>
+  40e11d:	eb 05                	jmp    40e124 <missing_captbl_node_expand+0x294>
+  40e180:	e9 9c fe ff ff       	jmp    40e021 <missing_captbl_node_expand+0x191>
+  40e1d3:	eb 10                	jmp    40e1e5 <missing_captbl_node_expand+0x355>
+  40e220:	eb 0d                	jmp    40e22f <missing_captbl_node_expand+0x39f>
+  40e22d:	eb 05                	jmp    40e234 <missing_captbl_node_expand+0x3a4>
+  40e288:	eb 0d                	jmp    40e297 <missing_captbl_node_expand+0x407>
+  40e295:	eb 05                	jmp    40e29c <missing_captbl_node_expand+0x40c>
+  40e2d8:	eb 0d                	jmp    40e2e7 <missing_captbl_node_expand+0x457>
+  40e2e5:	eb 05                	jmp    40e2ec <missing_captbl_node_expand+0x45c>
+  40e554:	e9 a9 fe ff ff       	jmp    40e402 <cos_comp_capfrontier_update+0x72>
+  40e568:	e9 6f ff ff ff       	jmp    40e4dc <cos_comp_capfrontier_update+0x14c>
+  40e5b8:	eb 0d                	jmp    40e5c7 <cos_comp_capfrontier_update+0x237>
+  40e5c5:	eb 05                	jmp    40e5cc <cos_comp_capfrontier_update+0x23c>
+  40e608:	eb 0d                	jmp    40e617 <cos_comp_capfrontier_update+0x287>
+  40e615:	eb 05                	jmp    40e61c <cos_comp_capfrontier_update+0x28c>
+  40e63e:	e9 89 fd ff ff       	jmp    40e3cc <cos_comp_capfrontier_update+0x3c>
+  40e6fc:	e9 71 fd ff ff       	jmp    40e472 <cos_comp_capfrontier_update+0xe2>
+  40e745:	e9 47 fd ff ff       	jmp    40e491 <cos_comp_capfrontier_update+0x101>
+  40e890:	eb 0d                	jmp    40e89f <cos_ulk_page_alloc+0x12f>
+  40e89d:	eb 05                	jmp    40e8a4 <cos_ulk_page_alloc+0x134>
+  40e8ed:	e9 20 ff ff ff       	jmp    40e812 <cos_ulk_page_alloc+0xa2>
+  40e920:	eb 88                	jmp    40e8aa <cos_ulk_page_alloc+0x13a>
+  40e95d:	e9 48 ff ff ff       	jmp    40e8aa <cos_ulk_page_alloc+0x13a>
+  40e9c8:	eb 0d                	jmp    40e9d7 <cos_ulk_map_in+0x67>
+  40e9d5:	eb 05                	jmp    40e9dc <cos_ulk_map_in+0x6c>
+  40eb90:	eb 0d                	jmp    40eb9f <cos_thd_alloc_ext+0x18f>
+  40eb9d:	eb 05                	jmp    40eba4 <cos_thd_alloc_ext+0x194>
+  40ebc3:	eb e5                	jmp    40ebaa <cos_thd_alloc_ext+0x19a>
+  40ebcb:	e9 d8 fe ff ff       	jmp    40eaa8 <cos_thd_alloc_ext+0x98>
+  40ec2d:	e9 d8 fe ff ff       	jmp    40eb0a <cos_thd_alloc_ext+0xfa>
+  40ec5a:	e9 4b ff ff ff       	jmp    40ebaa <cos_thd_alloc_ext+0x19a>
+  40ed0a:	eb d2                	jmp    40ecde <cos_thd_alloc+0x3e>
+  40ee58:	eb 0d                	jmp    40ee67 <cos_thd_alloc+0x1c7>
+  40ee65:	eb 05                	jmp    40ee6c <cos_thd_alloc+0x1cc>
+  40eebd:	e9 1d ff ff ff       	jmp    40eddf <cos_thd_alloc+0x13f>
+  40eef8:	e9 7f fe ff ff       	jmp    40ed7c <cos_thd_alloc+0xdc>
+  40ef30:	e9 41 ff ff ff       	jmp    40ee76 <cos_thd_alloc+0x1d6>
+  40f028:	eb 0d                	jmp    40f037 <cos_shared_kernel_page_alloc_at+0x87>
+  40f035:	eb 05                	jmp    40f03c <cos_shared_kernel_page_alloc_at+0x8c>
+  40f148:	eb 0d                	jmp    40f157 <cos_shared_kernel_page_alloc+0xa7>
+  40f155:	eb 05                	jmp    40f15c <cos_shared_kernel_page_alloc+0xac>
+  40f2f0:	eb 0d                	jmp    40f2ff <cos_vm_kernel_page_create+0x10f>
+  40f2fd:	eb 05                	jmp    40f304 <cos_vm_kernel_page_create+0x114>
+  40f342:	e9 17 ff ff ff       	jmp    40f25e <cos_vm_kernel_page_create+0x6e>
+  40f4a8:	eb 0d                	jmp    40f4b7 <cos_vm_vmcs_alloc+0xd7>
+  40f4b5:	eb 05                	jmp    40f4bc <cos_vm_vmcs_alloc+0xdc>
+  40f535:	e9 10 ff ff ff       	jmp    40f44a <cos_vm_vmcs_alloc+0x6a>
+  40f608:	eb 0d                	jmp    40f617 <cos_vm_msr_bitmap_alloc+0xd7>
+  40f615:	eb 05                	jmp    40f61c <cos_vm_msr_bitmap_alloc+0xdc>
+  40f695:	e9 10 ff ff ff       	jmp    40f5aa <cos_vm_msr_bitmap_alloc+0x6a>
+  40f768:	eb 0d                	jmp    40f777 <cos_vm_lapic_alloc+0xd7>
+  40f775:	eb 05                	jmp    40f77c <cos_vm_lapic_alloc+0xdc>
+  40f7f5:	e9 10 ff ff ff       	jmp    40f70a <cos_vm_lapic_alloc+0x6a>
+  40f8c8:	eb 0d                	jmp    40f8d7 <cos_vm_shared_region_alloc+0xd7>
+  40f8d5:	eb 05                	jmp    40f8dc <cos_vm_shared_region_alloc+0xdc>
+  40f955:	e9 10 ff ff ff       	jmp    40f86a <cos_vm_shared_region_alloc+0x6a>
+  40fa28:	eb 0d                	jmp    40fa37 <cos_vm_lapic_access_alloc+0xd7>
+  40fa35:	eb 05                	jmp    40fa3c <cos_vm_lapic_access_alloc+0xdc>
+  40fab5:	e9 10 ff ff ff       	jmp    40f9ca <cos_vm_lapic_access_alloc+0x6a>
+  40fbb0:	eb 0d                	jmp    40fbbf <cos_vm_vmcb_alloc+0xff>
+  40fbbd:	eb 05                	jmp    40fbc4 <cos_vm_vmcb_alloc+0x104>
+  40fc5b:	e9 d2 fe ff ff       	jmp    40fb32 <cos_vm_vmcb_alloc+0x72>
+  40fdc0:	eb 0d                	jmp    40fdcf <cos_initthd_alloc+0x16f>
+  40fdcd:	eb 05                	jmp    40fdd4 <cos_initthd_alloc+0x174>
+  40fe24:	e9 29 ff ff ff       	jmp    40fd52 <cos_initthd_alloc+0xf2>
+  40fe33:	e9 b6 fe ff ff       	jmp    40fcee <cos_initthd_alloc+0x8e>
+  40fe43:	eb 95                	jmp    40fdda <cos_initthd_alloc+0x17a>
+  40fe9f:	e9 36 ff ff ff       	jmp    40fdda <cos_initthd_alloc+0x17a>
+  40ff88:	eb 0d                	jmp    40ff97 <cos_captbl_alloc+0xe7>
+  40ff95:	eb 05                	jmp    40ff9c <cos_captbl_alloc+0xec>
+  40ffd5:	e9 50 ff ff ff       	jmp    40ff2a <cos_captbl_alloc+0x7a>
+  40ffe6:	eb ba                	jmp    40ffa2 <cos_captbl_alloc+0xf2>
+  41002b:	e9 72 ff ff ff       	jmp    40ffa2 <cos_captbl_alloc+0xf2>
+  410118:	eb 0d                	jmp    410127 <cos_pgtbl_alloc+0xf7>
+  410125:	eb 05                	jmp    41012c <cos_pgtbl_alloc+0xfc>
+  41016c:	e9 41 ff ff ff       	jmp    4100b2 <cos_pgtbl_alloc+0x82>
+  41017c:	eb b4                	jmp    410132 <cos_pgtbl_alloc+0x102>
+  4101bb:	e9 72 ff ff ff       	jmp    410132 <cos_pgtbl_alloc+0x102>
+  410300:	eb 0d                	jmp    41030f <cos_ulk_pgtbl_create+0x14f>
+  41030d:	eb 05                	jmp    410314 <cos_ulk_pgtbl_create+0x154>
+  410358:	eb 0d                	jmp    410367 <cos_ulk_pgtbl_create+0x1a7>
+  410365:	eb 05                	jmp    41036c <cos_ulk_pgtbl_create+0x1ac>
+  410480:	eb 0d                	jmp    41048f <cos_ulk_pgtbl_create+0x2cf>
+  41048d:	eb 05                	jmp    410494 <cos_ulk_pgtbl_create+0x2d4>
+  4104c8:	eb 0d                	jmp    4104d7 <cos_ulk_pgtbl_create+0x317>
+  4104d5:	eb 05                	jmp    4104dc <cos_ulk_pgtbl_create+0x31c>
+  410509:	e9 16 fd ff ff       	jmp    410224 <cos_ulk_pgtbl_create+0x64>
+  41052a:	e9 63 fd ff ff       	jmp    410292 <cos_ulk_pgtbl_create+0xd2>
+  4105ce:	e9 3c fe ff ff       	jmp    41040f <cos_ulk_pgtbl_create+0x24f>
+  410750:	eb 0d                	jmp    41075f <cos_ulk_info_init+0x17f>
+  41075d:	eb 05                	jmp    410764 <cos_ulk_info_init+0x184>
+  4107a8:	eb 0d                	jmp    4107b7 <cos_ulk_info_init+0x1d7>
+  4107b5:	eb 05                	jmp    4107bc <cos_ulk_info_init+0x1dc>
+  4108d0:	eb 0d                	jmp    4108df <cos_ulk_info_init+0x2ff>
+  4108dd:	eb 05                	jmp    4108e4 <cos_ulk_info_init+0x304>
+  410918:	eb 0d                	jmp    410927 <cos_ulk_info_init+0x347>
+  410925:	eb 05                	jmp    41092c <cos_ulk_info_init+0x34c>
+  4109ad:	e9 30 fd ff ff       	jmp    4106e2 <cos_ulk_info_init+0x102>
+  410a51:	e9 09 fe ff ff       	jmp    41085f <cos_ulk_info_init+0x27f>
+  410ab8:	eb 0d                	jmp    410ac7 <cos_comp_alloc_with+0x67>
+  410ac5:	eb 05                	jmp    410acc <cos_comp_alloc_with+0x6c>
+  410be0:	eb 0d                	jmp    410bef <cos_comp_alloc+0x10f>
+  410bed:	eb 05                	jmp    410bf4 <cos_comp_alloc+0x114>
+  410c4d:	e9 30 ff ff ff       	jmp    410b82 <cos_comp_alloc+0xa2>
+  410c7a:	e9 7b ff ff ff       	jmp    410bfa <cos_comp_alloc+0x11a>
+  410db0:	eb 0d                	jmp    410dbf <cos_comp_alloc_shared+0x11f>
+  410dbd:	eb 05                	jmp    410dc4 <cos_comp_alloc_shared+0x124>
+  410e31:	e9 0c ff ff ff       	jmp    410d42 <cos_comp_alloc_shared+0xa2>
+  411096:	eb 82                	jmp    41101a <cos_compinfo_alloc+0x13a>
+  4111c8:	eb 0d                	jmp    4111d7 <cos_sinv_alloc+0xe7>
+  4111d5:	eb 05                	jmp    4111dc <cos_sinv_alloc+0xec>
+  41121d:	e9 50 ff ff ff       	jmp    411172 <cos_sinv_alloc+0x82>
+  411250:	eb 90                	jmp    4111e2 <cos_sinv_alloc+0xf2>
+  411358:	eb 0d                	jmp    411367 <cos_arcv_alloc+0xf7>
+  411365:	eb 05                	jmp    41136c <cos_arcv_alloc+0xfc>
+  4113bd:	e9 40 ff ff ff       	jmp    411302 <cos_arcv_alloc+0x92>
+  4113ea:	eb 86                	jmp    411372 <cos_arcv_alloc+0x102>
+  4114e0:	eb 0d                	jmp    4114ef <cos_asnd_alloc+0xdf>
+  4114ed:	eb 05                	jmp    4114f4 <cos_asnd_alloc+0xe4>
+  411535:	e9 58 ff ff ff       	jmp    411492 <cos_asnd_alloc+0x82>
+  411562:	eb 96                	jmp    4114fa <cos_asnd_alloc+0xea>
+  411638:	eb 0d                	jmp    411647 <cos_hw_alloc+0xc7>
+  411645:	eb 05                	jmp    41164c <cos_hw_alloc+0xcc>
+  411685:	e9 60 ff ff ff       	jmp    4115ea <cos_hw_alloc+0x6a>
+  4116b8:	eb 98                	jmp    411652 <cos_hw_alloc+0xd2>
+  4116f1:	e9 fa b9 ff ff       	jmp    40d0f0 <__page_bump_alloc>
+  411739:	e9 b2 b9 ff ff       	jmp    40d0f0 <__page_bump_alloc>
+  41178e:	e9 5d b9 ff ff       	jmp    40d0f0 <__page_bump_alloc>
+  411880:	eb 0d                	jmp    41188f <cos_cap_cpy+0xef>
+  41188d:	eb 05                	jmp    411894 <cos_cap_cpy+0xf4>
+  4118d0:	e9 30 ff ff ff       	jmp    411805 <cos_cap_cpy+0x65>
+  4118ec:	e9 14 ff ff ff       	jmp    411805 <cos_cap_cpy+0x65>
+  4118ff:	e9 4c ff ff ff       	jmp    411850 <cos_cap_cpy+0xb0>
+  41192b:	e9 04 ff ff ff       	jmp    411834 <cos_cap_cpy+0x94>
+  41193c:	e9 5d ff ff ff       	jmp    41189e <cos_cap_cpy+0xfe>
+  4119d8:	eb 0d                	jmp    4119e7 <cos_cap_cpy_at+0x67>
+  4119e5:	eb 05                	jmp    4119ec <cos_cap_cpy_at+0x6c>
+  411a78:	eb 0d                	jmp    411a87 <cos_thd_switch+0x47>
+  411a85:	eb 05                	jmp    411a8c <cos_thd_switch+0x4c>
+  411ae8:	eb 0d                	jmp    411af7 <cos_thd_wakeup+0x57>
+  411af5:	eb 05                	jmp    411afc <cos_thd_wakeup+0x5c>
+  411b78:	eb 0d                	jmp    411b87 <cos_switch+0x57>
+  411b85:	eb 05                	jmp    411b8c <cos_switch+0x5c>
+  411be0:	eb 0d                	jmp    411bef <cos_sched_asnd+0x4f>
+  411bed:	eb 05                	jmp    411bf4 <cos_sched_asnd+0x54>
+  411c38:	eb 0d                	jmp    411c47 <cos_asnd+0x47>
+  411c45:	eb 05                	jmp    411c4c <cos_asnd+0x4c>
+  411ca8:	eb 0f                	jmp    411cb9 <cos_sched_rcv+0x59>
+  411cb7:	eb 07                	jmp    411cc0 <cos_sched_rcv+0x60>
+  411d58:	eb 0f                	jmp    411d69 <cos_rcv+0x59>
+  411d67:	eb 07                	jmp    411d70 <cos_rcv+0x60>
+  411e78:	eb 0d                	jmp    411e87 <cos_mem_aliasn_aligned+0xc7>
+  411e85:	eb 05                	jmp    411e8c <cos_mem_aliasn_aligned+0xcc>
+  411ebb:	eb e2                	jmp    411e9f <cos_mem_aliasn_aligned+0xdf>
+  411f2d:	e9 8e fe ff ff       	jmp    411dc0 <cos_mem_aliasn_aligned>
+  411f52:	e9 69 fe ff ff       	jmp    411dc0 <cos_mem_aliasn_aligned>
+  411fb0:	eb 0d                	jmp    411fbf <cos_mem_alias_at+0x5f>
+  411fbd:	eb 05                	jmp    411fc4 <cos_mem_alias_at+0x64>
+  412068:	eb 12                	jmp    41207c <cos_mem_alias_atn+0x6c>
+  4120a8:	eb 0d                	jmp    4120b7 <cos_mem_alias_atn+0xa7>
+  4120b5:	eb 05                	jmp    4120bc <cos_mem_alias_atn+0xac>
+  4121d8:	eb 0d                	jmp    4121e7 <cos_mem_move+0x87>
+  4121e5:	eb 05                	jmp    4121ec <cos_mem_move+0x8c>
+  412290:	eb 0d                	jmp    41229f <cos_mem_move_at+0x5f>
+  41229d:	eb 05                	jmp    4122a4 <cos_mem_move_at+0x64>
+  412330:	eb 0d                	jmp    41233f <cos_thd_mod+0x4f>
+  41233d:	eb 05                	jmp    412344 <cos_thd_mod+0x54>
+  412390:	eb 0d                	jmp    41239f <cos_introspect+0x4f>
+  41239d:	eb 05                	jmp    4123a4 <cos_introspect+0x54>
+  412498:	eb 0d                	jmp    4124a7 <cos_tcap_alloc+0xf7>
+  4124a5:	eb 05                	jmp    4124ac <cos_tcap_alloc+0xfc>
+  4124e5:	e9 40 ff ff ff       	jmp    41242a <cos_tcap_alloc+0x7a>
+  4124f6:	eb ba                	jmp    4124b2 <cos_tcap_alloc+0x102>
+  41253b:	e9 72 ff ff ff       	jmp    4124b2 <cos_tcap_alloc+0x102>
+  412588:	eb 0d                	jmp    412597 <cos_tcap_transfer+0x57>
+  412595:	eb 05                	jmp    41259c <cos_tcap_transfer+0x5c>
+  412608:	eb 0d                	jmp    412617 <cos_tcap_delegate+0x67>
+  412615:	eb 05                	jmp    41261c <cos_tcap_delegate+0x6c>
+  412670:	eb 0d                	jmp    41267f <cos_tcap_merge+0x4f>
+  41267d:	eb 05                	jmp    412684 <cos_tcap_merge+0x54>
+  4126d0:	eb 0d                	jmp    4126df <cos_hw_attach+0x4f>
+  4126dd:	eb 05                	jmp    4126e4 <cos_hw_attach+0x54>
+  412728:	eb 0d                	jmp    412737 <cos_hw_detach+0x47>
+  412735:	eb 05                	jmp    41273c <cos_hw_detach+0x4c>
+  4127a8:	eb 0d                	jmp    4127b7 <cos_hw_cycles_per_usec+0x67>
+  4127b5:	eb 05                	jmp    4127bc <cos_hw_cycles_per_usec+0x6c>
+  412828:	eb 0d                	jmp    412837 <cos_hw_tlb_lockdown+0x57>
+  412835:	eb 05                	jmp    41283c <cos_hw_tlb_lockdown+0x5c>
+  412890:	eb 0d                	jmp    41289f <cos_hw_l1flush+0x4f>
+  41289d:	eb 05                	jmp    4128a4 <cos_hw_l1flush+0x54>
+  4128f0:	eb 0d                	jmp    4128ff <cos_hw_tlbflush+0x4f>
+  4128fd:	eb 05                	jmp    412904 <cos_hw_tlbflush+0x54>
+  412950:	eb 0d                	jmp    41295f <cos_hw_tlbstall+0x4f>
+  41295d:	eb 05                	jmp    412964 <cos_hw_tlbstall+0x54>
+  4129b0:	eb 0d                	jmp    4129bf <cos_hw_tlbstall_recount+0x4f>
+  4129bd:	eb 05                	jmp    4129c4 <cos_hw_tlbstall_recount+0x54>
+  412a10:	eb 0d                	jmp    412a1f <cos_hw_cycles_thresh+0x4f>
+  412a1d:	eb 05                	jmp    412a24 <cos_hw_cycles_thresh+0x54>
+  412a70:	eb 0d                	jmp    412a7f <cos_hw_shutdown+0x4f>
+  412a7d:	eb 05                	jmp    412a84 <cos_hw_shutdown+0x54>
+  412b0f:	eb 14                	jmp    412b25 <cos_hw_map+0x95>
+  412b50:	eb 0d                	jmp    412b5f <cos_hw_map+0xcf>
+  412b5d:	eb 05                	jmp    412b64 <cos_hw_map+0xd4>
+  412bc0:	eb d1                	jmp    412b93 <cos_hw_map+0x103>
+  412c50:	eb 0d                	jmp    412c5f <cos_cons_into_shared_pgtbl+0x5f>
+  412c5d:	eb 05                	jmp    412c64 <cos_cons_into_shared_pgtbl+0x64>
+  412ca2:	eb c9                	jmp    412c6d <cos_cons_into_shared_pgtbl+0x6d>
+  412d42:	eb bc                	jmp    412d00 <args_iter.part.0.isra.0+0x50>
+  412d76:	e9 a5 07 00 00       	jmp    413520 <tar_key>
+  412dc3:	e9 08 08 00 00       	jmp    4135d0 <tar_value>
+  412e03:	e9 b8 0c 00 00       	jmp    413ac0 <tar_len>
+  412e59:	e9 f2 08 00 00       	jmp    413750 <tar_iter_next>
+  412eaa:	eb e8                	jmp    412e94 <args_iter_next+0x54>
+  412ecf:	e9 7c 0b 00 00       	jmp    413a50 <tar_iter>
+  412f6a:	eb ec                	jmp    412f58 <args_iter+0xa8>
+  413026:	eb 98                	jmp    412fc0 <args_foreach+0x50>
+  413044:	e9 6d ff ff ff       	jmp    412fb6 <args_foreach+0x46>
+  413052:	eb ce                	jmp    413022 <args_foreach+0xb2>
+  4131ba:	eb 8d                	jmp    413149 <args_lkup_entry+0xe9>
+  41321c:	e9 0b ff ff ff       	jmp    41312c <args_lkup_entry+0xcc>
+  41322a:	e9 5d ff ff ff       	jmp    41318c <args_lkup_entry+0x12c>
+  413244:	e9 b5 fe ff ff       	jmp    4130fe <args_lkup_entry+0x9e>
+  413296:	e9 45 ff ff ff       	jmp    4131e0 <args_lkup_entry+0x180>
+  4132aa:	e9 1e fe ff ff       	jmp    4130cd <args_lkup_entry+0x6d>
+  4132c9:	e9 18 ff ff ff       	jmp    4131e6 <args_lkup_entry+0x186>
+  41335d:	e9 fe fc ff ff       	jmp    413060 <args_lkup_entry>
+  413464:	eb b4                	jmp    41341a <args_get_entry+0x2a>
+  413512:	eb 82                	jmp    413496 <args_get+0x26>
+  413545:	eb 15                	jmp    41355c <tar_key+0x3c>
+  4135ef:	eb 10                	jmp    413601 <tar_value+0x31>
+  413658:	eb 0f                	jmp    413669 <tar_value_sz+0x39>
+  4136b8:	eb 1a                	jmp    4136d4 <tar_value_sz+0xa4>
+  4136e6:	eb 98                	jmp    413680 <tar_value_sz+0x50>
+  41370e:	eb 09                	jmp    413719 <tar_is_value+0x29>
+  41378f:	eb 14                	jmp    4137a5 <tar_iter_next+0x55>
+  4137ad:	eb 0e                	jmp    4137bd <tar_iter_next+0x6d>
+  4137dd:	eb 0a                	jmp    4137e9 <tar_iter_next+0x99>
+  4137f1:	eb 12                	jmp    413805 <tar_iter_next+0xb5>
+  413843:	eb 0c                	jmp    413851 <tar_iter_next+0x101>
+  413856:	e9 9a 00 00 00       	jmp    4138f5 <tar_iter_next+0x1a5>
+  4138a6:	eb 2c                	jmp    4138d4 <tar_iter_next+0x184>
+  4138dc:	e9 ef fe ff ff       	jmp    4137d0 <tar_iter_next+0x80>
+  41391a:	eb 28                	jmp    413944 <tar_iter_next+0x1f4>
+  413990:	e9 44 ff ff ff       	jmp    4138d9 <tar_iter_next+0x189>
+  413a1b:	e9 10 fe ff ff       	jmp    413830 <tar_iter_next+0xe0>
+  413a35:	e9 0f ff ff ff       	jmp    413949 <tar_iter_next+0x1f9>
+  413a3c:	e9 0b ff ff ff       	jmp    41394c <tar_iter_next+0x1fc>
+  413a4b:	e9 31 fe ff ff       	jmp    413881 <tar_iter_next+0x131>
+  413a72:	eb 0d                	jmp    413a81 <tar_iter+0x31>
+  413aae:	e9 9d fc ff ff       	jmp    413750 <tar_iter_next>
+  413ae6:	eb 11                	jmp    413af9 <tar_len+0x39>
+  413b55:	eb b3                	jmp    413b0a <tar_len+0x4a>
+  413bff:	e9 fc dd fe ff       	jmp    401a00 <slm_thd_from_sched>
+  413e8d:	eb 8c                	jmp    413e1b <slm_sched_fprr_thd_update+0x7b>
+  413edb:	e9 3b ff ff ff       	jmp    413e1b <slm_sched_fprr_thd_update+0x7b>
+  413f85:	eb f9                	jmp    413f80 <slm_idle+0x10>
+  41443c:	e9 3f 68 ff ff       	jmp    40ac80 <cos_print_str>
+  4146c1:	e9 1a ff ff ff       	jmp    4145e0 <slm_sched_loop_intern+0x190>
+  414834:	eb 1a                	jmp    414850 <slm_sched_loop_intern+0x400>
+  414960:	eb cf                	jmp    414931 <slm_sched_loop_intern+0x4e1>
+  4149a2:	e9 37 fb ff ff       	jmp    4144de <slm_sched_loop_intern+0x8e>
+  4149e3:	e9 c1 fc ff ff       	jmp    4146a9 <slm_sched_loop_intern+0x259>
+  414a18:	e9 34 fb ff ff       	jmp    414551 <slm_sched_loop_intern+0x101>
+  414a3a:	eb 14                	jmp    414a50 <slm_sched_loop_intern+0x600>
+  414b50:	e9 a6 fc ff ff       	jmp    4147fb <slm_sched_loop_intern+0x3ab>
+  414b5d:	e9 47 fb ff ff       	jmp    4146a9 <slm_sched_loop_intern+0x259>
+  414c52:	e9 7c ff ff ff       	jmp    414bd3 <slm_sched_loop_intern+0x783>
+  414c74:	e9 5a ff ff ff       	jmp    414bd3 <slm_sched_loop_intern+0x783>
+  414c83:	e9 12 ff ff ff       	jmp    414b9a <slm_sched_loop_intern+0x74a>
+  414d79:	eb 0f                	jmp    414d8a <slm_ipi_event_enqueue+0x4a>
+  414da1:	eb e7                	jmp    414d8a <slm_ipi_event_enqueue+0x4a>
+  41500b:	e9 70 ca fe ff       	jmp    401a80 <slm_sched_thd_init>
+  4152e7:	eb 17                	jmp    415300 <slm_thd_block_cs+0xf0>
+  4153eb:	eb 12                	jmp    4153ff <slm_thd_block_cs+0x1ef>
+  415547:	eb d1                	jmp    41551a <slm_thd_block_cs+0x30a>
+  41563f:	eb 83                	jmp    4155c4 <slm_thd_block_cs+0x3b4>
+  415647:	e9 3e ff ff ff       	jmp    41558a <slm_thd_block_cs+0x37a>
+  41566b:	e9 54 ff ff ff       	jmp    4155c4 <slm_thd_block_cs+0x3b4>
+  415884:	eb 14                	jmp    41589a <slm_thd_wakeup+0xfa>
+  4158b5:	eb e3                	jmp    41589a <slm_thd_wakeup+0xfa>
+  415908:	e9 1b ff ff ff       	jmp    415828 <slm_thd_wakeup+0x88>
+  415919:	e9 0a ff ff ff       	jmp    415828 <slm_thd_wakeup+0x88>
+  415a65:	eb 19                	jmp    415a80 <slm_thd_wakeup_cs+0x100>
+  415b5b:	eb 12                	jmp    415b6f <slm_thd_wakeup_cs+0x1ef>
+  415cd3:	eb d1                	jmp    415ca6 <slm_thd_wakeup_cs+0x326>
+  415dc9:	eb 82                	jmp    415d4d <slm_thd_wakeup_cs+0x3cd>
+  415dd1:	e9 3c ff ff ff       	jmp    415d12 <slm_thd_wakeup_cs+0x392>
+  415df6:	e9 52 ff ff ff       	jmp    415d4d <slm_thd_wakeup_cs+0x3cd>
+  4160ba:	e9 a1 b9 fe ff       	jmp    401a60 <slm_timer_init>
+  4161d8:	e9 55 01 00 00       	jmp    416332 <heap_add+0x1b2>
+  41626c:	e9 cc 00 00 00       	jmp    41633d <heap_add+0x1bd>
+  416338:	e9 16 ff ff ff       	jmp    416253 <heap_add+0xd3>
+  4163a7:	eb 96                	jmp    41633f <heap_add+0x1bf>
+  416423:	eb 6d                	jmp    416492 <heap_highest+0xe2>
+  416505:	eb e3                	jmp    4164ea <heap_highest+0x13a>
+  416582:	e9 5b 01 00 00       	jmp    4166e2 <heap_adjust+0x192>
+  41661c:	e9 cc 00 00 00       	jmp    4166ed <heap_adjust+0x19d>
+  4166e8:	e9 16 ff ff ff       	jmp    416603 <heap_adjust+0xb3>
+  41680f:	eb b7                	jmp    4167c8 <heap_remove+0x78>
+	jmp 1b
+  41691e:	eb df                	jmp    4168ff <memset+0xa3>
+  416b59:	e9 c1 fe ff ff       	jmp    416a1f <__init_libc+0x8f>
+  416b72:	e9 1d ff ff ff       	jmp    416a94 <__init_libc+0x104>
+  416baa:	eb 87                	jmp    416b33 <__init_libc+0x1a3>
+  416bde:	e9 49 ff ff ff       	jmp    416b2c <__init_libc+0x19c>
+  416c18:	e9 04 ff ff ff       	jmp    416b21 <__init_libc+0x191>
+  416c48:	e9 47 fe ff ff       	jmp    416a94 <__init_libc+0x104>
+  416c5f:	e9 d9 fe ff ff       	jmp    416b3d <__init_libc+0x1ad>
+  416c6d:	e9 74 fd ff ff       	jmp    4169e6 <__init_libc+0x56>
+  416c83:	e9 bf fd ff ff       	jmp    416a47 <__init_libc+0xb7>
+  416c8b:	e9 c7 fd ff ff       	jmp    416a57 <__init_libc+0xc7>
+  416d46:	ff e0                	jmp    rax
+  416d85:	e9 d6 fb ff ff       	jmp    416960 <__funcs_on_exit>
+  416e67:	eb 94                	jmp    416dfd <sn_write+0x4d>
+  416f75:	e9 7a ff ff ff       	jmp    416ef4 <vsnprintf+0x84>
+  416f84:	eb 0e                	jmp    416f94 <atoi+0x14>
+  41702e:	eb 8e                	jmp    416fbe <atoi+0x3e>
+  417034:	eb 0e                	jmp    417044 <atol+0x14>
+  4170e6:	eb 86                	jmp    41706e <atol+0x3e>
+  417123:	e9 c8 00 00 00       	jmp    4171f0 <__strchrnul+0xe0>
+  417213:	eb 23                	jmp    417238 <strcmp+0x38>
+  41724d:	eb 19                	jmp    417268 <strlen+0x28>
+  4172a7:	eb 0b                	jmp    4172b4 <strlen+0x74>
+  41733c:	eb f3                	jmp    417331 <strncmp+0x71>
+  41741a:	eb 8b                	jmp    4173a7 <__init_tp+0x27>
+  417421:	eb e2                	jmp    417405 <__init_tp+0x85>
+  417510:	e9 25 02 00 00       	jmp    41773a <__init_tls+0x26a>
+  417748:	eb e3                	jmp    41772d <__init_tls+0x25d>
+  417779:	e9 af fd ff ff       	jmp    41752d <__init_tls+0x5d>
+  417787:	e9 a1 fd ff ff       	jmp    41752d <__init_tls+0x5d>
+  4177b3:	e9 75 ff ff ff       	jmp    41772d <__init_tls+0x25d>
+  4177ca:	e9 e5 fe ff ff       	jmp    4176b4 <__init_tls+0x1e4>
+  417819:	e9 f8 fd ff ff       	jmp    417616 <__init_tls+0x146>
+  417835:	e9 67 fd ff ff       	jmp    4175a1 <__init_tls+0xd1>
+  417895:	eb e1                	jmp    417878 <_Exit+0x28>
+  4178b9:	3e ff e2             	notrack jmp rdx
+  417a0c:	eb e4                	jmp    4179f2 <pop_arg+0x152>
+  417a1c:	eb b4                	jmp    4179d2 <pop_arg+0x132>
+  417a2c:	eb 84                	jmp    4179b2 <pop_arg+0x112>
+  417a3c:	e9 55 ff ff ff       	jmp    417996 <pop_arg+0xf6>
+  417a54:	e9 1d ff ff ff       	jmp    417976 <pop_arg+0xd6>
+  417a6c:	e9 e2 fe ff ff       	jmp    417953 <pop_arg+0xb3>
+  417a84:	e9 a5 fe ff ff       	jmp    41792e <pop_arg+0x8e>
+  417b23:	e9 64 0d 00 00       	jmp    41888c <fmt_fp+0x86c>
+  417bc2:	e9 4b 0d 00 00       	jmp    418912 <fmt_fp+0x8f2>
+  417c5d:	e9 6b 0d 00 00       	jmp    4189cd <fmt_fp+0x9ad>
+  417cf3:	e9 76 15 00 00       	jmp    41926e <fmt_fp+0x124e>
+  417d8e:	e9 62 0e 00 00       	jmp    418bf5 <fmt_fp+0xbd5>
+  417e32:	e9 93 09 00 00       	jmp    4187ca <fmt_fp+0x7aa>
+  417ed5:	e9 6b 0c 00 00       	jmp    418b45 <fmt_fp+0xb25>
+  417f73:	e9 bf 10 00 00       	jmp    419037 <fmt_fp+0x1017>
+  418013:	e9 60 0f 00 00       	jmp    418f78 <fmt_fp+0xf58>
+  418231:	eb 15                	jmp    418248 <fmt_fp+0x228>
+  41845d:	e9 fb 08 00 00       	jmp    418d5d <fmt_fp+0xd3d>
+  4184a2:	e9 09 fc ff ff       	jmp    4180b0 <fmt_fp+0x90>
+  41863e:	eb 13                	jmp    418653 <fmt_fp+0x633>
+  4186aa:	eb 06                	jmp    4186b2 <fmt_fp+0x692>
+  4189e0:	e9 36 02 00 00       	jmp    418c1b <fmt_fp+0xbfb>
+  418a30:	e9 7b f6 ff ff       	jmp    4180b0 <fmt_fp+0x90>
+  418a56:	e9 a1 f8 ff ff       	jmp    4182fc <fmt_fp+0x2dc>
+  418c6c:	e9 ce f6 ff ff       	jmp    41833f <fmt_fp+0x31f>
+  418c73:	eb 05                	jmp    418c7a <fmt_fp+0xc5a>
+  418c8b:	e9 ae f4 ff ff       	jmp    41813e <fmt_fp+0x11e>
+  418cbc:	e9 47 f7 ff ff       	jmp    418408 <fmt_fp+0x3e8>
+  418cf8:	e9 0b fe ff ff       	jmp    418b08 <fmt_fp+0xae8>
+  418d2d:	e9 8e fe ff ff       	jmp    418bc0 <fmt_fp+0xba0>
+  418d79:	eb 06                	jmp    418d81 <fmt_fp+0xd61>
+  418d7d:	eb 02                	jmp    418d81 <fmt_fp+0xd61>
+  418dab:	eb 15                	jmp    418dc2 <fmt_fp+0xda2>
+  419283:	e9 93 f9 ff ff       	jmp    418c1b <fmt_fp+0xbfb>
+  4193df:	e9 54 fd ff ff       	jmp    419138 <fmt_fp+0x1118>
+  41943a:	e9 5d ff ff ff       	jmp    41939c <fmt_fp+0x137c>
+  419446:	e9 ed fc ff ff       	jmp    419138 <fmt_fp+0x1118>
+  41947b:	e9 30 fd ff ff       	jmp    4191b0 <fmt_fp+0x1190>
+  4194ad:	e9 87 fd ff ff       	jmp    419239 <fmt_fp+0x1219>
+  4194e8:	e9 4d fa ff ff       	jmp    418f3a <fmt_fp+0xf1a>
+  419520:	e9 d9 fa ff ff       	jmp    418ffe <fmt_fp+0xfde>
+  41955a:	e9 3d fe ff ff       	jmp    41939c <fmt_fp+0x137c>
+  419569:	e9 2b fd ff ff       	jmp    419299 <fmt_fp+0x1279>
+  419576:	e9 c8 f0 ff ff       	jmp    418643 <fmt_fp+0x623>
+  4195a9:	e9 d9 f1 ff ff       	jmp    418787 <fmt_fp+0x767>
+  4195d5:	e9 38 f3 ff ff       	jmp    418912 <fmt_fp+0x8f2>
+  41960d:	e9 3e f2 ff ff       	jmp    418850 <fmt_fp+0x830>
+  41963f:	e9 54 f3 ff ff       	jmp    418998 <fmt_fp+0x978>
+  419662:	e9 b4 f5 ff ff       	jmp    418c1b <fmt_fp+0xbfb>
+  419673:	e9 b2 ea ff ff       	jmp    41812a <fmt_fp+0x10a>
+  4196a5:	e9 bc f4 ff ff       	jmp    418b66 <fmt_fp+0xb46>
+  4196e3:	e9 3c f2 ff ff       	jmp    418924 <fmt_fp+0x904>
+  41971a:	e9 c1 fa ff ff       	jmp    4191e0 <fmt_fp+0x11c0>
+  4197de:	e9 e9 f5 ff ff       	jmp    418dcc <fmt_fp+0xdac>
+  419b3b:	e9 11 02 00 00       	jmp    419d51 <fmt_fp+0x1d31>
+  419b4a:	e9 78 ff ff ff       	jmp    419ac7 <fmt_fp+0x1aa7>
+  419bbb:	eb 9c                	jmp    419b59 <fmt_fp+0x1b39>
+  419bd0:	e9 da f2 ff ff       	jmp    418eaf <fmt_fp+0xe8f>
+  419be7:	e9 ad f3 ff ff       	jmp    418f99 <fmt_fp+0xf79>
+  419bf5:	e9 4b ff ff ff       	jmp    419b45 <fmt_fp+0x1b25>
+  419c04:	e9 93 f7 ff ff       	jmp    41939c <fmt_fp+0x137c>
+  419c2c:	eb 15                	jmp    419c43 <fmt_fp+0x1c23>
+  419c78:	eb b9                	jmp    419c33 <fmt_fp+0x1c13>
+  419c94:	e9 fe f4 ff ff       	jmp    419197 <fmt_fp+0x1177>
+  419c9f:	e9 5b f6 ff ff       	jmp    4192ff <fmt_fp+0x12df>
+  419cb0:	e9 b1 06 00 00       	jmp    41a366 <fmt_fp+0x2346>
+  419d2c:	e9 6e f0 ff ff       	jmp    418d9f <fmt_fp+0xd7f>
+  419d41:	e9 a5 ea ff ff       	jmp    4187eb <fmt_fp+0x7cb>
+  41a0ce:	e9 0d f1 ff ff       	jmp    4191e0 <fmt_fp+0x11c0>
+  41a125:	e9 18 ff ff ff       	jmp    41a042 <fmt_fp+0x2022>
+  41a12f:	e9 7b fe ff ff       	jmp    419faf <fmt_fp+0x1f8f>
+  41a139:	e9 f1 fc ff ff       	jmp    419e2f <fmt_fp+0x1e0f>
+  41a146:	e9 03 f6 ff ff       	jmp    41974e <fmt_fp+0x172e>
+  41a155:	e9 8b e4 ff ff       	jmp    4185e5 <fmt_fp+0x5c5>
+  41a15f:	e9 5b f7 ff ff       	jmp    4198bf <fmt_fp+0x189f>
+  41a169:	e9 e1 f8 ff ff       	jmp    419a4f <fmt_fp+0x1a2f>
+  41a17c:	e9 f5 f0 ff ff       	jmp    419276 <fmt_fp+0x1256>
+  41a19e:	e9 9d eb ff ff       	jmp    418d40 <fmt_fp+0xd20>
+  41a1b6:	e9 4d e5 ff ff       	jmp    418708 <fmt_fp+0x6e8>
+  41a1d1:	e9 87 eb ff ff       	jmp    418d5d <fmt_fp+0xd3d>
+  41a1d9:	e9 e9 f5 ff ff       	jmp    4197c7 <fmt_fp+0x17a7>
+  41a1e4:	e9 88 e3 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a21b:	e9 70 fe ff ff       	jmp    41a090 <fmt_fp+0x2070>
+  41a23a:	e9 41 fe ff ff       	jmp    41a080 <fmt_fp+0x2060>
+  41a24d:	e9 31 e3 ff ff       	jmp    418583 <fmt_fp+0x563>
+  41a25e:	e9 fa ea ff ff       	jmp    418d5d <fmt_fp+0xd3d>
+  41a276:	e9 e2 ea ff ff       	jmp    418d5d <fmt_fp+0xd3d>
+  41a27e:	e9 1c eb ff ff       	jmp    418d9f <fmt_fp+0xd7f>
+  41a291:	e9 3f e7 ff ff       	jmp    4189d5 <fmt_fp+0x9b5>
+  41a29f:	e9 0e e4 ff ff       	jmp    4186b2 <fmt_fp+0x692>
+  41a2ac:	e9 e7 e9 ff ff       	jmp    418c98 <fmt_fp+0xc78>
+  41a2bc:	e9 4a e1 ff ff       	jmp    41840b <fmt_fp+0x3eb>
+  41a2c8:	e9 78 e8 ff ff       	jmp    418b45 <fmt_fp+0xb25>
+  41a2d4:	e9 1c e9 ff ff       	jmp    418bf5 <fmt_fp+0xbd5>
+  41a2de:	e9 d4 e9 ff ff       	jmp    418cb7 <fmt_fp+0xc97>
+  41a2e8:	e9 4a ed ff ff       	jmp    419037 <fmt_fp+0x1017>
+  41a2f2:	e9 81 ec ff ff       	jmp    418f78 <fmt_fp+0xf58>
+  41a2fe:	e9 6b ef ff ff       	jmp    41926e <fmt_fp+0x124e>
+  41a30a:	e9 c9 ee ff ff       	jmp    4191d8 <fmt_fp+0x11b8>
+  41a317:	e9 7c e9 ff ff       	jmp    418c98 <fmt_fp+0xc78>
+  41a324:	e9 6f e9 ff ff       	jmp    418c98 <fmt_fp+0xc78>
+  41a330:	e9 dd e5 ff ff       	jmp    418912 <fmt_fp+0x8f2>
+  41a33b:	e9 31 e2 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a348:	e9 4b e9 ff ff       	jmp    418c98 <fmt_fp+0xc78>
+  41a355:	e9 3e e9 ff ff       	jmp    418c98 <fmt_fp+0xc78>
+  41a361:	e9 26 e5 ff ff       	jmp    41888c <fmt_fp+0x86c>
+  41a36a:	e9 8c f9 ff ff       	jmp    419cfb <fmt_fp+0x1cdb>
+  41a375:	e9 f7 e1 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a381:	e9 44 e4 ff ff       	jmp    4187ca <fmt_fp+0x7aa>
+  41a38d:	e9 3b e6 ff ff       	jmp    4189cd <fmt_fp+0x9ad>
+  41a399:	e9 1a fd ff ff       	jmp    41a0b8 <fmt_fp+0x2098>
+  41a3a4:	e9 c8 e1 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a3af:	e9 bd e1 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a3ba:	e9 b2 e1 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a3c5:	e9 a7 e1 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a3d0:	e9 9c e1 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a3d7:	e9 c1 f3 ff ff       	jmp    41979d <fmt_fp+0x177d>
+  41a3e2:	e9 8a e1 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a3ed:	e9 7f e1 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a3f8:	e9 74 e1 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a403:	e9 69 e1 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a40e:	e9 5e e1 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a419:	e9 53 e1 ff ff       	jmp    418571 <fmt_fp+0x551>
+  41a426:	e9 9f e3 ff ff       	jmp    4187ca <fmt_fp+0x7aa>
+  41a4c5:	e9 15 0b 00 00       	jmp    41afdf <printf_core+0x7bf>
+  41a56a:	e9 c9 0f 00 00       	jmp    41b538 <printf_core+0xd18>
+  41a600:	e9 45 0b 00 00       	jmp    41b14a <printf_core+0x92a>
+  41a6a1:	e9 fe 09 00 00       	jmp    41b0a4 <printf_core+0x884>
+  41a759:	e9 c3 11 00 00       	jmp    41b921 <printf_core+0x1101>
+  41a7fa:	e9 f5 06 00 00       	jmp    41aef4 <printf_core+0x6d4>
+  41a812:	e9 0a 11 00 00       	jmp    41b921 <printf_core+0x1101>
+  41a873:	eb 10                	jmp    41a885 <printf_core+0x65>
+  41a88c:	eb 0f                	jmp    41a89d <printf_core+0x7d>
+  41a8e2:	e9 76 ff ff ff       	jmp    41a85d <printf_core+0x3d>
+  41a8f7:	eb aa                	jmp    41a8a3 <printf_core+0x83>
+  41a938:	eb 28                	jmp    41a962 <printf_core+0x142>
+  41aa37:	eb 32                	jmp    41aa6b <printf_core+0x24b>
+  41aa58:	e9 73 fe ff ff       	jmp    41a8d0 <printf_core+0xb0>
+  41aa75:	eb 2c                	jmp    41aaa3 <printf_core+0x283>
+  41aaf2:	e9 ce fe ff ff       	jmp    41a9c5 <printf_core+0x1a5>
+  41ab46:	eb d8                	jmp    41ab20 <printf_core+0x300>
+  41abda:	3e ff e0             	notrack jmp rax
+  41abfc:	e9 c0 fe ff ff       	jmp    41aac1 <printf_core+0x2a1>
+  41ac43:	e9 6d fd ff ff       	jmp    41a9b5 <printf_core+0x195>
+  41ac5a:	e9 c2 fc ff ff       	jmp    41a921 <printf_core+0x101>
+  41ac68:	e9 41 fe ff ff       	jmp    41aaae <printf_core+0x28e>
+  41ac7c:	e9 32 fd ff ff       	jmp    41a9b3 <printf_core+0x193>
+  41ac9c:	eb 2d                	jmp    41accb <printf_core+0x4ab>
+  41acf2:	e9 74 fd ff ff       	jmp    41aa6b <printf_core+0x24b>
+  41ad03:	e9 1c fd ff ff       	jmp    41aa24 <printf_core+0x204>
+  41ad22:	e9 6a fe ff ff       	jmp    41ab91 <printf_core+0x371>
+  41ad5d:	e9 09 fd ff ff       	jmp    41aa6b <printf_core+0x24b>
+  41ad6d:	e9 c1 fc ff ff       	jmp    41aa33 <printf_core+0x213>
+  41adcc:	e9 f0 fc ff ff       	jmp    41aac1 <printf_core+0x2a1>
+  41b160:	e9 7a f7 ff ff       	jmp    41a8df <printf_core+0xbf>
+  41b19f:	e9 45 fa ff ff       	jmp    41abe9 <printf_core+0x3c9>
+  41b270:	e9 98 fb ff ff       	jmp    41ae0d <printf_core+0x5ed>
+  41b315:	e9 ec fe ff ff       	jmp    41b206 <printf_core+0x9e6>
+  41b378:	e9 89 fe ff ff       	jmp    41b206 <printf_core+0x9e6>
+  41b397:	e9 11 fe ff ff       	jmp    41b1ad <printf_core+0x98d>
+  41b3e1:	e9 02 fa ff ff       	jmp    41ade8 <printf_core+0x5c8>
+  41b42e:	eb 29                	jmp    41b459 <printf_core+0xc39>
+  41b572:	eb 0d                	jmp    41b581 <printf_core+0xd61>
+  41b5b7:	eb bf                	jmp    41b578 <printf_core+0xd58>
+  41b5d0:	e9 da fd ff ff       	jmp    41b3af <printf_core+0xb8f>
+  41b5ed:	3e ff e0             	notrack jmp rax
+  41b5fd:	e9 dd f2 ff ff       	jmp    41a8df <printf_core+0xbf>
+  41b629:	e9 d1 fd ff ff       	jmp    41b3ff <printf_core+0xbdf>
+  41b676:	e9 a6 f7 ff ff       	jmp    41ae21 <printf_core+0x601>
+  41b691:	e9 2d fc ff ff       	jmp    41b2c3 <printf_core+0xaa3>
+  41b6a3:	e9 37 f2 ff ff       	jmp    41a8df <printf_core+0xbf>
+  41b6b5:	e9 25 f2 ff ff       	jmp    41a8df <printf_core+0xbf>
+  41b6c5:	e9 15 f2 ff ff       	jmp    41a8df <printf_core+0xbf>
+  41b6fa:	e9 64 f9 ff ff       	jmp    41b063 <printf_core+0x843>
+  41b72d:	e9 de f9 ff ff       	jmp    41b110 <printf_core+0x8f0>
+  41b76c:	e9 33 f8 ff ff       	jmp    41afa4 <printf_core+0x784>
+  41b7ac:	e9 03 f7 ff ff       	jmp    41aeb4 <printf_core+0x694>
+  41b7b7:	e9 e8 f8 ff ff       	jmp    41b0a4 <printf_core+0x884>
+  41b7da:	e9 cd f8 ff ff       	jmp    41b0ac <printf_core+0x88c>
+  41b813:	e9 10 f7 ff ff       	jmp    41af28 <printf_core+0x708>
+  41b85b:	e9 9e fc ff ff       	jmp    41b4fe <printf_core+0xcde>
+  41b8f1:	e9 df ef ff ff       	jmp    41a8d5 <printf_core+0xb5>
+  41b933:	eb b1                	jmp    41b8e6 <printf_core+0x10c6>
+  41b953:	e9 6a fe ff ff       	jmp    41b7c2 <printf_core+0xfa2>
+  41b96c:	e9 01 fd ff ff       	jmp    41b672 <printf_core+0xe52>
+  41b993:	e9 51 f2 ff ff       	jmp    41abe9 <printf_core+0x3c9>
+  41b9a6:	e9 f9 f6 ff ff       	jmp    41b0a4 <printf_core+0x884>
+  41b9c9:	e9 38 f8 ff ff       	jmp    41b206 <printf_core+0x9e6>
+  41b9d6:	e9 e6 f0 ff ff       	jmp    41aac1 <printf_core+0x2a1>
+  41b9e1:	e9 0e f5 ff ff       	jmp    41aef4 <printf_core+0x6d4>
+  41b9ec:	e9 ee f5 ff ff       	jmp    41afdf <printf_core+0x7bf>
+  41ba0d:	e9 ba f8 ff ff       	jmp    41b2cc <printf_core+0xaac>
+  41ba18:	e9 2d f7 ff ff       	jmp    41b14a <printf_core+0x92a>
+  41ba25:	e9 97 f0 ff ff       	jmp    41aac1 <printf_core+0x2a1>
+  41ba42:	e9 f9 fa ff ff       	jmp    41b540 <printf_core+0xd20>
+  41ba63:	e9 9e f7 ff ff       	jmp    41b206 <printf_core+0x9e6>
+  41ba73:	e9 8e f7 ff ff       	jmp    41b206 <printf_core+0x9e6>
+  41bb42:	e9 67 ef ff ff       	jmp    41aaae <printf_core+0x28e>
+  41bb56:	e9 dd f9 ff ff       	jmp    41b538 <printf_core+0xd18>
+  41bb61:	e9 bb fd ff ff       	jmp    41b921 <printf_core+0x1101>
+  41bb86:	e9 e3 fc ff ff       	jmp    41b86e <printf_core+0x104e>
+  41bb94:	e9 5b f3 ff ff       	jmp    41aef4 <printf_core+0x6d4>
+  41bba2:	e9 38 f4 ff ff       	jmp    41afdf <printf_core+0x7bf>
+  41bd4d:	e9 2c ff ff ff       	jmp    41bc7e <vfprintf+0xce>
+  41bd60:	eb 8b                	jmp    41bced <vfprintf+0x13d>
+  41bd68:	eb 83                	jmp    41bced <vfprintf+0x13d>
+  41bd83:	eb c3                	jmp    41bd48 <vfprintf+0x198>
+  41bd9f:	eb 2f                	jmp    41bdd0 <memchr+0x40>
+  41be0b:	eb 26                	jmp    41be33 <memchr+0xa3>
+  41be56:	e9 6a ff ff ff       	jmp    41bdc5 <memchr+0x35>
+  41be67:	eb ca                	jmp    41be33 <memchr+0xa3>
+  41be82:	eb 12                	jmp    41be96 <__strerror_l+0x26>
+  41bed9:	eb dd                	jmp    41beb8 <__strerror_l+0x48>
+  41bee4:	e9 27 00 00 00       	jmp    41bf10 <__lctrans>
+  41bf04:	e9 67 ff ff ff       	jmp    41be70 <__strerror_l>
+  41bf14:	e9 57 aa ff ff       	jmp    416970 <__lctrans_impl>
+  41bf38:	e9 33 aa ff ff       	jmp    416970 <__lctrans_impl>
+  41c0e0:	eb ad                	jmp    41c08f <frexpl+0xcf>
+  41c0ef:	eb 9e                	jmp    41c08f <frexpl+0xcf>
+  41c193:	eb 1d                	jmp    41c1b2 <__lockfile+0x82>
+  41c20a:	eb 98                	jmp    41c1a4 <__lockfile+0x74>
+  41c314:	e9 a7 03 00 00       	jmp    41c6c0 <__stdio_exit>
+  41c393:	eb c9                	jmp    41c35e <__fwritex+0x3e>
+  41c3ae:	ff e0                	jmp    rax
+  41c3d1:	eb 8e                	jmp    41c361 <__fwritex+0x41>
+  41c3e9:	e9 54 ff ff ff       	jmp    41c342 <__fwritex+0x22>
+  41c3f2:	eb 80                	jmp    41c374 <__fwritex+0x54>
+  41c4c4:	eb b0                	jmp    41c476 <fwrite+0x76>
+  41c515:	eb ca                	jmp    41c4e1 <fwrite+0xe1>
+  41c548:	e9 2c ff ff ff       	jmp    41c479 <fwrite+0x79>
+  41c56a:	e9 ee fe ff ff       	jmp    41c45d <fwrite+0x5d>
+  41c572:	e9 65 ff ff ff       	jmp    41c4dc <fwrite+0xdc>
+  41c664:	eb 91                	jmp    41c5f7 <wcrtomb+0x77>
+  41c688:	e9 6a ff ff ff       	jmp    41c5f7 <wcrtomb+0x77>
+  41c6b6:	e9 3c ff ff ff       	jmp    41c5f7 <wcrtomb+0x77>
+  41c810:	ff e0                	jmp    rax
+  41c825:	e9 04 ff ff ff       	jmp    41c72e <__stdio_exit+0x6e>
+  41c838:	eb a0                	jmp    41c7da <__stdio_exit+0x11a>
+  41c848:	e9 44 ff ff ff       	jmp    41c791 <__stdio_exit+0xd1>
+  41c858:	e9 eb fe ff ff       	jmp    41c748 <__stdio_exit+0x88>
+  41c89b:	e9 60 02 00 00       	jmp    41cb00 <__unlock>
+  41ca19:	eb 18                	jmp    41ca33 <__lock+0x193>
+  41ca69:	eb b5                	jmp    41ca20 <__lock+0x180>
+  41ca88:	e9 fc fe ff ff       	jmp    41c989 <__lock+0xe9>
+  41ca98:	e9 0b ff ff ff       	jmp    41c9a8 <__lock+0x108>
+  41caa8:	e9 1a ff ff ff       	jmp    41c9c7 <__lock+0x127>
+  41cab8:	e9 29 ff ff ff       	jmp    41c9e6 <__lock+0x146>
+  41cac8:	e9 34 ff ff ff       	jmp    41ca01 <__lock+0x161>
+  41caee:	e9 70 ff ff ff       	jmp    41ca63 <__lock+0x1c3>
