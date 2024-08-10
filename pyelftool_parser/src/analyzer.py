@@ -1,6 +1,6 @@
 import register
 import execute
-from debug import loginst, log, logresult
+from debug import loginst, log, logresult, logstack
 from capstone.x86 import *
 from elftools.elf.elffile import ELFFile
 from capstone import *
@@ -15,6 +15,7 @@ class disassembler:
         self.vertex = dict()
         self.entry_pc = 0
         self.exit_pc = 0
+        self.acquire_stack_address = 0
 
     def disasminst(self):
         pc_flag = 0
@@ -50,6 +51,8 @@ class disassembler:
                         self.entry_pc = symbol['st_value']
                         log("Set up entry point")
                         log(hex(self.entry_pc))
+                    if(symbol.name == 'custom_acquire_stack'):
+                        self.acquire_stack_address = symbol['st_value']
     def sym_analyzer(self):
         sym_info = {}
         with open(self.path, 'rb') as f:
@@ -86,7 +89,7 @@ class disassembler:
                 )
     
 class parser:
-    def __init__(self, symbol, inst, register, execute, exit_pc):
+    def __init__(self, symbol, inst, register, execute, exit_pc, acquire_stack_address):
         self.symbol = symbol 
         self.inst = inst
         self.stacklist = []
@@ -99,6 +102,7 @@ class parser:
         self.exit_pc = exit_pc
         self.retjmppc = 0
         self.retjmpflag = 0
+        self.acquire_stack_address = acquire_stack_address
         self.retcallpc = []
         self.seenlist = [] ## handle the while loop jmp.
         
@@ -112,6 +116,8 @@ class parser:
             self.register.updaterip(nextinstRip[self.index + 1 if self.index + 1 in nextinstRip else self.index]) ## catch the rip for memory instruction.
             if self.register.reg["pc"] in self.symbol.keys():  ## check function block (as basic block but we use function as unit.)
                 self.stackfunction.append(self.symbol[self.register.reg["pc"]])
+                logstack(self.symbol[self.register.reg["pc"]])   ## TODO: here is error.
+                self.register.updatestackreg(self.symbol[self.register.reg["pc"]] == 'custom_acquire_stack') ## if it is acquiring stack address, do not setting the stack size.
                 self.stacklist.append(self.register.reg["stack"])
                 self.register.clean()
                 
@@ -120,7 +126,7 @@ class parser:
                 self.vertex.add(vertexfrom)
                 ######
             self.execute.exe(self.inst[self.register.reg["pc"]], self.edge, vertexfrom)
-            self.register.updatestackreg()
+            
             
             #### set up next instruction pc
     
@@ -163,7 +169,8 @@ def driver(disassembler, parser):
 
 if __name__ == '__main__':
     
-    path = "../testbench/composite/system_binaries/cos_build-test/global.sched/sched.pfprr_quantum_static.global.sched"
+    ## path = "../testbench/composite/system_binaries/cos_build-test/global.sched/sched.pfprr_quantum_static.global.sched"
+    path = "../testbench/composite/system_binaries/cos_build-ping/tests.unit_pingpong.global.ping"
     
     disassembler = disassembler(path)
     disassembler.disasmsymbol()
@@ -173,7 +180,10 @@ if __name__ == '__main__':
     register = register.register()
     register.reg["pc"] = disassembler.entry_pc
     execute = execute.execute(register)
-    parser = parser(disassembler.symbol, disassembler.inst, register, execute, disassembler.exit_pc)
+    parser = parser(disassembler.symbol, disassembler.inst, 
+                    register, execute, 
+                    disassembler.exit_pc, disassembler.acquire_stack_address)
+    
     driver(disassembler, parser)
     logresult(parser.stackfunction)
     logresult(parser.stacklist)
