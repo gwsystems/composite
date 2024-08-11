@@ -442,7 +442,7 @@ capop_pgtbl_retype2pgtbl(cos_cap_t ptcap, uword_t pt_off, uword_t level)
 COS_FORCE_INLINE static inline cos_retval_t
 capop_pgtbl_retype2captbl(cos_cap_t ptcap, uword_t pt_off, uword_t level)
 {
-	return __capop_4_1_op(ptcap, COS_OP_PGTBL_RETYPE_PGTBL, pt_off, level, 0, 0);
+	return __capop_4_1_op(ptcap, COS_OP_PGTBL_RETYPE_CAPTBL, pt_off, level, 0, 0);
 }
 
 /**
@@ -554,13 +554,24 @@ capop_pgtbl_retype2free(cos_cap_t ptcap, uword_t pt_off)
  * - `@pt_to_off` - offset in that node for copied reference.
  * - `@ptcap_from` - page-table node to copy reference from.
  * - `@pt_from_off` - offset in that node for original reference.
- * - `@perm` - permissions for the new mapping.
+ * - `@perm` - pgtbl permissions for the new mapping -- only used if
+ *   VM-typed.
  * - `@return` - `COS_RET_SUCCESS` or a negative `COS_ERR_*` on error.
  */
 COS_FORCE_INLINE static inline cos_retval_t
 capop_pgtbl_ref_copy(cos_cap_t ptcap_to, uword_t pt_to_off, cos_cap_t ptcap_from, uword_t pt_from_off, uword_t perm)
 {
 	return __capop_4_1_op(ptcap_to, COS_OP_RESTBL_CAP_COPY, pt_to_off, ptcap_from, pt_from_off, perm);
+}
+
+/**
+ * `capop_pgtbl_ref_remove` attempts to remove a mapping/reference to
+ * a page from a page-table.
+ */
+COS_FORCE_INLINE static inline cos_retval_t
+capop_pgtbl_ref_remove(cos_cap_t ptcap, uword_t pt_off)
+{
+	return __capop_4_1_op(ptcap, COS_OP_RESTBL_CAP_REMOVE, pt_off);
 }
 
 /***
@@ -641,7 +652,6 @@ capop_restbl_construct(cos_cap_t rtcap_top, uword_t rt_off, uword_t rtcap_bottom
  *
  * - `@rtcap_top` - node at level N.
  * - `@rt_off` - offset into that node to identify entry we'll update.
- * - `@rtcap_bottom` - node at level N+1 added at that entry.
  * - `@return` - `COS_RET_SUCCESS` or a negative `COS_ERR_*` on error.
  */
 COS_FORCE_INLINE static inline cos_retval_t
@@ -656,7 +666,6 @@ capop_restbl_deconstruct(cos_cap_t rtcap_top, uword_t rt_off)
  *
  * TODO: use 9 registers to pass longer strings.
  */
-
 COS_FORCE_INLINE static inline cos_retval_t
 capop_hw_print(cos_cap_t hwcap, uword_t len, uword_t a0, uword_t a1, uword_t a2, uword_t *written)
 {

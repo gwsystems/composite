@@ -51,31 +51,32 @@
  */
 
 #define COS_OP_NIL                      0
-#define COS_OP_NEST                     1
-#define COS_OP_INTROSPECT               2
-#define COS_OP_RESTBL_CONSTRUCT         4
-#define COS_OP_RESTBL_DECONSTRUCT       8
-#define COS_OP_PGTBL_RETYPE_PGTBL       16
-#define COS_OP_PGTBL_RETYPE_CAPTBL      32
-#define COS_OP_PGTBL_RETYPE_THD         64
-#define COS_OP_PGTBL_RETYPE_COMP        128
-#define COS_OP_PGTBL_RETYPE_DEALLOCATE  256
-#define COS_OP_CAPTBL_CAP_CREATE_RESTBL 512
-#define COS_OP_CAPTBL_CAP_CREATE_THD    1024
-#define COS_OP_CAPTBL_CAP_CREATE_SINV   2048
-#define COS_OP_CAPTBL_CAP_CREATE_COMP   4096
-#define COS_OP_CAPTBL_CAP_REMOVE        8192
-#define COS_OP_RESTBL_CAP_COPY          16384
-#define COS_OP_THD_DISPATCH             32768
-#define COS_OP_THD_EVT_OR_DISPATCH      65536
-#define COS_OP_THD_AWAIT_EVT            131072
-#define COS_OP_THD_TRIGGER_EVT          262144
-#define COS_OP_THD_CALL                 524288
-#define COS_OP_THD_REPLY_WAIT           1048576
-#define COS_OP_THD_SCHEDULE             2097152
-#define COS_OP_HW_PRINT                 4194304
-#define COS_OP_CAP_COPY                 8388608
-#define COS_OP_ALL                      16777215
+#define COS_OP_NEST                     (1 << 0)
+#define COS_OP_INTROSPECT               (1 << 1)
+#define COS_OP_RESTBL_CONSTRUCT         (1 << 2)
+#define COS_OP_RESTBL_DECONSTRUCT       (1 << 4)
+#define COS_OP_PGTBL_RETYPE_PGTBL       (1 << 5)
+#define COS_OP_PGTBL_RETYPE_CAPTBL      (1 << 6)
+#define COS_OP_PGTBL_RETYPE_THD         (1 << 7)
+#define COS_OP_PGTBL_RETYPE_COMP        (1 << 8)
+#define COS_OP_PGTBL_RETYPE_DEALLOCATE  (1 << 9)
+#define COS_OP_CAPTBL_CAP_CREATE_RESTBL (1 << 10)
+#define COS_OP_CAPTBL_CAP_CREATE_THD    (1 << 11)
+#define COS_OP_CAPTBL_CAP_CREATE_SINV   (1 << 12)
+#define COS_OP_CAPTBL_CAP_CREATE_COMP   (1 << 13)
+#define COS_OP_CAPTBL_CAP_REMOVE        (1 << 14)
+#define COS_OP_RESTBL_CAP_COPY          (1 << 15)
+#define COS_OP_RESTBL_CAP_REMOVE        (1 << 16)
+#define COS_OP_THD_DISPATCH             (1 << 17)
+#define COS_OP_THD_EVT_OR_DISPATCH      (1 << 18)
+#define COS_OP_THD_AWAIT_EVT            (1 << 19)
+#define COS_OP_THD_TRIGGER_EVT          (1 << 20)
+#define COS_OP_THD_CALL                 (1 << 21)
+#define COS_OP_THD_REPLY_WAIT           (1 << 22)
+#define COS_OP_THD_SCHEDULE             (1 << 23)
+#define COS_OP_HW_PRINT                 (1 << 24)
+#define COS_OP_CAP_COPY                 (1 << 25)
+#define COS_OP_ALL                      ((1 << 26) - 1)
 
 
 /*
@@ -106,7 +107,7 @@
 #define COS_PAGE_TYPE_KERNEL      3   /* Kernel type. The specific "flavor" is selected in the following... */
 
 #define COS_PAGE_TYPE_BITS        8   /* How many bits hold the type? */
-#define COS_PAGE_TYPE_BITS_MASK   255 /* Mask for those bits. */
+#define COS_PAGE_TYPE_BITS_MASK   ((1 << COS_PAGE_TYPE_BITS) - 1) /* Mask for those bits. */
 /* Packed into bits past the first two, the specific kernel type: */
 #define COS_PAGE_KERNTYPE_THD         1   /* A thread including a tcap */
 #define COS_PAGE_KERNTYPE_CAPTBL_0    2   /* Capability-table nodes at different levels... */

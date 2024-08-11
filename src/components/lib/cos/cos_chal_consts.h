@@ -5,10 +5,10 @@
 #pragma once
 
 #define COS_PAGE_ORDER            12
-#define COS_PAGE_SIZE             4096
+#define COS_PAGE_SIZE             (1 << COS_PAGE_ORDER)
 #define COS_CACHELINE_SIZE        64
-#define COS_COHERENCE_UNIT_SIZE   128
-#define COS_WORD_SIZE             8
+#define COS_COHERENCE_UNIT_SIZE   128 /* Intel uses double-cachelines */
+#define COS_WORD_SIZE             8   /* In bytes */
 
 #define COS_PGTBL_TOP_NENT        256
 #define COS_PGTBL_TOP_ORD         8
