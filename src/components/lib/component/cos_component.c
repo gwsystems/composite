@@ -345,25 +345,19 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	 * if it's the first component.. wait for timer calibration.
 	 * NOTE: for "fork"ing components and not updating "spdid"s, this call will just fail and should be fine.
 	 */
-	printc("%s: %d\n", __FILE__, __LINE__);
 	if (cos_compid_uninitialized()) { /* we must be in the initial booter! */
 		cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
 		perfcntr_init();
 	}
-	printc("%s: %d\n", __FILE__, __LINE__);
 
 	/* A new thread is created in this comp. */
-	printc("%s: %d\n", __FILE__, __LINE__);
 	/* arg1 is the thread init data. 0 means bootstrap. */
 	if (arg1 == 0) {
 		static unsigned long first_core = 1;
-	printc("%s: %d\n", __FILE__, __LINE__);
 		/* FIXME: assume that core 0 is the initial core for now */
 		start_execution(cos_coreid(), ps_cas(&first_core, 1, 0), init_parallelism());
 	} else {
 		word_t idx = (word_t)arg1 - 1;
-		printc("%s: %d\n", __FILE__, __LINE__);
-		printc("index %d\n", (int)idx);
 		if (idx >= COS_THD_INIT_REGION_SIZE) {
 			/* This means static defined entry */
 			cos_thd_entry_static(idx - COS_THD_INIT_REGION_SIZE);
@@ -372,7 +366,6 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 			cos_thd_entry_exec(idx);
 		}
 	}
-		printc("%s: %d\n", __FILE__, __LINE__);
 	assert(0); 		/* should *not* return from threads */
 
 	return;

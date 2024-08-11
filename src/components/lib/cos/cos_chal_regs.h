@@ -369,9 +369,9 @@ asmfn##:							\
  */
 
 #define ASM_SYSCALL_RETURN(rs) \
-	asm volatile("movq %0, %%rsp;" EXPAND(POP_REGS_RET_SYSCALL) : : "r" (rs) : "memory" )
+	__asm__ __volatile__("movq %0, %%rsp;" EXPAND(POP_REGS_RET_SYSCALL) : : "r" (rs) : "memory" )
 #define ASM_TRAP_RETURN(rs) \
-	asm volatile("movq %0, %%rsp;" EXPAND(POP_REGS_RET_TRAP) : : "r" (rs) : "memory" )
+	__asm__ __volatile__("movq %0, %%rsp;" EXPAND(POP_REGS_RET_TRAP) : : "r" (rs) : "memory" )
 
 COS_STATIC_ASSERT(REGS_MAX_NUM_ARGS + REGS_ARGS_RETS_BASE == REGS_NUM_ARGS_RETS,
 		  "The relationship between REGS_MAX_NUM_ARGS, REGS_ARGS_RETS_BASE, and REGS_NUM_ARGS_RETS is not correct.");
@@ -536,6 +536,39 @@ struct cos_stack_layout {
 } __attribute__((packed));
 COS_STATIC_ASSERT(((sizeof(uword_t) + COS_STACK_SIZE - sizeof(uword_t) - sizeof(struct regs_user_context)) % sizeof(uword_t)) == 0,
                   "The stack context in cos_stack_layout is not aligned on a word boundary.");
+/*
+ * We assume here that the stack starts after the `regs_user_context`,
+ * or that whatever is after the structure further maintains the 16
+ * byte offset. So her we simply check that the `regs_user_context`
+ * properly adheres to the alignment requirement.
+ */
+COS_STATIC_ASSERT((sizeof(struct regs_user_context) % 16) == 0,
+		  "The stack is not properly aligned to 16 bytes as per Sys-V x86-64 ABI requirements.");
+COS_STATIC_ASSERT(sizeof(struct cos_stack_layout) == COS_STACK_SIZE,
+		  "The `cos_stack_layout` struct is not properly sized.");
+
+#ifdef COS_STATIC_DIRECT_MAPPED_STACKS
+
+/*
+ * Assumptions: for static, stacks, we assume that each stack is
+ * aligned on a boundary of its size, and that its size is a power of
+ * two. Most of this should be provided by the way the constants are
+ * provided.
+ */
+static inline struct regs_user_context *
+cos_user_context_current(void)
+{
+	uword_t local;
+
+	return &((struct cos_stack_layout *)(((unsigned long)&local) & ~(COS_STACK_SIZE - 1)))->context;
+}
+
+#else
+
+#error "A stack acquisition mechanism *must* be provided."
+
+#endif
+
 
 /*
  * Provides the format string, and arguments for printing out a register set.
@@ -894,10 +927,10 @@ COS_FORCE_INLINE static inline void
 cos_syscall_4_4(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS4, REGS_SYSCALL_FN_RETS4) {
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS4;
-	asm volatile(REGS_SYSCALL_TEMPLATE
-		     : REGS_SYSCALL_RET
-		     : REGS_SYSCALL_ARG4
-		     : REGS_SYSCALL_CLOBBER);
+	__asm__ __volatile__(REGS_SYSCALL_TEMPLATE
+			     : REGS_SYSCALL_RET
+			     : REGS_SYSCALL_ARG4
+			     : REGS_SYSCALL_CLOBBER);
 	REGS_SYSCALL_DECL_POSTRETS4;
 }
 
@@ -906,10 +939,10 @@ cos_syscall_4_1(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS4, uword
 	REGS_SYSCALL_FN_4RETS_EMU;
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS4;
-	asm volatile(REGS_SYSCALL_TEMPLATE
-		     : REGS_SYSCALL_RET
-		     : REGS_SYSCALL_ARG4
-		     : REGS_SYSCALL_CLOBBER);
+	__asm__ __volatile__(REGS_SYSCALL_TEMPLATE
+			     : REGS_SYSCALL_RET
+			     : REGS_SYSCALL_ARG4
+			     : REGS_SYSCALL_CLOBBER);
 	REGS_SYSCALL_DECL_POSTRETS4;
 }
 
@@ -918,10 +951,10 @@ cos_syscall_9_1(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, uword
 	REGS_SYSCALL_FN_4RETS_EMU;
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS9;
-	asm volatile(REGS_SYSCALL_TEMPLATE
-		     : REGS_SYSCALL_RET
-		     : REGS_SYSCALL_ARG9
-		     : REGS_SYSCALL_CLOBBER);
+	__asm__ __volatile__(REGS_SYSCALL_TEMPLATE
+			     : REGS_SYSCALL_RET
+			     : REGS_SYSCALL_ARG9
+			     : REGS_SYSCALL_CLOBBER);
 	REGS_SYSCALL_DECL_POSTRETS4;
 }
 
@@ -930,7 +963,7 @@ cos_syscall_9_4(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, REGS_
 {
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS9;
-	asm volatile(REGS_SYSCALL_TEMPLATE
+	__asm__ __volatile__(REGS_SYSCALL_TEMPLATE
 		     : REGS_SYSCALL_RET
 		     : REGS_SYSCALL_ARG9
 		     : REGS_SYSCALL_CLOBBER);
@@ -942,10 +975,10 @@ cos_syscall_9_9(cos_cap_t cap, cos_op_bitmap_t ops, REGS_SYSCALL_FN_ARGS9, REGS_
 {
 	REGS_SYSCALL_CTXT;
 	REGS_SYSCALL_DECL_ARGS9;
-	asm volatile(REGS_SYSCALL_TEMPLATE
-		     : REGS_SYSCALL_RET
-		     : REGS_SYSCALL_ARG9
-		     : REGS_SYSCALL_CLOBBER);
+	__asm__ __volatile__(REGS_SYSCALL_TEMPLATE
+			     : REGS_SYSCALL_RET
+			     : REGS_SYSCALL_ARG9
+			     : REGS_SYSCALL_CLOBBER);
 	REGS_SYSCALL_DECL_POSTRETS9;
 }
 

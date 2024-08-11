@@ -16,6 +16,8 @@
 #include <ps_plat.h>
 #include <cos_stubs.h>
 
+#include <cos_regs.h>
+
 /*
  * dewarn: strtok_r()
  * reference: feature_test_macro() requirement: _SVID_SOURCE || _BSD_SOURCE || _POSIX_C_SOURCE >= 1 || _XOPEN_SOURCE || _POSIX_SOURCE
@@ -285,13 +287,13 @@ cos_get_thd_id(void)
 	/*
 	 * see comments in the get_stk_data above.
 	 */
-	return get_stk_data(THDID_OFFSET);
+	return cos_user_context_current()->thdid;
 }
 
 static inline invtoken_t
 cos_inv_token(void)
 {
-	return get_stk_data(INVTOKEN_OFFSET);
+	return cos_user_context_current()->inv_token;
 }
 
 typedef u16_t cos_thdid_t;
