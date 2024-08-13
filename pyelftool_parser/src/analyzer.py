@@ -157,7 +157,14 @@ class parser:
         self.stacklist = self.stacklist[1:]
         return (self.stackfunction,self.stacklist)
     
-
+def cleanresult(parser): ## remove the custom_acquire_stack function from the result.
+    index = 0
+    for i in parser.stackfunction:
+        if i == "custom_acquire_stack":
+            parser.stackfunction.remove("custom_acquire_stack")
+            del parser.stacklist[index]
+            return
+        index = index + 1
 def driver(disassembler, parser):
     disassembler.disasmsymbol()
     disassembler.disasminst()
@@ -185,6 +192,8 @@ if __name__ == '__main__':
                     disassembler.exit_pc, disassembler.acquire_stack_address)
     
     driver(disassembler, parser)
+    
+    cleanresult(parser)
     logresult(parser.stackfunction)
     logresult(parser.stacklist)
     logresult(parser.edge)

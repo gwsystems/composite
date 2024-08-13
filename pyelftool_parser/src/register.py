@@ -43,7 +43,7 @@ class register:
         self.reg["rsi"] = 0
         self.reg["rbp"] = 0
         self.reg["rspbegin"] = self.reg["rsp"]
-        self.reg["rsp"] = 0
+        ##　self.reg["rsp"] = 0
         self.reg["r8"] = 0
         self.reg["r9"] = 0
         self.reg["r10"] = 0
