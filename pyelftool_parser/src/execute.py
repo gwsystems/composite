@@ -1,6 +1,6 @@
 from capstone import *
 from capstone.x86 import *
-from debug import loginst,log, logcall, logerror
+from debug import loginst,log, logcall, logerror, logstack
 class execute:
     def __init__(self, register):
         self.register = register
@@ -75,7 +75,7 @@ class execute:
                     self.register.Setregwithregname(dst, src)
             elif inst.id == (X86_INS_MOVABS):  ## catch mov instruction
                 if flagimm:
-                    self.register.Setreg(dst, imm)
+                    self.register.Setreg(dst, imm)   ## @TODO: Do I need this?
                 else:
                     self.register.Setregwithregname(dst, src)
             elif inst.id == (X86_INS_SUB):  ## catch sub instruction
@@ -114,15 +114,15 @@ class execute:
                 logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                 self.reg["rsp"] -= imm
                 self.reg["enter"] = imm
-                ## TODO: here is problematic, We need a stack to store what is inside the 
+                
             elif inst.id == (X86_INS_LEAVE):  ## catch Leave instruction
                 logcall(hex(inst.address), inst.mnemonic, inst.op_str)
                 self.reg["rsp"] += self.reg["enter"]
-
             else:
                 loginst(hex(inst.address), inst.mnemonic, inst.op_str)
                 loginst("we have not catched this instruction and it is rsp instruction.")
-                return 0
+            logstack(hex(inst.address), inst.mnemonic, inst.op_str)
+            logstack("rsp now is:" + str(self.reg["rsp"]))
             return 0
         else: ## simulator mode or calculation mode
             if inst.id == (X86_INS_MOV):  ## catch mov instruction
