@@ -134,5 +134,5 @@ class register:
         logstack("comparison:")
         logstack(self.reg["rsp"])
         logstack(self.reg["rspbegin"])
-        self.reg["stack"] = self.reg["rspbegin"] - self.reg["rsp"]   ## catch the maximum stack, but I use min because stack is negative.
+        self.reg["stack"] =  self.reg["rsp"] - self.reg["rspbegin"]  ## catch the maximum stack, but I use min because stack is negative.
         logstack(self.reg["stack"])
