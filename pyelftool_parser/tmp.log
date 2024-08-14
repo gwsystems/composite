@@ -1,0 +1,182 @@
+
+_Znam
+__libc_start_main
+_ITM_deregisterTMCloneTable
+__gmon_start__
+_ITM_registerTMCloneTable
+__cxa_finalize
+
+Scrt1.o
+__abi_tag
+crtstuff.c
+deregister_tm_clones
+register_tm_clones
+__do_global_dtors_aux
+completed.0
+__do_global_dtors_aux_fini_array_entry
+frame_dummy
+__frame_dummy_init_array_entry
+main.cpp
+crtstuff.c
+__FRAME_END__
+
+__GNU_EH_FRAME_HDR
+_DYNAMIC
+_GLOBAL_OFFSET_TABLE_
+_Znam@GLIBCXX_3.4
+_edata
+data_start
+_IO_stdin_used
+__cxa_finalize@GLIBC_2.2.5
+main
+__dso_handle
+_fini
+__libc_start_main@GLIBC_2.34
+_Z3fibi
+_Z7foocallii
+_start
+_Z12functioncallii
+_init
+__TMC_END__
+__data_start
+_end
+__bss_start
+_ITM_deregisterTMCloneTable
+__gmon_start__
+_ITM_registerTMCloneTable
+(4192, 'endbr64', '')
+('It is not about rsp',)
+(4196, 'xor', 'ebp, ebp')
+('It is not about rsp',)
+(4198, 'mov', 'r9, rdx')
+('It is not about rsp',)
+(4205, 'and', 'rsp, 0xfffffffffffffff0')
+('we have not catched this instruction',)
+(4211, 'xor', 'r8d, r8d')
+('It is not about rsp',)
+(4214, 'xor', 'ecx, ecx')
+('It is not about rsp',)
+(4216, 'lea', 'rdi, [rip + 0x1ba]')
+('It is not about rsp',)
+(4229, 'hlt', '')
+('It is not about rsp',)
+(4240, 'lea', 'rdi, [rip + 0x2f79]')
+('It is not about rsp',)
+(4247, 'lea', 'rax, [rip + 0x2f72]')
+('It is not about rsp',)
+(4254, 'cmp', 'rax, rdi')
+('It is not about rsp',)
+(4257, 'je', '0x10b8')
+('It is not about rsp',)
+(4266, 'test', 'rax, rax')
+('It is not about rsp',)
+(4269, 'je', '0x10b8')
+('It is not about rsp',)
+(4271, 'jmp', 'rax')
+('It is not about rsp',)
+(4288, 'lea', 'rdi, [rip + 0x2f49]')
+('It is not about rsp',)
+(4295, 'lea', 'rsi, [rip + 0x2f42]')
+('It is not about rsp',)
+(4302, 'sub', 'rsi, rdi')
+('It is not about rsp',)
+(4305, 'mov', 'rax, rsi')
+('It is not about rsp',)
+(4308, 'shr', 'rsi, 0x3f')
+('It is not about rsp',)
+(4312, 'sar', 'rax, 3')
+('It is not about rsp',)
+(4316, 'add', 'rsi, rax')
+('It is not about rsp',)
+(4319, 'sar', 'rsi, 1')
+('It is not about rsp',)
+(4322, 'je', '0x10f8')
+('It is not about rsp',)
+(4331, 'test', 'rax, rax')
+('It is not about rsp',)
+(4334, 'je', '0x10f8')
+('It is not about rsp',)
+(4336, 'jmp', 'rax')
+('It is not about rsp',)
+(4352, 'endbr64', '')
+('It is not about rsp',)
+(4363, 'jne', '0x1138')
+('It is not about rsp',)
+(4377, 'je', '0x1127')
+('It is not about rsp',)
+(4416, 'endbr64', '')
+('It is not about rsp',)
+(4420, 'jmp', '0x10c0')
+('It is not about rsp',)
+(4425, 'endbr64', '')
+('It is not about rsp',)
+(4446, 'jmp', '0x116b')
+('It is not about rsp',)
+(4463, 'jle', '0x1160')
+('It is not about rsp',)
+(4474, 'endbr64', '')
+('It is not about rsp',)
+(4492, 'mov', 'edi, 0x28')
+('It is not about rsp',)
+(4513, 'jmp', '0x11c7')
+('It is not about rsp',)
+(4525, 'cdqe', '')
+('It is not about rsp',)
+(4527, 'lea', 'rdx, [rax*4]')
+('It is not about rsp',)
+(4539, 'add', 'rdx, rax')
+('It is not about rsp',)
+(4555, 'jle', '0x11a3')
+('It is not about rsp',)
+(4561, 'add', 'rax, 0x14')
+('It is not about rsp',)
+(4571, 'add', 'rdx, 0x1c')
+('It is not about rsp',)
+(4577, 'sub', 'eax, edx')
+('It is not about rsp',)
+(4585, 'leave', '')
+('we have not catched this instruction',)
+(4587, 'endbr64', '')
+('It is not about rsp',)
+(4607, 'jne', '0x1208')
+('It is not about rsp',)
+(4609, 'mov', 'eax, 1')
+('It is not about rsp',)
+(4614, 'jmp', '0x1233')
+('It is not about rsp',)
+(4620, 'jne', '0x1215')
+('It is not about rsp',)
+(4622, 'mov', 'eax, 1')
+('It is not about rsp',)
+(4627, 'jmp', '0x1233')
+('It is not about rsp',)
+(4632, 'sub', 'eax, 1')
+('It is not about rsp',)
+(4635, 'mov', 'edi, eax')
+('It is not about rsp',)
+(4642, 'mov', 'ebx, eax')
+('It is not about rsp',)
+(4647, 'sub', 'eax, 2')
+('It is not about rsp',)
+(4650, 'mov', 'edi, eax')
+('It is not about rsp',)
+(4657, 'add', 'eax, ebx')
+('It is not about rsp',)
+(4663, 'leave', '')
+('we have not catched this instruction',)
+(4665, 'endbr64', '')
+('It is not about rsp',)
+(4704, 'mov', 'esi, edx')
+('It is not about rsp',)
+(4706, 'mov', 'edi, eax')
+('It is not about rsp',)
+(4722, 'mov', 'esi, edx')
+('It is not about rsp',)
+(4724, 'mov', 'edi, eax')
+('It is not about rsp',)
+(4734, 'mov', 'edi, 0x14')
+('It is not about rsp',)
+(4744, 'nop', '')
+('It is not about rsp',)
+(4745, 'leave', '')
+('we have not catched this instruction',)

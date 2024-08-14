@@ -1,0 +1,155 @@
+Dep Command: make --quiet -C src COMP_INTERFACES="init/stubs+addr/stubs" COMP_IFDEPS="init/kernel" COMP_LIBDEPS="" COMP_INTERFACE=no_interface COMP_NAME=llbooter dependencies_info
+Compilation output:/home/minghwu/work/composite/src/components/interface/sched /home/minghwu/work/composite/src/components/interface/memmgr /home/minghwu/work/composite/src/components/interface/init /home/minghwu/work/composite/src/components/lib/kernel /home/minghwu/work/composite/src/components/lib/mpk_jit /home/minghwu/work/composite/src/components/lib/res_spec /home/minghwu/work/composite/src/components/lib/util /home/minghwu/work/composite/src/components/lib/protdom /home/minghwu/work/composite/src/components/lib/ps /home/minghwu/work/composite/src/components/lib/initargs /home/minghwu/work/composite/src/components/lib/crt /home/minghwu/work/composite/src/components/lib/component/
+
+compilation errors:
+
+                 Rebuild Command: make -C src REBUILD_DIRS="/home/minghwu/work/composite/src/components/interface/sched /home/minghwu/work/composite/src/components/interface/memmgr /home/minghwu/work/composite/src/components/interface/init /home/minghwu/work/composite/src/components/lib/kernel /home/minghwu/work/composite/src/components/lib/mpk_jit /home/minghwu/work/composite/src/components/lib/res_spec /home/minghwu/work/composite/src/components/lib/util /home/minghwu/work/composite/src/components/lib/protdom /home/minghwu/work/composite/src/components/lib/ps /home/minghwu/work/composite/src/components/lib/initargs /home/minghwu/work/composite/src/components/lib/crt /home/minghwu/work/composite/src/components/lib/component/
+" COMP_CONST_H="-include /home/minghwu/work/composite/system_binaries/cos_build-test/global.booter/component_constants.h" component_rebuild
+Compilation output:make: Entering directory '/home/minghwu/work/composite/src'
+make --no-print-directory -I/home/minghwu/work/composite/src -C components component_rebuild
+make -I/home/minghwu/work/composite/src/components -C lib component_rebuild
+**************************************************
+**********[ Rebuilding Related Libraries]*********
+**************************************************
+LIB_DIRS: /home/minghwu/work/composite/src/components/lib/kernel /home/minghwu/work/composite/src/components/lib/mpk_jit /home/minghwu/work/composite/src/components/lib/res_spec /home/minghwu/work/composite/src/components/lib/util /home/minghwu/work/composite/src/components/lib/protdom /home/minghwu/work/composite/src/components/lib/ps /home/minghwu/work/composite/src/components/lib/initargs /home/minghwu/work/composite/src/components/lib/crt /home/minghwu/work/composite/src/components/lib/component/
+*************************[TASK START]*************************
+                    [ Building /home/minghwu/work/composite/src/components/lib/kernel ]
+|     [RM]   Cleaning up library kernel's directory
+Building library files in kernel
+|     [CC]   Compiling C file cos_defkernel_api.c into cos_defkernel_api.o
+|     [CC]   Compiling C file cos_kernel_api.c into cos_kernel_api.o
+|     [AR]   Creating library file libkernel.a from cos_defkernel_api.o cos_kernel_api.o 
+*************************[TASK  STOP]*************************
+
+*************************[TASK START]*************************
+                    [ Building /home/minghwu/work/composite/src/components/lib/mpk_jit ]
+|     [RM]   Cleaning up library mpk_jit's directory
+Building library files in mpk_jit
+|     [AR]   Creating library file libmpk_jit.a from  
+*************************[TASK  STOP]*************************
+
+*************************[TASK START]*************************
+                    [ Building /home/minghwu/work/composite/src/components/lib/res_spec ]
+|     [RM]   Cleaning up library res_spec's directory
+Building library files in res_spec
+|     [AR]   Creating library file libres_spec.a from  
+*************************[TASK  STOP]*************************
+
+*************************[TASK START]*************************
+                    [ Building /home/minghwu/work/composite/src/components/lib/util ]
+|     [RM]   Cleaning up library util's directory
+Building library files in util
+|     [CC]   Compiling C file heap.c into heap.o
+|     [AR]   Creating library file libutil.a from heap.o 
+*************************[TASK  STOP]*************************
+
+*************************[TASK START]*************************
+                    [ Building /home/minghwu/work/composite/src/components/lib/protdom ]
+|     [RM]   Cleaning up library protdom's directory
+Building library files in protdom
+|     [CC]   Compiling C file protdom.c into protdom.o
+|     [AR]   Creating library file libprotdom.a from protdom.o 
+*************************[TASK  STOP]*************************
+
+*************************[TASK START]*************************
+                    [ Building /home/minghwu/work/composite/src/components/lib/ps ]
+make[3]: Nothing to be done for 'clean'.
+Configuring the ps library
+cd ps; ./configure cos x86_64 general; cd ..
+make -C ps config
+Building ps library...
+make -C ps all
+cp ps/libps.a .
+*************************[TASK  STOP]*************************
+
+*************************[TASK START]*************************
+                    [ Building /home/minghwu/work/composite/src/components/lib/initargs ]
+|     [RM]   Cleaning up library initargs's directory
+Building library files in initargs
+|     [CC]   Compiling C file initargs.c into initargs.o
+|     [CC]   Compiling C file tar.c into tar.o
+|     [AR]   Creating library file libinitargs.a from initargs.o tar.o 
+*************************[TASK  STOP]*************************
+
+*************************[TASK START]*************************
+                    [ Building /home/minghwu/work/composite/src/components/lib/crt ]
+|     [RM]   Cleaning up library crt's directory
+Building library files in crt
+|     [CC]   Compiling C file crt.c into crt.o
+|     [AR]   Creating library file libcrt.a from crt.o 
+*************************[TASK  STOP]*************************
+
+*************************[TASK START]*************************
+                    [ Building /home/minghwu/work/composite/src/components/lib/component/ ]
+|     [RM]   Cleaning up library component's directory
+Building library files in component
+|     [CC]   Compiling C file cos_component.c into cos_component.o
+|     [CC]   Compiling C file c_stub.c into c_stub.o
+|     [AS]   Compiling assembly file cos_asm_ainv.S into cos_asm_ainv.o
+|     [AS]   Compiling assembly file cos_asm_upcall_simple_stacks.S into cos_asm_upcall_simple_stacks.o
+|     [LD]   Creating library binary file component.lib.o from cos_component.o c_stub.o cos_asm_ainv.o cos_asm_upcall_simple_stacks.o
+*************************[TASK  STOP]*************************
+
+make -I/home/minghwu/work/composite/src/components -C interface component_rebuild 
+***********************************************
+*******[ Rebuilding Releated Interface]********
+***********************************************
+/home/minghwu/work/composite/src/components/interface/sched /home/minghwu/work/composite/src/components/interface/memmgr /home/minghwu/work/composite/src/components/interface/init
+|     [RM]   Cleaning up interface directory for sched
+|     [RM]   Cleaning up interface variant directory for stubs
+| Interface sched: Compiling stubs and libraries
+Compiling stubs for interface: sched, variant: stubs
+|     [AS]   Creating server asm stubs for sched
+|     [CC]   Compiling c file s_stub.c into s_stub.o
+|     [CC]   Compiling c file c_stub.c into c_stub.o
+|     [AS]   Creating client user capability stubs for sched
+|     [CC]   Compiling c file lib.c into lib.o
+|     [AR]   Creating client library libsched.a for sched
+|     [RM]   Cleaning up interface directory for memmgr
+|     [RM]   Cleaning up interface variant directory for stubs
+| Interface memmgr: Compiling stubs and libraries
+Compiling stubs for interface: memmgr, variant: stubs
+|     [AS]   Creating server asm stubs for memmgr
+|     [CC]   Compiling c file s_stub.c into s_stub.o
+|     [CC]   Compiling c file c_stub.c into c_stub.o
+|     [AS]   Creating client user capability stubs for memmgr
+|     [CC]   Compiling c file lib.c into lib.o
+|     [AR]   Creating client library libmemmgr.a for memmgr
+|     [RM]   Cleaning up interface directory for init
+|     [RM]   Cleaning up interface variant directory for kernel
+|     [RM]   Cleaning up interface variant directory for stubs
+| Interface init: Compiling stubs and libraries
+Compiling stubs for interface: init, variant: kernel
+|     [AS]   Creating server asm stubs for init
+|     [CC]   Compiling c file c_stub.c into c_stub.o
+|     [AS]   Creating client user capability stubs for init
+Compiling stubs for interface: init, variant: stubs
+|     [AS]   Creating server asm stubs for init
+|     [CC]   Compiling c file c_stub.c into c_stub.o
+|     [AS]   Creating client user capability stubs for init
+|     [CC]   Compiling c file lib.c into lib.o
+|     [AR]   Creating client library libinit.a for init
+make: Leaving directory '/home/minghwu/work/composite/src'
+
+Component compilation errors:
+
+                 Command: make -C src COMP_INTERFACES="init/stubs+addr/stubs" COMP_IFDEPS="init/kernel" COMP_LIBDEPS="" COMP_INTERFACE=no_interface COMP_NAME=llbooter COMP_VARNAME=global.booter COMP_OUTPUT=/home/minghwu/work/composite/system_binaries/cos_build-test/global.booter/no_interface.llbooter.global.booter COMP_BASEADDR=0x400000 COMP_INITARGS_FILE=/home/minghwu/work/composite/system_binaries/cos_build-test/global.booter/initargs.c COMP_CONST_H="-include /home/minghwu/work/composite/system_binaries/cos_build-test/global.booter/component_constants.h"  component
+Compilation output:make: Entering directory '/home/minghwu/work/composite/src'
+make --no-print-directory -I/home/minghwu/work/composite/src -C components component
+make -I/home/minghwu/work/composite/src/components -C implementation component
+make -I/home/minghwu/work/composite/src/components/implementation -C no_interface component
+make -C llbooter component
+|     [RM]   Cleaning up implementation directory for component no_interface.llbooter
+| Composing no_interface.llbooter for variable global.booter by linking with:
+|     Exported interfaces: init/stubs addr/stubs 
+|     Interface dependencies: init/kernel 
+|     Libraries: -lmpk_jit -linit -lsched -lmemmgr -lps -lutil -lcrt -lkernel -lprotdom -lres_spec -linitargs /home/minghwu/work/composite/src/components/lib/component/component.lib.o
+|     [CC]   llbooter.c: Compiling
+|     [LD]   no_interface.llbooter (no_interface.llbooter.o): Linking together llbooter.o /home/minghwu/work/composite/src/components/lib/component/component.lib.o
+gcc -I/home/minghwu/work/composite/src/components/lib/res_spec/. -I/home/minghwu/work/composite/src/components/lib/initargs/. -I/home/minghwu/work/composite/src/components/lib/stubs/. -I/home/minghwu/work/composite/src/components/interface/memmgr/. -I/home/minghwu/work/composite/src/components/interface/addr/. -I/home/minghwu/work/composite/src/components/lib/kernel/. -I/home/minghwu/work/composite/src/components/lib/component/. -I/home/minghwu/work/composite/src/components/lib/protdom/. -I/home/minghwu/work/composite/src/components/lib/ps/ps/ -I/home/minghwu/work/composite/src/components/lib/crt/. -I/home/minghwu/work/composite/src/components/lib/util/. -I/home/minghwu/work/composite/src/components/interface/init/. -I/home/minghwu/work/composite/src/components/interface/sched/. -I/home/minghwu/work/composite/src/components/lib/mpk_jit/. -I.. -m64 -D__x86_64__ -D__WORD_SIZE_64__ -fno-function-cse -include /home/minghwu/work/composite/system_binaries/cos_build-test/global.booter/component_constants.h -Wall -Wextra -Wno-address-of-packed-member -Wno-unused-parameter -Wno-type-limits -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable -I. -I/home/minghwu/work/composite/src/kernel/include/shared/ -I/home/minghwu/work/composite/src/kernel/include/chal/shared/ -isystem/home/minghwu/work/composite/src/components//lib/libc/musl-1.2.0/include -g -fvar-tracking -O3 -fno-merge-constants -nostdinc -nostdlib -fno-pic -fno-pie -fno-pie -c -o /home/minghwu/work/composite/system_binaries/cos_build-test/global.booter/initargs.o /home/minghwu/work/composite/system_binaries/cos_build-test/global.booter/initargs.c
+ld -melf_x86_64 -r -o no_interface.llbooter.linked_libs_ifs.o no_interface.llbooter.o /home/minghwu/work/composite/src/components//interface//init/stubs/cosrt_s_stub.o /home/minghwu/work/composite/src/components//interface//addr/stubs/cosrt_s_stub.o /home/minghwu/work/composite/src/components//interface//init/kernel/cosrt_c_stub.o  /home/minghwu/work/composite/system_binaries/cos_build-test/global.booter/initargs.o   -L/home/minghwu/work/composite/src/components//interface//init/  -linit  /home/minghwu/work/composite/src/components/lib/component/component.lib.o  -L/home/minghwu/work/composite/src/components/lib/initargs -L/home/minghwu/work/composite/src/components/lib/ps -L/home/minghwu/work/composite/src/components/lib/res_spec -L/home/minghwu/work/composite/src/components/lib/protdom -L/home/minghwu/work/composite/src/components/lib/mpk_jit -L/home/minghwu/work/composite/src/components/interface/init -L/home/minghwu/work/composite/src/components/lib/kernel -L/home/minghwu/work/composite/src/components/lib/util -L/home/minghwu/work/composite/src/components/lib/crt -L/home/minghwu/work/composite/src/components/interface/memmgr -L/home/minghwu/work/composite/src/components/interface/sched -lsched -linitargs -lmpk_jit -lps -linit -lutil -lkernel -lcrt -lres_spec -lmemmgr -lprotdom -lcrt -lutil -lmemmgr -lmpk_jit -lsched -lkernel -lps -lres_spec -linit -linitargs -lprotdom
+/home/minghwu/work/composite/src/components//lib/libc/musl-1.2.0/obj//musl-gcc no_interface.llbooter.linked_libs_ifs.o -m64 -D__x86_64__ -D__WORD_SIZE_64__ -fno-function-cse -include /home/minghwu/work/composite/system_binaries/cos_build-test/global.booter/component_constants.h -Wall -Wextra -Wno-address-of-packed-member -Wno-unused-parameter -Wno-type-limits -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -Wno-unused-variable -I. -I/home/minghwu/work/composite/src/kernel/include/shared/ -I/home/minghwu/work/composite/src/kernel/include/chal/shared/ -isystem/home/minghwu/work/composite/src/components//lib/libc/musl-1.2.0/include -g -fvar-tracking -O3 -fno-merge-constants -nostdinc -nostdlib -fno-pic -fno-pie -fno-pie -lc -lgcc -Xlinker -r -no-pie -Xlinker -melf_x86_64  -o no_interface.llbooter.linked_musl.o
+ld -melf_x86_64 -Ttext=0x400000 -T /home/minghwu/work/composite/src/components//implementation//comp_x86_64.ld -o /home/minghwu/work/composite/system_binaries/cos_build-test/global.booter/no_interface.llbooter.global.booter no_interface.llbooter.linked_musl.o
+make: Leaving directory '/home/minghwu/work/composite/src'
+
+Component compilation errors:

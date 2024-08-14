@@ -1,0 +1,18 @@
+Command: make -C src KERNEL_OUTPUT="/home/minghwu/work/composite/system_binaries/cos_build-ming/cos.img" CONSTRUCTOR_COMP="/home/minghwu/work/composite/system_binaries/cos_build-ming/constructor" plat
+Kernel compilation output:make: Entering directory '/home/minghwu/work/composite/src'
+
+***********************************************
+***** Building x86_64 Platform and Kernel *****
+***********************************************
+
+make --no-print-directory -I/home/minghwu/work/composite/src PLATFORM=x86_64 -C platform
+make -C x86_64
+|     [LD]   Linking in the constructor component kernel.img
+|     [LD]   Linking kernel.img
+|     [CP]   Copying kernel.img into "/home/minghwu/work/composite/system_binaries/cos_build-ming/cos.img"
+cp "/home/minghwu/work/composite/system_binaries/cos_build-ming/constructor" constructor; ld -m elf_x86_64 --nmagic -r -b binary constructor -o constructor.o; objcopy --rename-section .data=.initial_component constructor.o;
+ld -m elf_x86_64 --nmagic -T linker.ld loader.o entry.o kernel.o gdt.o idt.o vm.o printk.o string.o vtxprintf.o tss.o user.o serial.o hpet.o chal.o boot_comp.o miniacpi.o exception.o lapic.o chal_pgtbl.o fpu.o ulinv.o vmx.o vmx_exit.o vm_vcpu_context.o vmx_exit_asm.o pgtbl.o retype_tbl.o liveness_tbl.o tcap.o capinv.o captbl.o   constructor.o -o kernel.img
+cp kernel.img "/home/minghwu/work/composite/system_binaries/cos_build-ming/cos.img"
+make: Leaving directory '/home/minghwu/work/composite/src'
+
+Kernel compilation errors:
