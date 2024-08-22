@@ -14,6 +14,9 @@
 use std::collections::{BTreeMap, HashMap};
 
 use cossystem::ConstantVal;
+use cossystem::TomlVirtualResource;
+use cossystem::Param;
+use cossystem::Clients;
 use initargs::ArgsKV;
 use std::fmt;
 
@@ -29,6 +32,7 @@ pub struct SystemState {
     objs: HashMap<ComponentId, Box<dyn ObjectsPass>>,
     invs: HashMap<ComponentId, Box<dyn InvocationsPass>>,
     constructor: Option<Box<dyn ConstructorPass>>,
+    virtual_resource: Option<Box<dyn VirtResPass>>,
 }
 
 impl SystemState {
@@ -40,6 +44,7 @@ impl SystemState {
             address_assignment: None,
             properties: None,
             restbls: None,
+            virtual_resource: None,
             param: HashMap::new(),
             objs: HashMap::new(),
             invs: HashMap::new(),
@@ -65,6 +70,10 @@ impl SystemState {
 
     pub fn add_restbls(&mut self, r: Box<dyn ResPass>) {
         self.restbls = Some(r);
+    }
+
+    pub fn add_virt_res(&mut self, v: Box<dyn VirtResPass>) {
+        self.virtual_resource = Some(v);
     }
 
     pub fn add_params_iter(&mut self, id: &ComponentId, ip: Box<dyn InitParamPass>) {
@@ -105,6 +114,10 @@ impl SystemState {
 
     pub fn get_restbl(&self) -> &dyn ResPass {
         &**(self.restbls.as_ref().unwrap())
+    }
+
+    pub fn get_virt_res(&self) -> &dyn VirtResPass {
+        &**(self.virtual_resource.as_ref().unwrap())
     }
 
     pub fn get_param_id(&self, id: &ComponentId) -> &dyn InitParamPass {
@@ -267,6 +280,7 @@ pub trait SpecificationPass {
     fn exports_named(&self, id: &ComponentName) -> &Vec<Export>;
     fn libs_named(&self, id: &ComponentName) -> &Vec<Library>;
     fn address_spaces(&self) -> &AddrSpaces;
+    fn virtual_resources(&self) -> &HashMap<String, TomlVirtualResource>;
 }
 
 // Integer namespacing pass. Convert the component variable names to
@@ -345,6 +359,26 @@ pub trait AddressAssignmentPass {
 // component.
 pub trait ResPass {
     fn args(&self, id: &ComponentId) -> &Vec<ArgsKV>;
+}
+
+pub type VirtResName = String;
+
+#[derive(Debug, Deserialize)]
+pub struct VirtResWitID {
+    pub virt_resource_id: String,
+    pub param: Param,
+    pub clients: Vec<Clients>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VirtualResource {
+    pub name:   String,
+    pub server: String,
+    pub resources:  Vec<VirtResWitID>,
+}
+
+pub trait VirtResPass {
+    fn virt_res_with_id(&self) -> &BTreeMap<VirtResName,VirtualResource>;
 }
 
 // The initparam, objects, and synchronous invocation passes are all

@@ -18,6 +18,7 @@ mod resources;
 mod symbols;
 mod syshelpers;
 mod tot_order;
+mod virt_resources;
 
 use address_assignment::AddressAssignmentx86_64;
 use build::DefaultBuilder;
@@ -30,6 +31,7 @@ use properties::CompProperties;
 use resources::ResAssignPass;
 use std::env;
 use tot_order::CompTotOrd;
+use virt_resources::VirtResAnalysis;
 
 pub fn exec() -> Result<(), String> {
     let mut args = env::args();
@@ -58,6 +60,7 @@ pub fn exec() -> Result<(), String> {
 
     sys.add_parsed(SystemSpec::transition(&sys, &mut build)?);
     sys.add_named(CompTotOrd::transition(&sys, &mut build)?);
+    sys.add_virt_res(VirtResAnalysis::transition(&sys, &mut build)?);
     sys.add_address_assign(AddressAssignmentx86_64::transition(&sys, &mut build)?);
     sys.add_properties(CompProperties::transition(&sys, &mut build)?);
     sys.add_restbls(ResAssignPass::transition(&sys, &mut build)?);
