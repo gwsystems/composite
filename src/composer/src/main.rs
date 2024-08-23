@@ -31,6 +31,7 @@ use passes::{BuildState, ComponentId, SystemState, Transition, TransitionIter};
 use properties::CompProperties;
 use resources::ResAssignPass;
 use std::env;
+use std::process::Command;
 use tot_order::CompTotOrd;
 use graph::Graph;
 
@@ -74,6 +75,18 @@ pub fn exec() -> Result<(), String> {
     sys.add_constructor(Constructor::transition(&sys, &mut build)?);
     sys.add_graph(Graph::transition(&sys, &mut build)?);
 
+    let output = Command::new("python3")
+        .arg("script.py")
+        .output()
+        .expect("Failed to execute script");
+
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        println!("Script output: {}", stdout);
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("Script error: {}", stderr);
+    }
     println!(
         "System object generated:\n\t{}",
         sys.get_constructor().image_path()
