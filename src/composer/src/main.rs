@@ -20,6 +20,7 @@ mod symbols;
 mod syshelpers;
 mod tot_order;
 mod graph;
+mod analysis;
 
 use address_assignment::AddressAssignmentx86_64;
 use build::DefaultBuilder;
