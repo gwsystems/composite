@@ -16,7 +16,7 @@ impl Pipe {
                 .args(&args[1..])
                 .stdout(Stdio::piped())
                 .spawn()
-                .expect("Failed to run command"),
+                .expect(&format!("Failed to run command: \"{}\"", command)),
         }
     }
 
@@ -34,7 +34,7 @@ impl Pipe {
             .stdin(self.cur.stdout.unwrap()) // It's spawned, so it's ok to unwrap
             .stdout(Stdio::piped())
             .spawn()
-            .expect("Failed to run command");
+            .expect(&format!("Failed to run command: \"{}\"", command));
 
         Self { cur: new_cmd }
     }
