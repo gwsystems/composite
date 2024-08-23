@@ -1,6 +1,6 @@
 import unittest   # The test framework
 import sys
-sys.path.insert(0, '/home/minghwu/work/StackAnalyzer/pyelftool_parser/src')
+sys.path.insert(0, '../../../../src')
 import analyzer
 
 class Test_TestFunctionSize(unittest.TestCase):
@@ -22,15 +22,6 @@ class Test_TestFunctionSize(unittest.TestCase):
         ## test printc
         self.assertEqual(self.stacklist[12], -416)
 if __name__ == '__main__':
-    path = "./tests.unit_pingpong.global.ping"
-    disassembler = analyzer.disassembler(path)
-    disassembler.disasmsymbol()
-    disassembler.disasminst()
-    register = analyzer.register.register()
-    execute = analyzer.execute.execute(register)
-    parser = analyzer.parser(disassembler.symbol, disassembler.inst, 
-                    register, execute, 
-                    disassembler.exit_pc, disassembler.acquire_stack_address)
     unittest.main()
     
     
