@@ -48,7 +48,7 @@ pub fn exec() -> Result<(), String> {
             program_name.unwrap()
         ));
     }
-
+    
     let mut sys = SystemState::new(arg1.unwrap());
     let mut build = DefaultBuilder::new();
     build.initialize(&arg2.unwrap(), &sys)?;
@@ -72,11 +72,8 @@ pub fn exec() -> Result<(), String> {
         sys.add_objs_iter(&c_id, ElfObject::transition_iter(c_id, &sys, &mut build)?);
         sys.add_invs_iter(&c_id, Invocations::transition_iter(c_id, &sys, &mut build)?);
     }
-    sys.add_constructor(Constructor::transition(&sys, &mut build)?);
-    sys.add_graph(Graph::transition(&sys, &mut build)?);
-
     let output = Command::new("python3")
-        .arg("script.py")
+        .arg("/home/minghwu/work/minghwu/composite/pyelftool_parser/src/analyzer.py")
         .output()
         .expect("Failed to execute script");
 
@@ -87,6 +84,9 @@ pub fn exec() -> Result<(), String> {
         let stderr = String::from_utf8_lossy(&output.stderr);
         eprintln!("Script error: {}", stderr);
     }
+    sys.add_constructor(Constructor::transition(&sys, &mut build)?);
+    sys.add_graph(Graph::transition(&sys, &mut build)?);
+
     println!(
         "System object generated:\n\t{}",
         sys.get_constructor().image_path()
