@@ -4,6 +4,7 @@ extern crate serde_derive;
 extern crate itertools;
 extern crate tar;
 extern crate xmas_elf;
+extern crate petgraph;
 
 mod address_assignment;
 mod build;
@@ -30,6 +31,7 @@ use passes::{BuildState, ComponentId, SystemState, Transition, TransitionIter};
 use properties::CompProperties;
 use resources::ResAssignPass;
 use std::env;
+use std::process::Command;
 use tot_order::CompTotOrd;
 use virt_resources::VirtResAnalysis;
 
@@ -54,6 +56,7 @@ pub fn exec() -> Result<(), String> {
         None => false,
     };
 
+
     let mut sys = SystemState::new(arg1.unwrap());
     let mut build = DefaultBuilder::new();
     build.initialize(&arg2.unwrap(), is_rebuild, &sys)?;
@@ -74,11 +77,28 @@ pub fn exec() -> Result<(), String> {
         .rev()
         .collect();
     for c_id in reverse_ids.iter() {
+        
         sys.add_params_iter(&c_id, Parameters::transition_iter(c_id, &sys, &mut build)?);
+        let obj = ElfObject::transition_iter(c_id, &sys, &mut build)?;
         sys.add_objs_iter(&c_id, ElfObject::transition_iter(c_id, &sys, &mut build)?);
         sys.add_invs_iter(&c_id, Invocations::transition_iter(c_id, &sys, &mut build)?);
+        println!("path:{}", obj.get_path());
+        let output = Command::new("python3")
+        .arg("/home/minghwu/work/minghwu/composite/pyelftool_parser/src/analyzer.py")
+        .arg(obj.get_path())
+        .output()
+        .expect("Failed to execute script");
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            println!("Script output: {}", stdout);
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("Script error: {}", stderr);
+        }
     }
+    
     sys.add_constructor(Constructor::transition(&sys, &mut build)?);
+    sys.add_graph(Graph::transition(&sys, &mut build)?);
 
     println!(
         "System object generated:\n\t{}",
