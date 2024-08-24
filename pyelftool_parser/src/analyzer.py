@@ -1,3 +1,4 @@
+import sys
 import register
 import execute
 from debug import loginst, log, logresult, logstack
@@ -177,7 +178,8 @@ def driver(disassembler, parser):
 if __name__ == '__main__':
     
     ## path = "../testbench/composite/system_binaries/cos_build-test/global.sched/sched.pfprr_quantum_static.global.sched"
-    path = "/home/minghwu/work/minghwu/composite/system_binaries/cos_build-test/global.ping/tests.unit_pingpong.global.ping"
+    ## path = "/home/minghwu/work/minghwu/composite/system_binaries/cos_build-test/global.ping/tests.unit_pingpong.global.ping"
+    path = sys.argv[1]
     
     disassembler = disassembler(path)
     disassembler.disasmsymbol()
