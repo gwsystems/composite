@@ -33,6 +33,7 @@ pub struct SystemState {
     invs: HashMap<ComponentId, Box<dyn InvocationsPass>>,
     constructor: Option<Box<dyn ConstructorPass>>,
     virtual_resource: Option<Box<dyn VirtResPass>>,
+    graph: Option<Box<dyn GraphPass>>,
 }
 
 impl SystemState {

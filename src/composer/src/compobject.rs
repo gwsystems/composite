@@ -356,6 +356,12 @@ pub struct Constructor {
     obj_path: String,
 }
 
+impl ElfObject {
+    pub fn get_path(&self) -> String {
+        self.obj_path.clone()
+    }
+}
+
 impl Transition for Constructor {
     fn transition(s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
         let spec = s.get_spec();

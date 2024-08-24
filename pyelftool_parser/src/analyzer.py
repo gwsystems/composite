@@ -1,7 +1,7 @@
 import sys
 import register
 import execute
-from debug import loginst, log, logresult, logstack
+from debug import loginst, log, logresult, logstack, logrust
 from capstone.x86 import *
 from elftools.elf.elffile import ELFFile
 from capstone import *
@@ -199,5 +199,7 @@ if __name__ == '__main__':
     logresult(parser.stackfunction)
     logresult(parser.stacklist)
     logresult(parser.edge)
+    min_value = min(parser.stacklist)
+    logrust(min_value)
     
     
