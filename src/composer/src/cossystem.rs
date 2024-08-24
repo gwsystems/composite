@@ -60,12 +60,36 @@ pub struct TomlAddrSpace {
     parent: Option<String>,  // which vas contains this one
 }
 
+pub type Param = HashMap<String, String>;
+
+#[derive(Debug, Deserialize)]
+pub struct Clients {
+    pub comp: String,
+    pub access: String,
+    pub name: Option<String>, 
+    pub symbol: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VirtRes {
+    pub param: Param,
+    pub clients: Vec<Clients>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TomlVirtualResource {
+    pub name:   String,
+    pub server: String,
+    pub resources:  Vec<VirtRes>,
+}
+
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 pub struct TomlSpecification {
     system: SysInfo,
     components: Vec<TomlComponent>,
     address_spaces: Option<Vec<TomlAddrSpace>>, //aggregates: Vec<TomlComponent>  For components of components
+    virt_resources: Option<Vec<TomlVirtualResource>>,
 }
 
 impl Dep {
@@ -347,6 +371,46 @@ impl TomlSpecification {
             }
         }
 
+        if let Some(ref vr_list) = self.virt_resources {
+            for vr in vr_list.iter() {
+                for shmem in vr.resources.iter() {
+                        if !self.comp_exists(vr.server.clone()) {
+                            err_accum.push_str(&format!(
+                                "Error: Virtual resource {} has a non-existent server component {}.",
+                                vr.name, vr.server
+                            ));
+                        }
+        
+                        for client in &shmem.clients {
+                            if !self.comp_exists(client.comp.clone()) {
+                                err_accum.push_str(&format!(
+                                    "Error: Virtual resource {} has a non-existent client component {}.",
+                                    vr.name, client.comp
+                                ));
+                            }
+                        }
+
+                        for (key, value) in &shmem.param {
+                            // Example: Check that all param values are non-empty
+                            if value.trim().is_empty() {
+                                return Err(format!(
+                                    "Error: Virtual resource {} has an empty value for param key '{}'.",
+                                    vr.name, key
+                                ));
+                            }
+
+                            if key.trim().is_empty() {
+                                return Err(format!(
+                                    "Error: Virtual resource {} has an empty value for param key '{}'.",
+                                    vr.name, key
+                                ));
+                            }
+                        }
+                }
+            }
+        }
+        
+
         for c in self.comps() {
             if !self.comps().iter().fold(false, |accum, c2| {
                 c.constructor == "kernel" || c.constructor == c2.name || accum
@@ -419,6 +483,7 @@ pub struct SystemSpec {
     libs: HashMap<ComponentName, Vec<Library>>,
     exports: HashMap<ComponentName, Vec<Export>>,
     address_spaces: HashMap<AddrSpcName, AddrSpace>,
+    virtual_resources: HashMap<String, TomlVirtualResource>,
 }
 
 // Helper functions to compute components in an address space, and
@@ -592,6 +657,40 @@ impl Transition for SystemSpec {
             }
         }
 
+        let mut virtual_resources = HashMap::new();
+        if let Some(ref vrs) = spec.virt_resources {
+            for vr in vrs {
+                let name = vr.name.clone();
+                let server = vr.server.clone();
+
+                let resources = vr.resources.iter().map(|s| {
+                
+                    let param = s.param.clone();
+                
+                    let clients = s.clients.iter().map(|c| Clients {
+                        comp: c.comp.clone(),
+                        access: c.access.clone(),
+                        name: c.name.clone(),
+                        symbol: c.symbol.clone(),
+                    }).collect();
+                                
+                    VirtRes {
+                        param,
+                        clients,
+                    }
+                }).collect::<Vec<VirtRes>>();
+
+                virtual_resources.insert(
+                    name.clone(),
+                    TomlVirtualResource {
+                        name,
+                        server,
+                        resources,
+                    },
+                );
+            }
+        }
+
         let spec = Box::new(SystemSpec {
             ids,
             components,
@@ -599,6 +698,7 @@ impl Transition for SystemSpec {
             libs,
             exports,
             address_spaces,
+            virtual_resources,
         });
 
         // Check that the address spaces are formed such that there
@@ -657,5 +757,9 @@ impl SpecificationPass for SystemSpec {
 
     fn address_spaces(&self) -> &HashMap<AddrSpcName, AddrSpace> {
         &self.address_spaces
+    }
+
+    fn virtual_resources(&self) -> &HashMap<String, TomlVirtualResource>{
+        &self.virtual_resources
     }
 }
