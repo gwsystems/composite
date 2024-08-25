@@ -5,8 +5,6 @@ use std::fs::File;
 use syshelpers::{dir_exists, emit_file, exec_pipeline, reset_dir};
 use tar::Builder;
 
-use crate::cossystem::ConstantVal;
-
 // Interact with the composite build system to "seal" the components.
 // This requires linking them with all dependencies, and with libc,
 // and making them executable programs (i.e. no relocatable objects).

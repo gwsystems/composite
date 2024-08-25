@@ -36,7 +36,6 @@ use std::process::Command;
 use tot_order::CompTotOrd;
 use virt_resources::VirtResAnalysis;
 use graph::Graph;
-use cossystem::ConstantVal;
 
 pub fn exec() -> Result<(), String> {
     let mut args = env::args();

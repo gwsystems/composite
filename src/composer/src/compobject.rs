@@ -3,7 +3,6 @@ use xmas_elf::symbol_table::{Binding, Entry, Type};
 use xmas_elf::ElfFile;
 
 use itertools::Itertools;
-use ConstantVal;
 use passes::{
     component, BuildState, ClientSymb, CompSymbs, ComponentId, ComponentName, ConstructorPass,
     ObjectsPass, ServerSymb, SystemState, Transition, TransitionIter,
