@@ -5,6 +5,7 @@ extern crate itertools;
 extern crate tar;
 extern crate xmas_elf;
 extern crate petgraph;
+extern crate ascent;
 
 mod address_assignment;
 mod build;
