@@ -5,6 +5,8 @@ use std::fs::File;
 use syshelpers::{dir_exists, emit_file, exec_pipeline, reset_dir};
 use tar::Builder;
 
+use crate::cossystem::ConstantVal;
+
 // Interact with the composite build system to "seal" the components.
 // This requires linking them with all dependencies, and with libc,
 // and making them executable programs (i.e. no relocatable objects).
@@ -401,6 +403,7 @@ impl BuildState for DefaultBuilder {
         header_file_path: &String,
         id: &ComponentId,
         s: &SystemState,
+        stack_size: Option<&String>,
     ) -> Result<(), String> {
         let c = component(&s, id);
 
@@ -417,7 +420,10 @@ impl BuildState for DefaultBuilder {
                 constant.variable, constant.value
             ));
         }
-
+        header_content.push_str(&format!(
+            "#define {} {}\n",
+            "Stack_size", stack_size.unwrap_or(&"0".to_string())
+        ));
         header_content.push_str("\n#endif /* COMPONENT_CONSTANTS_H */\n");
 
         emit_file(&header_file_path, header_content.as_bytes()).unwrap();
@@ -425,18 +431,18 @@ impl BuildState for DefaultBuilder {
         Ok(())
     }
 
-    fn comp_build(&self, id: &ComponentId, state: &SystemState) -> Result<String, String> {
+    fn comp_build(&self, id: &ComponentId, state: &SystemState, stack_size: Option<&String>) -> Result<String, String> {
         let comp_dir = self.comp_dir_path(&id, &state)?;
         compdir_check_build(&comp_dir)?;
         let p = state.get_param_id(&id);
-        let output_path = self.comp_obj_path(&id, &state)?;
+        let output_path: String = self.comp_obj_path(&id, &state)?;
 
         let comp_log = self.comp_file_path(&id, &"compilation.log".to_string(), &state)?;
 
         let header_file_path =
             self.comp_file_path(&id, &"component_constants.h".to_string(), &state)?;
 
-        self.comp_const_header_file(&header_file_path, &id, &state)?;
+        self.comp_const_header_file(&header_file_path, &id, &state, stack_size)?;
 
         //rebuild process starts
         if self.rebuildflag {

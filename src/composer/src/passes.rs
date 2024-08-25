@@ -173,9 +173,10 @@ pub trait BuildState {
         header_file_path: &String,
         id: &ComponentId,
         s: &SystemState,
+        stack_size: Option<&String>,
     ) -> Result<(), String>; // path of header file of component constants value
 
-    fn comp_build(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // build the component, and return the path to the resulting object
+    fn comp_build(&self, c: &ComponentId, state: &SystemState, stack_size: Option<&String>) -> Result<String, String>; // build the component, and return the path to the resulting object
     fn constructor_build(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // build a constructor, including all components it is responsible for booting
     fn kernel_build(
         &self,
@@ -205,6 +206,7 @@ pub trait TransitionIter {
         id: &ComponentId,
         s: &SystemState,
         b: &mut dyn BuildState,
+        stack_size: Option<&String>, 
     ) -> Result<Box<Self>, String>;
 }
 

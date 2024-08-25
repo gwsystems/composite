@@ -70,6 +70,7 @@ impl TransitionIter for Invocations {
         id: &ComponentId,
         s: &SystemState,
         _b: &mut dyn BuildState,
+        _stack_size: Option<&String>,
     ) -> Result<Box<Self>, String> {
         let curr = s.get_named().ids().get(id).unwrap();
         let mut invs = Vec::new();

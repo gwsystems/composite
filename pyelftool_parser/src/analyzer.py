@@ -85,7 +85,7 @@ class disassembler:
             #print symbols in order of size with padding
             for name in sorted_names[:10]:
                 cur_sym = sym_info[name]
-                print(
+                log(
                     f"Name: {name}, Address: {hex(cur_sym['address'])}, Size: {hex(cur_sym['size'])}, Padding: {hex(cur_sym['padding'])}"
                 )
     

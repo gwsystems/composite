@@ -3,6 +3,7 @@ use xmas_elf::symbol_table::{Binding, Entry, Type};
 use xmas_elf::ElfFile;
 
 use itertools::Itertools;
+use ConstantVal;
 use passes::{
     component, BuildState, ClientSymb, CompSymbs, ComponentId, ComponentName, ConstructorPass,
     ObjectsPass, ServerSymb, SystemState, Transition, TransitionIter,
@@ -327,8 +328,9 @@ impl TransitionIter for ElfObject {
         id: &ComponentId,
         s: &SystemState,
         b: &mut dyn BuildState,
+        stack_size: Option<&String>,
     ) -> Result<Box<Self>, String> {
-        let obj_path = b.comp_build(&id, &s)?;
+        let obj_path = b.comp_build(&id, &s, stack_size)?;
 
         compute_elfobj(&id, &obj_path, &s, b)
     }
