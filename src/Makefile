@@ -108,8 +108,8 @@ config-armv7a: config-gen
 config-x86_64: config-gen
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/x86_64/chal/ chal
 	@echo "x86_64" > $(PLAT_FILE)
-	@echo "ARCH_CFLAGS = -m64 -D__x86_64__ -D__WORD_SIZE_64__ -fno-function-cse" >  Makefile.arch
-	@echo "ARCH_ASFLAGS= -m64 -D__x86_64__ -D__WORD_SIZE_64__ -D__ASM__ -fno-function-cse" >> Makefile.arch
+	@echo "ARCH_CFLAGS = -m64 -D__x86_64__ -D__WORD_SIZE_64__ -mcmodel=large" >  Makefile.arch
+	@echo "ARCH_ASFLAGS= -m64 -D__x86_64__ -D__WORD_SIZE_64__ -D__ASM__ -mcmodel=large" >> Makefile.arch
 	@echo "ARCH_LDFLAGS= -melf_x86_64"      >> Makefile.arch
 	@echo "Configuring the system with clock speed and directory structure."
 	@cpu_freq=`cat /sys/devices/system/cpu/cpu0/cpufreq/base_frequency`;cpu_freq=`awk 'BEGIN{printf "%.2f\n",'$$cpu_freq'/'1000000'}'`;echo "#define CPU_GHZ $$cpu_freq" > ./kernel/include/chal/shared/cpu_ghz.h
