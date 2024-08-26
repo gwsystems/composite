@@ -1,21 +1,20 @@
-use ascent::aggregators::{max, min};
 use ascent::{ascent_run, lattice::Dual};
-use passes::{
-    component, BuildState, ComponentId, ComponentName, Dependency, GraphPass, Interface,
-    ServiceType, SystemState, Transition, Variant,
-};
+use passes::{AnalysisPass, BuildState, ComponentId, Interface, SystemState, Transition};
 use std::collections::HashMap;
-use std::fmt;
 
 // A very simplistic criticality-level specification.
 type CriticalityLvl = usize;
+#[allow(dead_code)]
 const HC: CriticalityLvl = 1;
+#[allow(dead_code)]
 const LC: CriticalityLvl = 0;
+#[allow(dead_code)]
 const NUM_CRIT: usize = 2;
 
 // Component properties that are useful in determining how they impact
 // other components.
-#[derive(Clone, PartialEq, Eq, Hash, Copy)]
+#[allow(dead_code)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 enum CompProperties {
     Scheduler,
     CapMgr,
@@ -24,6 +23,28 @@ enum CompProperties {
     MutExcl,
     DynMem,
     CanBlock,
+}
+
+// The set of warnings we're deriving from the system structure. These
+// warnings are associated with a specific component.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum Warning {
+    // A shared component service services multiple criticalities
+    SharedServiceMultCrit(CriticalityLvl, CriticalityLvl),
+    // A LC component (first argument of tuple) can block a HC
+    // component (the component parameterized with this warning),
+    // through a virtual resource
+    BlockingMultCrit(ComponentId, VirtResource, VirtResourceId),
+    // Is there a potential DoS on a shared pool of resources? Can
+    // *both* a HC and a LC component dynamically allocate
+    PotentialDos(ComponentId, VirtResource),
+    // The server component uses locks and can cause interference
+    // on the listed component .
+    PotentialInterference(ComponentId),
+    // The server component uses locks that can cause interference
+    // between the send and third components are different
+    // criticalities.
+    PotentialInterferenceMultCrit(ComponentId, ComponentId),
 }
 
 // The mapping between interfaces exported by a server, and the
@@ -56,6 +77,7 @@ type VirtResourceId = usize;
 // Is a client allowed to read, modify, and/or dynamically allocate a
 // virtual resource. No access only to Dyn as what is the point to
 // allocating, but not having the ability to read/modify?
+#[allow(dead_code)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum VirtResAccess {
     Read,        // read/access resource
@@ -65,6 +87,7 @@ enum VirtResAccess {
     Unspecified, // The interface is unlabeled (e.g. no virt resources)
 }
 
+#[allow(dead_code)]
 pub struct AnalysisInput {
     components: Vec<ComponentId>,
     // What is the criticality level of each component. Some of these
@@ -76,20 +99,14 @@ pub struct AnalysisInput {
     // interface includes functions that imbue specific virtual
     // resource access rights.
     dependencies: Vec<(ComponentId, ComponentId, Interface, VirtResAccess)>,
+
     // Virtual resources, and the server that provides them.
-    // virt_resource_server: Vec<(ComponentId, VirtResource)>,
+    virt_res_service: Vec<(VirtResource, ComponentId)>,
     // The access of clients to specific virtual resources
-    // virt_resource_access: Vec<(ComponentId, VirtResource, VirtResourceId, VirtResAccess)>,
-    // Two virtual resources are associated with each other in a client component
-    // virt_resource_associated: Vec<(
-    //     ComponentId,
-    //     VirtResource,
-    //     VirtResourceId,
-    //     VirtResource,
-    //     VirtResourceId,
-    // )>,
+    virt_res_access: Vec<(VirtResource, VirtResourceId, ComponentId, VirtResAccess)>,
 }
 
+#[allow(dead_code)]
 pub struct Analysis {
     // Simple transitive closure over the `dependencies` relation for
     // (client, server)
@@ -97,9 +114,9 @@ pub struct Analysis {
     // All of the properties for each component
     comp_properties: Vec<(ComponentId, CompProperties)>,
     // The range of criticalities (min, max) for a specific component
-    comp_crit_range: Vec<(ComponentId, usize, Dual<usize>)>,
+    comp_crit_range: Vec<(ComponentId, usize, usize)>,
     // The first component can block the second.
-    comp_can_block: Vec<(ComponentId, ComponentId)>,
+    comp_can_block: Vec<(ComponentId, ())>,
     // Potential DOS on shared resources in server, from client
     comp_dos: Vec<(ComponentId, ComponentId, VirtResource)>,
     // Lock interference is possible between the components
@@ -117,24 +134,33 @@ pub struct Analysis {
     // A server/manager component that requires dynamic allocation of
     // virtual resources.
     // virt_resource_dynamic: Vec<(ComponentId, VirtResource)>,
+
+    // The warnings we derive from all of the above data.
+    warnings: Vec<(ComponentId, Warning)>,
+
+    // The public warnings hashmap to get warnings for a specific
+    // component.
+    pub_warnings: HashMap<ComponentId, Vec<Warning>>,
 }
 
 fn analysis_output(i: AnalysisInput) -> Analysis {
     let srv_prop_map: Vec<(String, CompProperties)> = SERVER_PROPERTIES
         .iter()
-        .map(|(i, p)| (i.to_string(), *p))
+        .map(|(i, p)| (i.to_string(), p.clone()))
         .collect();
     let cli_prop_map: Vec<(String, CompProperties)> = CLIENT_PROPERTIES
         .iter()
-        .map(|(i, p)| (i.to_string(), *p))
+        .map(|(i, p)| (i.to_string(), p.clone()))
         .collect();
 
     // Destructure, so that we can individually move the vectors
     // into the program.
     let AnalysisInput {
-	components,
-	criticalities,
-	dependencies,
+        criticalities,
+        dependencies,
+        virt_res_service,
+        virt_res_access,
+        ..
     } = i;
 
     let p = ascent_run! {
@@ -143,20 +169,25 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         relation dependencies(ComponentId, ComponentId, Interface, VirtResAccess) = dependencies;
         relation srv_prop_map(String, CompProperties) = srv_prop_map;
         relation cli_prop_map(String, CompProperties) = cli_prop_map;
+    relation virt_res_service(VirtResource, ComponentId) = virt_res_service;
+    relation virt_res_access(VirtResource, VirtResourceId, ComponentId, VirtResAccess) = virt_res_access;
 
         // transient relations
         relation criticality_exposure(ComponentId, CriticalityLvl);
-	lattice comp_crit_hi(ComponentId, CriticalityLvl);
-	lattice comp_crit_lo(ComponentId, Dual<CriticalityLvl>);
+    lattice comp_crit_hi(ComponentId, CriticalityLvl);
+    lattice comp_crit_lo(ComponentId, Dual<CriticalityLvl>);
 
         // outputs
         relation depends_on(ComponentId, ComponentId);
         relation comp_properties(ComponentId, CompProperties);
-        relation comp_crit_range(ComponentId, usize, Dual<usize>);
-        relation comp_can_block(ComponentId, ComponentId);
+        relation comp_crit_range(ComponentId, usize, usize);
+        relation comp_can_block(ComponentId, ());
         relation comp_dos(ComponentId, ComponentId, VirtResource);
         relation comp_shared_lock(ComponentId, ComponentId);
         relation comp_nested_lock(ComponentId, ComponentId);
+
+    // The main output
+    relation warnings(ComponentId, Warning);
 
         // Normal transitive closure
         depends_on(c, s) <-- dependencies(c, s, _, _);
@@ -170,17 +201,53 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         // Compute the criticality exposure for each component
         criticality_exposure(c, crit) <-- criticalities(c, crit);
         criticality_exposure(s, crit) <-- depends_on(c, s), criticalities(c, crit);
-        comp_crit_hi(c, crit) <-- criticality_exposure(c, ?crit);
-        comp_crit_lo(c, Dual(*crit)) <-- criticality_exposure(c, ?crit);
-        comp_crit_range(c, hi, Dual(*lo)) <-- comp_crit_hi(c, ?hi), comp_crit_lo(c, ?Dual(lo));
+        comp_crit_hi(c, crit) <-- criticality_exposure(c, crit);
+        comp_crit_lo(c, Dual(*crit)) <-- criticality_exposure(c, crit);
+    // Potential bug: if the lattice isn't completely computed
+    // before processing this relation, then we might have
+    // multiple `comp_crit_range(c, _, _)` entries.
+        comp_crit_range(c, hi, lo) <-- comp_crit_hi(c, hi), comp_crit_lo(c, ?Dual(lo));
 
-	// TODO: take into account blocking on shared virtual resources
-	comp_can_block(s, c) <-- comp_properties(c, CompProperties::CanBlock);
+    warnings(c, Warning::SharedServiceMultCrit(*hi, *lo)) <-- comp_crit_range(c, hi, lo), if lo < hi;
+
+    // TODO: take into account blocking on shared virtual resources
+    comp_can_block(c, ()) <-- comp_properties(c, CompProperties::CanBlock);
+
+    // If components of different criticalities share a virtual
+    // resource, and the higher criticality one can block, we have
+    // a progress issue for the higher criticality one.
+    warnings(hc, Warning::BlockingMultCrit(*lc, vr.clone(), *vrid)) <--
+            comp_crit_hi(hc, hi_crit), comp_crit_lo(lc, ?Dual(lo_crit)), if lo_crit < hi_crit,
+            virt_res_access(vr, vrid, hc, VirtResAccess::Block), virt_res_access(vr, vrid, lc, _);
+
+    // If both HC and LC components can dynamically allocate
+    // virtual resources in a service, the LC might exhaust
+    // resources, DoSing the HC task.
+    warnings(hc, Warning::PotentialDos(*sc, vr.clone())) <--
+            virt_res_access(vr, _, hc, VirtResAccess::DynAlloc), virt_res_access(vr, _, lc, VirtResAccess::DynAlloc),
+            virt_res_service(vr, sc), comp_crit_hi(hc, hi), comp_crit_lo(lc, ?Dual(lo)), if lo < hi;
 
         comp_shared_lock(s, c) <-- comp_properties(s, CompProperties::MutExcl), depends_on(c, s);
-
         comp_nested_lock(s, c) <-- comp_properties(s, CompProperties::MutExcl), comp_properties(c, CompProperties::MutExcl), depends_on(c, s);
+
+    // Is a component's threads execute potentially impacted by
+    // mutual exclusion in a server component?
+    warnings(s, Warning::PotentialInterference(*c)) <-- comp_shared_lock(s, c);
+    // Do both LC and HC components share a component that uses
+    // mutual exclusion?
+    warnings(s, Warning::PotentialInterferenceMultCrit(*hc, *lc)) <--
+            comp_shared_lock(s, hc), comp_shared_lock(s, lc),
+            comp_crit_hi(hc, hi), comp_crit_lo(lc, lo), if hi > lo;
     };
+
+    let mut ws: HashMap<ComponentId, Vec<Warning>> = HashMap::new();
+    for (c, w) in &p.warnings {
+        if let Some(e) = ws.get_mut(&c) {
+            e.push(w.clone());
+        } else {
+            ws.insert(c.clone(), vec![w.clone()]);
+        }
+    }
 
     Analysis {
         depends_on: p.depends_on,
@@ -190,6 +257,8 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         comp_dos: p.comp_dos,
         comp_shared_lock: p.comp_shared_lock,
         comp_nested_lock: p.comp_nested_lock,
+        warnings: p.warnings,
+        pub_warnings: ws,
     }
 }
 
@@ -231,30 +300,44 @@ impl Analysis {
             components,
             dependencies,
             criticalities,
+            // TODO
+            virt_res_service: Vec::new(),
+            virt_res_access: Vec::new(),
         })
     }
+}
 
-    fn comp_crit_range(&self, c: &ComponentId) -> (CriticalityLvl, CriticalityLvl) {
-	let (h, l) = self.comp_crit_range.iter().filter_map(|(id, h, l)| if c == id {
-	    Some((h, l))
-	} else {
-	    None
-	}).take(1).next().unwrap();
-
-	// First deref on `l` is to get past the Dual
-	(*h, **l)
+impl AnalysisPass for Analysis {
+    fn warnings(&self) -> &HashMap<ComponentId, Vec<Warning>> {
+        &self.pub_warnings
     }
 
-    fn comp_can_block(&self, c: &ComponentId) -> bool {
-	: p.comp_can_block,
-        comp_dos: p.comp_dos,
-        comp_shared_lock: p.comp_shared_lock,
-        comp_nested_lock: p.comp_nested_lock,
+    fn warning_str(&self, id: ComponentId, s: &SystemState) -> String {
+        let ids = s.get_named();
+        let name = |id| ids.ids().get(&id).unwrap();
+        let compname = name(id);
+        let ws_map = self.warnings();
 
+	let ws = ws_map.get(&id).unwrap();
+        ws.iter().fold(format!("Component {compname} warnings:\n"), |s, w| {
+	    match w {
+		Warning::SharedServiceMultCrit(hi, lo) =>
+		    format!("{s}\tService shared between components of criticalities spanning from {lo} to {hi}\n"),
+		Warning::BlockingMultCrit(id, vr, vrid) =>
+		    format!("{s}\tThis higher criticality component can be blocked on virtual resource {vr} (id {vrid}) that is shared with component {}\n", name(*id)),
+		Warning::PotentialDos(id, vr) =>
+		    format!("{s}\tThis service exports dynamic allocation for virtual resource {vr} to various criticality components, opening the high-criticality component {} up to a DoS attack\n", name(*id)),
+		Warning::PotentialInterference(id) =>
+		    format!("{s}\tThis component uses locks, thus can impose low-priority interference on higher priority tasks in component {}\n", name(*id)),
+		Warning::PotentialInterferenceMultCrit(id1, id2) =>
+		    format!("{s}\tThe component uses locks and might cause cross-criticality inteference in components {} and {}\n", name(*id1), name(*id2)),
+	    }
+	})
+    }
 }
 
 impl Transition for Analysis {
-    fn transition(s: &SystemState, b: &mut dyn BuildState) -> Result<Box<Self>, String> {
+    fn transition(s: &SystemState, _b: &mut dyn BuildState) -> Result<Box<Self>, String> {
         let a = Analysis::build(s);
 
         Ok(Box::new(a))
