@@ -169,13 +169,13 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         relation dependencies(ComponentId, ComponentId, Interface, VirtResAccess) = dependencies;
         relation srv_prop_map(String, CompProperties) = srv_prop_map;
         relation cli_prop_map(String, CompProperties) = cli_prop_map;
-    relation virt_res_service(VirtResource, ComponentId) = virt_res_service;
-    relation virt_res_access(VirtResource, VirtResourceId, ComponentId, VirtResAccess) = virt_res_access;
+        relation virt_res_service(VirtResource, ComponentId) = virt_res_service;
+        relation virt_res_access(VirtResource, VirtResourceId, ComponentId, VirtResAccess) = virt_res_access;
 
         // transient relations
         relation criticality_exposure(ComponentId, CriticalityLvl);
-    lattice comp_crit_hi(ComponentId, CriticalityLvl);
-    lattice comp_crit_lo(ComponentId, Dual<CriticalityLvl>);
+        lattice comp_crit_hi(ComponentId, CriticalityLvl);
+        lattice comp_crit_lo(ComponentId, Dual<CriticalityLvl>);
 
         // outputs
         relation depends_on(ComponentId, ComponentId);
@@ -186,8 +186,8 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         relation comp_shared_lock(ComponentId, ComponentId);
         relation comp_nested_lock(ComponentId, ComponentId);
 
-    // The main output
-    relation warnings(ComponentId, Warning);
+        // The main output
+        relation warnings(ComponentId, Warning);
 
         // Normal transitive closure
         depends_on(c, s) <-- dependencies(c, s, _, _);
@@ -203,39 +203,39 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         criticality_exposure(s, crit) <-- depends_on(c, s), criticalities(c, crit);
         comp_crit_hi(c, crit) <-- criticality_exposure(c, crit);
         comp_crit_lo(c, Dual(*crit)) <-- criticality_exposure(c, crit);
-    // Potential bug: if the lattice isn't completely computed
-    // before processing this relation, then we might have
-    // multiple `comp_crit_range(c, _, _)` entries.
+        // Potential bug: if the lattice isn't completely computed
+        // before processing this relation, then we might have
+        // multiple `comp_crit_range(c, _, _)` entries.
         comp_crit_range(c, hi, lo) <-- comp_crit_hi(c, hi), comp_crit_lo(c, ?Dual(lo));
 
-    warnings(c, Warning::SharedServiceMultCrit(*hi, *lo)) <-- comp_crit_range(c, hi, lo), if lo < hi;
+        warnings(c, Warning::SharedServiceMultCrit(*hi, *lo)) <-- comp_crit_range(c, hi, lo), if lo < hi;
 
-    // TODO: take into account blocking on shared virtual resources
-    comp_can_block(c, ()) <-- comp_properties(c, CompProperties::CanBlock);
+        // TODO: take into account blocking on shared virtual resources
+        comp_can_block(c, ()) <-- comp_properties(c, CompProperties::CanBlock);
 
-    // If components of different criticalities share a virtual
-    // resource, and the higher criticality one can block, we have
-    // a progress issue for the higher criticality one.
-    warnings(hc, Warning::BlockingMultCrit(*lc, vr.clone(), *vrid)) <--
+        // If components of different criticalities share a virtual
+        // resource, and the higher criticality one can block, we have
+        // a progress issue for the higher criticality one.
+        warnings(hc, Warning::BlockingMultCrit(*lc, vr.clone(), *vrid)) <--
             comp_crit_hi(hc, hi_crit), comp_crit_lo(lc, ?Dual(lo_crit)), if lo_crit < hi_crit,
             virt_res_access(vr, vrid, hc, VirtResAccess::Block), virt_res_access(vr, vrid, lc, _);
 
-    // If both HC and LC components can dynamically allocate
-    // virtual resources in a service, the LC might exhaust
-    // resources, DoSing the HC task.
-    warnings(hc, Warning::PotentialDos(*sc, vr.clone())) <--
+        // If both HC and LC components can dynamically allocate
+        // virtual resources in a service, the LC might exhaust
+        // resources, DoSing the HC task.
+        warnings(hc, Warning::PotentialDos(*sc, vr.clone())) <--
             virt_res_access(vr, _, hc, VirtResAccess::DynAlloc), virt_res_access(vr, _, lc, VirtResAccess::DynAlloc),
             virt_res_service(vr, sc), comp_crit_hi(hc, hi), comp_crit_lo(lc, ?Dual(lo)), if lo < hi;
 
         comp_shared_lock(s, c) <-- comp_properties(s, CompProperties::MutExcl), depends_on(c, s);
         comp_nested_lock(s, c) <-- comp_properties(s, CompProperties::MutExcl), comp_properties(c, CompProperties::MutExcl), depends_on(c, s);
 
-    // Is a component's threads execute potentially impacted by
-    // mutual exclusion in a server component?
-    warnings(s, Warning::PotentialInterference(*c)) <-- comp_shared_lock(s, c);
-    // Do both LC and HC components share a component that uses
-    // mutual exclusion?
-    warnings(s, Warning::PotentialInterferenceMultCrit(*hc, *lc)) <--
+        // Is a component's threads execute potentially impacted by
+        // mutual exclusion in a server component?
+        warnings(s, Warning::PotentialInterference(*c)) <-- comp_shared_lock(s, c);
+        // Do both LC and HC components share a component that uses
+        // mutual exclusion?
+        warnings(s, Warning::PotentialInterferenceMultCrit(*hc, *lc)) <--
             comp_shared_lock(s, hc), comp_shared_lock(s, lc),
             comp_crit_hi(hc, hi), comp_crit_lo(lc, lo), if hi > lo;
     };
