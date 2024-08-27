@@ -5,6 +5,7 @@
 #include <evt.h>
 #include <tmr.h>
 #include <chan.h>
+#include <stdint.h>
 
 #define PATINA_MAX_NUM_EVT 32
 

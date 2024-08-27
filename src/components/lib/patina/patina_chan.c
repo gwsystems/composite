@@ -213,9 +213,10 @@ patina_channel_destroy(patina_chan_t cid)
  *
  * @return: return 'chan_send's return
  */
+int
 patina_channel_send(patina_chan_s_t scid, void *data, size_t len, size_t flags)
 {
-	assert(scid & data & len);
+	assert(scid && data && len);
 
 	return chan_send((struct chan_snd *)(scid & PATINA_T_MASK), data, (chan_flags_t)flags);
 }
@@ -236,7 +237,7 @@ patina_channel_send(patina_chan_s_t scid, void *data, size_t len, size_t flags)
 int
 patina_channel_recv(patina_chan_r_t rcid, void *buf, size_t len, size_t flags)
 {
-	assert(rcid & buf & len);
+	assert(rcid && buf && len);
 
 	return chan_recv((struct chan_rcv *)(rcid & PATINA_T_MASK), buf, (chan_flags_t)flags);
 }

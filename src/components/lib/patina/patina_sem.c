@@ -36,9 +36,9 @@ patina_sem_create(size_t init_value, size_t flags)
 	struct crt_sem *s = ss_sem_alloc();
 	if (!s) { return -1; }
 
-	assert(!crt_sem_init(s, (unsigned long)init_value))
+	assert(!crt_sem_init(s, (unsigned long)init_value));
 
-	  ss_sem_activate(s);
+	ss_sem_activate(s);
 
 	patina_sem_t sid = (patina_sem_t)s | PATINA_T_SEM;
 

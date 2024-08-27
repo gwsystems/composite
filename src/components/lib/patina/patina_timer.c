@@ -71,10 +71,10 @@ patina_time_create(struct time *a, u64_t sec, u32_t usec)
 int
 patina_time_add(struct time *a, struct time *b)
 {
-	assert(a & b);
-	assert(!(a->sec + b->sec < a->sec || a->usec + b->usec < a->usec))
+	assert(a && b);
+	assert(!(a->sec + b->sec < a->sec || a->usec + b->usec < a->usec));
 
-	  a->sec = a->sec + b->sec;
+	a->sec = a->sec + b->sec;
 	a->usec  = a->usec + b->usec;
 
 	return 0;
@@ -92,10 +92,10 @@ patina_time_add(struct time *a, struct time *b)
 int
 patina_time_sub(struct time *a, struct time *b)
 {
-	assert(a & b);
-	assert(!(a->sec - b->sec > a->sec || a->usec - b->usec > a->usec))
+	assert(a && b);
+	assert(!(a->sec - b->sec > a->sec || a->usec - b->usec > a->usec));
 
-	  a->sec = a->sec - b->sec;
+	a->sec = a->sec - b->sec;
 	a->usec  = a->usec - b->usec;
 
 	return 0;
@@ -140,7 +140,7 @@ patina_timer_create()
 int
 patina_timer_start(patina_timer_t tid, struct time *time)
 {
-	assert(tid & time);
+	assert(tid && time);
 	struct patina_tmr *t = (struct patina_tmr *)(tid & PATINA_T_MASK);
 
 	assert(!tmr_init(&t->tmr, (time->sec * 1000 * 1000) + time->usec - time_now_usec(), TMR_ONESHOT));

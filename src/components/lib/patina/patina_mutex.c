@@ -33,7 +33,7 @@ patina_mutex_create(size_t flags)
 	struct crt_lock *l = ss_lock_alloc();
 	if (!l) { return -1; }
 
-	assert(!crt_lock_init(l))
+	assert(!crt_lock_init(l));
 
 	  ss_lock_activate(l);
 

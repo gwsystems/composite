@@ -29,7 +29,7 @@
 int
 patina_event_create(patina_event_t *eid, uint32_t n_sources)
 {
-	assert(eid & n_sources);
+	assert(eid && n_sources);
 
 	return evt_init((struct evt *)eid, n_sources);
 }
@@ -50,7 +50,7 @@ patina_event_create(patina_event_t *eid, uint32_t n_sources)
 int
 patina_event_add(patina_event_t *eid, size_t src, size_t flags)
 {
-	assert(eid & src);
+	assert(eid && src);
 
 	evt_res_id_t id;
 
@@ -92,7 +92,7 @@ patina_event_add(patina_event_t *eid, size_t src, size_t flags)
 int
 patina_event_remove(patina_event_t *eid, size_t src, size_t flags)
 {
-	assert(eid & src);
+	assert(eid && src);
 
 	evt_res_id_t id = 0;
 
@@ -150,7 +150,7 @@ patina_event_delete(patina_event_t *eid)
 int
 patina_event_wait(patina_event_t *eid, struct patina_event_info events[], size_t num)
 {
-	assert(eid & events & num);
+	assert(eid && events && num);
 
 	word_t tmp;
 
@@ -170,7 +170,7 @@ patina_event_wait(patina_event_t *eid, struct patina_event_info events[], size_t
 int
 patina_event_check(patina_event_t *eid, struct patina_event_info events[], size_t num)
 {
-	assert(eid & events & num);
+	assert(eid && events && num);
 
 	word_t tmp;
 
