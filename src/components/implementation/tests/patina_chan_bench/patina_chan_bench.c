@@ -9,6 +9,7 @@
 
 #include <patina.h>
 #include <perfdata.h>
+#include <cos_time.h>
 
 #define COLD_CACHE
 #ifdef COLD_CACHE
