@@ -82,7 +82,7 @@ pub fn exec() -> Result<(), String> {
         sys.add_params_iter(&c_id, Parameters::transition_iter(c_id, &sys, &mut build, None)?);
         let obj = ElfObject::transition_iter(c_id, &sys, &mut build, None)?;
         let output = Command::new("python3")
-        .arg("/home/minghwu/work/minghwu/composite/pyelftool_parser/src/analyzer.py")
+        .arg("pyelftool_parser/src/analyzer.py")
         .arg(obj.get_path())
         .output()
         .expect("Failed to execute script");

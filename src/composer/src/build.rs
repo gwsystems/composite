@@ -413,15 +413,19 @@ impl BuildState for DefaultBuilder {
             String::from("#ifndef COMPONENT_CONSTANTS_H\n#define COMPONENT_CONSTANTS_H\n\n");
 
         for constant in &c.constants {
-            header_content.push_str(&format!(
-                "#define {} {}\n",
-                constant.variable, constant.value
-            ));
+            println!("{}", stack_size.unwrap_or(&"0".to_string()));
+            if constant.variable == "stack_size" {
+                header_content.push_str(&format!(
+                    "#define {} {}\n",
+                    constant.variable, stack_size.unwrap_or(&"0".to_string())
+                )); 
+            } else {
+                header_content.push_str(&format!(
+                    "#define {} {}\n",
+                    constant.variable, constant.value
+                ));
+            }
         }
-        header_content.push_str(&format!(
-            "#define {} {}\n",
-            "Stack_size", stack_size.unwrap_or(&"0".to_string())
-        ));
         header_content.push_str("\n#endif /* COMPONENT_CONSTANTS_H */\n");
 
         emit_file(&header_file_path, header_content.as_bytes()).unwrap();
