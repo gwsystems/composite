@@ -413,7 +413,6 @@ impl BuildState for DefaultBuilder {
             String::from("#ifndef COMPONENT_CONSTANTS_H\n#define COMPONENT_CONSTANTS_H\n\n");
 
         for constant in &c.constants {
-            println!("{}", stack_size.unwrap_or(&"0".to_string()));
             if constant.variable == "stack_size" {
                 header_content.push_str(&format!(
                     "#define {} {}\n",
