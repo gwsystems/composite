@@ -416,7 +416,7 @@ impl BuildState for DefaultBuilder {
             if constant.variable == "stack_size" {
                 header_content.push_str(&format!(
                     "#define {} {}\n",
-                    constant.variable, stack_size.unwrap_or(&"0".to_string())
+                    constant.variable.to_uppercase(), stack_size.unwrap_or(&"0".to_string())
                 )); 
             } else {
                 header_content.push_str(&format!(
