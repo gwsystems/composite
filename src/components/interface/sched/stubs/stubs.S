@@ -20,6 +20,7 @@ cos_asm_stub_indirect(sched_thd_block_timeout);
 cos_asm_stub(sched_thd_create_closure);
 cos_asm_stub_indirect(sched_aep_create_closure);
 cos_asm_stub(sched_thd_param_set);
+cos_asm_stub(sched_thd_get_param); //TODO: Added for getting execution and switch count, remove after
 cos_asm_stub(sched_thd_exit);
 cos_asm_stub(sched_thd_delete);
 cos_asm_stub(sched_set_tls);

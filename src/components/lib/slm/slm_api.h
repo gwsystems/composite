@@ -126,12 +126,12 @@ int slm_sched_wakeup(struct slm_thd *t);
  * Return the next thread (e.g. highest priority thread) that should
  * execute. Can return `NULL` if no thread is runnable.
  */
-struct slm_thd *slm_sched_schedule(void);
+struct slm_thd *slm_sched_schedule(cycles_t cycles);
 /**
  * Called to notify the scheduler that some amount of execution for
  * thread t has elapsed.
  */
-void slm_sched_execution(struct slm_thd *t, cycles_t cycles);
+void slm_sched_execution(struct slm_thd *t, cycles_t cycles, cycles_t now);
 
 /***
  * Resource APIs.
@@ -203,17 +203,17 @@ typedef void (*thd_fn_t)(void *);
 	{ return slm_sched_##schedpol##_wakeup(t); }			\
 	void slm_sched_yield(struct slm_thd *t, struct slm_thd *yield_to) \
 	{ return slm_sched_##schedpol##_yield(t, yield_to); }   	\
-	struct slm_thd *slm_sched_schedule(void)			\
- 	{ return slm_sched_##schedpol##_schedule(); }			\
-	void slm_sched_execution(struct slm_thd *t, cycles_t c)		\
-	{ slm_sched_##schedpol##_execution(t, c); }			\
+	struct slm_thd *slm_sched_schedule(cycles_t c)			\
+ 	{ return slm_sched_##schedpol##_schedule(c); }			\
+	void slm_sched_execution(struct slm_thd *t, cycles_t c, cycles_t n) \
+	{ slm_sched_##schedpol##_execution(t, c, n); }			\
 									\
 	struct slm_thd *slm_thd_lookup(thdid_t id)			\
 	{ return slm_thd_##respol##_lookup(id); }
 
 #define SLM_MODULES_POLICY_PROTOTYPES(schedpol)				\
-	void slm_sched_##schedpol##_execution(struct slm_thd *t, cycles_t cycles); \
-	struct slm_thd *slm_sched_##schedpol##_schedule(void);		\
+	void slm_sched_##schedpol##_execution(struct slm_thd *t, cycles_t cycles, cycles_t now); \
+	struct slm_thd *slm_sched_##schedpol##_schedule(cycles_t c);	\
 	int slm_sched_##schedpol##_block(struct slm_thd *t);		\
 	int slm_sched_##schedpol##_wakeup(struct slm_thd *t);		\
 	void slm_sched_##schedpol##_yield(struct slm_thd *t, struct slm_thd *yield_to);	\
