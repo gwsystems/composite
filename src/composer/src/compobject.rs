@@ -327,8 +327,9 @@ impl TransitionIter for ElfObject {
         id: &ComponentId,
         s: &SystemState,
         b: &mut dyn BuildState,
+        stack_size: Option<&String>,
     ) -> Result<Box<Self>, String> {
-        let obj_path = b.comp_build(&id, &s)?;
+        let obj_path = b.comp_build(&id, &s, stack_size)?;
 
         compute_elfobj(&id, &obj_path, &s, b)
     }
@@ -354,6 +355,12 @@ impl ObjectsPass for ElfObject {
 
 pub struct Constructor {
     obj_path: String,
+}
+
+impl ElfObject {
+    pub fn get_path(&self) -> String {
+        self.obj_path.clone()
+    }
 }
 
 impl Transition for Constructor {

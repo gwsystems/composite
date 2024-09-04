@@ -19,6 +19,7 @@ mod resources;
 mod symbols;
 mod syshelpers;
 mod tot_order;
+mod virt_resources;
 mod graph;
 
 use address_assignment::AddressAssignmentx86_64;
@@ -31,7 +32,9 @@ use passes::{BuildState, ComponentId, SystemState, Transition, TransitionIter};
 use properties::CompProperties;
 use resources::ResAssignPass;
 use std::env;
+use std::process::Command;
 use tot_order::CompTotOrd;
+use virt_resources::VirtResAnalysis;
 use graph::Graph;
 
 pub fn exec() -> Result<(), String> {
@@ -40,6 +43,7 @@ pub fn exec() -> Result<(), String> {
 
     let arg1 = args.next();
     let arg2 = args.next();
+    let arg3 = args.next();
 
     if None == arg1 || None == arg2 {
         return Err(format!(
@@ -48,12 +52,20 @@ pub fn exec() -> Result<(), String> {
         ));
     }
 
+    let is_rebuild = match arg3 {
+        Some(ref val) if val == "REBUILD" => true,
+        Some(_) => return Err(format!("Invalid third argument. Expected 'REBUILD'.")),
+        None => false,
+    };
+
+
     let mut sys = SystemState::new(arg1.unwrap());
     let mut build = DefaultBuilder::new();
-    build.initialize(&arg2.unwrap(), &sys)?;
+    build.initialize(&arg2.unwrap(), is_rebuild, &sys)?;
 
     sys.add_parsed(SystemSpec::transition(&sys, &mut build)?);
     sys.add_named(CompTotOrd::transition(&sys, &mut build)?);
+    sys.add_virt_res(VirtResAnalysis::transition(&sys, &mut build)?);
     sys.add_address_assign(AddressAssignmentx86_64::transition(&sys, &mut build)?);
     sys.add_properties(CompProperties::transition(&sys, &mut build)?);
     sys.add_restbls(ResAssignPass::transition(&sys, &mut build)?);
@@ -67,10 +79,26 @@ pub fn exec() -> Result<(), String> {
         .rev()
         .collect();
     for c_id in reverse_ids.iter() {
-        sys.add_params_iter(&c_id, Parameters::transition_iter(c_id, &sys, &mut build)?);
-        sys.add_objs_iter(&c_id, ElfObject::transition_iter(c_id, &sys, &mut build)?);
-        sys.add_invs_iter(&c_id, Invocations::transition_iter(c_id, &sys, &mut build)?);
+        sys.add_params_iter(&c_id, Parameters::transition_iter(c_id, &sys, &mut build, None)?);
+        let obj = ElfObject::transition_iter(c_id, &sys, &mut build, None)?;
+        let output = Command::new("python3")
+        .arg("pyelftool_parser/src/analyzer.py")
+        .arg(obj.get_path())
+        .output()
+        .expect("Failed to execute script");
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            println!("Script output: {}", stdout);
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("Script error: {}", stderr);
+        }
+        let stack_size =  String::from_utf8_lossy(&output.stdout).replace("\n", "").to_string();
+        sys.add_objs_iter(&c_id, ElfObject::transition_iter(c_id, &sys, &mut build, Some(&stack_size))?);
+        sys.add_invs_iter(&c_id, Invocations::transition_iter(c_id, &sys, &mut build, None)?);
+        
     }
+    
     sys.add_constructor(Constructor::transition(&sys, &mut build)?);
     sys.add_graph(Graph::transition(&sys, &mut build)?);
 
