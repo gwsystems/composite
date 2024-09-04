@@ -40,6 +40,7 @@ pub fn exec() -> Result<(), String> {
 
     let arg1 = args.next();
     let arg2 = args.next();
+    let arg3 = args.next();
 
     if None == arg1 || None == arg2 {
         return Err(format!(
@@ -48,9 +49,15 @@ pub fn exec() -> Result<(), String> {
         ));
     }
 
+    let is_rebuild = match arg3 {
+        Some(ref val) if val == "REBUILD" => true,
+        Some(_) => return Err(format!("Invalid third argument. Expected 'REBUILD'.")),
+        None => false,
+    };
+
     let mut sys = SystemState::new(arg1.unwrap());
     let mut build = DefaultBuilder::new();
-    build.initialize(&arg2.unwrap(), &sys)?;
+    build.initialize(&arg2.unwrap(), is_rebuild, &sys)?;
 
     sys.add_parsed(SystemSpec::transition(&sys, &mut build)?);
     sys.add_named(CompTotOrd::transition(&sys, &mut build)?);
