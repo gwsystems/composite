@@ -1,6 +1,7 @@
 import sys
 import register
 import execute
+import math
 from debug import loginst, log, logresult, logstack, logrust
 from capstone.x86 import *
 from elftools.elf.elffile import ELFFile
@@ -174,6 +175,16 @@ def driver(disassembler, parser):
     logresult(parser.edge)
     return parser.stacklist
 
+def PowerOf2(N):
+    # Calculate log2 of N
+    a = int(math.log2(N))
+ 
+    # If 2^a is equal to N, return N
+    if 2**a == N:
+        return a
+     
+    # Return 2^(a + 1)
+    return a + 1
 
 if __name__ == '__main__':
     
@@ -197,9 +208,19 @@ if __name__ == '__main__':
     
     cleanresult(parser)
     logresult(parser.stackfunction)
+    i = 0
+    for j in parser.stackfunction:
+        logresult(j)
+        logresult(i)
+        i = i + 1
     logresult(parser.stacklist)
+    i = 0
+    for j in parser.stacklist:
+        logresult(i)
+        logresult(j)
+        i = i + 1
     logresult(parser.edge)
-    min_value = min(parser.stacklist)
-    logrust(min_value)
+    stacksize = min(parser.stacklist)
+    logrust(PowerOf2(abs(stacksize)))
     
     
