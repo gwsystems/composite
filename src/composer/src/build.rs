@@ -321,7 +321,7 @@ fn comp_gen_make_cmd(
 
 fn kern_gen_make_cmd(input_constructor: &String, kern_output: &String, _s: &SystemState) -> String {
     format!(
-        r#"make -C src KERNEL_OUTPUT="{}" CONSTRUCTOR_COMP="{}" plat"#,
+        r#"make -d -C src KERNEL_OUTPUT="{}" CONSTRUCTOR_COMP="{}" plat"#,
         kern_output, input_constructor
     )
 }
@@ -413,10 +413,10 @@ impl BuildState for DefaultBuilder {
             String::from("#ifndef COMPONENT_CONSTANTS_H\n#define COMPONENT_CONSTANTS_H\n\n");
 
         for constant in &c.constants {
-            if constant.variable == "stack_size" {
+            if constant.variable == "max_stack_sz_byte_order" {
                 header_content.push_str(&format!(
-                    "#define {} {}\n",
-                    constant.variable.to_uppercase(), stack_size.unwrap_or(&"0".to_string())
+                    "#define MAX_STACK_SZ_BYTE_ORDER {}\n",
+                    stack_size.unwrap_or(&"0".to_string())
                 )); 
             } else {
                 header_content.push_str(&format!(
@@ -459,8 +459,8 @@ impl BuildState for DefaultBuilder {
             let (out1, err1) = exec_pipeline(vec![dep_cmd.clone()]);
 
             let rebuild_cmd = format!(
-                r#"make -C src REBUILD_DIRS="{}" COMP_CONST_H="-include {}" component_rebuild"#,
-                out1, header_file_path
+                r#"make -C src REBUILD_DIRS="{}" COMP_CONST_H="-include {}" STACK_SIZE="{}" component_rebuild"#,
+                out1, header_file_path,stack_size.unwrap()
             );
             let (out2, err2) = exec_pipeline(vec![rebuild_cmd.clone()]);
 
@@ -568,6 +568,7 @@ impl BuildState for DefaultBuilder {
         kern_output: &String,
         constructor_input: &String,
         s: &SystemState,
+        stack_size: Option<&String>,
     ) -> Result<(), String> {
         let cmd = kern_gen_make_cmd(&constructor_input, &kern_output, &s);
         println!(
