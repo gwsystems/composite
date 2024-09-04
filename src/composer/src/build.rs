@@ -430,9 +430,9 @@ impl BuildState for DefaultBuilder {
         compdir_check_build(&comp_dir)?;
         let p = state.get_param_id(&id);
         let output_path = self.comp_obj_path(&id, &state)?;
-
         let comp_log = self.comp_file_path(&id, &"compilation.log".to_string(), &state)?;
 
+        //rebuild process starts
         let header_file_path =
             self.comp_file_path(&id, &"component_constants.h".to_string(), &state)?;
 

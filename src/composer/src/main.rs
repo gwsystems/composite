@@ -4,6 +4,7 @@ extern crate serde_derive;
 extern crate itertools;
 extern crate tar;
 extern crate xmas_elf;
+extern crate petgraph;
 
 mod address_assignment;
 mod build;
@@ -18,6 +19,7 @@ mod resources;
 mod symbols;
 mod syshelpers;
 mod tot_order;
+mod graph;
 
 use address_assignment::AddressAssignmentx86_64;
 use build::DefaultBuilder;
@@ -30,6 +32,7 @@ use properties::CompProperties;
 use resources::ResAssignPass;
 use std::env;
 use tot_order::CompTotOrd;
+use graph::Graph;
 
 pub fn exec() -> Result<(), String> {
     let mut args = env::args();
@@ -76,6 +79,7 @@ pub fn exec() -> Result<(), String> {
         sys.add_invs_iter(&c_id, Invocations::transition_iter(c_id, &sys, &mut build)?);
     }
     sys.add_constructor(Constructor::transition(&sys, &mut build)?);
+    sys.add_graph(Graph::transition(&sys, &mut build)?);
 
     println!(
         "System object generated:\n\t{}",
