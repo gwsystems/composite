@@ -6,6 +6,7 @@
 
 #include <cos_component.h>
 #include <llprint.h>
+#include <cos_time.h>
 #include <patina.h>
 #include <ps.h>
 #include <perfdata.h>
