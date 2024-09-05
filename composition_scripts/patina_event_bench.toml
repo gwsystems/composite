@@ -17,7 +17,7 @@ constructor = "booter"
 
 [[components]]
 name = "sched"
-img  = "sched.root_fprr"
+img  = "sched.pfprr_quantum_static"
 deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
 implements = [{interface = "sched"}, {interface = "init"}]
 constructor = "booter"
@@ -45,7 +45,7 @@ constructor = "booter"
 
 [[components]]
 name = "tests"
-img  = "tests.patina_timer_bench"
+img  = "tests.patina_event_bench"
 implements = [{interface = "init"}]
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "evtmgr", interface = "evt"}, {srv = "tmrmgr", interface = "tmrmgr"}, {srv = "chanmgr", interface = "chanmgr"}, {srv = "chanmgr", interface = "chanmgr_evt"}]
 baseaddr = "0x1600000"

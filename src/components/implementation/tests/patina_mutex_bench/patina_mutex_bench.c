@@ -6,7 +6,7 @@
 
 #include <llprint.h>
 #include <sched.h>
-
+#include <cos_time.h>
 #include <patina.h>
 #include <perfdata.h>
 
@@ -40,7 +40,7 @@
 #define SLEEP_TIME 1000
 #endif
 
-#define PRINT_ALL
+// #define PRINT_ALL
 
 patina_mutex_t mid;
 thdid_t        lock_hi = 0, lock_lo = 0;

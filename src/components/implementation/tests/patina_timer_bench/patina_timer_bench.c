@@ -6,7 +6,7 @@
 
 #include <llprint.h>
 #include <sched.h>
-
+#include <cos_time.h>
 #include <patina.h>
 #include <perfdata.h>
 
@@ -42,7 +42,7 @@
 
 #define DROP_THRESHOLD 0x1000000U
 
-#define PRINT_ALL
+// #define PRINT_ALL
 
 thdid_t tmr_hi = 0, tmr_lo = 0;
 

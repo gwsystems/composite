@@ -6,7 +6,7 @@
 
 #include <llprint.h>
 #include <sched.h>
-
+#include <cos_time.h>
 #include <patina.h>
 #include <perfdata.h>
 
@@ -18,7 +18,7 @@
 #endif
 
 #define ITERATION 10 * 1000
-#define PRINT_ALL
+// #define PRINT_ALL
 
 patina_sem_t   sid;
 patina_event_t evt;
