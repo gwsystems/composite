@@ -19,7 +19,7 @@
 
 /* One low-priority thread and one high-priority thread contends on the semaphore */
 #define ITERATION 10 * 1000
-// #define PRINT_ALL
+//#define PRINT_ALL
 
 patina_sem_t sid;
 thdid_t      sem_hi = 0, sem_lo = 0;
@@ -82,7 +82,7 @@ sem_lo_thd(void *d)
 	}
 
 #ifdef PRINT_ALL
-	perfdata_raw(&perf);
+	perfdata_all(&perf);
 #endif
 	perfdata_calc(&perf);
 	perfdata_print(&perf);
@@ -113,7 +113,7 @@ test_sem(void)
 		perfdata_add(&perf, end - start);
 	}
 #ifdef PRINT_ALL
-	perfdata_raw(&perf);
+	perfdata_all(&perf);
 #endif
 	perfdata_calc(&perf);
 	perfdata_print(&perf);
@@ -123,11 +123,11 @@ test_sem(void)
 	printc("Create threads:\n");
 
 	sem_lo = sched_thd_create(sem_lo_thd, NULL);
-	printc("\tcreating lo thread %d at prio %d\n", sem_lo, sps[1]);
+	printc("\tcreating lo thread %ld at prio %d\n", sem_lo, sps[1]);
 	sched_thd_param_set(sem_lo, sps[1]);
 
 	sem_hi = sched_thd_create(sem_hi_thd, NULL);
-	printc("\tcreating hi thread %d at prio %d\n", sem_hi, sps[0]);
+	printc("\tcreating hi thread %ld at prio %d\n", sem_hi, sps[0]);
 	sched_thd_param_set(sem_hi, sps[0]);
 }
 
