@@ -16,6 +16,7 @@ use std::collections::{BTreeMap, HashMap};
 use cossystem::ConstantVal;
 use initargs::ArgsKV;
 use std::fmt;
+use analysis::Warning;
 
 pub struct SystemState {
     spec: String,
@@ -30,8 +31,10 @@ pub struct SystemState {
     invs: HashMap<ComponentId, Box<dyn InvocationsPass>>,
     constructor: Option<Box<dyn ConstructorPass>>,
     graph: Option<Box<dyn GraphPass>>,
+    analysis: Option<Box<dyn AnalysisPass>>,
 }
 
+#[allow(dead_code)]
 impl SystemState {
     pub fn new(spec: String) -> SystemState {
         SystemState {
@@ -46,6 +49,7 @@ impl SystemState {
             invs: HashMap::new(),
             constructor: None,
 	    graph: None,
+	    analysis: None,
         }
     }
 
@@ -87,6 +91,10 @@ impl SystemState {
 
     pub fn add_graph(&mut self, c: Box<dyn GraphPass>) {
         self.graph = Some(c);
+    }
+
+    pub fn add_analysis(&mut self, c: Box<dyn AnalysisPass>) {
+        self.analysis = Some(c);
     }
 
     pub fn get_input(&self) -> String {
@@ -131,6 +139,10 @@ impl SystemState {
 
     pub fn get_graph(&self) -> &dyn GraphPass {
         &**(self.graph.as_ref().unwrap())
+    }
+
+    pub fn get_analysis(&self) -> &dyn AnalysisPass {
+        &**(self.analysis.as_ref().unwrap())
     }
 }
 
@@ -432,4 +444,9 @@ pub trait ConstructorPass {
 
 pub trait GraphPass {
 
+}
+
+pub trait AnalysisPass {
+    fn warnings(&self) -> &HashMap<ComponentId, Vec<Warning>>;
+    fn warning_str(&self, id: ComponentId, s: &SystemState) -> String;
 }
