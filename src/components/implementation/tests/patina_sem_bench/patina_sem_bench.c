@@ -19,7 +19,7 @@
 
 /* One low-priority thread and one high-priority thread contends on the semaphore */
 #define ITERATION 10 * 1000
-//#define PRINT_ALL
+#define PRINT_ALL
 
 patina_sem_t sid;
 thdid_t      sem_hi = 0, sem_lo = 0;
@@ -113,7 +113,7 @@ test_sem(void)
 		perfdata_add(&perf, end - start);
 	}
 #ifdef PRINT_ALL
-	perfdata_all(&perf);
+	perfdata_raw(&perf);
 #endif
 	perfdata_calc(&perf);
 	perfdata_print(&perf);
