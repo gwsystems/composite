@@ -2,6 +2,8 @@ use passes::{
     component, deps, BuildState, ComponentId, InvocationsPass, SInv, SystemState, TransitionIter,
 };
 
+use std::collections::HashSet;
+
 pub struct Invocations {
     invs: Vec<SInv>,
 }
@@ -15,9 +17,34 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
         let mut found = false;
 
         for d in deps(&s, &id) {
-            // find the correct dependency (whose interface
-            // prefixes the symbol)
-            if !sname.trim_matches('_').starts_with(&d.interface) {
+            let interface_toml = match s.get_spec().interface_funcs().get(&d.interface) {
+                Some(interface) => interface,
+                None => {
+                    errors.push_str(&format!(
+                        "Error: No interface TOML found for dependency {} in component {}\n",
+                        d.interface, component(&s, &id).name
+                    ));
+                    return Err(errors);
+                }
+            };
+
+            let mut function_exists = false;
+
+            let mut func_access: Vec<String> = Vec::new();
+            println!("display the interface name: {} \n", d.interface );
+            println!("display the symbol name: {} \n", *sname );
+            for func in &interface_toml.function {
+                println!("display the func name: {} \n", func.name  );
+               // println!("display the function name: {} \n", func.name);
+                if func.name == *sname {
+                    func_access = func.access.clone();
+                    function_exists = true;
+                    continue;
+                }
+            }
+
+            println!("display function_exists: {} \n", function_exists  );
+            if !function_exists {
                 continue;
             }
 
@@ -34,6 +61,8 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
                         symb_name: sname.clone(),
                         client: id.clone(),
                         server: srv_id.clone(),
+                        access: func_access,
+                        virt_res_type: interface_toml.virt_resources.clone(),
                         c_fn_addr: symbinfo.func_addr.clone(),
                         c_callgate_addr: symbinfo.callgate_addr.clone(),
                         c_ucap_addr: symbinfo.ucap_addr.clone(),
@@ -58,11 +87,41 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
         }
     }
 
+    println!("Number of invs generated: {}", invs.len());
+
     if errors.len() > 0 {
         return Err(errors);
     }
 
     Ok(invs)
+}
+
+fn sinvs_filter(invs: &mut Vec<SInv>, id: &ComponentId, s: &SystemState) -> Result<(), String> {
+    let c = component(&s, id);
+
+    // Iterate over the virtual resource list
+    for vr in &c.virt_res {
+        let mut vr_access: HashSet<String> = HashSet::new();
+        // Union the access options of all the instances of each virtual resource
+        for inst in &vr.instances {
+            for (_vr_inst_name, vr_inst_config) in inst {
+                for access in &vr_inst_config.access {
+                    vr_access.insert(access.clone()); 
+                }
+            }
+        }
+
+        // filter out the functions that don't match the virtual resource access options
+        invs.retain(|inv| {
+            if &inv.client == id && inv.virt_res_type == vr.vr_type {
+                let access_matches = inv.access.iter().all(|access| vr_access.contains(access));
+                return access_matches;
+            }
+            true
+        });
+    }
+
+    Ok(())
 }
 
 impl TransitionIter for Invocations {
@@ -87,7 +146,9 @@ impl TransitionIter for Invocations {
             // Should be true as constructor relationships should be
             // factored into the component id total order
             assert!(cid > id);
-            invs.append(&mut (sinvs_generate(cid, s)?));
+            let mut generated_invs = sinvs_generate(cid, s)?;
+            sinvs_filter(&mut generated_invs, cid, s)?;
+            invs.append(&mut generated_invs);
         }
 
         Ok(Box::new(Invocations { invs }))

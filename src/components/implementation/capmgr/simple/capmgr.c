@@ -218,9 +218,12 @@ mm_page_alloc(struct cm_comp *c, unsigned long align)
 	/* Allocate page, map page */
 	p->page = crt_page_allocn(&cm_self()->comp, 1);
 	if (!p->page) ERR_THROW(NULL, free_p);
-	if (crt_page_aliasn_aligned_in(p->page, align, 1, &cm_self()->comp, &c->comp, &m->addr)) BUG();
+	//only start mapping when the client component is available
+	if ( c != NULL ) {
+		if (crt_page_aliasn_aligned_in(p->page, align, 1, &cm_self()->comp, &c->comp, &m->addr)) BUG();
+		ss_state_activate_with(&m->comp, (word_t)c);
+	}
 
-	ss_state_activate_with(&m->comp, (word_t)c);
 	ss_page_activate(p);
 	ret = p;
 done:
@@ -439,6 +442,33 @@ cleanup:
 	goto done;
 }
 
+static int 
+memmgr_shared_page_allocn_aligned_at_id(cbuf_t chunkid, unsigned long num_pages, unsigned long align)
+{
+	struct 	mm_page *p;
+	struct 	mm_span *s;
+	int 	ret = 1;
+
+	s = ss_span_alloc_at_id(chunkid);
+	if (!s) return 0;
+	p = mm_page_allocn(NULL, num_pages, align);
+	if (!p) ERR_THROW(0, cleanup);
+
+	s->page_off = ss_page_id(p);
+	s->n_pages  = num_pages;
+	ss_span_activate(s);
+
+	if (chunkid = ss_span_id(s)) {
+		ret = 0;
+	}
+
+done:
+	return ret;
+cleanup:
+	ss_span_free(s);
+	goto done;
+}
+
 cbuf_t
 memmgr_shared_page_allocn(unsigned long num_pages, vaddr_t *pgaddr)
 {
@@ -462,7 +492,7 @@ mm_page_alias(struct mm_page *p, struct cm_comp *c, vaddr_t *addr, unsigned long
 	int i;
 
 	*addr = 0;
-	for (i = 1; i < MM_MAPPINGS_MAX; i++) {
+	for (i = 0; i < MM_MAPPINGS_MAX; i++) {
 		m = &p->mappings[i];
 
 		if (ss_state_alloc(&m->comp)) continue;
@@ -655,7 +685,6 @@ capmgr_comp_init(void)
 		for (j = 0 ; j < 3 ; j++, cont = args_iter_next(&i, &curr)) {
 			capid_t capid = atoi(args_key(&curr, &keylen));
 			char   *type  = args_get_from("type", &curr);
-
 			assert(capid && type);
 
 			if (j == 0) id = atoi(args_get_from("target", &curr));
@@ -704,6 +733,35 @@ capmgr_comp_init(void)
 		crt_ulk_map_in(&cmc->comp);
 	}
 
+	/* Create shared memory */
+	struct initargs shmem_entries;
+	ret = args_get_entry("virt_resources/shmem", &shmem_entries);
+	/* check if the chan virtual resource is existing */
+	if (ret > 0) {
+		struct initargs param_entries, client_entries, shmem_curr, param_curr, client_curr;
+		struct initargs_iter j,k;
+		int shmem_cont, clients_cont;
+
+		for (cont = args_iter(&shmem_entries, &i, &shmem_curr) ; cont ; cont = args_iter_next(&i, &shmem_curr)) { 		
+			char *id_str 		= NULL;
+			char *size_str 		= NULL;
+
+			/*	get the resource id, size*/ 
+			id_str 	= args_get_from("id", &shmem_curr);
+			ret 	= args_get_entry_from("params", &shmem_curr, &param_entries);
+			assert(!ret);
+			size_str = args_get_from("size", &param_entries);
+			
+			// get the client id
+			// ret = args_get_entry_from("clients", &shmem_curr, &client_entries);
+			// assert(!ret);
+
+			/* allocate the shared memory */
+			ret = memmgr_shared_page_allocn_aligned_at_id(atoi(id_str), atoi(size_str), PAGE_SIZE);
+			assert(!ret);
+		}
+	}
+	
 	return;
 }
 

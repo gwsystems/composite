@@ -17,13 +17,14 @@ void
 rendezvous(void)
 {
 	ps_tsc_t rcv = 0, snd = 0;
-	if (chan_recv(&r, &rcv, 0)) {
+	char i8test_data = 0;
+	if (chan_recv(&r, &i8test_data, 0)) {
 		printc("chan_recv error\n");
 		assert(0);
 	}
-
-	snd = ps_tsc();
-	if (chan_send(&s, &snd, 0)) {
+	printc("chan lo receive the i8test_data %c \n",i8test_data);
+	snd = 'B';
+	if (chan_send(&s, &i8test_data, 0)) {
 		printc("chan_send error\n");
 		assert(0);
 	}
@@ -84,22 +85,12 @@ ipc(void)
 int
 main(void)
 {
-	cycles_t wakeup;
 
 	printc("Component chan lo: executing main.\n");
 
-	/*
-	 * This sleep in both hi and lo comps lets the benchmark run
-	 * more predictably on HW and on Qemu.
-	 *
-	 * Likely because this helps the priority change in cos_init take effect!
-	 * Or because this lets the initialization of both ends of channels complete before tests start!
-	 */
-	wakeup = time_now() + time_usec2cyc(10 * 1000);
-	sched_thd_block_timeout(0, wakeup);
 
-	sender();
-	ipc();
+
+	rendezvous();
 
 	return 0;
 }

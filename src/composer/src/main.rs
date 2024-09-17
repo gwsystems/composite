@@ -5,6 +5,7 @@ extern crate itertools;
 extern crate tar;
 extern crate xmas_elf;
 extern crate petgraph;
+extern crate ascent;
 
 mod address_assignment;
 mod build;
@@ -20,6 +21,10 @@ mod symbols;
 mod syshelpers;
 mod tot_order;
 mod virt_resources;
+<<<<<<< Updated upstream
+=======
+mod analysis;
+>>>>>>> Stashed changes
 mod graph;
 
 use address_assignment::AddressAssignmentx86_64;

@@ -39,7 +39,6 @@ __chan_gather_resources(struct __chan_meta *m, chan_id_t id, unsigned int item_s
 	void *mem = NULL;
 	sched_blkpt_id_t full = 0, empty = 0;
 	int ret;
-
 	if ((ret = chanmgr_mem_resources(id, &cb, &mem)))      return ret;
 	if ((ret = chanmgr_sync_resources(id, &full, &empty))) return ret;
 	assert(mem != NULL && full > 0 && empty > 0);

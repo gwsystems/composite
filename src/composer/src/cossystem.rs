@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use syshelpers::dump_file;
 use toml;
+use toml::Value;
 
 use initargs::ArgsKV;
 use passes::{
@@ -34,6 +35,27 @@ pub struct ConstantVal {
     pub value: String,
 }
 
+pub type Param = HashMap<String, Value>;
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Assoc {
+    pub vr_type  : String,
+    pub instance : String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CompSubVirtRes {
+    pub association : Option<Vec<Assoc>>,
+    pub access      : Vec<String>,
+    pub name        : String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CompVirtRes {
+    pub vr_type   : String,
+    pub instances : Vec<HashMap<String, CompSubVirtRes>>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct TomlComponent {
     name: String,
@@ -41,6 +63,7 @@ pub struct TomlComponent {
     baseaddr: Option<String>,
     deps: Option<Vec<Dep>>,
     params: Option<Vec<Parameters>>,
+    virt_res: Option<Vec<CompVirtRes>>,
     constants: Option<Vec<ConstantVal>>,
     implements: Option<Vec<InterfaceVariant>>,
     initfs: Option<String>,
@@ -60,20 +83,10 @@ pub struct TomlAddrSpace {
     parent: Option<String>,  // which vas contains this one
 }
 
-pub type Param = HashMap<String, String>;
-
-#[derive(Debug, Deserialize)]
-pub struct Clients {
-    pub comp: String,
-    pub access: String,
-    pub name: Option<String>, 
-    pub symbol: Option<String>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct VirtRes {
-    pub param: Param,
-    pub clients: Vec<Clients>,
+    pub name    : String,
+    pub param   : Param,
 }
 
 #[derive(Debug, Deserialize)]
@@ -90,6 +103,32 @@ pub struct TomlSpecification {
     components: Vec<TomlComponent>,
     address_spaces: Option<Vec<TomlAddrSpace>>, //aggregates: Vec<TomlComponent>  For components of components
     virt_resources: Option<Vec<TomlVirtualResource>>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct FunctionInfo {
+    pub name: String,
+    pub access: Vec<String>, // e.g., ["read", "write"]
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[allow(dead_code)]
+pub struct InterfaceInfo {
+    description: String, // comment
+    virt_resources: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[allow(dead_code)]
+pub struct InterfaceTomlSpecification {
+    interface: InterfaceInfo,
+    function: Vec<FunctionInfo>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct InterfaceToml {
+    pub virt_resources: String,
+    pub function: Vec<FunctionInfo>,
 }
 
 impl Dep {
@@ -373,32 +412,15 @@ impl TomlSpecification {
 
         if let Some(ref vr_list) = self.virt_resources {
             for vr in vr_list.iter() {
-                for shmem in vr.resources.iter() {
+                for sub_vr in vr.resources.iter() {
                         if !self.comp_exists(vr.server.clone()) {
                             err_accum.push_str(&format!(
                                 "Error: Virtual resource {} has a non-existent server component {}.",
                                 vr.name, vr.server
                             ));
                         }
-        
-                        for client in &shmem.clients {
-                            if !self.comp_exists(client.comp.clone()) {
-                                err_accum.push_str(&format!(
-                                    "Error: Virtual resource {} has a non-existent client component {}.",
-                                    vr.name, client.comp
-                                ));
-                            }
-                        }
 
-                        for (key, value) in &shmem.param {
-                            // Example: Check that all param values are non-empty
-                            if value.trim().is_empty() {
-                                return Err(format!(
-                                    "Error: Virtual resource {} has an empty value for param key '{}'.",
-                                    vr.name, key
-                                ));
-                            }
-
+                        for (key, _value) in &sub_vr.param {
                             if key.trim().is_empty() {
                                 return Err(format!(
                                     "Error: Virtual resource {} has an empty value for param key '{}'.",
@@ -410,7 +432,6 @@ impl TomlSpecification {
             }
         }
         
-
         for c in self.comps() {
             if !self.comps().iter().fold(false, |accum, c2| {
                 c.constructor == "kernel" || c.constructor == c2.name || accum
@@ -432,6 +453,38 @@ impl TomlSpecification {
         {
             err_accum.push_str(&format!("Error: the number of base constructors (with constructor = \"kernel\") is not singular."));
             fail = true;
+        }
+    
+        // Validate component-level virtual resources
+        for comp in self.comps() {
+            if let Some(ref virt_res_list) = comp.virt_res {
+                for virt_res in virt_res_list {
+                    // Check if any instances are missing
+                    if virt_res.instances.is_empty() {
+                        err_accum.push_str(&format!(
+                            "Error: Component {} has a virtual resource '{}' with empty instances list.\n",
+                            comp.name, virt_res.vr_type
+                        ));
+                        fail = true;
+                    }
+
+                    // Check for instance mismatches between component-level and system-level
+                    if let Some(system_vr) = self.virt_resources.as_ref().and_then(|vrs| vrs.iter().find(|vr| vr.name == virt_res.vr_type)) {
+                        for instance_map in &virt_res.instances {
+                            for (instance_name, _) in instance_map {
+                                let system_instance_exists = system_vr.resources.iter().any(|res| res.name == *instance_name);
+                                if !system_instance_exists {
+                                    err_accum.push_str(&format!(
+                                        "Error: Instance '{}' in component {}'s virtual resource '{}' does not match any defined instance in system-level virtual resource.\n",
+                                        instance_name, comp.name, virt_res.vr_type
+                                    ));
+                                    fail = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         if fail {
@@ -476,6 +529,23 @@ impl TomlSpecification {
     }
 }
 
+impl InterfaceTomlSpecification {
+    pub fn parse(interface_path: &String) -> Result<InterfaceTomlSpecification, String> {
+        let conf = dump_file(interface_path)?;
+
+        let interface_pre: Result<InterfaceTomlSpecification, _> =
+            toml::from_str(String::from_utf8(conf).unwrap().as_str());
+
+        if let Err(cs) = interface_pre {
+            let mut e = String::from("Error when parsing Interface TOML:\n");
+            e.push_str(&format!("{:?}", cs));
+            return Err(e);
+        }
+
+        Ok(interface_pre.unwrap())
+    }
+}
+
 pub struct SystemSpec {
     ids: Vec<ComponentName>,
     components: HashMap<ComponentName, Component>,
@@ -484,6 +554,7 @@ pub struct SystemSpec {
     exports: HashMap<ComponentName, Vec<Export>>,
     address_spaces: HashMap<AddrSpcName, AddrSpace>,
     virtual_resources: HashMap<String, TomlVirtualResource>,
+    interface_funcs: HashMap<String, InterfaceToml>,
 }
 
 // Helper functions to compute components in an address space, and
@@ -595,7 +666,7 @@ impl Transition for SystemSpec {
                 .unwrap_or_else(|| {
                     ComponentName::new(&String::from("kernel"), &String::from("global"))
                 });
-
+            
             let comp = Component {
                 name: ComponentName::new(&c.name, &String::from("global")),
                 constructor: ComponentName::new(&c.constructor, &String::from("global")),
@@ -619,6 +690,7 @@ impl Transition for SystemSpec {
                     })
                     .collect(),
                 fsimg: c.initfs.clone(),
+                virt_res: c.virt_res.as_ref().cloned().unwrap_or_else(Vec::new),
                 constants: c.constants.as_ref().unwrap_or(&Vec::new()).clone(),
             };
             components.insert(ComponentName::new(&c.name, &String::from("global")), comp);
@@ -664,19 +736,13 @@ impl Transition for SystemSpec {
                 let server = vr.server.clone();
 
                 let resources = vr.resources.iter().map(|s| {
-                
+                    let name = s.name.clone();
+
                     let param = s.param.clone();
-                
-                    let clients = s.clients.iter().map(|c| Clients {
-                        comp: c.comp.clone(),
-                        access: c.access.clone(),
-                        name: c.name.clone(),
-                        symbol: c.symbol.clone(),
-                    }).collect();
                                 
                     VirtRes {
+                        name,
                         param,
-                        clients,
                     }
                 }).collect::<Vec<VirtRes>>();
 
@@ -691,6 +757,31 @@ impl Transition for SystemSpec {
             }
         }
 
+        let mut interface_funcs = HashMap::new();
+        for c in spec.comps().iter() {
+            if let Some(implements) = &c.implements {
+                for iface in implements {
+                    let interface_toml_path = format!("src/components/interface/{}/{}.toml", &iface.interface, &iface.interface);
+                    println!("Parsing interface TOML file from path: {}", interface_toml_path);
+                    
+                    let interface_spec_err = InterfaceTomlSpecification::parse(&interface_toml_path);
+                    if let Err(e) = interface_spec_err {
+                        return Err(e); 
+                    }
+
+                    let interface_spec = interface_spec_err.unwrap();
+
+                    
+                    let interface_toml = InterfaceToml {
+                        virt_resources: interface_spec.interface.virt_resources.clone(),
+                        function: interface_spec.function.clone(),
+                    };
+
+                    interface_funcs.insert(iface.interface.clone(), interface_toml);
+                }
+            }
+        }        
+
         let spec = Box::new(SystemSpec {
             ids,
             components,
@@ -699,6 +790,7 @@ impl Transition for SystemSpec {
             exports,
             address_spaces,
             virtual_resources,
+            interface_funcs,
         });
 
         // Check that the address spaces are formed such that there
@@ -761,5 +853,9 @@ impl SpecificationPass for SystemSpec {
 
     fn virtual_resources(&self) -> &HashMap<String, TomlVirtualResource>{
         &self.virtual_resources
+    }
+
+    fn interface_funcs(&self) -> &HashMap<String, InterfaceToml> {
+        &self.interface_funcs
     }
 }

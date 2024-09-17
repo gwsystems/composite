@@ -4,6 +4,7 @@
 #include <evt.h>
 #include <crt_blkpt.h>
 #include <ps_refcnt.h>
+#include <initargs.h>
 
 #define MAX_NUM_EVT 8
 
@@ -88,6 +89,33 @@ __evt_alloc(unsigned long max_evts)
 	return ss_evt_id(em);
 }
 
+evt_id_t 
+__evt_alloc_at_id(evt_id_t id)
+{
+	struct evt_agg *em = ss_evt_alloc_at_id(id);
+
+	if (!em) return 0;
+
+	memset(em, 0, sizeof(struct evt));
+	crt_blkpt_init(&em->blkpt);
+	ss_evt_activate(em);
+
+	return ss_evt_id(em);
+}
+
+evt_res_id_t
+__evt_res_alloc_at_id(evt_res_id_t rid)
+{
+	struct evt_res *res;
+	evt_res_id_t evt_rid;
+
+	res = ss_evtres_alloc_at_id(rid);
+	if (!res) return 0;
+
+	evt_rid = ss_evtres_id(res);
+	return evt_rid;
+}
+
 int
 __evt_free(evt_id_t id)
 {
@@ -156,6 +184,32 @@ __evt_add(evt_id_t id, evt_res_type_t srctype, evt_res_data_t retdata)
 	return rid;
 }
 
+evt_res_id_t
+__evt_add_at_id(evt_id_t id, evt_res_id_t rid, evt_res_type_t srctype, evt_res_data_t retdata)
+{
+	struct evt_agg *e = ss_evt_get(id);
+	struct evt_res *res;
+	evt_res_id_t evt_rid;
+
+	if (!e)  return 0;
+	res = ss_evtres_get(rid);
+	if (!res) return 0;
+
+	evt_rid = ss_evtres_id(res);
+	ps_refcnt_take(&e->refcnt);
+	*res = (struct evt_res) {
+		.client    = cos_inv_token(),
+		.type      = srctype,
+		.data      = retdata,
+		.evt_entry = NULL,
+		.me        = rid,
+		.evt       = e,
+	};
+	ss_evtres_activate(res);
+
+	return evt_rid;
+}
+
 int
 __evt_rem(evt_id_t id, evt_res_id_t rid)
 {
@@ -190,4 +244,43 @@ __evt_trigger(evt_res_id_t rid)
 	crt_blkpt_trigger(&e->blkpt, 0);
 
 	return 0;
+}
+
+int
+cos_init(void)
+{
+	printc("evtmgr: start initialization \n");
+
+	struct initargs evt_entries, evt_agg_entries;
+	int ret;
+
+	/* create the event virtual resource */
+
+	ret = args_get_entry("virt_resources/evt_aggregate", &evt_entries);
+	/* check if the event aggregate virtual resource is existing */
+	if (ret == 0) {
+		struct initargs param_entries, evt_curr, param_curr;
+		struct initargs_iter j;
+		int cont;
+
+		for (cont = args_iter(&evt_entries, &j, &evt_curr) ; cont ; cont = args_iter_next(&j, &evt_curr)) { 		
+			char *id_str 			= NULL;
+			char *sub_id_str		= NULL;
+			evt_id_t evt_id 		= 0xFF;
+			evt_res_id_t evt_res_id = 0xFF;
+
+			id_str 	= args_get_from("id", &evt_curr);
+
+			evt_id = __evt_alloc_at_id(atoi(id_str));
+			if (evt_id != atoi(id_str)) BUG();
+
+			ret = args_get_entry_from("params", &evt_curr, &param_entries);
+
+			for (cont = args_iter(&evt_entries, &j, &param_curr) ; cont ; cont = args_iter_next(&j, &param_curr)) { 		
+				sub_id_str = args_get_from("id", &param_curr);
+				evt_res_id = __evt_res_alloc_at_id(atoi(sub_id_str));
+				if (evt_res_id != atoi(sub_id_str)) BUG();
+			}
+		}
+	}
 }

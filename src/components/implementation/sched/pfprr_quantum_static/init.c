@@ -164,7 +164,7 @@ init_done(int parallel_init, init_main_t cont)
 	 * This should *ONLY* happen for the initialization thread
 	 * *after* it executes `cos_init`.
 	 */
-	if (s->status == SCHEDINIT_INITING) {
+	if (s->status == SCHEDINIT_INITING ) {
 		/*
 		 * Assumption: here we're moving on to parallel
 		 * initialization regardless if it is requested or

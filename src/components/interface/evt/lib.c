@@ -32,6 +32,12 @@ evt_add(struct evt *e, evt_res_type_t srctype, evt_res_data_t ret_data)
 	return __evt_add(e->id, srctype, ret_data);
 }
 
+evt_res_id_t
+evt_add_at_id(evt_id_t id, evt_res_id_t rid, evt_res_type_t srctype, evt_res_data_t ret_data)
+{
+	return __evt_add_at_id(id, rid, srctype, ret_data);
+}
+
 int
 evt_rem(struct evt *e, evt_res_id_t rid)
 {

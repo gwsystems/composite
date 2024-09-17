@@ -15,10 +15,12 @@ use std::collections::{BTreeMap, HashMap};
 
 use cossystem::ConstantVal;
 use cossystem::TomlVirtualResource;
-use cossystem::Param;
-use cossystem::Clients;
+use cossystem::CompVirtRes;
+use cossystem::InterfaceToml;
 use initargs::ArgsKV;
 use std::fmt;
+
+use analysis::Warning;
 
 pub struct SystemState {
     spec: String,
@@ -34,6 +36,10 @@ pub struct SystemState {
     constructor: Option<Box<dyn ConstructorPass>>,
     virtual_resource: Option<Box<dyn VirtResPass>>,
     graph: Option<Box<dyn GraphPass>>,
+<<<<<<< Updated upstream
+=======
+    analysis: Option<Box<dyn AnalysisPass>>,
+>>>>>>> Stashed changes
 }
 
 impl SystemState {
@@ -50,7 +56,12 @@ impl SystemState {
             objs: HashMap::new(),
             invs: HashMap::new(),
             constructor: None,
+<<<<<<< Updated upstream
 	    graph: None,
+=======
+            graph: None,
+            analysis: None,
+>>>>>>> Stashed changes
         }
     }
 
@@ -98,6 +109,13 @@ impl SystemState {
         self.graph = Some(c);
     }
 
+<<<<<<< Updated upstream
+=======
+    pub fn add_analysis(&mut self, c: Box<dyn AnalysisPass>) {
+        self.analysis = Some(c);
+    }
+
+>>>>>>> Stashed changes
     pub fn get_input(&self) -> String {
         self.spec.clone()
     }
@@ -253,6 +271,7 @@ pub struct Component {
     pub base_vaddr: String, // The lowest virtual address for the component -- could be hex, so not a VAddr
     pub params: Vec<ArgsKV>, // initialization parameters
     pub fsimg: Option<String>,
+    pub virt_res: Vec<CompVirtRes>,
     pub constants: Vec<ConstantVal>,
 }
 
@@ -291,6 +310,7 @@ pub trait SpecificationPass {
     fn libs_named(&self, id: &ComponentName) -> &Vec<Library>;
     fn address_spaces(&self) -> &AddrSpaces;
     fn virtual_resources(&self) -> &HashMap<String, TomlVirtualResource>;
+    fn interface_funcs(&self) -> &HashMap<String, InterfaceToml>;
 }
 
 // Integer namespacing pass. Convert the component variable names to
@@ -372,23 +392,11 @@ pub trait ResPass {
 }
 
 pub type VirtResName = String;
-
-#[derive(Debug, Deserialize)]
-pub struct VirtResWitID {
-    pub virt_resource_id: String,
-    pub param: Param,
-    pub clients: Vec<Clients>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct VirtualResource {
-    pub name:   String,
-    pub server: String,
-    pub resources:  Vec<VirtResWitID>,
-}
+pub type VirtResId   = String;
 
 pub trait VirtResPass {
-    fn virt_res_with_id(&self) -> &BTreeMap<VirtResName,VirtualResource>;
+    fn ids(&self) -> &BTreeMap<VirtResId, VirtResName>;
+    fn rmap(&self) -> &BTreeMap<VirtResName, VirtResId>;
 }
 
 // The initparam, objects, and synchronous invocation passes are all
@@ -446,6 +454,8 @@ pub struct SInv {
     pub symb_name: String,
     pub client: ComponentId,
     pub server: ComponentId,
+    pub access: Vec<String>,
+    pub virt_res_type: String,
     pub c_fn_addr: VAddr,
     pub c_callgate_addr: VAddr,
     pub c_ucap_addr: VAddr,
@@ -467,3 +477,11 @@ pub trait ConstructorPass {
 pub trait GraphPass {
 
 }
+<<<<<<< Updated upstream
+=======
+
+pub trait AnalysisPass {
+    fn warnings(&self) -> &HashMap<ComponentId, Vec<Warning>>;
+    fn warning_str(&self, id: ComponentId, s: &SystemState) -> String;
+}
+>>>>>>> Stashed changes

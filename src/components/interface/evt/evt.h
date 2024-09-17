@@ -160,6 +160,7 @@ int evt_get(struct evt *evt, evt_wait_flags_t flags, evt_res_type_t *src, evt_re
  *     - `>0` is the resource id
  */
 evt_res_id_t evt_add(struct evt *e, evt_res_type_t srctype, evt_res_data_t ret_data);
+evt_res_id_t evt_add_at_id(evt_id_t id, evt_res_id_t rid, evt_res_type_t srctype, evt_res_data_t ret_data);
 int evt_rem(struct evt *e, evt_res_id_t rid);
 
 int evt_trigger(evt_res_id_t rid);

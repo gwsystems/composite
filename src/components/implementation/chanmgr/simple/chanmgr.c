@@ -4,6 +4,7 @@
 #include <chanmgr.h>
 #include <chan.h>
 #include <static_slab.h>
+#include <initargs.h>
 
 #define MAX_NUM_CHAN 32
 struct chan_info {
@@ -65,6 +66,12 @@ chan_id_t
 chanmgr_create(unsigned int item_sz, unsigned int slots, chan_flags_t flags)
 {
 	return __chanmgr_create(item_sz, slots, flags, 0);
+}
+
+chan_id_t
+chanmgr_create_at_id(unsigned int item_sz, unsigned int slots, chan_flags_t flags, chan_id_t chanid)
+{
+	return __chanmgr_create(item_sz, slots, flags, chanid);
 }
 
 int
@@ -165,6 +172,33 @@ cos_init(void)
 	int i;
 
 	printc("Chanmgr (%ld): creating static, initial channels.\n", cos_compid());
+
+	struct initargs chan_entries;
+	int ret;
+	ret = args_get_entry("virt_resources/chan", &chan_entries);
+	/* check if the chan virtual resource is existing */
+	if (ret == 0) {
+		struct initargs param_entries, chan_curr;
+		struct initargs_iter j;
+		int cont;
+
+		for (cont = args_iter(&chan_entries, &j, &chan_curr) ; cont ; cont = args_iter_next(&j, &chan_curr)) { 		
+			char *id_str 		= NULL;
+			char *size_item_str	= NULL;
+			char *num_slots_str	= NULL;
+			chan_id_t chan_id 	= 0xFF;
+			/*	get the resource id, size*/ 
+			id_str 	= args_get_from("id", &chan_curr);
+			ret 	= args_get_entry_from("params", &chan_curr, &param_entries);
+			assert(!ret);
+			size_item_str = args_get_from("size_item", &param_entries);
+			num_slots_str = args_get_from("num_slots", &param_entries);
+
+			/* allocate the shared memory */
+			chan_id = __chanmgr_create(sizeof(u64_t), atoi(num_slots_str), CHAN_DEFAULT, atoi(id_str));
+			if (chan_id != atoi(id_str)) BUG();
+		}
+	}
 
 	for (i = 0; init_chan[i].id > 0; i++) {
 		struct init_info *ch = &init_chan[i];

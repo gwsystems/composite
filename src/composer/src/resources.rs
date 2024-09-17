@@ -1,6 +1,6 @@
 use initargs::ArgsKV;
 use passes::{
-    component, BuildState, ComponentId, ComponentName, OrderedSpecPass, VirtResPass, PropertiesPass, ResPass, ServiceType,
+    component, BuildState, ComponentId, OrderedSpecPass, VirtResPass, PropertiesPass, ResPass, ServiceType,
     SystemState, Transition,
 };
 use std::collections::{BTreeMap, HashMap};
@@ -88,7 +88,8 @@ impl CompConfigState {
     }
 }
 
-fn vr_server_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
+/* system level virtual resource process */
+fn sys_virt_res_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState) {
     let mut virtual_resources_args = Vec::new();
     let vr_orig = s.get_spec().virtual_resources();
     let vr_pass: &dyn VirtResPass = s.get_virt_res();
@@ -97,100 +98,141 @@ fn vr_server_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigState
 
     for (_key, vr) in vr_orig {
         if vr.server == component_name.var_name {
-            if let Some(vrs) = vr_pass.virt_res_with_id().get(&vr.name) {
-                let mut vr_args = Vec::new();
+            let mut vr_args = Vec::new();
 
-                for shmem in &vrs.resources {
-                        let mut clients_args = Vec::new();
-                        for client in &shmem.clients {
-                            let client_id = vas.rmap().get(&ComponentName::new(&client.comp, &String::from("global"))).unwrap().to_string();
-                            clients_args.push(ArgsKV::new_arr(
-                                "client".to_string(),
-                                vec![
-                                    ArgsKV::new_key("compid".to_string(), client_id),
-                                    ArgsKV::new_key("access".to_string(), client.access.clone()),
-                                ],
-                            ));
+            for shmem in &vr.resources {
+                    let mut param_args = Vec::new();
+                    for (key, value) in &shmem.param {
+                        match value {
+                            toml::Value::Array(arr) => {
+                                for (_i, elem) in arr.iter().enumerate() {
+                                    if let toml::Value::String(inner_str) = elem {
+                                        if let Some(id) = vr_pass.rmap().get(&inner_str.clone()) {
+                                            param_args.push(ArgsKV::new_arr(
+                                                "sub_sub_virt_resource".to_string(),
+                                                vec![
+                                                    ArgsKV::new_key("id".to_string(), id.clone()),
+                                                ],
+                                            ));
+                                        } else {
+                                            // Handle the case where the ID is not found
+                                            println!("Warning: No ID found for {}", inner_str);
+                                        }
+                                    }
+                                }
+                            }
+                            toml::Value::String(str_val) => {
+                                // Handle the case where it's a single string (not in an array)
+                                param_args.push(ArgsKV::new_key(key.clone(), str_val.clone()));
+                            }
+                            _ => {
+                                // Handle other types if needed, but for now we assume it's either an array of strings or a single string
+                            }                   
                         }
-
-                        let mut param_args = Vec::new();
-                        for (key, value) in &shmem.param {
-                            param_args.push(ArgsKV::new_key(key.clone(), value.clone()));
-                        }
-                        
-                        vr_args.push(ArgsKV::new_arr(
-                            "sub_virt_resource".to_string(),
-                            vec![
-                                ArgsKV::new_key("id".to_string(), shmem.virt_resource_id.clone()),
-                                ArgsKV::new_arr("params".to_string(), param_args),
-                                ArgsKV::new_arr("clients".to_string(), clients_args),
-                            ],
-                        ));
-                }
-                virtual_resources_args.push(ArgsKV::new_arr(vr.name.clone(), vr_args));
+                    }
+                    vr_args.push(ArgsKV::new_arr(
+                        "sub_virt_resource".to_string(),
+                        vec![
+                            ArgsKV::new_key("id".to_string(), vr_pass.rmap().get(&shmem.name).cloned().unwrap()),
+                            ArgsKV::new_arr("params".to_string(), param_args),
+                        ],
+                    ));
             }
+            virtual_resources_args.push(ArgsKV::new_arr(vr.name.clone(), vr_args));
         }
     }
     
     if !virtual_resources_args.is_empty() {
         cfg.args
-        .push(ArgsKV::new_arr("virt_resources".to_string(), virtual_resources_args));
+        .push(ArgsKV::new_arr("sys_virt_resources".to_string(), virtual_resources_args));
     }
 }
 
-fn vr_client_config(_s: &SystemState, _id: &ComponentId, _cfg: &mut CompConfigState) {
-    let vas: &dyn OrderedSpecPass = _s.get_named();
+/* component level virtual resource process */
+fn comp_virt_res_config(_s: &SystemState, _id: &ComponentId, _cfg: &mut CompConfigState) {
+    let c = component(&_s, _id);
     let vr_pass: &dyn VirtResPass = _s.get_virt_res();
-
-    let mut virtual_resources_args = Vec::new();
     let vr_orig = _s.get_spec().virtual_resources();
 
-    for (_key, vr) in vr_orig {
-        if let Some(vrs) = vr_pass.virt_res_with_id().get(&vr.name) {
-            let mut vr_args = Vec::new();
+    let mut vr_args = Vec::new();
 
-            for virtres in &vrs.resources {
-                for client in &virtres.clients {
-                    let client_id = vas.rmap().get(&ComponentName::new(&client.comp, &String::from("global"))).unwrap().to_string();
-
-                    if client_id == _id.to_string() {
-                        let mut param_args = Vec::new();
-                        for (key, value) in &virtres.param {
-                            param_args.push(ArgsKV::new_key(key.clone(), value.clone()));
+    for vr in &c.virt_res {
+        let mut vr_inst_args = Vec::new();
+        for inst in &vr.instances {
+            for (vr_inst_name, vr_inst_config) in inst {
+                let mut config_args = Vec::new();
+                
+                /* generate the association of current virtual resource instance */
+                if let Some(associations) = &vr_inst_config.association {
+                    let mut assoc_args = Vec::new();
+                    for assoc in associations {
+                        let mut assoc_map = Vec::new();
+                        assoc_map.push(ArgsKV::new_key("vr_type".to_string(), assoc.vr_type.clone()));
+            
+                        if let Some(id) = vr_pass.rmap().get(&assoc.instance) {
+                            assoc_map.push(ArgsKV::new_key("inst_id".to_string(), id.clone()));
                         }
+            
+                        assoc_args.push(ArgsKV::new_arr("_".to_string(), assoc_map));
+                    }
+                    config_args.push(ArgsKV::new_arr("association".to_string(), assoc_args));
+                }
 
-                        vr_args.push(ArgsKV::new_arr(
-                            "sub_virt_resource".to_string(),
-                            vec![
-                                ArgsKV::new_key("id".to_string(), virtres.virt_resource_id.clone()),
-                                ArgsKV::new_arr("params".to_string(), param_args),
-                                ArgsKV::new_key("name".to_string(), client.name.clone().unwrap_or_default()),
-                                ArgsKV::new_key("symbol".to_string(), client.symbol.clone().unwrap_or_default()),
-                                ArgsKV::new_key("access".to_string(), client.access.clone()),
-                            ],
-                        ));
+                /* generate the current virtual resource instance id  */
+                if let Some(id) = vr_pass.rmap().get(vr_inst_name) {
+                    config_args.push(ArgsKV::new_key("id".to_string(), id.clone()));
+                }
+
+                /* generate the current virtual resource instance access options */
+                let mut access_args = Vec::new();
+
+                for access in &vr_inst_config.access {
+                    access_args.push(ArgsKV::new_key("access".to_string(), access.clone()));
+                }
+
+                /* generate the current virtual resource instance params */
+                if let Some(system_vr) = vr_orig.get(&vr.vr_type) {
+                    let mut param_args = Vec::new();
+                    for resource in &system_vr.resources {
+                        if resource.name == *vr_inst_name {
+                            for (key, value) in &resource.param {
+                                match value {
+                                    toml::Value::Array(arr) => {
+                                        for (i, elem) in arr.iter().enumerate() {
+                                            if let toml::Value::String(inner_str) = elem {
+                                                let indexed_key = format!("{}_{}", key, i);
+                                                param_args.push(ArgsKV::new_key(indexed_key, inner_str.clone()));
+                                            }
+                                        }
+                                    }
+                                    toml::Value::String(str_val) => {
+                                        param_args.push(ArgsKV::new_key(key.clone(), str_val.clone()));
+                                    }
+                                    _ => {
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if !param_args.is_empty() {
+                        config_args.push(ArgsKV::new_arr("param".to_string(), param_args));
                     }
                 }
-            }
 
-            if !vr_args.is_empty() {
-                virtual_resources_args.push(ArgsKV::new_arr(
-                    vr.name.clone(),vr_args));
+                /* generate the args */
+                config_args.push(ArgsKV::new_arr("access_list".to_string(), access_args));
+                config_args.push(ArgsKV::new_key("name".to_string(), vr_inst_config.name.clone())); 
+                vr_inst_args.push(ArgsKV::new_arr(vr_inst_name.clone(), config_args)); 
             }
         }
+        
+        vr_args.push(ArgsKV::new_arr(vr.vr_type.clone(), vr_inst_args));
     }
-    
-    if !virtual_resources_args.is_empty() {
-        _cfg.args.push(ArgsKV::new_arr(
-            "virt_resources".to_string(),
-            virtual_resources_args,
-        ));
-    }
-}
 
-fn comp_config(_s: &SystemState, _id: &ComponentId, _cfg: &mut CompConfigState) {
-    vr_server_config(_s, _id, _cfg);
-    vr_client_config(_s, _id, _cfg);
+    if !vr_args.is_empty() {
+        _cfg.args.push(ArgsKV::new_arr("comp_virt_resources".to_string(), vr_args));
+    }
 }
 
 fn sched_config_serv_client(s: &SystemState, id: &ComponentId) -> Vec<ArgsKV> {
@@ -433,7 +475,8 @@ impl Transition for ResAssignPass {
             capmgr_config(&s, &k, &mut cfg);
             constructor_config(&s, &k, &mut cfg);
             sched_config(&s, &k, &mut cfg);
-            comp_config(&s, &k, &mut cfg);
+            sys_virt_res_config(&s, &k, &mut cfg);
+            comp_virt_res_config(&s, &k, &mut cfg);
             res.insert(k.clone(), comp_config_finalize(&s, &k, cfg));
         }
 

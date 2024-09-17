@@ -117,6 +117,12 @@ fn constructor_serialize_args(
 
     for s in s.get_invs_id(id).invocations().iter() {
         let mut sinv = Vec::new();
+
+        let mut access_args = Vec::new();
+        for access_option in &s.access {
+            access_args.push(ArgsKV::new_key(String::from("access_option"), access_option.clone()));
+        }
+
         sinv.push(ArgsKV::new_key(String::from("name"), s.symb_name.clone()));
         sinv.push(ArgsKV::new_key(
             String::from("client"),
@@ -126,6 +132,10 @@ fn constructor_serialize_args(
             String::from("server"),
             String::from(format!("{}", s.server)),
         ));
+        sinv.push(ArgsKV::new_arr(
+            String::from("access"), 
+            access_args)
+        );
         sinv.push(ArgsKV::new_key(
             String::from("c_fn_addr"),
             String::from(format!("{}", s.c_fn_addr)),

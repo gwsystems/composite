@@ -218,7 +218,7 @@ chal_cpu_init(void)
 		 * Composite does not use INVLPG feature.
 		 */
 		printk("ERROR: PCID is not supported.\n");
-		assert(0);
+		//assert(0);
 	}
 
 
