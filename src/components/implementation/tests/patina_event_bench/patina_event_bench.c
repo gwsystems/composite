@@ -93,11 +93,11 @@ test_evt(void)
 	printc("Create threads:\n");
 
 	evt_lo = sched_thd_create(evt_lo_thd, NULL);
-	printc("\tcreating lo thread %d at prio %d\n", evt_lo, sps[0]);
+	printc("\tcreating lo thread %ld at prio %d\n", evt_lo, sps[0]);
 	sched_thd_param_set(evt_lo, sps[1]);
 
 	evt_hi = sched_thd_create(evt_hi_thd, NULL);
-	printc("\tcreating hi thread %d at prio %d\n", evt_hi, sps[0]);
+	printc("\tcreating hi thread %ld at prio %d\n", evt_hi, sps[0]);
 	sched_thd_param_set(evt_hi, sps[0]);
 }
 

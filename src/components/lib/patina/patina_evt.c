@@ -24,7 +24,7 @@
  * - @eid: id of the event (a struct, see 'patina_evt.h')
  * - @n_sources: number of sources can be hold in this event
  *
- * @return: id of the event
+ * @return id of the event
  */
 int
 patina_event_create(patina_event_t *eid, uint32_t n_sources)
@@ -45,7 +45,7 @@ patina_event_create(patina_event_t *eid, uint32_t n_sources)
  * - @src: id of the source
  * - @flags: no effect
  *
- * @return: always return 0 for timer and return corresponding native APIs' returns for others
+ * @return always return 0 for timer and return corresponding native APIs' returns for others
  */
 int
 patina_event_add(patina_event_t *eid, size_t src, size_t flags)
@@ -87,7 +87,7 @@ patina_event_add(patina_event_t *eid, size_t src, size_t flags)
  * - @src: id of the source
  * - @flags: no effect
  *
- * @return: return native APIs' returns
+ * @return return native APIs' returns
  */
 int
 patina_event_remove(patina_event_t *eid, size_t src, size_t flags)
@@ -127,7 +127,7 @@ patina_event_remove(patina_event_t *eid, size_t src, size_t flags)
  * Arguments:
  * - @eid: id of the event
  *
- * @return: return 'evt_teardown's return
+ * @return return 'evt_teardown's return
  */
 int
 patina_event_delete(patina_event_t *eid)
@@ -141,16 +141,13 @@ patina_event_delete(patina_event_t *eid)
  * Wait on a event (blocking)
  *
  * Arguments:
- * - @eid: id of the event
- * - @events: holder of event info (an array, allow batching)
- * - @num: number of events client wants
- *
- * @return: return 'evt_get's return
+ * @param eid: id of the event
+ * @return return 'evt_get's return
  */
 int
 patina_event_wait(patina_event_t *eid, struct patina_event_info events[], size_t num)
 {
-	assert(eid && events && num);
+	assert(eid);
 
 	word_t tmp;
 
@@ -165,12 +162,11 @@ patina_event_wait(patina_event_t *eid, struct patina_event_info events[], size_t
  * - @events: holder of event info (an array, allow batching)
  * - @num: number of events client wants
  *
- * @return: return 'evt_get's return
+ * @return return 'evt_get's return
  */
 int
 patina_event_check(patina_event_t *eid, struct patina_event_info events[], size_t num)
 {
-	assert(eid && events && num);
 
 	word_t tmp;
 
