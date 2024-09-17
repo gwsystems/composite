@@ -25,7 +25,7 @@ SS_STATIC_SLAB(lock, struct crt_lock, PATINA_MAX_NUM_MUTEX);
  * Arguments:
  * - @flags: no effect
  *
- * @return: id of the mutex
+ * @return id of the mutex
  */
 patina_mutex_t
 patina_mutex_create(size_t flags)
@@ -48,7 +48,7 @@ patina_mutex_create(size_t flags)
  * Arugments:
  * - @mid: id of the mutex
  *
- * @return: always success
+ * @return always success
  */
 int
 patina_mutex_lock(patina_mutex_t mid)
@@ -68,7 +68,7 @@ patina_mutex_lock(patina_mutex_t mid)
  * Arugments:
  * - @mid: id of the mutex
  *
- * @return: always success
+ * @return always success
  */
 int
 patina_mutex_try_lock(patina_mutex_t mid)
@@ -88,7 +88,7 @@ patina_mutex_try_lock(patina_mutex_t mid)
  * Arugments:
  * - @mid: id of the mutex
  *
- * @return: always success
+ * @return always success
  */
 int
 patina_mutex_unlock(patina_mutex_t mid)
@@ -108,7 +108,7 @@ patina_mutex_unlock(patina_mutex_t mid)
  * Arugments:
  * - @mid: id of the mutex
  *
- * @return: always success
+ * @return always success
  */
 int
 patina_mutex_destroy(patina_mutex_t mid)
