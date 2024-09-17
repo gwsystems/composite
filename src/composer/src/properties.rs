@@ -36,7 +36,7 @@ fn interface_dependencies(
                 .find(|&d| d.server == *n && d.interface == if_name && d.variant != "kernel")
                 .is_some()
             {
-                Some(*cli_id.clone())
+                Some(**cli_id)
             } else {
                 None
             }
