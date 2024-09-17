@@ -45,7 +45,7 @@ patina_mutex_create(size_t flags)
 /**
  * Lock a mutex (blocking)
  *
- * Arugments:
+ * Arguments:
  * - @mid: id of the mutex
  *
  * @return always success
@@ -65,7 +65,7 @@ patina_mutex_lock(patina_mutex_t mid)
 /**
  * Try to lock a mutex (non-blocking)
  *
- * Arugments:
+ * Arguments:
  * - @mid: id of the mutex
  *
  * @return always success
@@ -85,7 +85,7 @@ patina_mutex_try_lock(patina_mutex_t mid)
 /**
  * Unlock a mutex
  *
- * Arugments:
+ * Arguments:
  * - @mid: id of the mutex
  *
  * @return always success
@@ -105,7 +105,7 @@ patina_mutex_unlock(patina_mutex_t mid)
 /**
  * Destroy a mutex
  *
- * Arugments:
+ * Arguments:
  * - @mid: id of the mutex
  *
  * @return always success

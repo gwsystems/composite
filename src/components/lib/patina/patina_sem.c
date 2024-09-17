@@ -26,12 +26,12 @@ SS_STATIC_SLAB(sem, struct crt_sem, PATINA_MAX_NUM_SEM);
  * - @init_value: initial value
  * - @flags: no effect
  *
- * @return: id of the semaphore
+ * @return id of the semaphore
  */
 patina_sem_t
 patina_sem_create(size_t init_value, size_t flags)
 {
-	// assert(init_value);
+	assert(init_value);
 
 	struct crt_sem *s = ss_sem_alloc();
 	if (!s) { return -1; }
@@ -48,10 +48,10 @@ patina_sem_create(size_t init_value, size_t flags)
 /**
  * Take a sempahore (blocking)
  *
- * Arugments:
+ * Arguments:
  * - @mid: id of the semaphore
  *
- * @return: always success
+ * @return always success
  */
 int
 patina_sem_take(patina_sem_t sid)
@@ -68,10 +68,10 @@ patina_sem_take(patina_sem_t sid)
 /**
  * Try to take a sempahore (non-blocking)
  *
- * Arugments:
+ * Arguments:
  * - @mid: id of the semaphore
  *
- * @return: always success
+ * @return always success
  */
 int
 patina_sem_try_take(patina_sem_t sid)
@@ -88,10 +88,10 @@ patina_sem_try_take(patina_sem_t sid)
 /**
  * Give a sempahore
  *
- * Arugments:
+ * Arguments:
  * - @mid: id of the semaphore
  *
- * @return: always success
+ * @return always success
  */
 int
 patina_sem_give(patina_sem_t sid)
@@ -108,10 +108,10 @@ patina_sem_give(patina_sem_t sid)
 /**
  * Destroy a sempahore
  *
- * Arugments:
+ * Arguments:
  * - @mid: id of the semaphore
  *
- * @return: always success
+ * @return always success
  */
 int
 patina_sem_destroy(patina_sem_t sid)
