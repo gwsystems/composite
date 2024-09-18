@@ -21,11 +21,9 @@ mod symbols;
 mod syshelpers;
 mod tot_order;
 mod virt_resources;
-<<<<<<< Updated upstream
-=======
 mod analysis;
->>>>>>> Stashed changes
 mod graph;
+
 
 use address_assignment::AddressAssignmentx86_64;
 use build::DefaultBuilder;
@@ -40,6 +38,7 @@ use std::env;
 use tot_order::CompTotOrd;
 use virt_resources::VirtResAnalysis;
 use graph::Graph;
+use analysis::Analysis;
 
 pub fn exec() -> Result<(), String> {
     let mut args = env::args();
@@ -88,6 +87,7 @@ pub fn exec() -> Result<(), String> {
     }
     sys.add_constructor(Constructor::transition(&sys, &mut build)?);
     sys.add_graph(Graph::transition(&sys, &mut build)?);
+    sys.add_analysis(Analysis::transition(&sys, &mut build)?);
 
     println!(
         "System object generated:\n\t{}",
