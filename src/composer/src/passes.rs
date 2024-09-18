@@ -36,10 +36,7 @@ pub struct SystemState {
     constructor: Option<Box<dyn ConstructorPass>>,
     virtual_resource: Option<Box<dyn VirtResPass>>,
     graph: Option<Box<dyn GraphPass>>,
-<<<<<<< Updated upstream
-=======
     analysis: Option<Box<dyn AnalysisPass>>,
->>>>>>> Stashed changes
 }
 
 impl SystemState {
@@ -56,12 +53,8 @@ impl SystemState {
             objs: HashMap::new(),
             invs: HashMap::new(),
             constructor: None,
-<<<<<<< Updated upstream
-	    graph: None,
-=======
             graph: None,
             analysis: None,
->>>>>>> Stashed changes
         }
     }
 
@@ -109,13 +102,10 @@ impl SystemState {
         self.graph = Some(c);
     }
 
-<<<<<<< Updated upstream
-=======
     pub fn add_analysis(&mut self, c: Box<dyn AnalysisPass>) {
         self.analysis = Some(c);
     }
 
->>>>>>> Stashed changes
     pub fn get_input(&self) -> String {
         self.spec.clone()
     }
@@ -477,11 +467,8 @@ pub trait ConstructorPass {
 pub trait GraphPass {
 
 }
-<<<<<<< Updated upstream
-=======
 
 pub trait AnalysisPass {
     fn warnings(&self) -> &HashMap<ComponentId, Vec<Warning>>;
     fn warning_str(&self, id: ComponentId, s: &SystemState) -> String;
 }
->>>>>>> Stashed changes
