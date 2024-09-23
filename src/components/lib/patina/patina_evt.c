@@ -167,6 +167,7 @@ patina_event_wait(patina_event_t *eid, struct patina_event_info events[], size_t
 int
 patina_event_check(patina_event_t *eid, struct patina_event_info events[], size_t num)
 {
+	assert(eid);
 
 	word_t tmp;
 

@@ -31,6 +31,7 @@ SS_STATIC_SLAB(sem, struct crt_sem, PATINA_MAX_NUM_SEM);
 patina_sem_t
 patina_sem_create(size_t init_value, size_t flags)
 {
+	assert(init_value >= 0);
 
 	struct crt_sem *s = ss_sem_alloc();
 	if (!s) { return -1; }
