@@ -25,7 +25,7 @@ SS_STATIC_SLAB(patina_tmr, struct patina_tmr, PATINA_MAX_NUM_TIMER);
  * Arguments:
  * - @result: time struct (see 'patina_timer.h')
  *
- * @return: void
+ * @return void
  */
 void
 patina_time_current(struct time *result)
@@ -48,7 +48,7 @@ patina_time_current(struct time *result)
  * - @sec: seconds
  * - @usec: micro seconds
  *
- * @return: void
+ * @return void
  */
 void
 patina_time_create(struct time *a, u64_t sec, u32_t usec)
@@ -66,7 +66,7 @@ patina_time_create(struct time *a, u64_t sec, u32_t usec)
  * - @a: the target time struct
  * - @b: how many time client wants to add
  *
- * @return: always success
+ * @return always success
  */
 int
 patina_time_add(struct time *a, struct time *b)
@@ -87,7 +87,7 @@ patina_time_add(struct time *a, struct time *b)
  * - @a: the target time struct
  * - @b: how many time client wants to subtract
  *
- * @return: always success
+ * @return always success
  */
 int
 patina_time_sub(struct time *a, struct time *b)
@@ -113,7 +113,7 @@ patina_timer_precision()
 /**
  * Create a timer
  *
- * @return: return id of the timer
+ * @return return id of the timer
  */
 patina_timer_t
 patina_timer_create()
@@ -135,7 +135,7 @@ patina_timer_create()
  * - @tid: id of the timer
  * - @time: delay time
  *
- * @return: always success
+ * @return always success
  */
 int
 patina_timer_start(patina_timer_t tid, struct time *time)
@@ -163,7 +163,7 @@ patina_timer_start(patina_timer_t tid, struct time *time)
  * - @offset: offset time to the first trigger
  * - @period: period of the timer
  *
- * @return: always success
+ * @return always success
  */
 int
 patina_timer_periodic(patina_timer_t tid, struct time *offset, struct time *period)
@@ -189,7 +189,7 @@ patina_timer_periodic(patina_timer_t tid, struct time *offset, struct time *peri
  * Arguments:
  * - @tid: id of the timer
  *
- * @return: return 'tmr_stop's return
+ * @return return 'tmr_stop's return
  */
 int
 patina_timer_cancel(patina_timer_t tid)
