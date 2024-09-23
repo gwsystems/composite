@@ -101,13 +101,13 @@ chan_reader_thd(void *d)
 	/* Never stops running; writer controls how many iters to run. */
 	while (1) {
 		debug("r1,");
-		patina_channel_recv(rid, tmp, 0, 0);
+		patina_channel_recv(rid, (void*)tmp, 0, 0);
 		debug("tsr1: %d,", tmp[0]);
 		debug("r2,");
 		tmp[0] = time_now();
 		debug("tsr2: %d,", tmp[0]);
 		debug("r3,");
-		patina_channel_send(sid2, tmp, 0, 0);
+		patina_channel_send(sid2, (void*)tmp, 0, 0);
 		debug("r4,");
 	}
 }
@@ -123,9 +123,9 @@ chan_writer_thd(void *d)
 		ts1[0] = time_now();
 		debug("ts1: %d,", ts1[0]);
 		debug("w2,");
-		patina_channel_send(sid, ts1, 0, 0);
+		patina_channel_send(sid, (void*)ts1, 0, 0);
 		debug("w3,");
-		patina_channel_recv(rid2, ts2, 0, 0);
+		patina_channel_recv(rid2, (void*)ts2, 0, 0);
 		debug("ts2: %d,", ts2[0]);
 		debug("w4,");
 		ts3[0] = time_now();
@@ -169,9 +169,9 @@ test_chan(void)
 		begin = time_now();
 
 		debug("send\n");
-		patina_channel_send(sid, tmp, 1, 0);
+		patina_channel_send(sid, (void*)tmp, 1, 0);
 		debug("recv\n");
-		patina_channel_recv(rid, tmp, 1, 0);
+		patina_channel_recv(rid, (void*)tmp, 1, 0);
 
 		end = time_now();
 		perfdata_add(&perf1, end - begin);
@@ -189,11 +189,11 @@ test_chan(void)
 	printc("Create threads:\n");
 
 	chan_reader = sched_thd_create(chan_reader_thd, NULL);
-	printc("\tcreating reader thread %d at prio %d\n", chan_reader, sps[1]);
+	printc("\tcreating reader thread %ld at prio %d\n", chan_reader, sps[1]);
 	sched_thd_param_set(chan_reader, sps[0]);
 
 	chan_writer = sched_thd_create(chan_writer_thd, NULL);
-	printc("\tcreating writer thread %d at prio %d\n", chan_writer, sps[0]);
+	printc("\tcreating writer thread %ld at prio %d\n", chan_writer, sps[0]);
 	sched_thd_param_set(chan_writer, sps[1]);
 }
 

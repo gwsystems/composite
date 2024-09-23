@@ -32,19 +32,19 @@ SS_STATIC_SLAB(chan_snd, struct chan_snd, PATINA_MAX_NUM_CHAN);
  * - @type_size: size of the item in this channel
  * - @queue_length: size of this channel
  * - @ch_name: no effect
- * - @falgs: no effect
+ * - @flags: no effect
  *
  * @return: id of the channel just been created.
  */
 patina_chan_t
 patina_channel_create(size_t type_size, size_t queue_length, int ch_name, size_t flags)
 {
-	assert(type_size & queue_length);
+	assert(type_size && queue_length);
 
 	struct chan *c = ss_chan_alloc();
 	assert(c);
 
-	assert(chan_init(c, type_size, queue_length, CHAN_DEFAULT));
+	assert(chan_init(c, type_size, queue_length, CHAN_DEFAULT) == 0);
 
 	ss_chan_activate(c);
 
@@ -113,7 +113,7 @@ patina_channel_get_send(patina_chan_t cid)
 patina_chan_r_t
 patina_channel_retrieve_recv(size_t type_size, size_t queue_length, int ch_name)
 {
-	assert(type_size & queue_length);
+	assert(type_size && queue_length);
 
 	struct chan_rcv *r = ss_chan_rcv_alloc();
 	assert(r);
@@ -139,7 +139,7 @@ patina_channel_retrieve_recv(size_t type_size, size_t queue_length, int ch_name)
 patina_chan_s_t
 patina_channel_retrieve_send(size_t type_size, size_t queue_length, int ch_name)
 {
-	assert(type_size & queue_length);
+	assert(type_size && queue_length);
 
 	struct chan_snd *s = ss_chan_snd_alloc();
 	assert(s);
@@ -216,9 +216,9 @@ patina_channel_destroy(patina_chan_t cid)
 int
 patina_channel_send(patina_chan_s_t scid, void *data, size_t len, size_t flags)
 {
-	assert(scid && data && len);
+	assert(scid && data);
 
-	return chan_send((struct chan_snd *)(scid & PATINA_T_MASK), data, (chan_flags_t)flags);
+	return chan_send((struct chan_snd *)(scid & PATINA_T_MASK), data, (chan_comm_t)flags);
 }
 
 /**
@@ -237,9 +237,9 @@ patina_channel_send(patina_chan_s_t scid, void *data, size_t len, size_t flags)
 int
 patina_channel_recv(patina_chan_r_t rcid, void *buf, size_t len, size_t flags)
 {
-	assert(rcid && buf && len);
+	assert(rcid && buf);
 
-	return chan_recv((struct chan_rcv *)(rcid & PATINA_T_MASK), buf, (chan_flags_t)flags);
+	return chan_recv((struct chan_rcv *)(rcid & PATINA_T_MASK), buf, (chan_comm_t)flags);
 }
 
 /* NOT IMPLEMENTED */
