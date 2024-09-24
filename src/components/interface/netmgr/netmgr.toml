@@ -1,0 +1,40 @@
+# netmgr.toml
+[interface]
+description = "An API for network management, including TCP and UDP operations with shared memory."
+virt_resources = "net"
+
+[[function]]
+name = "netmgr_shmem_map"
+access = ["write"]
+
+[[function]]
+name = "netmgr_tcp_bind"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "netmgr_tcp_listen"
+access = ["read"]
+
+[[function]]
+name = "netmgr_tcp_accept"
+access = ["read"]
+
+[[function]]
+name = "netmgr_tcp_shmem_read"
+access = ["read"]
+
+[[function]]
+name = "netmgr_tcp_shmem_write"
+access = ["write"]
+
+[[function]]
+name = "netmgr_udp_bind"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "netmgr_udp_shmem_read"
+access = ["read"]
+
+[[function]]
+name = "netmgr_udp_shmem_write"
+access = ["write"]

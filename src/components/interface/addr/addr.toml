@@ -1,0 +1,8 @@
+[interface]
+description = "Interface for capmgrs to get key addresses within components, such as heap pointer and capability frontier."
+virt_resources = "addr"
+
+
+[[function]]
+name = "addr_get"
+access = ["read"]

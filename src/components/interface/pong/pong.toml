@@ -1,0 +1,40 @@
+# pong.toml
+[interface]
+description = "An API for pong component operations with various argument handling and thread identification."
+virt_resources = "pong"
+
+[[function]]
+name = "pong_call"
+access = ["read"]
+
+[[function]]
+name = "pong_ret"
+access = ["read"]
+
+[[function]]
+name = "pong_arg"
+access = ["read"]
+
+[[function]]
+name = "pong_args"
+access = ["read"]
+
+[[function]]
+name = "pong_wideargs"
+access = ["read"]
+
+[[function]]
+name = "pong_argsrets"
+access = ["read"]
+
+[[function]]
+name = "pong_widerets"
+access = ["read"]
+
+[[function]]
+name = "pong_subset"
+access = ["read"]
+
+[[function]]
+name = "pong_ids"
+access = ["read"]

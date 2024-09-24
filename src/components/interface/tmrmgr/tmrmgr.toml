@@ -1,0 +1,28 @@
+# tmrmgr.toml
+[interface]
+description = "A timer API similar to FreeRTOS for creating and managing timers, with event associations."
+virt_resources = "tmr"
+
+[[function]]
+name = "tmrmgr_create"
+access = ["write", "dynamic_alloc"]
+
+[[function]]
+name = "tmrmgr_delete"
+access = ["write"]
+
+[[function]]
+name = "tmrmgr_start"
+access = ["write"]
+
+[[function]]
+name = "tmrmgr_stop"
+access = ["write"]
+
+[[function]]
+name = "tmrmgr_evt_set"
+access = ["write"]
+
+[[function]]
+name = "tmrmgr_evt_get"
+access = ["read"]

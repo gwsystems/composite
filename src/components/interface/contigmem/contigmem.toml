@@ -1,0 +1,12 @@
+# contigmem.toml
+[interface]
+description = "An API to allocate contiguous memory and shared aligned memory."
+virt_resources = "contigmem"
+
+[[function]]
+name = "contigmem_alloc"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "contigmem_shared_alloc_aligned"
+access = ["dynamic_alloc"]

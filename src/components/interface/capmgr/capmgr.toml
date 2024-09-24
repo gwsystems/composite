@@ -1,0 +1,100 @@
+# capmgr_interface.toml
+[interface]
+description = "Capability Manager interface for managing resource tables, kernel resources, and protocols for delegation and revocation."
+virt_resources = "capmgr"
+
+[[function]]
+name = "capmgr_set_tls"
+access = ["write"]
+
+[[function]]
+name = "capmgr_initthd_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_initaep_create"
+access = ["dynamic_alloc", "blocking"]
+
+[[function]]
+name = "capmgr_thd_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_aep_create"
+access = ["dynamic_alloc", "blocking"]
+
+[[function]]
+name = "capmgr_rcv_alloc"
+access = ["dynamic_alloc", "blocking"]
+
+[[function]]
+name = "capmgr_thd_create_thunk"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_aep_create_thunk"
+access = ["dynamic_alloc", "blocking"]
+
+[[function]]
+name = "capmgr_thd_create_ext"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_aep_create_ext"
+access = ["dynamic_alloc", "blocking"]
+
+[[function]]
+name = "capmgr_rcv_create"
+access = ["dynamic_alloc", "blocking"]
+
+[[function]]
+name = "capmgr_asnd_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_asnd_rcv_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_asnd_key_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_shared_kernel_page_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_vm_shared_kernel_page_create_at"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_vm_comp_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_vm_vmcs_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_vm_msr_bitmap_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_vm_lapic_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_vm_shared_region_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_vm_lapic_access_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "capmgr_vm_vmcb_create"
+access = ["dynamic_alloc", "blocking"]
+
+[[function]]
+name = "capmgr_vm_vcpu_create"
+access = ["dynamic_alloc"]

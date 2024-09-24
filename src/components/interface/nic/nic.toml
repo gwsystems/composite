@@ -1,0 +1,24 @@
+# nic.toml
+[interface]
+description = "An API to manage network interface operations and packet transmission."
+virt_resources = "nic"
+
+[[function]]
+name = "nic_shmem_map"
+access = ["write"]
+
+[[function]]
+name = "nic_send_packet"
+access = ["write"]
+
+[[function]]
+name = "nic_bind_port"
+access = ["write"]
+
+[[function]]
+name = "nic_get_port_mac_address"
+access = ["read"]
+
+[[function]]
+name = "nic_get_a_packet"
+access = ["read", "blocking"]

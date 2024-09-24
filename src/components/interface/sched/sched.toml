@@ -1,0 +1,76 @@
+# sched.toml
+[interface]
+description = "Scheduling interface that provides thread multiplexing, synchronization, and timing services."
+virt_resources = "sched"
+
+[[function]]
+name = "sched_thd_yield_to"
+access = ["write"]
+
+[[function]]
+name = "sched_thd_wakeup"
+access = ["write"]
+
+[[function]]
+name = "sched_debug_thd_state"
+access = ["read"]
+
+[[function]]
+name = "sched_thd_block"
+access = ["blocking"]
+
+[[function]]
+name = "sched_thd_block_timeout"
+access = ["blocking"]
+
+[[function]]
+name = "sched_set_tls"
+access = ["write"]
+
+[[function]]
+name = "sched_get_cpu_freq"
+access = ["read"]
+
+[[function]]
+name = "sched_thd_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "sched_thd_create_closure"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "sched_blkpt_alloc"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "sched_blkpt_free"
+access = ["write"]
+
+[[function]]
+name = "sched_blkpt_trigger"
+access = ["write"]
+
+[[function]]
+name = "sched_blkpt_block"
+access = ["blocking"]
+
+[[function]]
+name = "sched_aep_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "sched_aep_create_closure"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "sched_thd_param_set"
+access = ["write"]
+
+[[function]]
+name = "sched_thd_delete"
+access = ["write"]
+
+[[function]]
+name = "sched_thd_exit"
+access = ["blocking"]

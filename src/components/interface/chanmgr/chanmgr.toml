@@ -1,0 +1,21 @@
+# chanmgr_create.toml
+[interface]
+description = "The channel manager interface, providing APIs to create, manage, and synchronize channels."
+virt_resources = "chan"
+
+[[function]]
+name = "chanmgr_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "chanmgr_sync_resources"
+access = ["blocking"]
+# additional_virt_resources = [{resource = "evt", access = ["read"]}]
+
+[[function]]
+name = "chanmgr_mem_resources"
+access = ["read"]
+
+[[function]]
+name = "chanmgr_delete"
+access = ["write"]

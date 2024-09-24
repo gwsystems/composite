@@ -1,0 +1,48 @@
+# memmgr_interface.toml
+[interface]
+description = "Memory Manager interface for allocating and managing heap, physical, and shared memory."
+virt_resources = "mem"
+
+[[function]]
+name = "memmgr_heap_page_alloc"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "memmgr_virt_to_phys"
+access = ["read"]
+
+[[function]]
+name = "memmgr_map_phys_to_virt"
+access = ["read", "write"]
+
+[[function]]
+name = "memmgr_heap_page_allocn"
+access = ["read", "write"]
+
+[[function]]
+name = "memmgr_heap_page_allocn_aligned"
+access = ["read", "write"]
+
+[[function]]
+name = "memmgr_shared_page_alloc"
+access = ["read", "write"]
+
+[[function]]
+name = "memmgr_shared_page_allocn"
+access = ["read", "write"]
+
+[[function]]
+name = "memmgr_shared_page_allocn_aligned"
+access = ["read", "write"]
+
+[[function]]
+name = "memmgr_shared_page_map"
+access = ["read", "write"]
+
+[[function]]
+name = "memmgr_shared_page_map_aligned"
+access = ["read", "write"]
+
+[[function]]
+name = "memmgr_shared_page_map_aligned_in_vm"
+access = ["read", "write"]

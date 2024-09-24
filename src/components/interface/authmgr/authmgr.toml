@@ -1,0 +1,24 @@
+# authmgr_interface.toml
+[interface]
+description = "Interface for capmgrs to get key addresses within components, such as heap pointer and capability frontier."
+virt_resources = "auth"
+
+[[function]]
+name = "authmgr_client_delegate"
+access = ["write"]  
+
+[[function]]
+name = "authmgr_server_receive"
+access = ["read"] 
+
+[[function]]
+name = "authmgr_client_receive"
+access = ["read"]  
+
+[[function]]
+name = "authmgr_server_delegate"
+access = ["write"] 
+
+[[function]]
+name = "authmgr_revoke"
+access = ["read", "write"]

@@ -1,0 +1,16 @@
+# mc.toml
+[interface]
+description = "An API for memory caching and shared memory operations."
+virt_resources = "mc"
+
+[[function]]
+name = "mc_map_shmem"
+access = ["write"]
+
+[[function]]
+name = "mc_conn_init"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "mc_process_command"
+access = ["read", "write"]

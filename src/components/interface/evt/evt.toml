@@ -1,0 +1,62 @@
+# evt.toml
+[interface]
+description = "Event API for managing resource events similar to epoll or kqueue."
+virt_resources = "evt"
+
+[[function]]
+name = "evt_init"
+access = ["write", "dynamic_alloc"]
+
+[[function]]
+name = "evt_teardown"
+access = ["write"]
+
+[[function]]
+name = "evt_get"
+access = ["read", "blocking"]
+
+[[function]]
+name = "evt_add"
+access = ["write", "dynamic_alloc"]
+
+[[function]]
+name = "evt_add_at_id"
+access = ["write", "dynamic_alloc"]
+
+[[function]]
+name = "evt_rem"
+access = ["write"]
+
+[[function]]
+name = "evt_trigger"
+access = ["write"]
+
+# Functions from EVT_PRIVATE_H
+
+[[function]]
+name = "__evt_alloc"
+access = ["write", "dynamic_alloc"]
+
+[[function]]
+name = "__evt_free"
+access = ["write"]
+
+[[function]]
+name = "__evt_get"
+access = ["read", "blocking"]
+
+[[function]]
+name = "__evt_add"
+access = ["write", "dynamic_alloc"]
+
+[[function]]
+name = "__evt_add_at_id"
+access = ["write", "dynamic_alloc"]
+
+[[function]]
+name = "__evt_rem"
+access = ["write"]
+
+[[function]]
+name = "__evt_trigger"
+access = ["write"]

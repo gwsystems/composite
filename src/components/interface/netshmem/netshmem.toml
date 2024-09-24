@@ -1,0 +1,40 @@
+# netshmem.toml
+[interface]
+description = "An API to manage shared memory buffers for network packet transmission."
+virt_resources = "netshmem"
+
+[[function]]
+name = "netshmem_create"
+access = ["dynamic_alloc"]
+
+[[function]]
+name = "netshmem_get_shm_id"
+access = ["read"]
+
+[[function]]
+name = "netshmem_get_shm"
+access = ["read"]
+
+[[function]]
+name = "netshemem_move"
+access = ["write"]
+
+[[function]]
+name = "netshmem_map_shmem"
+access = ["write"]
+
+[[function]]
+name = "netshmem_get_data_buf"
+access = ["read"]
+
+[[function]]
+name = "netshmem_get_data_offset"
+access = ["read"]
+
+[[function]]
+name = "netshmem_get_max_data_buf_sz"
+access = ["read"]
+
+[[function]]
+name = "netshmem_get_tailroom"
+access = ["read"]

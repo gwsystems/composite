@@ -1,0 +1,12 @@
+# chanmgr_evt.toml
+[interface]
+description = "An add-on API to manage event notifications in a channel."
+virt_resources = "chan_evt"
+
+[[function]]
+name = "chanmgr_evt_set"
+access = ["write"]
+
+[[function]]
+name = "chanmgr_evt_get"
+access = ["read"]

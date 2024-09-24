@@ -1,0 +1,11 @@
+[interface]
+description = "An API to provide synchronous inter-process communication between threads using call and reply_wait."
+virt_resources = "syncipc"
+
+[[function]]
+name = "syncipc_call"
+access = ["blocking", "write"]
+
+[[function]]
+name = "syncipc_reply_wait"
+access = ["blocking", "write"]

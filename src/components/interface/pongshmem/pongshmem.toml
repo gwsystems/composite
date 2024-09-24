@@ -1,0 +1,24 @@
+# pongshmem.toml
+[interface]
+description = "An API for managing shared memory objects and benchmarking operations in the pong component."
+virt_resources = "pongshmem"
+
+[[function]]
+name = "pongshmem_test_map"
+access = ["write"]
+
+[[function]]
+name = "pongshmem_test_objread"
+access = ["read"]
+
+[[function]]
+name = "pongshmem_test_refcnt"
+access = ["read"]
+
+[[function]]
+name = "pongshmem_bench_syncinv"
+access = ["read"]
+
+[[function]]
+name = "pongshmem_bench_objread"
+access = ["read"]

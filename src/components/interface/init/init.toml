@@ -1,0 +1,19 @@
+[interface]
+description = "Interface for coordinating/synchronizing component initialization and exit in a controlled manner."
+virt_resources = "init"
+
+[[function]]
+name = "init_done"
+access = ["read", "write"]
+
+[[function]]
+name = "init_exit"
+access = ["execute", "write"]
+
+[[function]]
+name = "init_parallelism"
+access = ["read"]
+
+[[function]]
+name = "init_parallel_await_init"
+access = ["read", "execute"]

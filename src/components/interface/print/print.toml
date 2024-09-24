@@ -1,0 +1,8 @@
+# print.toml
+[interface]
+description = "An API for printing serialized string chunks to avoid interleaved output across multiple cores."
+virt_resources = "print"
+
+[[function]]
+name = "print_str_chunk"
+access = ["write"]

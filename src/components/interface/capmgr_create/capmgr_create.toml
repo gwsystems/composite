@@ -1,0 +1,7 @@
+[interface]
+description = "Capability Manager Create interface for managing basic capability operations."
+virt_resources = "cap_create"
+
+[[function]]
+name = "capmgr_create_noop"
+access = ["read","write"]
