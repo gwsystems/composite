@@ -153,6 +153,10 @@ impl SystemState {
     pub fn get_graph(&self) -> &dyn GraphPass {
         &**(self.graph.as_ref().unwrap())
     }
+
+    pub fn get_analysis(&self) -> &dyn AnalysisPass {
+        &**(self.analysis.as_ref().unwrap())
+    }
 }
 
 // Note that none of this API does uniqueness checking: if a pass asks
@@ -257,6 +261,7 @@ pub struct Component {
     pub constructor: ComponentName, // the constructor that loads this component
     pub scheduler: ComponentName,   // our scheduler (that creates or initial thread)
 
+    pub criticality_level: Option<usize>,
     pub source: String,      // Where is the component source located?
     pub base_vaddr: String, // The lowest virtual address for the component -- could be hex, so not a VAddr
     pub params: Vec<ArgsKV>, // initialization parameters

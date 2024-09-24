@@ -17,6 +17,7 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
         let mut found = false;
 
         for d in deps(&s, &id) {
+
             let interface_toml = match s.get_spec().interface_funcs().get(&d.interface) {
                 Some(interface) => interface,
                 None => {
@@ -31,11 +32,7 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
             let mut function_exists = false;
 
             let mut func_access: Vec<String> = Vec::new();
-            println!("display the interface name: {} \n", d.interface );
-            println!("display the symbol name: {} \n", *sname );
             for func in &interface_toml.function {
-                println!("display the func name: {} \n", func.name  );
-               // println!("display the function name: {} \n", func.name);
                 if func.name == *sname {
                     func_access = func.access.clone();
                     function_exists = true;
@@ -43,7 +40,6 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
                 }
             }
 
-            println!("display function_exists: {} \n", function_exists  );
             if !function_exists {
                 continue;
             }
@@ -87,8 +83,6 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
         }
     }
 
-    println!("Number of invs generated: {}", invs.len());
-
     if errors.len() > 0 {
         return Err(errors);
     }
@@ -99,7 +93,7 @@ fn sinvs_generate(id: &ComponentId, s: &SystemState) -> Result<Vec<SInv>, String
 fn sinvs_filter(invs: &mut Vec<SInv>, id: &ComponentId, s: &SystemState) -> Result<(), String> {
     let c = component(&s, id);
 
-    // Iterate over the virtual resource list
+    // iterate over the virtual resource list
     for vr in &c.virt_res {
         let mut vr_access: HashSet<String> = HashSet::new();
         // Union the access options of all the instances of each virtual resource

@@ -62,6 +62,7 @@ pub struct TomlComponent {
     img: String,
     baseaddr: Option<String>,
     deps: Option<Vec<Dep>>,
+    criticality_level: Option<usize>,
     params: Option<Vec<Parameters>>,
     virt_res: Option<Vec<CompVirtRes>>,
     constants: Option<Vec<ConstantVal>>,
@@ -85,13 +86,13 @@ pub struct TomlAddrSpace {
 
 #[derive(Debug, Deserialize)]
 pub struct VirtRes {
-    pub name    : String,
+    pub instance: String,
     pub param   : Param,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TomlVirtualResource {
-    pub name:   String,
+    pub vr_type:   String,
     pub server: String,
     pub resources:  Vec<VirtRes>,
 }
@@ -416,7 +417,7 @@ impl TomlSpecification {
                         if !self.comp_exists(vr.server.clone()) {
                             err_accum.push_str(&format!(
                                 "Error: Virtual resource {} has a non-existent server component {}.",
-                                vr.name, vr.server
+                                vr.vr_type, vr.server
                             ));
                         }
 
@@ -424,7 +425,7 @@ impl TomlSpecification {
                             if key.trim().is_empty() {
                                 return Err(format!(
                                     "Error: Virtual resource {} has an empty value for param key '{}'.",
-                                    vr.name, key
+                                    vr.vr_type, key
                                 ));
                             }
                         }
@@ -455,11 +456,11 @@ impl TomlSpecification {
             fail = true;
         }
     
-        // Validate component-level virtual resources
+        // validate component-level virtual resources
         for comp in self.comps() {
             if let Some(ref virt_res_list) = comp.virt_res {
                 for virt_res in virt_res_list {
-                    // Check if any instances are missing
+                    // check if any instances are missing
                     if virt_res.instances.is_empty() {
                         err_accum.push_str(&format!(
                             "Error: Component {} has a virtual resource '{}' with empty instances list.\n",
@@ -468,11 +469,11 @@ impl TomlSpecification {
                         fail = true;
                     }
 
-                    // Check for instance mismatches between component-level and system-level
-                    if let Some(system_vr) = self.virt_resources.as_ref().and_then(|vrs| vrs.iter().find(|vr| vr.name == virt_res.vr_type)) {
+                    // check for instance mismatches between component-level and system-level
+                    if let Some(system_vr) = self.virt_resources.as_ref().and_then(|vrs| vrs.iter().find(|vr| vr.vr_type == virt_res.vr_type)) {
                         for instance_map in &virt_res.instances {
                             for (instance_name, _) in instance_map {
-                                let system_instance_exists = system_vr.resources.iter().any(|res| res.name == *instance_name);
+                                let system_instance_exists = system_vr.resources.iter().any(|res| res.instance == *instance_name);
                                 if !system_instance_exists {
                                     err_accum.push_str(&format!(
                                         "Error: Instance '{}' in component {}'s virtual resource '{}' does not match any defined instance in system-level virtual resource.\n",
@@ -671,6 +672,7 @@ impl Transition for SystemSpec {
                 name: ComponentName::new(&c.name, &String::from("global")),
                 constructor: ComponentName::new(&c.constructor, &String::from("global")),
                 scheduler: sched_name,
+                criticality_level: c.criticality_level.clone(),
                 source: c.img.clone(),
                 base_vaddr: c
                     .baseaddr
@@ -732,24 +734,24 @@ impl Transition for SystemSpec {
         let mut virtual_resources = HashMap::new();
         if let Some(ref vrs) = spec.virt_resources {
             for vr in vrs {
-                let name = vr.name.clone();
+                let vr_type = vr.vr_type.clone();
                 let server = vr.server.clone();
 
                 let resources = vr.resources.iter().map(|s| {
-                    let name = s.name.clone();
+                    let instance = s.instance.clone();
 
                     let param = s.param.clone();
                                 
                     VirtRes {
-                        name,
+                        instance,
                         param,
                     }
                 }).collect::<Vec<VirtRes>>();
 
                 virtual_resources.insert(
-                    name.clone(),
+                    vr_type.clone(),
                     TomlVirtualResource {
-                        name,
+                        vr_type,
                         server,
                         resources,
                     },

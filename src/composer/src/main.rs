@@ -88,6 +88,15 @@ pub fn exec() -> Result<(), String> {
     sys.add_constructor(Constructor::transition(&sys, &mut build)?);
     sys.add_graph(Graph::transition(&sys, &mut build)?);
     sys.add_analysis(Analysis::transition(&sys, &mut build)?);
+  
+    let analysis = sys.get_analysis();  
+    let component_ids = sys.get_named().ids();
+
+    for (comp_id, _) in component_ids {
+        let warnings_str = analysis.warning_str(*comp_id, &sys); // Get the warnings for the component
+        println!("{}", warnings_str); // Print the warnings
+    }
+
 
     println!(
         "System object generated:\n\t{}",

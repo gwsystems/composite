@@ -35,8 +35,8 @@ impl Transition for VirtResAnalysis {
 
             // Iterate over each VirtRes and add a unique ID
             for virtres in &vr.resources {
-                ids.insert(id_counter.to_string(), virtres.name.clone());
-                rmap.insert(virtres.name.clone(), id_counter.to_string());              
+                ids.insert(id_counter.to_string(), virtres.instance.clone());
+                rmap.insert(virtres.instance.clone(), id_counter.to_string());              
                 id_counter += 1;
             }
         }

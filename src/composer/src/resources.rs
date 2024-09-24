@@ -133,12 +133,12 @@ fn sys_virt_res_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigSt
                     vr_args.push(ArgsKV::new_arr(
                         "sub_virt_resource".to_string(),
                         vec![
-                            ArgsKV::new_key("id".to_string(), vr_pass.rmap().get(&shmem.name).cloned().unwrap()),
+                            ArgsKV::new_key("id".to_string(), vr_pass.rmap().get(&shmem.instance).cloned().unwrap()),
                             ArgsKV::new_arr("params".to_string(), param_args),
                         ],
                     ));
             }
-            virtual_resources_args.push(ArgsKV::new_arr(vr.name.clone(), vr_args));
+            virtual_resources_args.push(ArgsKV::new_arr(vr.vr_type.clone(), vr_args));
         }
     }
     
@@ -194,7 +194,7 @@ fn comp_virt_res_config(_s: &SystemState, _id: &ComponentId, _cfg: &mut CompConf
                 if let Some(system_vr) = vr_orig.get(&vr.vr_type) {
                     let mut param_args = Vec::new();
                     for resource in &system_vr.resources {
-                        if resource.name == *vr_inst_name {
+                        if resource.instance == *vr_inst_name {
                             for (key, value) in &resource.param {
                                 match value {
                                     toml::Value::Array(arr) => {
