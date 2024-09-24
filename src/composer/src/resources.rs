@@ -100,8 +100,28 @@ fn sys_virt_res_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigSt
         if vr.server == component_name.var_name {
             let mut vr_args = Vec::new();
 
+
             for shmem in &vr.resources {
                     let mut param_args = Vec::new();
+                    let mut compid_args = Vec::new();
+
+                    // Iterate through all components in the system
+                    for (comp_id, _comp_name) in s.get_named().ids() {
+                        let comp = component(s,comp_id); 
+                        for virt_res in &comp.virt_res {
+                            if virt_res.vr_type == vr.vr_type {
+                                for instance_map in &virt_res.instances {
+                                    for (instance_name, _) in instance_map {
+                                        if instance_name == &shmem.instance {
+                                            compid_args.push(ArgsKV::new_key("comp_id".to_string(), comp_id.to_string()));
+                                        
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     for (key, value) in &shmem.param {
                         match value {
                             toml::Value::Array(arr) => {
@@ -135,6 +155,7 @@ fn sys_virt_res_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigSt
                         vec![
                             ArgsKV::new_key("id".to_string(), vr_pass.rmap().get(&shmem.instance).cloned().unwrap()),
                             ArgsKV::new_arr("params".to_string(), param_args),
+                            ArgsKV::new_arr("client".to_string(), compid_args),
                         ],
                     ));
             }
