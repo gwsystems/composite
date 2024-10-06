@@ -35,14 +35,14 @@
 #ifdef COLD_OFFSET
 #define ITERATION 10 * 10
 #define TMR_PERIODIC_TIME 1000 * 1000
-#else 
+#else
 #define ITERATION 10 * 1000
 #define TMR_PERIODIC_TIME 10 * 1000
 #endif
 
 #define DROP_THRESHOLD 0x1000000U
 
-// #define PRINT_ALL
+/* #define PRINT_ALL */
 
 thdid_t tmr_hi = 0, tmr_lo = 0;
 
@@ -119,8 +119,7 @@ tmr_hi_thd(void *d)
 	perfdata_calc(&perf);
 	perfdata_print(&perf);
 
-	while (1)
-		;
+	while (1);
 }
 
 void

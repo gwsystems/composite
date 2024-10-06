@@ -40,7 +40,7 @@
 #define SLEEP_TIME 1000
 #endif
 
-// #define PRINT_ALL
+/* #define PRINT_ALL */
 
 patina_mutex_t mid;
 thdid_t        lock_hi = 0, lock_lo = 0;
@@ -121,8 +121,7 @@ lock_lo_thd(void *d)
 	perfdata_calc(&perf);
 	perfdata_print(&perf);
 
-	while (1)
-		;
+	while (1);
 }
 
 void

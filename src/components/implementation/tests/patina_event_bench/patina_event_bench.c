@@ -18,7 +18,7 @@
 #endif
 
 #define ITERATION 10 * 1000
-// #define PRINT_ALL
+/* #define PRINT_ALL */
 
 patina_sem_t   sid;
 patina_event_t evt;
@@ -58,8 +58,7 @@ evt_hi_thd(void *d)
 	perfdata_calc(&perf);
 	perfdata_print(&perf);
 
-	while (1)
-		;
+	while (1);
 }
 
 void

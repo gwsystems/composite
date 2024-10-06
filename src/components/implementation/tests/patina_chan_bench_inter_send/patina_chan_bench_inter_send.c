@@ -24,7 +24,7 @@ patina_event_t  evt;
 
 #define ITERATION 10 * 1000
 #undef USE_EVTMGR
-// #define PRINT_ALL
+/* #define PRINT_ALL */
 
 #define TEST_CHAN_ITEM_SZ sizeof(u32_t)
 #define TEST_CHAN_NSLOTS 2
@@ -117,8 +117,7 @@ main(void)
 	perfdata_print(&perf2);
 	perfdata_print(&perf3);
 
-	while (1)
-		;
+	while (1);
 }
 
 void
