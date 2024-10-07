@@ -100,7 +100,6 @@ sync_sem_take(struct sync_sem *s)
 		 * (assuming we wake all blocked threads in the
 		 * blockpoint).
 		 */
-		//printc("2");
 	}
 }
 

@@ -11,13 +11,20 @@
  * - Add optional adaptive spinning and non-preemptivity -- generally, multicore awareness
  * - Thorough testing.
  */
+#ifndef CK_SPINLOCK
+#define CK_SPINLOCK
+#endif
 
 #include <cos_component.h>
 #include <sync_blkpt.h>
+#include <ck_spinlock.h>
 
 struct sync_lock {
 	unsigned long owner_blked;
 	struct sync_blkpt blkpt;
+#if defined CK_SPINLOCK
+	ck_spinlock_fas_t lock;
+#endif
 };
 
 #define SYNC_LOCK_OWNER_BLKED_BITS (sizeof(unsigned long) * 8)
@@ -37,9 +44,13 @@ struct sync_lock {
 static inline int
 sync_lock_init(struct sync_lock *l)
 {
+#if defined CK_SPINLOCK
+	ck_spinlock_init(&(l->lock));
+	return 0;
+#else
 	l->owner_blked = 0;
-
 	return sync_blkpt_init(&l->blkpt);
+#endif
 }
 
 /**
@@ -56,6 +67,7 @@ sync_lock_init(struct sync_lock *l)
 static inline int
 sync_lock_teardown(struct sync_lock *l)
 {
+	assert(0);
 	assert(l->owner_blked == 0);
 	if (!ps_cas(&l->owner_blked, 0, ~0)) return 1;
 
@@ -73,8 +85,13 @@ sync_lock_teardown(struct sync_lock *l)
 static inline void
 sync_lock_take(struct sync_lock *l)
 {
+#if defined CK_SPINLOCK
+	//printc("spin_take: %lx, %d\n", &l->lock, cos_thdid());
+	ck_spinlock_lock(&l->lock);
+	return;
+#else
 #if 1
-	ps_lock_take(&l->owner_blked);
+	ps_lock_take((struct ps_lock *)&l->owner_blked);
 #else
 	struct sync_blkpt_checkpoint chkpt;
 
@@ -96,6 +113,7 @@ sync_lock_take(struct sync_lock *l)
 		sync_blkpt_wait(&l->blkpt, 0, &chkpt);
 	}
 #endif
+#endif
 }
 
 /**
@@ -109,6 +127,11 @@ sync_lock_take(struct sync_lock *l)
 static inline int
 sync_lock_try_take(struct sync_lock *l)
 {
+#if defined CK_SPINLOCK
+	int ret = ck_spinlock_trylock(&l->lock);
+	//printc("spin_try: %lx, %d\n", &l->lock, cos_thdid());
+	return !ret;
+#else
 #if 1
 	return l->owner_blked;
 #else
@@ -117,6 +140,7 @@ sync_lock_try_take(struct sync_lock *l)
 	} else {
 		return 1;
 	}
+#endif
 #endif
 }
 
@@ -130,8 +154,12 @@ sync_lock_try_take(struct sync_lock *l)
 static inline void
 sync_lock_release(struct sync_lock *l)
 {
+#if defined CK_SPINLOCK
+	//printc("spin_release: %lx, %d\n", &l->lock, cos_thdid());
+	ck_spinlock_unlock(&l->lock);
+#else
 #if 1
-	ps_lock_release(&l->owner_blked);	
+	ps_lock_release((struct ps_lock *)&l->owner_blked);	
 #else
 	while (1) {
 		unsigned long o_b = ps_load(&l->owner_blked);
@@ -151,6 +179,7 @@ sync_lock_release(struct sync_lock *l)
 
 		return;
 	}
+#endif
 #endif
 }
 

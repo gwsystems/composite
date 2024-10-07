@@ -190,11 +190,19 @@ udp_stack_shmem_read(u16_t *data_offset, u16_t *data_len, u32_t *remote_addr, u1
 	*data_offset = ETH_STD_LEN + ip_len + UDP_STD_LEN;
 
 	*data_len    = ntohs(udp_hdr->len) - UDP_STD_LEN;
+	assert(*data_len > 0);
 	*remote_addr = ip_hdr->src_addr;
 	*remote_port = udp_hdr->port.src_port;
 
 	return objid;
 }
+
+typedef struct udphdr_s {
+	uint16_t rqid;
+	uint16_t partno;
+	uint16_t nparts;
+	uint16_t reserved;
+} udphdr_t;
 
 int
 udp_stack_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len, u32_t remote_ip, u16_t remote_port)
@@ -211,6 +219,7 @@ udp_stack_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len, u
 
 	obj  = shm_bm_borrow_net_pkt_buf(netshmem_get_shm(), objid);
 	data = obj->data + data_offset;
+        char* test = data;
 
 	/* data now points to Eth hdr */
 	data -= udp_stack_hdr_room();

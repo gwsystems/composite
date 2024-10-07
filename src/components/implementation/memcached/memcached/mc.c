@@ -7,6 +7,8 @@
 #include <cos_memcached.h>
 #include <initargs.h>
 
+unsigned long per_core_locktm[16] = {0};
+
 void
 mc_map_shmem(cbuf_t shm_id)
 {
@@ -19,6 +21,27 @@ mc_conn_init(int proto)
 	return cos_mc_new_conn(proto);
 }
 
+void print_payload(const unsigned char *data, int size) {
+    for (int i = 0; i < size; i++) {
+        // If character is printable, print it as is
+        if (data[i] >= 32 && data[i] <= 126) {
+            printf("%c", data[i]);
+        }
+        // Special handling for \r and \n
+        else if (data[i] == '\r') {
+            printf("\\r");
+        }
+        else if (data[i] == '\n') {
+            printf("\\n");
+        }
+        // For non-printable characters, print them in hexadecimal
+        else {
+            printf("\\x%02X", data[i]);
+        }
+    }
+    printf("\n");
+}
+
 u16_t
 mc_process_command(int fd, shm_bm_objid_t objid, u16_t data_offset, u16_t data_len)
 {
@@ -26,9 +49,27 @@ mc_process_command(int fd, shm_bm_objid_t objid, u16_t data_offset, u16_t data_l
 	struct netshmem_pkt_buf *pkt_buf = shm_bm_borrow_net_pkt_buf(shm, objid);
 	char *r_buf = (char *)pkt_buf + data_offset;
 	char *w_buf = netshmem_get_data_buf(pkt_buf);
+	//print_payload(r_buf, data_len);
 
 	/* after this call, memcached should have data written into w_buf */
 	return cos_mc_process_command(fd, r_buf, data_len, w_buf, netshmem_get_max_data_buf_sz());
+}
+
+unsigned long max = 0;
+unsigned long cnt = 0;
+void
+mc_print(void)
+{
+	max = max > per_core_locktm[1] ? max : per_core_locktm[1];
+	if (cos_cpuid() == 1) {
+		cnt ++;
+		if (cnt > 10000) {
+			printc("locktm: %lu, max: %lu\n", per_core_locktm[1], max);
+			per_core_locktm[1] = 0;
+			cnt = 0;
+		}
+	}
+	
 }
 
 void

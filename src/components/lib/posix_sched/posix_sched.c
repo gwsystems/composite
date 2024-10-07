@@ -171,6 +171,7 @@ struct futex_data futexes[FUTEX_COUNT];
 struct futex_data *
 lookup_futex(int *uaddr)
 {
+	assert(0);
 	int last_free = -1;
 	int i;
 

@@ -36,12 +36,12 @@ deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"
 constructor = "booter"
 
 
-#[[address_spaces]]
-#name = "system"
-#components = ["capmgr", "sched"]
+[[address_spaces]]
+name = "system"
+components = ["capmgr", "sched"]
  
-#[[address_spaces]]
-#name = "bench"
-#components = ["client", "server"]
-#parent = "system"
+[[address_spaces]]
+name = "bench"
+components = ["client", "server"]
+parent = "system"
  

@@ -77,7 +77,7 @@ slm_sched_fprr_schedule(void)
 		//	cnt++;
 		//}
 		//if (cos_cpuid() == 1) printc("size: %d\n", cnt);
-		//if (cos_cpuid() == 0) printc("Schedule -> %ld\n", slm_thd_from_sched(t)->tid);
+	//	if (cos_cpuid() == 0) printc("Schedule -> %ld\n", slm_thd_from_sched(t)->tid);
 		return slm_thd_from_sched(t);
 	}
 	//if (cos_cpuid() == 0) printc("Schedule -> idle\n");
@@ -115,6 +115,8 @@ slm_sched_fprr_yield(struct slm_thd *t, struct slm_thd *yield_to)
 
 	ps_list_rem_d(p);
 	ps_list_head_append_d(&threads[cos_cpuid()].prio[t->priority], p);
+	//struct slm_sched_thd *temp = ps_list_head_first_d(&threads[cos_cpuid()].prio[t->priority], struct slm_sched_thd);
+	//if (cos_cpuid() == 1) printc("%d->%d\n", t->tid, slm_thd_from_sched(temp)->tid);
 }
 
 int

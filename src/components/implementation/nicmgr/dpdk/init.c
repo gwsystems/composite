@@ -23,10 +23,13 @@
 
 unsigned long enqueued_rx = 0, dequeued_tx = 0;
 int debug_flag = 0;
+//unsigned long per_core_locktm[16] = { 0 };
 
 /* rx and tx stats */
 u64_t rx_enqueued_miss[24] = {0};
 u64_t rx_unrecognized  = 0;
+u64_t rx_tot_rcv = 0;
+u64_t rx_session_fail = 0;
 extern rte_atomic64_t tx_enqueued_miss;
 
 char *g_rx_mp[NIC_RX_QUEUE_NUM];
@@ -101,6 +104,8 @@ cos_hash_lookup(uint16_t tenant_id)
 	return session;
 }
 
+extern unsigned long per_core_locktm[16];
+
 static void
 debug_print_stats(void)
 {
@@ -108,22 +113,23 @@ debug_print_stats(void)
 
 	printc("rx mempool in use:%u\n", cos_mempool_in_use_count(g_rx_mp[0]));
 	for (int i = 0; i < 24; i++) {
-		if (rx_enqueued_miss[i]) {
-			printc("rx enqueued miss[%d]:%llu\n", i, rx_enqueued_miss[i]);
-		}
+		//if (rx_enqueued_miss[i]) {
+		printc("rx enqueued miss[%d]:%llu\n", i, rx_enqueued_miss[i]);
+		//}
 	}
 	printc("rx unrecognized packets:%llu\n", rx_unrecognized);
+	printc("rx session fail: %llu\n", rx_session_fail);
 	printc("tx enqueued miss:%lu\n", tx_enqueued_miss.cnt);
-	printc("enqueue:%lu, txqneueue:%lu\n", enqueued_rx, dequeued_tx);
+	printc("total receive %llu, enqueue:%lu, txqneueue:%lu\n", rx_tot_rcv, enqueued_rx, dequeued_tx);
 	for (int i = 0; i< 16; i++)
 		printc("lock_time[%d] : %lu\n", i, per_core_locktm[i]);
-	struct client_session	*session1, *session2;
-	session1 = cos_hash_lookup(ntohs(6));
-	session2 = cos_hash_lookup(ntohs(7));
+	//struct client_session	*session1, *session2;
+	//session1 = cos_hash_lookup(ntohs(6));
+	//session2 = cos_hash_lookup(ntohs(7));
 	//int ret1 = sched_debug_thd_state(session1->thd);
 	//int ret2 = sched_debug_thd_state(session2->thd);
-	printc("com 6:%p\n", &session1->pkt_ring_buf);
-	printc("com 7:%p\n", &session2->pkt_ring_buf);
+	//printc("com 6:%p\n", &session1->pkt_ring_buf);
+	//printc("com 7:%p\n", &session2->pkt_ring_buf);
 	printc("RX_PKT_RING_SZ: %lu, %lu\n", RX_PKT_RING_SZ, sizeof(struct ck_ring));
 }
 
@@ -134,7 +140,7 @@ debug_dump_info(void)
 	#define LIMIT 1000000000
 	counter++;
 	if (counter > LIMIT) {
-		debug_print_stats();
+	//	debug_print_stats();
 		counter=0;
 	}
 }
@@ -202,6 +208,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 
 	for (i = 0; i < nb_pkts; i++) {
 		pkt = cos_get_packet(rx_pkts[i], &len);
+		rx_tot_rcv ++;
 		eth = (struct eth_hdr *)pkt;
 
 		if (htons(eth->ether_type) == 0x0800) {
@@ -213,15 +220,16 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			}
 			port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
 
-			// printc("port id:0x%x\n", port->dst_port);
 			session = cos_hash_lookup(port->dst_port);
-			// assert(session->port == port->dst_port);
 			if (unlikely(debug_flag)) {
 				debug_print_stats();
 				debug_flag = 0;
 			}
 			if (unlikely(session == NULL)) {
+				rx_session_fail++;
 				cos_free_packet(rx_pkts[i]);
+				//printc("port: %d\n", port->dst_port);
+				//assert(0);
 				continue;
 			}
 			// memset(&buf, 0, sizeof(buf));
@@ -235,27 +243,18 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			// } else {
 			// 	assert(0);
 			// }
-			start = ps_tsc();
 			buf.rcv_time = ps_tsc();
 			if (unlikely(!pkt_ring_buf_enqueue(&(session->pkt_ring_buf), &buf))){
 				cos_free_packet(buf.pkt);
 				rx_enqueued_miss[ntohs(session->port)]++;
 				continue;
 			}
-			end = ps_tsc();
 			enqueued_rx++;
 			// if (unlikely(debug_flag)) {
 			// 	session->sem.debug = 1;
 			// }
 			//ps_faa(&num_pkts[(port->dst_port - 5)], 1);
 			sync_sem_give(&session->sem);
-			tot += (end-start);
-			cnt++;
-			if (cnt > 100000) {
-				//printc("%llu\n", tot/cnt);
-				cnt = 0;
-				tot = 0;
-			}
 		} else if (htons(eth->ether_type) == 0x0806) {
 			cos_free_packet(buf.pkt);
 			continue;
@@ -374,7 +373,7 @@ cos_nic_init(void)
 			"--log-level",
 			"*:info", /* log level can be changed to *debug* if needed, this will print lots of information */
 			"-m",
-			"128", /* total memory used by dpdk memory subsystem, such as mempool */
+			"150", /* total memory used by dpdk memory subsystem, such as mempool */
 			};
 
 	argc = ARRAY_SIZE(argv);

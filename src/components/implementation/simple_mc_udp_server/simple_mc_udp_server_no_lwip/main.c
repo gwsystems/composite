@@ -7,6 +7,8 @@
 #include <netshmem.h>
 #include <sched.h>
 
+#define MULTI_GET 4
+
 static int fd;
 static volatile thdid_t init_thd = 0;
 static volatile int dst_core = -1;
@@ -21,7 +23,7 @@ cos_init(void)
 	assert(!ret);
 	for (ret = args_iter(&params, &i, &curr); ret; ret = args_iter_next(&i, &curr)) {
 		dst_core = atoi(args_value(&curr));
-	//	printc("dst: %d\n", dst_core);
+		assert(dst_core > 0 && dst_core < NUM_CPU);
 	}
 
 	shm_bm_objid_t objid;
@@ -44,64 +46,69 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	fd = mc_conn_init(MC_UDP_PROTO);
 	assert(fd);
 
-	printc("mc server init done, got a fd: %d\n", fd);
+	printc("mc server init done, got a fd: %d, %d\n", fd, dst_core);
 }
+
+
+#define PORT_OFFSET  5
 
 int
 parallel_main(coreid_t cid)
 {
 	int ret;
 	u32_t ip;
-	compid_t compid;
+	//compid_t compid;
 	u16_t port;
 	shm_bm_objid_t objid;
 	struct netshmem_pkt_buf *rx_obj;
 	struct netshmem_pkt_buf *tx_obj;
 	char *data;
-	u16_t data_offset, data_len;
+	u16_t data_offset, data_len, rdysend_len;
 	u16_t remote_port;
 	u32_t remote_addr;
+	char temp_data[PKT_BUF_SIZE];
 
 	assert(dst_core >= 0);
-	if (cos_cpuid() != dst_core)  return 0;
+	if (cos_cpuid() != dst_core) return 0;
 
 	ret = 0;
 	ip = inet_addr("10.10.1.2");
-	compid = cos_compid();
+	//compid = cos_compid();
 
 	/* we use comp id as UDP port, representing tenant id */
-	assert(compid < (1 << 16));
-	port	= (u16_t)compid;
+	//assert(compid < (1 << 16));
+	//port	= (u16_t)compid;
 
-	printc("%x\n", port);
+	port = dst_core + PORT_OFFSET;
+	//printc("%x\n", port);
 	ret = udp_stack_udp_bind(ip, port);
 	assert(ret == 0);
 	objid = 0;
 	remote_addr = inet_addr("10.10.1.1");
 	remote_port = 6;
-	cycles_t    before, after, tot;
-	int cnt = 0 ;
+	unsigned long s, e = 0;
 	
 	while (1)
 	{
-		before = ps_tsc();
 		objid  = udp_stack_shmem_read(&data_offset, &data_len, &remote_addr, &remote_port);
 		/* application would like to own the shmem because it does not want ohters to free it. */
 		rx_obj = shm_bm_borrow_net_pkt_buf(netshmem_get_shm(), objid);
 		if (unlikely(data_len == 0)) {
 			// invalid packet, drop it
+			assert(0);
 			shm_bm_free_net_pkt_buf(rx_obj);
 			continue;
 		}
-		data_len = mc_process_command(fd, objid, data_offset, data_len);
-		udp_stack_shmem_write(objid, netshmem_get_data_offset(), data_len, remote_addr, remote_port);
-		after = ps_tsc();
-		tot += (after-before);
-		cnt++;
-		if (cnt > 100000 && cos_cpuid() == 1) {
-			//printc("%llu\n", tot/cnt);
-			tot = 0;
-			cnt = 0;
+		if (MULTI_GET > 1) memcpy(temp_data, rx_obj, data_len);
+		for (int i = 0; i < MULTI_GET; i++) {
+			rdysend_len = mc_process_command(fd, objid, data_offset, data_len);
+			assert(rdysend_len);
+			if (i < MULTI_GET-1) memcpy(rx_obj, temp_data, data_len);
 		}
+
+		udp_stack_shmem_write(objid, netshmem_get_data_offset(), rdysend_len, remote_addr, remote_port);
+		/*if (cos_cpuid() == 1) {
+			mc_print();
+		}*/
 	}
 }

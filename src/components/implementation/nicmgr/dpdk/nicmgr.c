@@ -21,6 +21,7 @@ typedef unsigned long cos_vaddr_t; /* virtual address */
 extern cos_paddr_t cos_map_virt_to_phys(cos_vaddr_t addr);
 extern char *g_tx_mp[NIC_TX_QUEUE_NUM];
 int num_pkts[16] = {0};
+unsigned long per_core_locktm[16] = {0};
 
 /* indexed by thread id */
 struct client_session client_sessions[NIC_MAX_SESSION];
@@ -75,6 +76,7 @@ pkt_ring_buf_empty(struct pkt_ring_buf *pkt_ring_buf)
 int cnt_nic = 0;
 unsigned long tot_nic = 0;
 unsigned long tot_sem = 0;
+unsigned long tot_tmp = 0;
 
 shm_bm_objid_t
 nic_get_a_packet(u16_t *pkt_len)
@@ -85,7 +87,7 @@ nic_get_a_packet(u16_t *pkt_len)
 	struct client_session     *session;
 	struct netshmem_pkt_buf   *obj;
 	int len;
-	unsigned long start = ps_tsc();
+	unsigned long  start = ps_tsc();
 
 	thd = cos_thdid();
 	assert(thd < NIC_MAX_SESSION);
@@ -109,7 +111,7 @@ nic_get_a_packet(u16_t *pkt_len)
 	tot_sem += (ps_tsc()-start);
 	cnt_nic ++;
 	if (cnt_nic > 10000 && cos_cpuid() == 1) {
-		printc("%lu -> %lu\n", tot_nic/cnt_nic, tot_sem/cnt_nic);
+		//printc("%lu -> %lu\n", tot_nic/cnt_nic, tot_sem/cnt_nic);
 		tot_nic = 0;
 		cnt_nic = 0;
 		tot_sem = 0;
@@ -183,9 +185,10 @@ nic_send_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	char *tx_packets[256];
 
 	coreid_t core_id = cos_cpuid();
-#if E810_NIC == 0
-	core_id = 1;
-#endif
+//#if E810_NIC == 0
+//	assert(0);
+//	core_id = 1;
+//#endif
 	mbuf = cos_allocate_mbuf(g_tx_mp[core_id - 1]);
 	assert(mbuf);
 	ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);

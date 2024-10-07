@@ -450,6 +450,7 @@ cos_ulswitch(struct slm_thd *curr, struct slm_thd *next, struct cos_dcb_info *cd
 		return -EAGAIN;
 	}
 #if defined(__SVFSGS__)
+	//printc("fs_value: %lx, gs_value: %lx\n", fs_value, gs_value);
 	asm volatile (
         	"wrfsbase %0\n\t"
         	"wrgsbase %1\n\t"
@@ -489,7 +490,7 @@ slm_thd_activate(struct slm_thd *curr, struct slm_thd *t, sched_tok_t tok, int i
 		}
 	}
 #if defined (__SLITE__)
-	//printc("curr: %d, next: %lx\n", curr->tid, t->tid);
+	//printc("curr: %d, next: %lx\n", curr->vasid, t->vasid);
 	if (!cd || !nd || (curr->vasid != t->vasid)) {
 		//if (curr->tid == 18)
 		//	printc("next: %d, vasid: %d, %d\n", t->tid, curr->vasid, t->vasid);

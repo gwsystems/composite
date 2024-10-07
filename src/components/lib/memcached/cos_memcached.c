@@ -4,7 +4,16 @@
 #include "cos_memcached.h"
 #include "cos_memcached_exp.h"
 
+typedef struct udphdr_s {
+	uint16_t rqid;
+	uint16_t partno;
+	uint16_t nparts;
+	uint16_t reserved;
+} udphdr_t;
+
+
 extern int cos_mc_main (int argc, char **argv);
+//unsigned long per_core_locktm[16] = {0};
 
 static char *client_query = "\0\0\0\0\0\1\0\0set GWU_SYS 0 0 5\r\nGREAT\r\n";
 
@@ -47,13 +56,13 @@ cos_sendmsg(void *c, struct msghdr *msg, int flags)
 	ssize_t sent_len = 0;
 
 	for (ssize_t i = 0; i < msg->msg_iovlen; i++) {
-		memcpy(_c->cos_w_buf + sent_len, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len);
+		memcpy(_c->cos_w_buf + _c->cos_w_sz + sent_len, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len);
 		sent_len += msg->msg_iov[i].iov_len;
 	}
 
 	/* sent data size cannot exceed buffer size */
-	assert(sent_len < _c->cos_w_sz);
-	_c->cos_w_sz = sent_len;
+	assert((_c->cos_w_sz + sent_len) < _c->cos_max_sz);
+	_c->cos_w_sz += sent_len;
 
 	return sent_len;
 }
@@ -72,6 +81,7 @@ cos_recvfrom(void *c)
 {
 	conn *_c = (conn *)c;
 	assert (c != NULL);
+
 
 	memcpy(_c->rbuf, _c->cos_r_buf, _c->cos_r_sz);
 	return _c->cos_r_sz;
@@ -163,7 +173,8 @@ cos_mc_process_command(int fd, char *r_buf, u16_t r_buf_len, char *w_buf, u16_t 
 	c->cos_r_buf	= r_buf;
 	c->cos_r_sz	= r_buf_len;
 	c->cos_w_buf	= w_buf;
-	c->cos_w_sz	= w_buf_len;
+	c->cos_max_sz	= w_buf_len;
+	c->cos_w_sz     = 0;
 
 	cos_mc_event_handler(fd, c);
 

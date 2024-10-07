@@ -15,4 +15,6 @@ int mc_conn_init(int proto);
 
 u16_t mc_process_command(int fd, shm_bm_objid_t objid, u16_t data_offset, u16_t data_len);
 
+void mc_print(void);
+
 #endif /* MC_H */
