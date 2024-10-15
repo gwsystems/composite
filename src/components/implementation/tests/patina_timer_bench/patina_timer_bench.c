@@ -109,7 +109,7 @@ tmr_hi_thd(void *d)
 
 		if (i != COLD_INDEX) { perfdata_add(&perf, end - start); }
 		debug("%lld.\n", end - start);
-
+		
 		i++;
 	}
 
@@ -134,7 +134,7 @@ test_tmr(void)
 {
 	int i;
 
-	sched_param_t sps[] = {SCHED_PARAM_CONS(SCHEDP_PRIO, 4), SCHED_PARAM_CONS(SCHEDP_PRIO, 6)};
+	sched_param_t sps[] = {SCHED_PARAM_CONS(SCHEDP_PRIO, 4), SCHED_PARAM_CONS(SCHEDP_PRIO, 31)};
 
 
 	perfdata_init(&perf, "Timer latency - total", result, ITERATION);
