@@ -1,7 +1,7 @@
 #ifndef PATINA_TYPES_H
 #define PATINA_TYPES_H
 
-#define PATINA_T_MASK 0xFFFFFFFC
+#define PATINA_T_MASK 0xFFFFFFFFFFFFFFFC
 
 typedef enum
 {
