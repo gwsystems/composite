@@ -41,6 +41,7 @@ pub type Param = HashMap<String, Value>;
 pub struct Assoc {
     pub vr_type  : String,
     pub instance : String,
+    pub data     : Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -92,8 +93,8 @@ pub struct VirtRes {
 
 #[derive(Debug, Deserialize)]
 pub struct TomlVirtualResource {
-    pub vr_type:   String,
-    pub server: String,
+    pub vr_type:    String,
+    pub server:     String,
     pub resources:  Vec<VirtRes>,
 }
 

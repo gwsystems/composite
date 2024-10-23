@@ -113,6 +113,7 @@ __evt_res_alloc_at_id(evt_res_id_t rid)
 	if (!res) return 0;
 
 	evt_rid = ss_evtres_id(res);
+	ss_evtres_activate(res);
 	return evt_rid;
 }
 
@@ -205,8 +206,7 @@ __evt_add_at_id(evt_id_t id, evt_res_id_t rid, evt_res_type_t srctype, evt_res_d
 		.me        = rid,
 		.evt       = e,
 	};
-	ss_evtres_activate(res);
-
+	//fixme: we need to actiavte the evtres here after the updates, currently active it at line 116
 	return evt_rid;
 }
 
@@ -256,31 +256,40 @@ cos_init(void)
 
 	/* create the event virtual resource */
 
-	ret = args_get_entry("virt_resources/evt_aggregate", &evt_entries);
+	ret = args_get_entry("sys_virt_resources/evt_aggregate", &evt_agg_entries);
 	/* check if the event aggregate virtual resource is existing */
 	if (ret == 0) {
-		struct initargs param_entries, evt_curr, param_curr;
+		struct initargs evt_curr;
 		struct initargs_iter j;
 		int cont;
 
-		for (cont = args_iter(&evt_entries, &j, &evt_curr) ; cont ; cont = args_iter_next(&j, &evt_curr)) { 		
+		for (cont = args_iter(&evt_agg_entries, &j, &evt_curr) ; cont ; cont = args_iter_next(&j, &evt_curr)) { 		
 			char *id_str 			= NULL;
 			char *sub_id_str		= NULL;
 			evt_id_t evt_id 		= 0xFF;
-			evt_res_id_t evt_res_id = 0xFF;
 
 			id_str 	= args_get_from("id", &evt_curr);
 
 			evt_id = __evt_alloc_at_id(atoi(id_str));
 			if (evt_id != atoi(id_str)) BUG();
+		}
+	}
 
-			ret = args_get_entry_from("params", &evt_curr, &param_entries);
+	ret = args_get_entry("sys_virt_resources/evt", &evt_entries);
+	/* check if the event virtual resource is existing */
+	if (ret == 0) {
+		struct initargs evt_curr;
+		struct initargs_iter j;
+		int cont;
 
-			for (cont = args_iter(&evt_entries, &j, &param_curr) ; cont ; cont = args_iter_next(&j, &param_curr)) { 		
-				sub_id_str = args_get_from("id", &param_curr);
-				evt_res_id = __evt_res_alloc_at_id(atoi(sub_id_str));
-				if (evt_res_id != atoi(sub_id_str)) BUG();
-			}
+		for (cont = args_iter(&evt_entries, &j, &evt_curr) ; cont ; cont = args_iter_next(&j, &evt_curr)) { 		
+			char *id_str 			= NULL;
+			evt_res_id_t evt_res_id = 0xFF;
+
+			id_str 	= args_get_from("id", &evt_curr);
+
+			evt_res_id = __evt_res_alloc_at_id(atoi(id_str));
+			if (evt_res_id != atoi(id_str)) BUG();
 		}
 	}
 }

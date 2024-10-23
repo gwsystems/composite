@@ -14,6 +14,8 @@
 #include <lwip/prot/tcp.h>
 #include <netif/ethernet.h>
 #include <lwip/etharp.h>
+#include <sync_lock.h>
+#include <cos_time.h>
 
 #include <netmgr.h>
 
@@ -306,11 +308,22 @@ netmgr_udp_shmem_read(u16_t *data_offset, u16_t *data_len, u32_t *remote_addr, u
 	return g_objid;
 }
 
+#define L3_CACHE_SIZE (30 * 1024 * 1024) // 30MB
+#define CACHE_LINE_SIZE 64  
+#define ARRAY_SIZE (2 * L3_CACHE_SIZE)  
+static volatile char large_array[ARRAY_SIZE];
+
+struct sync_lock lwip_lock;
+volatile cycles_t start;
+volatile cycles_t end;
+
 int
 netmgr_udp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len, u32_t remote_ip, u16_t remote_port)
 {
 	struct netshmem_pkt_buf *obj;
 	struct pbuf             *p;
+
+	sync_lock_init(&lwip_lock);
 
 	ip_addr_t dst_ip;
 	
@@ -319,6 +332,15 @@ netmgr_udp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len, 
 
 	obj  = shm_bm_borrow_net_pkt_buf(netshmem_get_shm(), objid);
 	data = obj->data + data_offset;
+
+ /*   for (size_t i = 0; i < ARRAY_SIZE; i += CACHE_LINE_SIZE) {
+        large_array[i] = time_now(); 
+    }
+
+	printc("the large array element is %lld\n", large_array[time_now()%ARRAY_SIZE]);
+*/
+	start = time_now();
+	sync_lock_take(&lwip_lock);
 
 	p = pbuf_alloc(PBUF_LINK, data_len, PBUF_ROM);
 	assert(p);
@@ -329,5 +351,9 @@ netmgr_udp_shmem_write(shm_bm_objid_t objid, u16_t data_offset, u16_t data_len, 
 	udp_sendto_if(lwip_connections[thd].up, p , &dst_ip, remote_port, &net_interface);
 	pbuf_free(p);
 
-	return 0;
+	sync_lock_release(&lwip_lock);
+	end = time_now();
+	assert ( (end-start) < INT_MAX);
+	printc("the cycle is %lld\n", end-start);
+	return (time_cyc2usec(end - start));
 }

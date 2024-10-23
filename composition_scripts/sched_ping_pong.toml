@@ -4,6 +4,7 @@ description = "Simplest system with both capability manager and scheduler, from 
 [[components]]
 name = "booter"
 img  = "no_interface.llbooter"
+constants = [{variable = "MAX_LOCAL_NUM_THREADS", value = "1"},{variable = "MAX_NUM_THREADS", value = "37"}]
 implements = [{interface = "init"}, {interface = "addr"}]
 deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
 constructor = "kernel"
@@ -11,6 +12,7 @@ constructor = "kernel"
 [[components]]
 name = "capmgr"
 img  = "capmgr.simple"
+constants = [{variable = "MAX_LOCAL_NUM_THREADS", value = "13"},{variable = "MAX_NUM_THREADS", value = "37"}]
 deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
 implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
 constructor = "booter"
@@ -18,7 +20,7 @@ constructor = "booter"
 [[components]]
 name = "sched"
 img  = "sched.pfprr_quantum_static"
-constants = [{variable = "NUM_CPU", value = "4"}]
+constants = [{variable = "MAX_LOCAL_NUM_THREADS", value = "12"},{variable = "MAX_NUM_THREADS", value = "37"}]
 deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
 implements = [{interface = "sched"}, {interface = "init"}]
 constructor = "booter"
@@ -26,14 +28,14 @@ constructor = "booter"
 [[components]]
 name = "schedtest"
 img  = "tests.unit_schedcomp"
-constants = [{variable = "NUM_CPU", value = "4"}]
+constants = [{variable = "MAX_LOCAL_NUM_THREADS", value = "7"},{variable = "MAX_NUM_THREADS", value = "37"}]
 deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}]
 constructor = "booter"
 
 [[components]]
 name = "ping"
 img  = "tests.unit_pingpong"
-constants = [{variable = "NUM_CPU", value = "4"}]
+constants = [{variable = "MAX_LOCAL_NUM_THREADS", value = "1"},{variable = "MAX_NUM_THREADS", value = "37"}]
 deps = [{srv = "pong", interface = "pong"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}]
 baseaddr = "0x1600000"
 constructor = "booter"
@@ -41,7 +43,7 @@ constructor = "booter"
 [[components]]
 name = "pong"
 img  = "pong.pingpong"
-constants = [{variable = "NUM_CPU", value = "4"}]
+constants = [{variable = "MAX_LOCAL_NUM_THREADS", value = "1"},{variable = "MAX_NUM_THREADS", value = "37"}]
 deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}]
 implements = [{interface = "pong"}]
 constructor = "booter"

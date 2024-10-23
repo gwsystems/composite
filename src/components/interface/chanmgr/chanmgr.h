@@ -27,6 +27,7 @@
  * - @return - the channel id, or `0` on error.
  */
 chan_id_t chanmgr_create(unsigned int item_sz, unsigned int slots, chan_flags_t flags);
+chan_id_t chanmgr_create_at_id(unsigned int item_sz, unsigned int slots, chan_flags_t flags, chan_id_t chanid);
 
 /**
  * Two functions to get the *resources* associated with the allocated

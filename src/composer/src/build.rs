@@ -447,7 +447,7 @@ impl BuildState for DefaultBuilder {
             self.comp_file_path(&id, &"component_constants.h".to_string(), &state)?;
 
         self.comp_const_header_file(&header_file_path, &id, &state)?;
-
+        println!("Rebuild process starts for component at: {}", &output_path);
         //rebuild process starts
         if self.rebuildflag {
             let dep_cmd = comp_gen_make_cmd(
@@ -459,6 +459,8 @@ impl BuildState for DefaultBuilder {
                 &id,
                 &state,
             );
+            println!("Rebuild process inside the rebuildflag!");
+
             let (out1, err1) = exec_pipeline(vec![dep_cmd.clone()]);
 
             let rebuild_cmd = format!(
@@ -466,6 +468,8 @@ impl BuildState for DefaultBuilder {
                 out1, header_file_path
             );
             let (out2, err2) = exec_pipeline(vec![rebuild_cmd.clone()]);
+
+            println!("Rebuild process information: {}", out2);
 
             emit_file(
                 &comp_log,

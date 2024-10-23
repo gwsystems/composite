@@ -49,7 +49,7 @@ tmr_init(struct tmr *t, unsigned int usecs, tmr_flags_t flags)
 	int ret;
 	
 	if ((flags != TMR_ONESHOT) && (flags != TMR_PERIODIC)) return -TMR_ERR_INVAL_ARG;
-	id = tmrmgr_create(usecs, flags);
+	id = tmrmgr_create(usecs, flags, 0);
 	if (id == 0) return -TMR_ERR_NOMEM;
 	
 	t->id = id;
@@ -59,6 +59,20 @@ tmr_init(struct tmr *t, unsigned int usecs, tmr_flags_t flags)
 	
 	return 0;
 }
+
+static inline int
+tmr_init_static(struct tmr *t, unsigned int usecs, tmr_flags_t flags, tmr_id_t tmr_id)
+{	
+	if ((flags != TMR_ONESHOT) && (flags != TMR_PERIODIC)) return -TMR_ERR_INVAL_ARG;
+	
+	t->id = tmr_id;
+	t->usecs = usecs;
+	t->flags = flags;
+	t->evt_id = 0;
+	
+	return 0;
+}
+
 
 /**
  * 'tmr_teardown' always directly destroys a timer regardless of its usage.

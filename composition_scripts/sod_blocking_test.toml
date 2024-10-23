@@ -1,0 +1,78 @@
+[system]
+description = "Simple test of blocking issue by using sod."
+
+[[components]]
+name = "booter"
+img  = "no_interface.llbooter"
+implements = [{interface = "init"}, {interface = "addr"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"
+
+[[components]]
+name = "capmgr"
+img  = "capmgr.simple"
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
+implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
+constructor = "booter"
+
+[[components]]
+name = "sched"
+img  = "sched.pfprr_quantum_static"
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "sched"}, {interface = "init"}]
+constructor = "booter"
+
+[[components]]
+name = "chanmgr"
+img  = "chanmgr.simple"
+deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "capmgr"}]
+implements = [{interface = "chanmgr"}, {interface = "chanmgr_evt"}]
+constructor = "booter"
+
+[[components]]
+name = "evtmgr"
+img  = "evt.evtmgr"
+deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}]
+implements = [{interface = "evt"}]
+constructor = "booter"
+
+[[components]]
+name = "sodhc"
+img  = "tests.sod_blocking_hc"
+criticality_level = 1 
+virt_res = [
+    {vr_type = "chan", instances = [
+        {chan_01 = {access = ["read","write","blocking"], name = "chan_in" }}]}
+]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "chanmgr", interface = "chanmgr"}, {srv = "chanmgr", interface = "chanmgr_evt"}, {srv = "evtmgr", interface = "evt"}]
+constructor = "booter"
+
+[[components]]
+name = "sodlc"
+img  = "tests.sod_blocking_lc"
+criticality_level = 0 
+virt_res = [
+    {vr_type = "chan", instances = [
+        {chan_02 = {access = ["read","write"], name = "chan_in" }}]}
+]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "chanmgr", interface = "chanmgr"}, {srv = "chanmgr", interface = "chanmgr_evt"}, {srv = "evtmgr", interface = "evt"}]
+constructor = "booter"
+
+[[components]]
+name = "sod_edge_detection"
+img  = "tests.sod_edge_detection"
+virt_res = [
+    {vr_type = "chan", instances = [
+        {chan_01 = {access = ["read","write"], name = "chan_out1" }}, 
+        {chan_02 = {access = ["read","write"], name = "chan_out2" }}]}
+]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "chanmgr", interface = "chanmgr"}, {srv = "chanmgr", interface = "chanmgr_evt"}, {srv = "evtmgr", interface = "evt"}]
+constructor = "booter"
+
+[[virt_resources]]
+vr_type = "chan"
+server = "chanmgr"
+resources = [
+    {instance = "chan_01", param = {size_item = "998572", num_slots = "1"}},
+    {instance = "chan_02", param = {size_item = "998572", num_slots = "1"}}
+]

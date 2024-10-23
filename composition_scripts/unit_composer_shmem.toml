@@ -1,0 +1,42 @@
+[system]
+description = "Simplest system to test shared memory implementation by using composer"
+
+[[components]]
+name = "booter"
+img  = "no_interface.llbooter"
+implements = [{interface = "init"}, {interface = "addr"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"
+
+[[components]]
+name = "capmgr"
+img  = "capmgr.simple"
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
+implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
+constructor = "booter"
+
+[[components]]
+name = "sched"
+img  = "sched.pfprr_quantum_static"
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "sched"}, {interface = "init"}]
+constructor = "booter"
+
+[[components]]
+name = "pingshmem"
+img  = "tests.unit_composer_pingshmem"
+deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}]
+constructor = "booter"
+
+[[components]]
+name = "pongshmem"
+img  = "tests.unit_composer_pongshmem"
+deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}]
+constructor = "booter"
+
+[[virt_resources]]
+name = "shmem"
+server = "capmgr"
+resources = [
+    {param = { size = "32" }, clients = [{comp = "pongshmem", access = "r", name = "shmem input", symbol = "globalname"}, {comp = "pingshmem", access = "rw", name = "shmem output for ping"}]}
+]

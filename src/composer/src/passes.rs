@@ -387,7 +387,7 @@ pub trait ResPass {
 }
 
 pub type VirtResName = String;
-pub type VirtResId   = String;
+pub type VirtResId   = usize;
 
 pub trait VirtResPass {
     fn ids(&self) -> &BTreeMap<VirtResId, VirtResName>;

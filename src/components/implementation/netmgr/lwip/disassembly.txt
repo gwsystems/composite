@@ -1,0 +1,991 @@
+
+netmgr.o:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 <cos_lwip_tcp_sent>:
+   0:	f3 0f 1e fa          	endbr64 
+   4:	31 c0                	xor    %eax,%eax
+   6:	c3                   	ret    
+   7:	66 0f 1f 84 00 00 00 	nopw   0x0(%rax,%rax,1)
+   e:	00 00 
+
+0000000000000010 <cos_lwip_udp_recv>:
+  10:	f3 0f 1e fa          	endbr64 
+  14:	48 85 d2             	test   %rdx,%rdx
+  17:	74 35                	je     4e <cos_lwip_udp_recv+0x3e>
+  19:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+  20:	00 00 00 
+  23:	c7 00 01 00 00 00    	movl   $0x1,(%rax)
+  29:	48 89 d0             	mov    %rdx,%rax
+  2c:	48 a3 00 00 00 00 00 	movabs %rax,0x0
+  33:	00 00 00 
+  36:	8b 01                	mov    (%rcx),%eax
+  38:	a3 00 00 00 00 00 00 	movabs %eax,0x0
+  3f:	00 00 
+  41:	44 89 c0             	mov    %r8d,%eax
+  44:	66 a3 00 00 00 00 00 	movabs %ax,0x0
+  4b:	00 00 00 
+  4e:	c3                   	ret    
+  4f:	90                   	nop
+
+0000000000000050 <cos_lwip_tcp_accept>:
+  50:	f3 0f 1e fa          	endbr64 
+  54:	55                   	push   %rbp
+  55:	48 89 e0             	mov    %rsp,%rax
+  58:	48 25 00 e0 ff ff    	and    $0xffffffffffffe000,%rax
+  5e:	48 89 e5             	mov    %rsp,%rbp
+  61:	41 54                	push   %r12
+  63:	53                   	push   %rbx
+  64:	44 0f b7 a0 f0 1f 00 	movzwl 0x1ff0(%rax),%r12d
+  6b:	00 
+  6c:	48 89 f3             	mov    %rsi,%rbx
+  6f:	31 f6                	xor    %esi,%esi
+  71:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+  78:	00 00 00 
+  7b:	48 89 df             	mov    %rbx,%rdi
+  7e:	ff d0                	call   *%rax
+  80:	49 c1 e4 04          	shl    $0x4,%r12
+  84:	48 89 df             	mov    %rbx,%rdi
+  87:	48 be 00 00 00 00 00 	movabs $0x0,%rsi
+  8e:	00 00 00 
+  91:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+  98:	00 00 00 
+  9b:	ff d0                	call   *%rax
+  9d:	48 89 df             	mov    %rbx,%rdi
+  a0:	48 be 00 00 00 00 00 	movabs $0x0,%rsi
+  a7:	00 00 00 
+  aa:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+  b1:	00 00 00 
+  b4:	ff d0                	call   *%rax
+  b6:	48 89 df             	mov    %rbx,%rdi
+  b9:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+  c0:	00 00 00 
+  c3:	48 be 00 00 00 00 00 	movabs $0x0,%rsi
+  ca:	00 00 00 
+  cd:	ff d0                	call   *%rax
+  cf:	66 83 4b 2a 40       	orw    $0x40,0x2a(%rbx)
+  d4:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+  db:	00 00 00 
+  de:	4a 89 1c 20          	mov    %rbx,(%rax,%r12,1)
+  e2:	31 c0                	xor    %eax,%eax
+  e4:	5b                   	pop    %rbx
+  e5:	41 5c                	pop    %r12
+  e7:	5d                   	pop    %rbp
+  e8:	c3                   	ret    
+  e9:	0f 1f 80 00 00 00 00 	nopl   0x0(%rax)
+
+00000000000000f0 <cos_lwip_tcp_recv>:
+  f0:	f3 0f 1e fa          	endbr64 
+  f4:	48 85 d2             	test   %rdx,%rdx
+  f7:	74 3f                	je     138 <cos_lwip_tcp_recv+0x48>
+  f9:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 100:	00 00 00 
+ 103:	55                   	push   %rbp
+ 104:	48 89 f7             	mov    %rsi,%rdi
+ 107:	0f b7 72 10          	movzwl 0x10(%rdx),%esi
+ 10b:	c7 00 01 00 00 00    	movl   $0x1,(%rax)
+ 111:	48 89 d0             	mov    %rdx,%rax
+ 114:	48 a3 00 00 00 00 00 	movabs %rax,0x0
+ 11b:	00 00 00 
+ 11e:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 125:	00 00 00 
+ 128:	48 89 e5             	mov    %rsp,%rbp
+ 12b:	ff d0                	call   *%rax
+ 12d:	31 c0                	xor    %eax,%eax
+ 12f:	5d                   	pop    %rbp
+ 130:	c3                   	ret    
+ 131:	0f 1f 80 00 00 00 00 	nopl   0x0(%rax)
+ 138:	31 c0                	xor    %eax,%eax
+ 13a:	c3                   	ret    
+ 13b:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+
+0000000000000140 <cos_lwip_tcp_err>:
+ 140:	f3 0f 1e fa          	endbr64 
+ 144:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 14b:	00 00 00 
+ 14e:	55                   	push   %rbp
+ 14f:	be 25 00 00 00       	mov    $0x25,%esi
+ 154:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 15b:	00 00 00 
+ 15e:	48 89 e5             	mov    %rsp,%rbp
+ 161:	ff d0                	call   *%rax
+ 163:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 16a:	00 00 00 00 
+ 16e:	0f 0b                	ud2    
+
+0000000000000170 <net_interface_input>:
+ 170:	f3 0f 1e fa          	endbr64 
+ 174:	55                   	push   %rbp
+ 175:	0f b7 f6             	movzwl %si,%esi
+ 178:	ba 01 00 00 00       	mov    $0x1,%edx
+ 17d:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 184:	00 00 00 
+ 187:	48 89 e5             	mov    %rsp,%rbp
+ 18a:	41 54                	push   %r12
+ 18c:	53                   	push   %rbx
+ 18d:	48 89 fb             	mov    %rdi,%rbx
+ 190:	bf 0e 00 00 00       	mov    $0xe,%edi
+ 195:	ff d0                	call   *%rax
+ 197:	48 85 c0             	test   %rax,%rax
+ 19a:	74 6c                	je     208 <net_interface_input+0x98>
+ 19c:	48 89 58 08          	mov    %rbx,0x8(%rax)
+ 1a0:	49 89 c4             	mov    %rax,%r12
+ 1a3:	48 89 c7             	mov    %rax,%rdi
+ 1a6:	48 be 00 00 00 00 00 	movabs $0x0,%rsi
+ 1ad:	00 00 00 
+ 1b0:	48 a1 00 00 00 00 00 	movabs 0x0,%rax
+ 1b7:	00 00 00 
+ 1ba:	ff d0                	call   *%rax
+ 1bc:	84 c0                	test   %al,%al
+ 1be:	75 0d                	jne    1cd <net_interface_input+0x5d>
+ 1c0:	41 80 7c 24 16 00    	cmpb   $0x0,0x16(%r12)
+ 1c6:	75 2d                	jne    1f5 <net_interface_input+0x85>
+ 1c8:	5b                   	pop    %rbx
+ 1c9:	41 5c                	pop    %r12
+ 1cb:	5d                   	pop    %rbp
+ 1cc:	c3                   	ret    
+ 1cd:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 1d4:	00 00 00 
+ 1d7:	be 26 00 00 00       	mov    $0x26,%esi
+ 1dc:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 1e3:	00 00 00 
+ 1e6:	ff d0                	call   *%rax
+ 1e8:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 1ef:	00 00 00 00 
+ 1f3:	0f 0b                	ud2    
+ 1f5:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 1fc:	00 00 00 
+ 1ff:	5b                   	pop    %rbx
+ 200:	4c 89 e7             	mov    %r12,%rdi
+ 203:	41 5c                	pop    %r12
+ 205:	5d                   	pop    %rbp
+ 206:	ff e0                	jmp    *%rax
+ 208:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 20f:	00 00 00 
+ 212:	be 26 00 00 00       	mov    $0x26,%esi
+ 217:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 21e:	00 00 00 
+ 221:	ff d0                	call   *%rax
+ 223:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 22a:	00 00 00 00 
+ 22e:	0f 0b                	ud2    
+
+0000000000000230 <netmgr_shmem_map>:
+ 230:	f3 0f 1e fa          	endbr64 
+ 234:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 23b:	00 00 00 
+ 23e:	55                   	push   %rbp
+ 23f:	48 89 e5             	mov    %rsp,%rbp
+ 242:	41 54                	push   %r12
+ 244:	41 89 fc             	mov    %edi,%r12d
+ 247:	48 83 ec 08          	sub    $0x8,%rsp
+ 24b:	ff d0                	call   *%rax
+ 24d:	44 89 e7             	mov    %r12d,%edi
+ 250:	4c 8b 65 f8          	mov    -0x8(%rbp),%r12
+ 254:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 25b:	00 00 00 
+ 25e:	c9                   	leave  
+ 25f:	ff e0                	jmp    *%rax
+ 261:	66 66 2e 0f 1f 84 00 	data16 cs nopw 0x0(%rax,%rax,1)
+ 268:	00 00 00 00 
+ 26c:	0f 1f 40 00          	nopl   0x0(%rax)
+
+0000000000000270 <netmgr_tcp_bind>:
+ 270:	f3 0f 1e fa          	endbr64 
+ 274:	55                   	push   %rbp
+ 275:	48 89 e0             	mov    %rsp,%rax
+ 278:	48 25 00 e0 ff ff    	and    $0xffffffffffffe000,%rax
+ 27e:	48 89 e5             	mov    %rsp,%rbp
+ 281:	41 55                	push   %r13
+ 283:	44 0f b7 ee          	movzwl %si,%r13d
+ 287:	41 54                	push   %r12
+ 289:	41 89 fc             	mov    %edi,%r12d
+ 28c:	53                   	push   %rbx
+ 28d:	48 83 ec 18          	sub    $0x18,%rsp
+ 291:	89 7d dc             	mov    %edi,-0x24(%rbp)
+ 294:	0f b7 98 f0 1f 00 00 	movzwl 0x1ff0(%rax),%ebx
+ 29b:	44 89 ef             	mov    %r13d,%edi
+ 29e:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 2a5:	00 00 00 
+ 2a8:	ff d0                	call   *%rax
+ 2aa:	44 89 e7             	mov    %r12d,%edi
+ 2ad:	0f b7 f0             	movzwl %ax,%esi
+ 2b0:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 2b7:	00 00 00 
+ 2ba:	ff d0                	call   *%rax
+ 2bc:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 2c3:	00 00 00 
+ 2c6:	ff d0                	call   *%rax
+ 2c8:	48 85 c0             	test   %rax,%rax
+ 2cb:	74 36                	je     303 <netmgr_tcp_bind+0x93>
+ 2cd:	48 89 c7             	mov    %rax,%rdi
+ 2d0:	48 c1 e3 04          	shl    $0x4,%rbx
+ 2d4:	44 89 ea             	mov    %r13d,%edx
+ 2d7:	48 8d 75 dc          	lea    -0x24(%rbp),%rsi
+ 2db:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 2e2:	00 00 00 
+ 2e5:	48 89 3c 18          	mov    %rdi,(%rax,%rbx,1)
+ 2e9:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 2f0:	00 00 00 
+ 2f3:	ff d0                	call   *%rax
+ 2f5:	48 83 c4 18          	add    $0x18,%rsp
+ 2f9:	5b                   	pop    %rbx
+ 2fa:	0f be c0             	movsbl %al,%eax
+ 2fd:	41 5c                	pop    %r12
+ 2ff:	41 5d                	pop    %r13
+ 301:	5d                   	pop    %rbp
+ 302:	c3                   	ret    
+ 303:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 30a:	00 00 00 
+ 30d:	be 26 00 00 00       	mov    $0x26,%esi
+ 312:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 319:	00 00 00 
+ 31c:	ff d0                	call   *%rax
+ 31e:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 325:	00 00 00 00 
+ 329:	0f 0b                	ud2    
+ 32b:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+
+0000000000000330 <netmgr_tcp_listen>:
+ 330:	f3 0f 1e fa          	endbr64 
+ 334:	55                   	push   %rbp
+ 335:	40 0f b6 f7          	movzbl %dil,%esi
+ 339:	48 89 e0             	mov    %rsp,%rax
+ 33c:	48 25 00 e0 ff ff    	and    $0xffffffffffffe000,%rax
+ 342:	48 89 e5             	mov    %rsp,%rbp
+ 345:	53                   	push   %rbx
+ 346:	48 bb 00 00 00 00 00 	movabs $0x0,%rbx
+ 34d:	00 00 00 
+ 350:	48 83 ec 08          	sub    $0x8,%rsp
+ 354:	0f b7 80 f0 1f 00 00 	movzwl 0x1ff0(%rax),%eax
+ 35b:	48 c1 e0 04          	shl    $0x4,%rax
+ 35f:	48 01 c3             	add    %rax,%rbx
+ 362:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 369:	00 00 00 
+ 36c:	48 8b 3b             	mov    (%rbx),%rdi
+ 36f:	ff d0                	call   *%rax
+ 371:	48 85 c0             	test   %rax,%rax
+ 374:	74 0b                	je     381 <netmgr_tcp_listen+0x51>
+ 376:	48 89 03             	mov    %rax,(%rbx)
+ 379:	48 8b 5d f8          	mov    -0x8(%rbp),%rbx
+ 37d:	31 c0                	xor    %eax,%eax
+ 37f:	c9                   	leave  
+ 380:	c3                   	ret    
+ 381:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 388:	00 00 00 
+ 38b:	be 26 00 00 00       	mov    $0x26,%esi
+ 390:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 397:	00 00 00 
+ 39a:	ff d0                	call   *%rax
+ 39c:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 3a3:	00 00 00 00 
+ 3a7:	0f 0b                	ud2    
+ 3a9:	0f 1f 80 00 00 00 00 	nopl   0x0(%rax)
+
+00000000000003b0 <net_receive_packet>:
+ 3b0:	f3 0f 1e fa          	endbr64 
+ 3b4:	55                   	push   %rbp
+ 3b5:	0f b7 f6             	movzwl %si,%esi
+ 3b8:	ba 01 00 00 00       	mov    $0x1,%edx
+ 3bd:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 3c4:	00 00 00 
+ 3c7:	48 89 e5             	mov    %rsp,%rbp
+ 3ca:	41 54                	push   %r12
+ 3cc:	53                   	push   %rbx
+ 3cd:	48 89 fb             	mov    %rdi,%rbx
+ 3d0:	bf 0e 00 00 00       	mov    $0xe,%edi
+ 3d5:	ff d0                	call   *%rax
+ 3d7:	48 85 c0             	test   %rax,%rax
+ 3da:	74 71                	je     44d <net_receive_packet+0x9d>
+ 3dc:	48 89 58 08          	mov    %rbx,0x8(%rax)
+ 3e0:	49 89 c4             	mov    %rax,%r12
+ 3e3:	48 89 c7             	mov    %rax,%rdi
+ 3e6:	48 be 00 00 00 00 00 	movabs $0x0,%rsi
+ 3ed:	00 00 00 
+ 3f0:	48 a1 00 00 00 00 00 	movabs 0x0,%rax
+ 3f7:	00 00 00 
+ 3fa:	ff d0                	call   *%rax
+ 3fc:	84 c0                	test   %al,%al
+ 3fe:	75 0f                	jne    40f <net_receive_packet+0x5f>
+ 400:	41 80 7c 24 16 00    	cmpb   $0x0,0x16(%r12)
+ 406:	75 2f                	jne    437 <net_receive_packet+0x87>
+ 408:	5b                   	pop    %rbx
+ 409:	31 c0                	xor    %eax,%eax
+ 40b:	41 5c                	pop    %r12
+ 40d:	5d                   	pop    %rbp
+ 40e:	c3                   	ret    
+ 40f:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 416:	00 00 00 
+ 419:	be 26 00 00 00       	mov    $0x26,%esi
+ 41e:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 425:	00 00 00 
+ 428:	ff d0                	call   *%rax
+ 42a:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 431:	00 00 00 00 
+ 435:	0f 0b                	ud2    
+ 437:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 43e:	00 00 00 
+ 441:	4c 89 e7             	mov    %r12,%rdi
+ 444:	ff d0                	call   *%rax
+ 446:	5b                   	pop    %rbx
+ 447:	31 c0                	xor    %eax,%eax
+ 449:	41 5c                	pop    %r12
+ 44b:	5d                   	pop    %rbp
+ 44c:	c3                   	ret    
+ 44d:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 454:	00 00 00 
+ 457:	be 26 00 00 00       	mov    $0x26,%esi
+ 45c:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 463:	00 00 00 
+ 466:	ff d0                	call   *%rax
+ 468:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 46f:	00 00 00 00 
+ 473:	0f 0b                	ud2    
+ 475:	66 66 2e 0f 1f 84 00 	data16 cs nopw 0x0(%rax,%rax,1)
+ 47c:	00 00 00 00 
+
+0000000000000480 <netmgr_tcp_accept>:
+ 480:	f3 0f 1e fa          	endbr64 
+ 484:	55                   	push   %rbp
+ 485:	48 89 e0             	mov    %rsp,%rax
+ 488:	48 25 00 e0 ff ff    	and    $0xffffffffffffe000,%rax
+ 48e:	48 89 e5             	mov    %rsp,%rbp
+ 491:	41 57                	push   %r15
+ 493:	41 56                	push   %r14
+ 495:	49 be 00 00 00 00 00 	movabs $0x0,%r14
+ 49c:	00 00 00 
+ 49f:	41 55                	push   %r13
+ 4a1:	41 54                	push   %r12
+ 4a3:	49 bc 00 00 00 00 00 	movabs $0x0,%r12
+ 4aa:	00 00 00 
+ 4ad:	53                   	push   %rbx
+ 4ae:	4c 89 e7             	mov    %r12,%rdi
+ 4b1:	48 83 ec 18          	sub    $0x18,%rsp
+ 4b5:	0f b7 98 f0 1f 00 00 	movzwl 0x1ff0(%rax),%ebx
+ 4bc:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 4c3:	00 00 00 
+ 4c6:	ff d0                	call   *%rax
+ 4c8:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 4cf:	00 00 00 
+ 4d2:	48 be 00 00 00 00 00 	movabs $0x0,%rsi
+ 4d9:	00 00 00 
+ 4dc:	48 c1 e3 04          	shl    $0x4,%rbx
+ 4e0:	48 8b 3c 18          	mov    (%rax,%rbx,1),%rdi
+ 4e4:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 4eb:	00 00 00 
+ 4ee:	ff d0                	call   *%rax
+ 4f0:	41 8b 0e             	mov    (%r14),%ecx
+ 4f3:	85 c9                	test   %ecx,%ecx
+ 4f5:	0f 85 30 01 00 00    	jne    62b <netmgr_tcp_accept+0x1ab>
+ 4fb:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 502:	00 00 00 
+ 505:	48 8d 7d ce          	lea    -0x32(%rbp),%rdi
+ 509:	ff d0                	call   *%rax
+ 50b:	48 ba 00 00 00 00 00 	movabs $0x0,%rdx
+ 512:	00 00 00 
+ 515:	89 c3                	mov    %eax,%ebx
+ 517:	31 c0                	xor    %eax,%eax
+ 519:	ff d2                	call   *%rdx
+ 51b:	48 89 c2             	mov    %rax,%rdx
+ 51e:	83 fb 3f             	cmp    $0x3f,%ebx
+ 521:	0f 87 d4 00 00 00    	ja     5fb <netmgr_tcp_accept+0x17b>
+ 527:	89 d9                	mov    %ebx,%ecx
+ 529:	48 8d 74 08 08       	lea    0x8(%rax,%rcx,1),%rsi
+ 52e:	80 3e 00             	cmpb   $0x0,(%rsi)
+ 531:	0f 84 c4 00 00 00    	je     5fb <netmgr_tcp_accept+0x17b>
+ 537:	b8 01 00 00 00       	mov    $0x1,%eax
+ 53c:	f0 0f c0 06          	lock xadd %al,(%rsi)
+ 540:	48 c1 e1 0b          	shl    $0xb,%rcx
+ 544:	4c 8d 6c 0a 48       	lea    0x48(%rdx,%rcx,1),%r13
+ 549:	0f b7 75 ce          	movzwl -0x32(%rbp),%esi
+ 54d:	ba 01 00 00 00       	mov    $0x1,%edx
+ 552:	bf 0e 00 00 00       	mov    $0xe,%edi
+ 557:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 55e:	00 00 00 
+ 561:	ff d0                	call   *%rax
+ 563:	49 89 c7             	mov    %rax,%r15
+ 566:	48 85 c0             	test   %rax,%rax
+ 569:	0f 84 94 00 00 00    	je     603 <netmgr_tcp_accept+0x183>
+ 56f:	4c 89 68 08          	mov    %r13,0x8(%rax)
+ 573:	48 89 c7             	mov    %rax,%rdi
+ 576:	4c 89 e6             	mov    %r12,%rsi
+ 579:	48 a1 00 00 00 00 00 	movabs 0x0,%rax
+ 580:	00 00 00 
+ 583:	ff d0                	call   *%rax
+ 585:	84 c0                	test   %al,%al
+ 587:	75 2e                	jne    5b7 <netmgr_tcp_accept+0x137>
+ 589:	41 80 7f 16 00       	cmpb   $0x0,0x16(%r15)
+ 58e:	75 4f                	jne    5df <netmgr_tcp_accept+0x15f>
+ 590:	41 8b 06             	mov    (%r14),%eax
+ 593:	85 c0                	test   %eax,%eax
+ 595:	0f 84 60 ff ff ff    	je     4fb <netmgr_tcp_accept+0x7b>
+ 59b:	89 d8                	mov    %ebx,%eax
+ 59d:	a3 00 00 00 00 00 00 	movabs %eax,0x0
+ 5a4:	00 00 
+ 5a6:	48 83 c4 18          	add    $0x18,%rsp
+ 5aa:	31 c0                	xor    %eax,%eax
+ 5ac:	5b                   	pop    %rbx
+ 5ad:	41 5c                	pop    %r12
+ 5af:	41 5d                	pop    %r13
+ 5b1:	41 5e                	pop    %r14
+ 5b3:	41 5f                	pop    %r15
+ 5b5:	5d                   	pop    %rbp
+ 5b6:	c3                   	ret    
+ 5b7:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 5be:	00 00 00 
+ 5c1:	be 26 00 00 00       	mov    $0x26,%esi
+ 5c6:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 5cd:	00 00 00 
+ 5d0:	ff d0                	call   *%rax
+ 5d2:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 5d9:	00 00 00 00 
+ 5dd:	0f 0b                	ud2    
+ 5df:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 5e6:	00 00 00 
+ 5e9:	4c 89 ff             	mov    %r15,%rdi
+ 5ec:	ff d0                	call   *%rax
+ 5ee:	41 8b 16             	mov    (%r14),%edx
+ 5f1:	85 d2                	test   %edx,%edx
+ 5f3:	0f 84 02 ff ff ff    	je     4fb <netmgr_tcp_accept+0x7b>
+ 5f9:	eb a0                	jmp    59b <netmgr_tcp_accept+0x11b>
+ 5fb:	45 31 ed             	xor    %r13d,%r13d
+ 5fe:	e9 46 ff ff ff       	jmp    549 <netmgr_tcp_accept+0xc9>
+ 603:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 60a:	00 00 00 
+ 60d:	be 26 00 00 00       	mov    $0x26,%esi
+ 612:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 619:	00 00 00 
+ 61c:	ff d0                	call   *%rax
+ 61e:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 625:	00 00 00 00 
+ 629:	0f 0b                	ud2    
+ 62b:	31 db                	xor    %ebx,%ebx
+ 62d:	e9 69 ff ff ff       	jmp    59b <netmgr_tcp_accept+0x11b>
+ 632:	66 66 2e 0f 1f 84 00 	data16 cs nopw 0x0(%rax,%rax,1)
+ 639:	00 00 00 00 
+ 63d:	0f 1f 00             	nopl   (%rax)
+
+0000000000000640 <netmgr_tcp_shmem_read>:
+ 640:	f3 0f 1e fa          	endbr64 
+ 644:	55                   	push   %rbp
+ 645:	31 c0                	xor    %eax,%eax
+ 647:	48 89 e5             	mov    %rsp,%rbp
+ 64a:	41 57                	push   %r15
+ 64c:	41 56                	push   %r14
+ 64e:	41 55                	push   %r13
+ 650:	49 bd 00 00 00 00 00 	movabs $0x0,%r13
+ 657:	00 00 00 
+ 65a:	41 54                	push   %r12
+ 65c:	53                   	push   %rbx
+ 65d:	48 bb 00 00 00 00 00 	movabs $0x0,%rbx
+ 664:	00 00 00 
+ 667:	48 83 ec 28          	sub    $0x28,%rsp
+ 66b:	45 8b 65 00          	mov    0x0(%r13),%r12d
+ 66f:	48 89 7d b8          	mov    %rdi,-0x48(%rbp)
+ 673:	48 89 75 b0          	mov    %rsi,-0x50(%rbp)
+ 677:	ff d3                	call   *%rbx
+ 679:	41 83 fc 3f          	cmp    $0x3f,%r12d
+ 67d:	0f 87 0e 01 00 00    	ja     791 <netmgr_tcp_shmem_read+0x151>
+ 683:	4a 8d 4c 20 08       	lea    0x8(%rax,%r12,1),%rcx
+ 688:	48 89 c2             	mov    %rax,%rdx
+ 68b:	80 39 00             	cmpb   $0x0,(%rcx)
+ 68e:	0f 84 fd 00 00 00    	je     791 <netmgr_tcp_shmem_read+0x151>
+ 694:	b8 01 00 00 00       	mov    $0x1,%eax
+ 699:	f0 0f c0 01          	lock xadd %al,(%rcx)
+ 69d:	49 c1 e4 0b          	shl    $0xb,%r12
+ 6a1:	4a 8d 54 22 48       	lea    0x48(%rdx,%r12,1),%rdx
+ 6a6:	49 be 00 00 00 00 00 	movabs $0x0,%r14
+ 6ad:	00 00 00 
+ 6b0:	41 8b 0e             	mov    (%r14),%ecx
+ 6b3:	85 c9                	test   %ecx,%ecx
+ 6b5:	74 46                	je     6fd <netmgr_tcp_shmem_read+0xbd>
+ 6b7:	e9 89 00 00 00       	jmp    745 <netmgr_tcp_shmem_read+0x105>
+ 6bc:	0f 1f 40 00          	nopl   0x0(%rax)
+ 6c0:	44 89 e1             	mov    %r12d,%ecx
+ 6c3:	48 8d 74 08 08       	lea    0x8(%rax,%rcx,1),%rsi
+ 6c8:	80 3e 00             	cmpb   $0x0,(%rsi)
+ 6cb:	74 50                	je     71d <netmgr_tcp_shmem_read+0xdd>
+ 6cd:	b8 01 00 00 00       	mov    $0x1,%eax
+ 6d2:	f0 0f c0 06          	lock xadd %al,(%rsi)
+ 6d6:	48 c1 e1 0b          	shl    $0xb,%rcx
+ 6da:	0f b7 75 ce          	movzwl -0x32(%rbp),%esi
+ 6de:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 6e5:	00 00 00 
+ 6e8:	4c 8d 7c 0a 48       	lea    0x48(%rdx,%rcx,1),%r15
+ 6ed:	4c 89 ff             	mov    %r15,%rdi
+ 6f0:	ff d0                	call   *%rax
+ 6f2:	41 8b 06             	mov    (%r14),%eax
+ 6f5:	45 89 65 00          	mov    %r12d,0x0(%r13)
+ 6f9:	85 c0                	test   %eax,%eax
+ 6fb:	75 4f                	jne    74c <netmgr_tcp_shmem_read+0x10c>
+ 6fd:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 704:	00 00 00 
+ 707:	48 8d 7d ce          	lea    -0x32(%rbp),%rdi
+ 70b:	ff d0                	call   *%rax
+ 70d:	41 89 c4             	mov    %eax,%r12d
+ 710:	31 c0                	xor    %eax,%eax
+ 712:	ff d3                	call   *%rbx
+ 714:	48 89 c2             	mov    %rax,%rdx
+ 717:	41 83 fc 3f          	cmp    $0x3f,%r12d
+ 71b:	76 a3                	jbe    6c0 <netmgr_tcp_shmem_read+0x80>
+ 71d:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 724:	00 00 00 
+ 727:	be 26 00 00 00       	mov    $0x26,%esi
+ 72c:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 733:	00 00 00 
+ 736:	ff d0                	call   *%rax
+ 738:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 73f:	00 00 00 00 
+ 743:	0f 0b                	ud2    
+ 745:	45 8b 65 00          	mov    0x0(%r13),%r12d
+ 749:	49 89 d7             	mov    %rdx,%r15
+ 74c:	48 a1 00 00 00 00 00 	movabs 0x0,%rax
+ 753:	00 00 00 
+ 756:	48 8b 5d b8          	mov    -0x48(%rbp),%rbx
+ 75a:	48 8b 48 08          	mov    0x8(%rax),%rcx
+ 75e:	4c 29 f9             	sub    %r15,%rcx
+ 761:	66 89 0b             	mov    %cx,(%rbx)
+ 764:	48 8b 5d b0          	mov    -0x50(%rbp),%rbx
+ 768:	0f b7 40 12          	movzwl 0x12(%rax),%eax
+ 76c:	66 89 03             	mov    %ax,(%rbx)
+ 76f:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 776:	00 00 00 
+ 779:	c7 00 00 00 00 00    	movl   $0x0,(%rax)
+ 77f:	48 83 c4 28          	add    $0x28,%rsp
+ 783:	44 89 e0             	mov    %r12d,%eax
+ 786:	5b                   	pop    %rbx
+ 787:	41 5c                	pop    %r12
+ 789:	41 5d                	pop    %r13
+ 78b:	41 5e                	pop    %r14
+ 78d:	41 5f                	pop    %r15
+ 78f:	5d                   	pop    %rbp
+ 790:	c3                   	ret    
+ 791:	31 d2                	xor    %edx,%edx
+ 793:	e9 0e ff ff ff       	jmp    6a6 <netmgr_tcp_shmem_read+0x66>
+ 798:	0f 1f 84 00 00 00 00 	nopl   0x0(%rax,%rax,1)
+ 79f:	00 
+
+00000000000007a0 <netmgr_tcp_shmem_write>:
+ 7a0:	f3 0f 1e fa          	endbr64 
+ 7a4:	55                   	push   %rbp
+ 7a5:	48 89 e0             	mov    %rsp,%rax
+ 7a8:	48 25 00 e0 ff ff    	and    $0xffffffffffffe000,%rax
+ 7ae:	48 89 e5             	mov    %rsp,%rbp
+ 7b1:	41 56                	push   %r14
+ 7b3:	41 55                	push   %r13
+ 7b5:	41 89 f5             	mov    %esi,%r13d
+ 7b8:	41 54                	push   %r12
+ 7ba:	41 89 d4             	mov    %edx,%r12d
+ 7bd:	48 ba 00 00 00 00 00 	movabs $0x0,%rdx
+ 7c4:	00 00 00 
+ 7c7:	53                   	push   %rbx
+ 7c8:	89 fb                	mov    %edi,%ebx
+ 7ca:	44 0f b7 b0 f0 1f 00 	movzwl 0x1ff0(%rax),%r14d
+ 7d1:	00 
+ 7d2:	31 c0                	xor    %eax,%eax
+ 7d4:	ff d2                	call   *%rdx
+ 7d6:	83 fb 3f             	cmp    $0x3f,%ebx
+ 7d9:	77 5d                	ja     838 <netmgr_tcp_shmem_write+0x98>
+ 7db:	48 8d 4c 18 08       	lea    0x8(%rax,%rbx,1),%rcx
+ 7e0:	48 89 c2             	mov    %rax,%rdx
+ 7e3:	80 39 00             	cmpb   $0x0,(%rcx)
+ 7e6:	74 50                	je     838 <netmgr_tcp_shmem_write+0x98>
+ 7e8:	b8 01 00 00 00       	mov    $0x1,%eax
+ 7ed:	f0 0f c0 01          	lock xadd %al,(%rcx)
+ 7f1:	48 c1 e3 0b          	shl    $0xb,%rbx
+ 7f5:	48 8d 74 1a 48       	lea    0x48(%rdx,%rbx,1),%rsi
+ 7fa:	49 c1 e6 04          	shl    $0x4,%r14
+ 7fe:	45 0f b7 ed          	movzwl %r13w,%r13d
+ 802:	31 c9                	xor    %ecx,%ecx
+ 804:	41 0f b7 d4          	movzwl %r12w,%edx
+ 808:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 80f:	00 00 00 
+ 812:	4c 01 ee             	add    %r13,%rsi
+ 815:	4a 8b 3c 30          	mov    (%rax,%r14,1),%rdi
+ 819:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 820:	00 00 00 
+ 823:	ff d0                	call   *%rax
+ 825:	84 c0                	test   %al,%al
+ 827:	75 13                	jne    83c <netmgr_tcp_shmem_write+0x9c>
+ 829:	5b                   	pop    %rbx
+ 82a:	31 c0                	xor    %eax,%eax
+ 82c:	41 5c                	pop    %r12
+ 82e:	41 5d                	pop    %r13
+ 830:	41 5e                	pop    %r14
+ 832:	5d                   	pop    %rbp
+ 833:	c3                   	ret    
+ 834:	0f 1f 40 00          	nopl   0x0(%rax)
+ 838:	31 f6                	xor    %esi,%esi
+ 83a:	eb be                	jmp    7fa <netmgr_tcp_shmem_write+0x5a>
+ 83c:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 843:	00 00 00 
+ 846:	be 26 00 00 00       	mov    $0x26,%esi
+ 84b:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 852:	00 00 00 
+ 855:	ff d0                	call   *%rax
+ 857:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 85e:	00 00 00 00 
+ 862:	0f 0b                	ud2    
+ 864:	66 66 2e 0f 1f 84 00 	data16 cs nopw 0x0(%rax,%rax,1)
+ 86b:	00 00 00 00 
+ 86f:	90                   	nop
+
+0000000000000870 <netmgr_udp_bind>:
+ 870:	f3 0f 1e fa          	endbr64 
+ 874:	55                   	push   %rbp
+ 875:	48 89 e0             	mov    %rsp,%rax
+ 878:	48 25 00 e0 ff ff    	and    $0xffffffffffffe000,%rax
+ 87e:	48 89 e5             	mov    %rsp,%rbp
+ 881:	41 55                	push   %r13
+ 883:	41 54                	push   %r12
+ 885:	53                   	push   %rbx
+ 886:	48 83 ec 18          	sub    $0x18,%rsp
+ 88a:	48 8b 80 f0 1f 00 00 	mov    0x1ff0(%rax),%rax
+ 891:	89 7d dc             	mov    %edi,-0x24(%rbp)
+ 894:	a9 f0 ff 00 00       	test   $0xfff0,%eax
+ 899:	0f 85 94 00 00 00    	jne    933 <netmgr_udp_bind+0xc3>
+ 89f:	41 89 fd             	mov    %edi,%r13d
+ 8a2:	44 0f b7 e6          	movzwl %si,%r12d
+ 8a6:	0f b7 d8             	movzwl %ax,%ebx
+ 8a9:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 8b0:	00 00 00 
+ 8b3:	44 89 e7             	mov    %r12d,%edi
+ 8b6:	48 c1 e3 04          	shl    $0x4,%rbx
+ 8ba:	ff d0                	call   *%rax
+ 8bc:	44 89 ef             	mov    %r13d,%edi
+ 8bf:	49 bd 00 00 00 00 00 	movabs $0x0,%r13
+ 8c6:	00 00 00 
+ 8c9:	0f b7 f0             	movzwl %ax,%esi
+ 8cc:	49 01 dd             	add    %rbx,%r13
+ 8cf:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 8d6:	00 00 00 
+ 8d9:	ff d0                	call   *%rax
+ 8db:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 8e2:	00 00 00 
+ 8e5:	ff d0                	call   *%rax
+ 8e7:	49 89 45 08          	mov    %rax,0x8(%r13)
+ 8eb:	48 89 c7             	mov    %rax,%rdi
+ 8ee:	48 85 c0             	test   %rax,%rax
+ 8f1:	74 68                	je     95b <netmgr_udp_bind+0xeb>
+ 8f3:	44 89 e2             	mov    %r12d,%edx
+ 8f6:	48 8d 75 dc          	lea    -0x24(%rbp),%rsi
+ 8fa:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 901:	00 00 00 
+ 904:	ff d0                	call   *%rax
+ 906:	84 c0                	test   %al,%al
+ 908:	75 79                	jne    983 <netmgr_udp_bind+0x113>
+ 90a:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 911:	00 00 00 
+ 914:	49 8b 7d 08          	mov    0x8(%r13),%rdi
+ 918:	31 d2                	xor    %edx,%edx
+ 91a:	48 be 00 00 00 00 00 	movabs $0x0,%rsi
+ 921:	00 00 00 
+ 924:	ff d0                	call   *%rax
+ 926:	48 83 c4 18          	add    $0x18,%rsp
+ 92a:	31 c0                	xor    %eax,%eax
+ 92c:	5b                   	pop    %rbx
+ 92d:	41 5c                	pop    %r12
+ 92f:	41 5d                	pop    %r13
+ 931:	5d                   	pop    %rbp
+ 932:	c3                   	ret    
+ 933:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 93a:	00 00 00 
+ 93d:	be 26 00 00 00       	mov    $0x26,%esi
+ 942:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 949:	00 00 00 
+ 94c:	ff d0                	call   *%rax
+ 94e:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 955:	00 00 00 00 
+ 959:	0f 0b                	ud2    
+ 95b:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 962:	00 00 00 
+ 965:	be 26 00 00 00       	mov    $0x26,%esi
+ 96a:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 971:	00 00 00 
+ 974:	ff d0                	call   *%rax
+ 976:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 97d:	00 00 00 00 
+ 981:	0f 0b                	ud2    
+ 983:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ 98a:	00 00 00 
+ 98d:	be 26 00 00 00       	mov    $0x26,%esi
+ 992:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ 999:	00 00 00 
+ 99c:	ff d0                	call   *%rax
+ 99e:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ 9a5:	00 00 00 00 
+ 9a9:	0f 0b                	ud2    
+ 9ab:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+
+00000000000009b0 <netmgr_udp_shmem_read>:
+ 9b0:	f3 0f 1e fa          	endbr64 
+ 9b4:	55                   	push   %rbp
+ 9b5:	48 89 e5             	mov    %rsp,%rbp
+ 9b8:	41 57                	push   %r15
+ 9ba:	41 56                	push   %r14
+ 9bc:	49 be 00 00 00 00 00 	movabs $0x0,%r14
+ 9c3:	00 00 00 
+ 9c6:	41 55                	push   %r13
+ 9c8:	49 bd 00 00 00 00 00 	movabs $0x0,%r13
+ 9cf:	00 00 00 
+ 9d2:	41 54                	push   %r12
+ 9d4:	53                   	push   %rbx
+ 9d5:	48 bb 00 00 00 00 00 	movabs $0x0,%rbx
+ 9dc:	00 00 00 
+ 9df:	48 83 ec 38          	sub    $0x38,%rsp
+ 9e3:	48 89 7d b8          	mov    %rdi,-0x48(%rbp)
+ 9e7:	48 89 75 b0          	mov    %rsi,-0x50(%rbp)
+ 9eb:	48 89 55 a8          	mov    %rdx,-0x58(%rbp)
+ 9ef:	48 89 4d a0          	mov    %rcx,-0x60(%rbp)
+ 9f3:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+ 9f8:	48 8d 7d ce          	lea    -0x32(%rbp),%rdi
+ 9fc:	41 ff d6             	call   *%r14
+ 9ff:	41 89 c4             	mov    %eax,%r12d
+ a02:	31 c0                	xor    %eax,%eax
+ a04:	41 ff d5             	call   *%r13
+ a07:	41 83 fc 3f          	cmp    $0x3f,%r12d
+ a0b:	0f 87 8f 00 00 00    	ja     aa0 <netmgr_udp_shmem_read+0xf0>
+ a11:	44 89 e2             	mov    %r12d,%edx
+ a14:	80 7c 10 08 00       	cmpb   $0x0,0x8(%rax,%rdx,1)
+ a19:	0f 84 81 00 00 00    	je     aa0 <netmgr_udp_shmem_read+0xf0>
+ a1f:	48 c1 e2 0b          	shl    $0xb,%rdx
+ a23:	0f b7 75 ce          	movzwl -0x32(%rbp),%esi
+ a27:	4c 8d 7c 10 48       	lea    0x48(%rax,%rdx,1),%r15
+ a2c:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ a33:	00 00 00 
+ a36:	4c 89 ff             	mov    %r15,%rdi
+ a39:	ff d0                	call   *%rax
+ a3b:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ a42:	00 00 00 
+ a45:	44 89 20             	mov    %r12d,(%rax)
+ a48:	8b 03                	mov    (%rbx),%eax
+ a4a:	85 c0                	test   %eax,%eax
+ a4c:	75 7a                	jne    ac8 <netmgr_udp_shmem_read+0x118>
+ a4e:	4c 89 fe             	mov    %r15,%rsi
+ a51:	4c 89 fa             	mov    %r15,%rdx
+ a54:	48 81 e6 00 00 00 ff 	and    $0xffffffffff000000,%rsi
+ a5b:	48 8d 46 48          	lea    0x48(%rsi),%rax
+ a5f:	48 29 c2             	sub    %rax,%rdx
+ a62:	48 c1 ea 0b          	shr    $0xb,%rdx
+ a66:	89 d1                	mov    %edx,%ecx
+ a68:	83 fa 3f             	cmp    $0x3f,%edx
+ a6b:	77 8b                	ja     9f8 <netmgr_udp_shmem_read+0x48>
+ a6d:	89 d2                	mov    %edx,%edx
+ a6f:	b8 ff ff ff ff       	mov    $0xffffffff,%eax
+ a74:	f0 0f c0 44 16 08    	lock xadd %al,0x8(%rsi,%rdx,1)
+ a7a:	3c 01                	cmp    $0x1,%al
+ a7c:	0f 8f 76 ff ff ff    	jg     9f8 <netmgr_udp_shmem_read+0x48>
+ a82:	83 f1 3f             	xor    $0x3f,%ecx
+ a85:	b8 01 00 00 00       	mov    $0x1,%eax
+ a8a:	48 bb 00 00 00 00 00 	movabs $0x0,%rbx
+ a91:	00 00 00 
+ a94:	48 d3 e0             	shl    %cl,%rax
+ a97:	48 09 06             	or     %rax,(%rsi)
+ a9a:	e9 59 ff ff ff       	jmp    9f8 <netmgr_udp_shmem_read+0x48>
+ a9f:	90                   	nop
+ aa0:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ aa7:	00 00 00 
+ aaa:	be 26 00 00 00       	mov    $0x26,%esi
+ aaf:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ ab6:	00 00 00 
+ ab9:	ff d0                	call   *%rax
+ abb:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ ac2:	00 00 00 00 
+ ac6:	0f 0b                	ud2    
+ ac8:	48 a1 00 00 00 00 00 	movabs 0x0,%rax
+ acf:	00 00 00 
+ ad2:	48 8b 5d b8          	mov    -0x48(%rbp),%rbx
+ ad6:	48 8b 48 08          	mov    0x8(%rax),%rcx
+ ada:	4c 29 f9             	sub    %r15,%rcx
+ add:	66 89 0b             	mov    %cx,(%rbx)
+ ae0:	48 8b 5d b0          	mov    -0x50(%rbp),%rbx
+ ae4:	0f b7 40 12          	movzwl 0x12(%rax),%eax
+ ae8:	66 89 03             	mov    %ax,(%rbx)
+ aeb:	48 8b 5d a8          	mov    -0x58(%rbp),%rbx
+ aef:	a1 00 00 00 00 00 00 	movabs 0x0,%eax
+ af6:	00 00 
+ af8:	89 03                	mov    %eax,(%rbx)
+ afa:	48 8b 5d a0          	mov    -0x60(%rbp),%rbx
+ afe:	66 a1 00 00 00 00 00 	movabs 0x0,%ax
+ b05:	00 00 00 
+ b08:	66 89 03             	mov    %ax,(%rbx)
+ b0b:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ b12:	00 00 00 
+ b15:	c7 00 00 00 00 00    	movl   $0x0,(%rax)
+ b1b:	48 83 c4 38          	add    $0x38,%rsp
+ b1f:	44 89 e0             	mov    %r12d,%eax
+ b22:	5b                   	pop    %rbx
+ b23:	41 5c                	pop    %r12
+ b25:	41 5d                	pop    %r13
+ b27:	41 5e                	pop    %r14
+ b29:	41 5f                	pop    %r15
+ b2b:	5d                   	pop    %rbp
+ b2c:	c3                   	ret    
+ b2d:	0f 1f 00             	nopl   (%rax)
+
+0000000000000b30 <netmgr_udp_shmem_write>:
+ b30:	f3 0f 1e fa          	endbr64 
+ b34:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ b3b:	00 00 00 
+ b3e:	55                   	push   %rbp
+ b3f:	48 89 e5             	mov    %rsp,%rbp
+ b42:	41 57                	push   %r15
+ b44:	41 89 cf             	mov    %ecx,%r15d
+ b47:	41 56                	push   %r14
+ b49:	49 be 00 00 00 00 00 	movabs $0x0,%r14
+ b50:	00 00 00 
+ b53:	41 55                	push   %r13
+ b55:	41 89 f5             	mov    %esi,%r13d
+ b58:	41 54                	push   %r12
+ b5a:	41 89 d4             	mov    %edx,%r12d
+ b5d:	53                   	push   %rbx
+ b5e:	89 fb                	mov    %edi,%ebx
+ b60:	48 83 ec 28          	sub    $0x28,%rsp
+ b64:	44 89 45 b4          	mov    %r8d,-0x4c(%rbp)
+ b68:	49 c7 06 00 00 00 00 	movq   $0x0,(%r14)
+ b6f:	ff d0                	call   *%rax
+ b71:	85 c0                	test   %eax,%eax
+ b73:	74 11                	je     b86 <netmgr_udp_shmem_write+0x56>
+ b75:	a3 00 00 00 00 00 00 	movabs %eax,0x0
+ b7c:	00 00 
+ b7e:	49 c7 46 10 00 00 00 	movq   $0x0,0x10(%r14)
+ b85:	00 
+ b86:	48 89 e0             	mov    %rsp,%rax
+ b89:	48 ba 00 00 00 00 00 	movabs $0x0,%rdx
+ b90:	00 00 00 
+ b93:	48 25 00 e0 ff ff    	and    $0xffffffffffffe000,%rax
+ b99:	0f b7 80 f0 1f 00 00 	movzwl 0x1ff0(%rax),%eax
+ ba0:	48 89 45 b8          	mov    %rax,-0x48(%rbp)
+ ba4:	31 c0                	xor    %eax,%eax
+ ba6:	ff d2                	call   *%rdx
+ ba8:	83 fb 3f             	cmp    $0x3f,%ebx
+ bab:	0f 87 53 01 00 00    	ja     d04 <netmgr_udp_shmem_write+0x1d4>
+ bb1:	80 7c 18 08 00       	cmpb   $0x0,0x8(%rax,%rbx,1)
+ bb6:	0f 84 48 01 00 00    	je     d04 <netmgr_udp_shmem_write+0x1d4>
+ bbc:	48 c1 e3 0b          	shl    $0xb,%rbx
+ bc0:	48 8d 44 18 48       	lea    0x48(%rax,%rbx,1),%rax
+ bc5:	48 ba 00 00 00 00 00 	movabs $0x0,%rdx
+ bcc:	00 00 00 
+ bcf:	45 0f b7 ed          	movzwl %r13w,%r13d
+ bd3:	49 01 c5             	add    %rax,%r13
+ bd6:	31 c0                	xor    %eax,%eax
+ bd8:	0f 1f 84 00 00 00 00 	nopl   0x0(%rax,%rax,1)
+ bdf:	00 
+ be0:	c6 04 02 01          	movb   $0x1,(%rdx,%rax,1)
+ be4:	48 83 c0 40          	add    $0x40,%rax
+ be8:	48 3d 00 00 c0 03    	cmp    $0x3c00000,%rax
+ bee:	75 f0                	jne    be0 <netmgr_udp_shmem_write+0xb0>
+ bf0:	0f 31                	rdtsc  
+ bf2:	48 c1 e2 20          	shl    $0x20,%rdx
+ bf6:	48 09 d0             	or     %rdx,%rax
+ bf9:	48 bb 00 00 00 00 00 	movabs $0x0,%rbx
+ c00:	00 00 00 
+ c03:	be 01 00 00 00       	mov    $0x1,%esi
+ c08:	31 d2                	xor    %edx,%edx
+ c0a:	48 89 03             	mov    %rax,(%rbx)
+ c0d:	0f 1f 00             	nopl   (%rax)
+ c10:	48 89 d0             	mov    %rdx,%rax
+ c13:	f0 49 0f b1 36       	lock cmpxchg %rsi,(%r14)
+ c18:	0f 94 c0             	sete   %al
+ c1b:	84 c0                	test   %al,%al
+ c1d:	74 f1                	je     c10 <netmgr_udp_shmem_write+0xe0>
+ c1f:	41 0f b7 f4          	movzwl %r12w,%esi
+ c23:	ba 01 00 00 00       	mov    $0x1,%edx
+ c28:	bf 0e 00 00 00       	mov    $0xe,%edi
+ c2d:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ c34:	00 00 00 
+ c37:	ff d0                	call   *%rax
+ c39:	49 89 c4             	mov    %rax,%r12
+ c3c:	48 85 c0             	test   %rax,%rax
+ c3f:	0f 84 c6 00 00 00    	je     d0b <netmgr_udp_shmem_write+0x1db>
+ c45:	4c 89 68 08          	mov    %r13,0x8(%rax)
+ c49:	48 8b 45 b8          	mov    -0x48(%rbp),%rax
+ c4d:	48 8d 55 cc          	lea    -0x34(%rbp),%rdx
+ c51:	4c 89 e6             	mov    %r12,%rsi
+ c54:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ c5b:	00 00 00 
+ c5e:	0f b7 4d b4          	movzwl -0x4c(%rbp),%ecx
+ c62:	44 89 7d cc          	mov    %r15d,-0x34(%rbp)
+ c66:	49 b8 00 00 00 00 00 	movabs $0x0,%r8
+ c6d:	00 00 00 
+ c70:	48 c1 e0 04          	shl    $0x4,%rax
+ c74:	48 8b 7c 07 08       	mov    0x8(%rdi,%rax,1),%rdi
+ c79:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ c80:	00 00 00 
+ c83:	ff d0                	call   *%rax
+ c85:	4c 89 e7             	mov    %r12,%rdi
+ c88:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ c8f:	00 00 00 
+ c92:	ff d0                	call   *%rax
+ c94:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ c9b:	00 00 00 
+ c9e:	48 c7 00 00 00 00 00 	movq   $0x0,(%rax)
+ ca5:	0f 31                	rdtsc  
+ ca7:	48 c1 e2 20          	shl    $0x20,%rdx
+ cab:	48 09 d0             	or     %rdx,%rax
+ cae:	48 ba 00 00 00 00 00 	movabs $0x0,%rdx
+ cb5:	00 00 00 
+ cb8:	48 89 02             	mov    %rax,(%rdx)
+ cbb:	48 8b 02             	mov    (%rdx),%rax
+ cbe:	48 8b 0b             	mov    (%rbx),%rcx
+ cc1:	48 29 c8             	sub    %rcx,%rax
+ cc4:	48 3d fe ff ff 7f    	cmp    $0x7ffffffe,%rax
+ cca:	77 67                	ja     d33 <netmgr_udp_shmem_write+0x203>
+ ccc:	49 bc 00 00 00 00 00 	movabs $0x0,%r12
+ cd3:	00 00 00 
+ cd6:	48 8b 02             	mov    (%rdx),%rax
+ cd9:	48 8b 13             	mov    (%rbx),%rdx
+ cdc:	48 29 d0             	sub    %rdx,%rax
+ cdf:	48 89 c3             	mov    %rax,%rbx
+ ce2:	41 8b 04 24          	mov    (%r12),%eax
+ ce6:	85 c0                	test   %eax,%eax
+ ce8:	7e 71                	jle    d5b <netmgr_udp_shmem_write+0x22b>
+ cea:	48 83 c4 28          	add    $0x28,%rsp
+ cee:	48 63 c8             	movslq %eax,%rcx
+ cf1:	31 d2                	xor    %edx,%edx
+ cf3:	48 89 d8             	mov    %rbx,%rax
+ cf6:	48 f7 f1             	div    %rcx
+ cf9:	5b                   	pop    %rbx
+ cfa:	41 5c                	pop    %r12
+ cfc:	41 5d                	pop    %r13
+ cfe:	41 5e                	pop    %r14
+ d00:	41 5f                	pop    %r15
+ d02:	5d                   	pop    %rbp
+ d03:	c3                   	ret    
+ d04:	31 c0                	xor    %eax,%eax
+ d06:	e9 ba fe ff ff       	jmp    bc5 <netmgr_udp_shmem_write+0x95>
+ d0b:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ d12:	00 00 00 
+ d15:	be 26 00 00 00       	mov    $0x26,%esi
+ d1a:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ d21:	00 00 00 
+ d24:	ff d0                	call   *%rax
+ d26:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ d2d:	00 00 00 00 
+ d31:	0f 0b                	ud2    
+ d33:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ d3a:	00 00 00 
+ d3d:	be 26 00 00 00       	mov    $0x26,%esi
+ d42:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ d49:	00 00 00 
+ d4c:	ff d0                	call   *%rax
+ d4e:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ d55:	00 00 00 00 
+ d59:	0f 0b                	ud2    
+ d5b:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ d62:	00 00 00 
+ d65:	ff d0                	call   *%rax
+ d67:	41 89 04 24          	mov    %eax,(%r12)
+ d6b:	85 c0                	test   %eax,%eax
+ d6d:	0f 8f 77 ff ff ff    	jg     cea <netmgr_udp_shmem_write+0x1ba>
+ d73:	48 bf 00 00 00 00 00 	movabs $0x0,%rdi
+ d7a:	00 00 00 
+ d7d:	be 8e 00 00 00       	mov    $0x8e,%esi
+ d82:	48 b8 00 00 00 00 00 	movabs $0x0,%rax
+ d89:	00 00 00 
+ d8c:	ff d0                	call   *%rax
+ d8e:	c7 04 25 00 00 00 00 	movl   $0x0,0x0
+ d95:	00 00 00 00 
+ d99:	0f 0b                	ud2    

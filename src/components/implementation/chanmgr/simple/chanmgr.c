@@ -170,12 +170,19 @@ void
 cos_init(void)
 {
 	int i;
-
 	printc("Chanmgr (%ld): creating static, initial channels.\n", cos_compid());
 
+	for (i = 0; init_chan[i].id > 0; i++) {
+		struct init_info *ch = &init_chan[i];
+		chan_id_t id;
+
+		id = __chanmgr_create(ch->itemsz, ch->nitems, 0, ch->id);
+		if (id != ch->id) BUG();
+	}
+	
 	struct initargs chan_entries;
 	int ret;
-	ret = args_get_entry("virt_resources/chan", &chan_entries);
+	ret = args_get_entry("sys_virt_resources/chan", &chan_entries);
 	/* check if the chan virtual resource is existing */
 	if (ret == 0) {
 		struct initargs param_entries, chan_curr;
@@ -193,18 +200,13 @@ cos_init(void)
 			assert(!ret);
 			size_item_str = args_get_from("size_item", &param_entries);
 			num_slots_str = args_get_from("num_slots", &param_entries);
-
+			printc("MBAI-TEST; init chan id is %s  \n"		, id_str);
+			printc("MBAI-TEST; init size_item  is %s  \n"	, size_item_str);
+			printc("MBAI-TEST; init num_slots  is %s  \n"	, num_slots_str);
+			printc("MBAI-TEST; u64_t size is %d  \n"	, sizeof(u64_t));
 			/* allocate the shared memory */
-			chan_id = __chanmgr_create(sizeof(u64_t), atoi(num_slots_str), CHAN_DEFAULT, atoi(id_str));
+			chan_id = __chanmgr_create(atoi(size_item_str), atoi(num_slots_str), CHAN_DEFAULT, atoi(id_str));
 			if (chan_id != atoi(id_str)) BUG();
 		}
-	}
-
-	for (i = 0; init_chan[i].id > 0; i++) {
-		struct init_info *ch = &init_chan[i];
-		chan_id_t id;
-
-		id = __chanmgr_create(ch->itemsz, ch->nitems, 0, ch->id);
-		if (id != ch->id) BUG();
 	}
 }

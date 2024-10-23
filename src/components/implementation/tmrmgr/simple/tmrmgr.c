@@ -9,6 +9,7 @@
 #include <static_slab.h>
 #include <heap.h>
 #include <cos_time.h>
+#include <initargs.h>
 
 #define MAX_NUM_TMR 32
 #define MIN_USECS_LIMIT 1000
@@ -49,12 +50,17 @@ timer_update_fn(void* e, int pos)
 DECLARE_HEAP(tmrmgr, timer_cmp_fn, timer_update_fn);
 
 tmr_id_t
-tmrmgr_create(unsigned int usecs, tmr_flags_t flags)
+tmrmgr_create(unsigned int usecs, tmr_flags_t flags, tmr_id_t tmr_id)
 {
 	tmr_id_t id;
 	struct tmr_info* t;
 
-	t = ss_timer_alloc();
+	if ( id == 0 ) {
+		t = ss_timer_alloc();
+	} else {
+		t = ss_timer_alloc_at_id(tmr_id);
+	}
+
 	if (!t) return 0;
 
 	id = ss_timer_id(t);
@@ -170,7 +176,7 @@ main(void)
 	struct tmr_info *t;
 
 	main_thdid=cos_thdid();
-	printc("Timer manager: executing main with thread ID %lu.\n", main_thdid);
+	//printc("Timer manager: executing main with thread ID %lu.\n", main_thdid);
 
 	/* Now we do a test around sched_thd_block_timeout and see... */
 	while(1) {
@@ -232,4 +238,34 @@ cos_init(void)
 	modifying = 0;
 	timer_active = (struct heap *)timer_heap;
 	heap_init(timer_active, MAX_NUM_TMR);
+
+	struct initargs tmr_entries;
+	int ret;
+	ret = args_get_entry("sys_virt_resources/tmr", &tmr_entries);
+	/* check if the chan virtual resource is existing */
+	if (ret == 0) {
+		struct initargs param_entries, tmr_curr;
+		struct initargs_iter j;
+		int cont;
+
+		for (cont = args_iter(&tmr_entries, &j, &tmr_curr) ; cont ; cont = args_iter_next(&j, &tmr_curr)) { 		
+			char *id_str 	= NULL;
+			char *time_str	= NULL;
+			char *type_str	= NULL;
+			tmr_id_t tmr_id = 0xFF;
+			/*	get the resource id, size*/ 
+			id_str 	= args_get_from("id", &tmr_curr);
+			ret 	= args_get_entry_from("params", &tmr_curr, &param_entries);
+			assert(!ret);
+			time_str = args_get_from("time", &param_entries);
+			type_str = args_get_from("type", &param_entries);
+			printc("MBAI-TEST; init tmr id is %s  \n"	, id_str);
+			printc("MBAI-TEST; init time  is %s  \n"	, time_str);
+			printc("MBAI-TEST; init type  is %s  \n"	, type_str);
+			/* allocate the shared memory */
+			tmr_id = tmrmgr_create(atoi(time_str), atoi(type_str), atoi(id_str));
+			if (tmr_id != atoi(id_str)) BUG();
+		}
+	}
+
 }

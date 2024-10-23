@@ -1,7 +1,7 @@
 # netmgr.toml
 [interface]
 description = "An API for network management, including TCP and UDP operations with shared memory."
-virt_resources = "net"
+virt_resources = "socket"
 
 [[function]]
 name = "netmgr_shmem_map"

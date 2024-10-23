@@ -131,7 +131,7 @@ fn sys_virt_res_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigSt
                                             param_args.push(ArgsKV::new_arr(
                                                 "sub_sub_virt_resource".to_string(),
                                                 vec![
-                                                    ArgsKV::new_key("id".to_string(), id.clone()),
+                                                    ArgsKV::new_key("id".to_string(), id.to_string()),
                                                 ],
                                             ));
                                         } else {
@@ -153,7 +153,7 @@ fn sys_virt_res_config(s: &SystemState, id: &ComponentId, cfg: &mut CompConfigSt
                     vr_args.push(ArgsKV::new_arr(
                         "sub_virt_resource".to_string(),
                         vec![
-                            ArgsKV::new_key("id".to_string(), vr_pass.rmap().get(&shmem.instance).cloned().unwrap()),
+                            ArgsKV::new_key("id".to_string(), vr_pass.rmap().get(&shmem.instance).cloned().unwrap().to_string()),
                             ArgsKV::new_arr("params".to_string(), param_args),
                             ArgsKV::new_arr("client".to_string(), compid_args),
                         ],
@@ -189,9 +189,13 @@ fn comp_virt_res_config(_s: &SystemState, _id: &ComponentId, _cfg: &mut CompConf
                     for assoc in associations {
                         let mut assoc_map = Vec::new();
                         assoc_map.push(ArgsKV::new_key("vr_type".to_string(), assoc.vr_type.clone()));
-            
+                        
+                        if let Some(data_value) = assoc.data.clone() {
+                            assoc_map.push(ArgsKV::new_key("data".to_string(), data_value));
+                        }
+                        
                         if let Some(id) = vr_pass.rmap().get(&assoc.instance) {
-                            assoc_map.push(ArgsKV::new_key("inst_id".to_string(), id.clone()));
+                            assoc_map.push(ArgsKV::new_key("inst_id".to_string(), id.to_string()));
                         }
             
                         assoc_args.push(ArgsKV::new_arr("_".to_string(), assoc_map));
@@ -201,7 +205,7 @@ fn comp_virt_res_config(_s: &SystemState, _id: &ComponentId, _cfg: &mut CompConf
 
                 /* generate the current virtual resource instance id  */
                 if let Some(id) = vr_pass.rmap().get(vr_inst_name) {
-                    config_args.push(ArgsKV::new_key("id".to_string(), id.clone()));
+                    config_args.push(ArgsKV::new_key("id".to_string(), id.to_string()));
                 }
 
                 /* generate the current virtual resource instance access options */

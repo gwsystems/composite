@@ -33,7 +33,7 @@ typedef enum {
  *     - `0` on success, and
  *     - `!0` if a timer cannot be created.
  */
- tmr_id_t tmrmgr_create(unsigned int usecs, tmr_flags_t flags);
+ tmr_id_t tmrmgr_create(unsigned int usecs, tmr_flags_t flags, tmr_id_t id);
 
 /**
  * Teardown a timer.

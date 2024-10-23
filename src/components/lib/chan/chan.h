@@ -72,7 +72,6 @@ static inline int
 chan_recv(struct chan_rcv *c, void *item, chan_comm_t flags)
 {
 	int ret;
-
 	ret = __chan_recv_pow2(c, item, c->meta.wraparound_mask, c->meta.item_sz, !(flags & CHAN_NONBLOCKING));
 	if (likely(ret == 0)) {
 		return 0;

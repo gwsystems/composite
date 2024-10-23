@@ -8,8 +8,12 @@ name = "chanmgr_create"
 access = ["dynamic_alloc"]
 
 [[function]]
+name = "chanmgr_create_at_id"
+access = ["dynamic_alloc"]
+
+[[function]]
 name = "chanmgr_sync_resources"
-access = ["blocking"]
+access = ["read"]
 # additional_virt_resources = [{resource = "evt", access = ["read"]}]
 
 [[function]]

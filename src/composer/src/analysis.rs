@@ -1,5 +1,5 @@
 use ascent::{ascent_run, lattice::Dual};
-use passes::{AnalysisPass, BuildState, ComponentId, Interface, SystemState, Transition, component};
+use passes::{AnalysisPass, VirtResPass, BuildState, ComponentId, Interface, SystemState, Transition, component, ComponentName};
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -175,6 +175,7 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         relation virt_res_access(VirtResource, VirtResourceId, ComponentId, VirtResAccess) = virt_res_access;
 
         // transient relations
+        relation component(ComponentId);
         relation criticality_exposure(ComponentId, CriticalityLvl);
         lattice comp_crit_hi(ComponentId, CriticalityLvl);
         lattice comp_crit_lo(ComponentId, Dual<CriticalityLvl>);
@@ -196,7 +197,7 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         depends_on(c, s) <-- dependencies(c, s, _, _);
         depends_on(c, ss) <-- depends_on(c, s), dependencies(s, ss, _, _);
 
-        //hard-coded assign constructor properties to booter
+        //hard-coded assign constructor properties to booter,logic is realted to tot_order.rs
         comp_properties(1, CompProperties::Constructor);       
         // server properties
         comp_properties(s, p) <-- dependencies(_, s, i, _), srv_prop_map(i, p);
@@ -212,9 +213,13 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         // before processing this relation, then we might have
         // multiple `comp_crit_range(c, _, _)` entries.
         comp_crit_range(c, hi, lo) <-- comp_crit_hi(c, hi), comp_crit_lo(c, ?Dual(lo));
-        show_warnings(s) <-- dependencies(_, s, _, _), 
-            !comp_properties(s, CompProperties::Scheduler), !comp_properties(s, CompProperties::CapMgr), 
-            !comp_properties(s, CompProperties::Constructor), !comp_properties(s, CompProperties::MemMgr);
+
+        component(c) <-- dependencies(c, _, _, _);
+        component(s) <-- dependencies(_, s, _, _);
+
+        show_warnings(c) <-- component(c), 
+            !comp_properties(c, CompProperties::Scheduler), !comp_properties(c, CompProperties::CapMgr), 
+            !comp_properties(c, CompProperties::Constructor), !comp_properties(c, CompProperties::MemMgr);
 
         warnings(c, Warning::SharedServiceMultCrit(*hi, *lo)) <-- show_warnings(c), comp_crit_range(c, hi, lo), if lo < hi;
 
@@ -247,8 +252,15 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
             comp_shared_lock(s, hc), comp_shared_lock(s, lc),
             comp_crit_hi(hc, hi), comp_crit_lo(lc, lo), if hi > lo;
     };
+    
+    println!("show_warnings: {:?}", p.show_warnings.iter().collect::<Vec<_>>());
+
+
     let lock_data: Vec<_> = p.comp_shared_lock.iter().collect();
     println!("shared lock: {:?}", lock_data);
+
+    let vr_data: Vec<_> = p.virt_res_access.iter().collect();
+    println!("virtual resource list: {:?}", vr_data);
 
     let properties_data: Vec<_> = p.comp_properties.iter().collect();
     println!("properties lock: {:?}", properties_data);
@@ -358,6 +370,7 @@ impl Analysis {
         //let vr_orig = s.get_spec().virtual_resources();
         //s.get_spec().interface_funcs()
         let ids = s.get_named();
+        let vr_pass: &dyn VirtResPass = s.get_virt_res();
 
         let compid = |c| ids.rmap().get(c).unwrap();
         let components: Vec<ComponentId> = cs.names().iter().map(|c| *compid(c)).collect();
@@ -390,8 +403,50 @@ impl Analysis {
             .collect(); 
  
         let full_dependencies = Self::expand_access_options_in_deps(s, dependencies);
-        for (comp_id, critical_level) in &criticalities {
-            println!("the criticalities component is {}, the level is {}", comp_id, critical_level);
+
+        let mut virt_res_service: Vec<(VirtResource, ComponentId)> = Vec::new();
+        let vr_orig = s.get_spec().virtual_resources();
+        for (_key, vr) in vr_orig {
+            let component_name = ComponentName::new(&vr.server, &String::from("global"));
+            virt_res_service.push((vr.vr_type.clone(),*ids.rmap().get(&component_name).unwrap()));
+        }  
+                
+        let mut virt_res_access: Vec<(VirtResource, VirtResourceId, ComponentId, VirtResAccess)> = Vec::new();
+        for id in &components {
+            let comp_spec = component(s,id);
+            for vr in &comp_spec.virt_res {
+                for inst in &vr.instances {
+                    for (vr_inst_name, vr_inst_config) in inst {
+                        for access in &vr_inst_config.access {
+                            //TBD: santiy check on the access option writting. 
+                            let access_type = match access.as_str() {
+                                "read" => VirtResAccess::Read,
+                                "write" => VirtResAccess::Modify,
+                                "dynamic_alloc" => VirtResAccess::DynAlloc,
+                                "blocking" => VirtResAccess::Block,
+                                _ => VirtResAccess::Unspecified,
+                            };
+                            virt_res_access.push((
+                                vr.vr_type.clone(),                     
+                                *vr_pass.rmap().get(&vr_inst_name.clone()).unwrap(), 
+                                *id,                                    
+                                access_type                             
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        for (virt_resource, component_id) in &virt_res_service {
+            println!("VirtResource: {}, ComponentId: {}", virt_resource, component_id);
+        }
+
+        for (virt_resource, virt_resource_id, component_id, access_type) in &virt_res_access {
+            println!(
+                "VirtResource: {}, VirtResourceId: {}, ComponentId: {}, AccessType: {:?}",
+                virt_resource, virt_resource_id, component_id, access_type
+            );
         }
 
         // Calculate the analysis outputs
@@ -400,8 +455,8 @@ impl Analysis {
             dependencies: full_dependencies,
             criticalities,
             // TODO
-            virt_res_service: Vec::new(),
-            virt_res_access: Vec::new(),
+            virt_res_service,
+            virt_res_access,
         })
     }
 }
