@@ -54,6 +54,7 @@ pub struct CompSubVirtRes {
 #[derive(Debug, Deserialize, Clone)]
 pub struct CompVirtRes {
     pub vr_type   : String,
+    pub max_dynalloc : String,
     pub instances : Vec<HashMap<String, CompSubVirtRes>>,
 }
 
@@ -64,6 +65,7 @@ pub struct TomlComponent {
     baseaddr: Option<String>,
     deps: Option<Vec<Dep>>,
     criticality_level: Option<usize>,
+    assurance_level: Option<usize>,
     params: Option<Vec<Parameters>>,
     virt_res: Option<Vec<CompVirtRes>>,
     constants: Option<Vec<ConstantVal>>,
@@ -674,6 +676,7 @@ impl Transition for SystemSpec {
                 constructor: ComponentName::new(&c.constructor, &String::from("global")),
                 scheduler: sched_name,
                 criticality_level: c.criticality_level.clone(),
+                assurance_level: c.assurance_level.clone(),
                 source: c.img.clone(),
                 base_vaddr: c
                     .baseaddr

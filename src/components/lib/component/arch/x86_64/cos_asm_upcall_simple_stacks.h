@@ -116,6 +116,9 @@ custom_acquire_stack:								\
 	testq %r8, %r8; 					\
 	/* stack_ptr_array[thd_id] is initialized, return without any changes */ \
 	jnz return;							\
+    /* check if stack_offset is equal or greater than MAX_LOCAL_NUM_THREADS */ \
+    cmpq $MAX_LOCAL_NUM_THREADS, stack_offset;             \
+    jge FIXME;  									\
 	/* stack_ptr_array[thd_id] is uninitialized, fetch and add 1 */ \
 	movq $1, %r8;						\
 	xaddq %r8, stack_offset;			\
@@ -128,4 +131,7 @@ return:										\
 	/* get the cpuid by right shifting the lower 16 bits*/			\
 	shr $16, %rdx;								\
 	/* on the return, rax is thread id, rdx is core id */ 			\
-	jmpq %rcx;
+	jmpq %rcx;														\
+FIXME:														\
+	movq stack_offset, %r9;														\
+	ud2;

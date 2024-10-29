@@ -66,8 +66,8 @@ virt_res = [
     {vr_type = "chan", instances = [
         {chan_01 = {access = ["read","write","blocking"]  , name = "chan_out" , association = [{vr_type = "evt", instance = "evt_01"}] }},
         {chan_02 = {access = ["read","write"]  , name = "chan_in"  }}]},
-    {vr_type = "evt", instances = [
-        {evt_01 = {access = ["read","write", "blocking", "dynamic_alloc"]  , name = "evt_out" , association = [{vr_type = "evt_aggregate", instance = "evt_agg_01", data = "chan"}] }}]}    
+    {vr_type = "evt", can_dynamic_alloc = false, instances = [
+        {evt_01 = {access = ["read","write", "blocking"]  , name = "evt_out" , association = [{vr_type = "evt_aggregate", instance = "evt_agg_01", data = "chan"}] }}]}    
 ]
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "chanmgr", interface = "chanmgr"}, {srv = "chanmgr", interface = "chanmgr_evt"}, {srv = "evtmgr", interface = "evt"}]
 constructor = "booter"

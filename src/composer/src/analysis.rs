@@ -12,6 +12,10 @@ const LC: CriticalityLvl = 0;
 #[allow(dead_code)]
 const NUM_CRIT: usize = 2;
 
+type AssuranceLvl = usize;
+#[allow(dead_code)]
+const DEF_ASSUR: AssuranceLvl = 0;
+
 // Component properties that are useful in determining how they impact
 // other components.
 #[allow(dead_code)]
@@ -101,6 +105,12 @@ pub struct AnalysisInput {
     // resource access rights.
     dependencies: Vec<(ComponentId, ComponentId, Interface, VirtResAccess)>,
 
+    assurance: Vec<(ComponentId, AssuranceLvl)>,
+
+    local_bound_threads: Vec<(ComponentId, usize)> ,
+
+    unbound_threads: Vec<(ComponentId, bool)>,
+
     // Virtual resources, and the server that provides them.
     virt_res_service: Vec<(VirtResource, ComponentId)>,
     // The access of clients to specific virtual resources
@@ -127,6 +137,9 @@ pub struct Analysis {
     // take the server, while in a synchronous invocation from the
     // client.
     comp_nested_lock: Vec<(ComponentId, ComponentId)>,
+
+    //
+    comp_stack_num_bound: Vec<(ComponentId, usize)>,
     // The maximum number of necessary threads for a component
     //thread_limit: Vec<(ComponentId, usize)>,
     // What is the limit on the number of static virtual resources in
@@ -159,6 +172,9 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
     let AnalysisInput {
         criticalities,
         dependencies,
+        assurance,
+        local_bound_threads,
+        unbound_threads,
         virt_res_service,
         virt_res_access,
         ..
@@ -173,13 +189,17 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         relation cli_prop_map(String, CompProperties) = cli_prop_map;
         relation virt_res_service(VirtResource, ComponentId) = virt_res_service;
         relation virt_res_access(VirtResource, VirtResourceId, ComponentId, VirtResAccess) = virt_res_access;
+        relation assurance_lvl(ComponentId, usize) = assurance;
+        relation comp_thread_num_bound(ComponentId, usize) = local_bound_threads; // input 
+        relation comp_thread_num_unbounded(ComponentId,bool) = unbound_threads;    // input
 
         // transient relations
         relation component(ComponentId);
         relation criticality_exposure(ComponentId, CriticalityLvl);
         lattice comp_crit_hi(ComponentId, CriticalityLvl);
         lattice comp_crit_lo(ComponentId, Dual<CriticalityLvl>);
-
+        relation num_client_threads(ComponentId, ComponentId, usize);
+        relation set_client_threads(ComponentId, usize);
         // outputs
         relation depends_on(ComponentId, ComponentId);
         relation comp_properties(ComponentId, CompProperties);
@@ -189,6 +209,7 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         relation comp_shared_lock(ComponentId, ComponentId);
         relation comp_nested_lock(ComponentId, ComponentId);
         relation show_warnings(ComponentId);
+        relation comp_stack_num_bound(ComponentId, usize);
 
         // The main output
         relation warnings(ComponentId, Warning);
@@ -196,6 +217,13 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         // Normal transitive closure
         depends_on(c, s) <-- dependencies(c, s, _, _);
         depends_on(c, ss) <-- depends_on(c, s), dependencies(s, ss, _, _);
+        
+        // Threads Caculation
+        //temp_num_client_threads(s, n) <-- depends_on(c, s), comp_thread_num_bound(c, n);
+        num_client_threads(s, c, n) <-- depends_on(c, s), comp_thread_num_bound(c, n);
+        //(s, sum(n)) <-- depends_on(c, s), comp_thread_num_bound(c, n);
+        //num_client_threads(s, sum(total)) <-- depends_on(c, s), comp_thread_num_bound(c, n), agg total = sum(n) in comp_thread_num_bound(c, n);
+        //comp_stack_num_bound(c, Dual(*cn + sn)) <-- num_client_threads(c, cn), comp_thread_num_bound(c, sn), !comp_thread_num_unbounded(c,true);
 
         //hard-coded assign constructor properties to booter,logic is realted to tot_order.rs
         comp_properties(1, CompProperties::Constructor);       
@@ -221,8 +249,7 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
             !comp_properties(c, CompProperties::Scheduler), !comp_properties(c, CompProperties::CapMgr), 
             !comp_properties(c, CompProperties::Constructor), !comp_properties(c, CompProperties::MemMgr);
 
-        warnings(c, Warning::SharedServiceMultCrit(*hi, *lo)) <-- show_warnings(c), comp_crit_range(c, hi, lo), if lo < hi;
-
+        warnings(c, Warning::SharedServiceMultCrit(*hi, *lo)) <-- comp_crit_range(c, hi, lo), assurance_lvl(c, al), if (lo < hi) && (al < hi);
         // TODO: take into account blocking on shared virtual resources
         comp_can_block(c, ()) <-- comp_properties(c, CompProperties::CanBlock);
 
@@ -252,9 +279,20 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
             comp_shared_lock(s, hc), comp_shared_lock(s, lc),
             comp_crit_hi(hc, hi), comp_crit_lo(lc, lo), if hi > lo;
     };
+
+    let depends_on_data: Vec<_> = p.depends_on.iter().collect();
+    println!("depends_on: {:?}", depends_on_data);
     
+    let comp_thread_num_bound: Vec<_> = p.comp_thread_num_bound.iter().collect();
+    println!("Aggregated comp_thread_num_bound Test Results: {:?}", comp_thread_num_bound);
+
+    let num_client_threads: Vec<_> = p.num_client_threads.iter().collect();
+    println!("Aggregated num_client_threads Test Results: {:?}", num_client_threads);
+
     println!("show_warnings: {:?}", p.show_warnings.iter().collect::<Vec<_>>());
 
+    let threads_per_component: Vec<_> = p.comp_stack_num_bound.iter().collect();
+    println!("threads per component: {:?}", threads_per_component);
 
     let lock_data: Vec<_> = p.comp_shared_lock.iter().collect();
     println!("shared lock: {:?}", lock_data);
@@ -288,6 +326,23 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         }
     }
 
+    let mut comp_thds: HashMap<ComponentId, usize> = HashMap::new();
+    for cid in i.components.iter() {
+        comp_thds.insert(*cid, p.num_client_threads.iter().filter_map(|(id, _c, n)| {
+            if id == cid {
+                Some(n)
+            } else {
+                None
+            }
+        }).sum::<usize>() + p.comp_thread_num_bound.iter().find(|(id, _)| id == cid).map(|(_, n)| n).unwrap_or(&0));
+    }
+
+    let mut comp_thds_sorted: Vec<_> = comp_thds.iter().collect();
+    comp_thds_sorted.sort_by_key(|&(id, _)| id);
+    
+    println!("comp_thds (ordered by ComponentId) {:?}:", comp_thds_sorted);
+
+
     Analysis {
         depends_on: p.depends_on,
         comp_properties: p.comp_properties,
@@ -296,6 +351,7 @@ fn analysis_output(i: AnalysisInput) -> Analysis {
         comp_dos: p.comp_dos,
         comp_shared_lock: p.comp_shared_lock,
         comp_nested_lock: p.comp_nested_lock,
+        comp_stack_num_bound: p.comp_stack_num_bound,
         warnings: p.warnings,
         pub_warnings: ws,
     }
@@ -379,6 +435,10 @@ impl Analysis {
             let criticality_level = component(&s, &c).criticality_level.clone().unwrap_or(LC);
             (*c, criticality_level)
         }).collect();
+        let assurance: Vec<(ComponentId, AssuranceLvl)> =components.iter().map(|c| {
+            let assurance_level = component(&s, &c).assurance_level.clone().unwrap_or(DEF_ASSUR);
+            (*c, assurance_level)
+        }).collect();
         let dependencies: Vec<(ComponentId, ComponentId, Interface, VirtResAccess)> = cs
             .names()
             .iter()
@@ -449,11 +509,46 @@ impl Analysis {
             );
         }
 
+        let local_bound_threads: Vec<(ComponentId, usize)> = components.iter().map(|id| {
+            let c = component(&s, id);
+            let mut max_local_threads = 1; /* initialize thread for each component */
+        
+            if c.name.var_name == "sched" {
+                max_local_threads = 4;  /* sched by default require four threads  */
+            }
+
+            for constant in &c.constants {
+                if constant.variable == "LOCAL_BOUND_THREADS" {
+                    if let Ok(parsed_value) = constant.value.parse::<usize>() {
+                        max_local_threads += parsed_value;
+                    }
+                    break;
+                }
+            }
+            
+            let max_dynalloc_threads: usize = c.virt_res.iter()
+            .find(|vr| vr.vr_type == "sched")
+            .and_then(|vr| vr.max_dynalloc.parse::<usize>().ok())
+            .unwrap_or(0);
+    
+            max_local_threads += max_dynalloc_threads;
+
+            (id.clone(), max_local_threads)
+        }).collect();
+        
+
+        let unbound_threads: Vec<(ComponentId, bool)> = components.iter().map(|id| {
+            (id.clone(), false)            
+        }).collect();
+
         // Calculate the analysis outputs
         analysis_output(AnalysisInput {
             components,
             dependencies: full_dependencies,
             criticalities,
+            assurance,
+            local_bound_threads,
+            unbound_threads,
             // TODO
             virt_res_service,
             virt_res_access,

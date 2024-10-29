@@ -262,6 +262,7 @@ pub struct Component {
     pub scheduler: ComponentName,   // our scheduler (that creates or initial thread)
 
     pub criticality_level: Option<usize>,
+    pub assurance_level: Option<usize>,
     pub source: String,      // Where is the component source located?
     pub base_vaddr: String, // The lowest virtual address for the component -- could be hex, so not a VAddr
     pub params: Vec<ArgsKV>, // initialization parameters
