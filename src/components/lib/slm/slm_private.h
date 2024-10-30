@@ -4,6 +4,7 @@
 #include <cos_component.h>
 #include <ps.h>
 #include <slm_api.h>
+#include <cos_trace.h>
 
 typedef unsigned long slm_cs_cached_t;
 /* Critical section (cs) API to protect scheduler data-structures */
@@ -62,6 +63,10 @@ struct slm_global {
 
 	struct slm_thd sched_thd;
 	struct slm_thd idle_thd;
+
+	/* TODO: Should be per core */
+	struct slm_thd *scheduled_thd; 
+	cycles_t    scheduled_thd_start;
 
 	int         cyc_per_usec;
 	int         timer_set; 	  /* is the timer set? */
@@ -175,9 +180,24 @@ slm_cs_exit_reschedule(struct slm_thd *curr, slm_cs_flags_t flags)
 
 try_again:
 	tok  = cos_sched_sync();
-	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
-		cycles_t now = slm_now();
 
+	// --> Interrupt punishes the current thread
+	cycles_t now = slm_now();
+	// --> Interrupt punishes the next thread
+
+	/* Notify the policy that some execution has happened. */
+	cycles_t execution_time = now - g->scheduled_thd_start;
+
+	g->scheduled_thd->switch_cnt++;
+	g->scheduled_thd->total_exec_time += execution_time;
+	
+	COS_TRACE("<< [TID, Amount of execution] [\"%ld\", %llu],\n", g->scheduled_thd->tid, execution_time, now);
+
+	if(!(g->scheduled_thd->properties & SLM_THD_PROPERTY_SPECIAL)) {		
+		slm_sched_execution(g->scheduled_thd, execution_time, now);
+	}
+
+	if (flags & SLM_CS_CHECK_TIMEOUT && g->timer_set) {
 		/* Do we need to recompute the timer? */
 		if (!cycles_greater_than(g->timer_next, now)) {
 			g->timer_set = 0;
@@ -186,9 +206,16 @@ try_again:
 		}
 	}
 
+	// TODO: What about time lost in 
+	//          - processing kernel events?
+	//	    - processing slm_timer_expire(), slm_sched_schedule()?
+
 	/* Make a policy decision! */
-	t = slm_sched_schedule();
+	t = slm_sched_schedule(now);
 	if (unlikely(!t)) t = &g->idle_thd;
+
+	g->scheduled_thd_start = now;
+	g->scheduled_thd = t;
 
 	assert(slm_state_is_runnable(t->state));
 	slm_cs_exit(NULL, flags);
@@ -196,6 +223,7 @@ try_again:
 	ret = slm_thd_activate(curr, t, tok, 0);
 	
 	if (unlikely(ret != 0)) {
+		// TODO: What about previous slm_sched_schedule()? We already dequeued the thread from the list!
 		/* Assuming only the single tcap with infinite budget...should not get EPERM */
 		assert(ret != -EPERM);
 		assert(ret != -EINVAL);
