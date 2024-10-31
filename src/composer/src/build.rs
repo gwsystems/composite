@@ -1,4 +1,5 @@
 use initargs::ArgsKV;
+use cossystem::ConstantVal;
 use passes::{component, deps, exports, AddrSpcName, BuildState, ComponentId, SystemState};
 use std::env;
 use std::fs::File;
@@ -376,6 +377,10 @@ impl BuildState for DefaultBuilder {
         Ok(())
     }
 
+    fn set_rebuild_flag(&mut self, is_rebuild: bool) {
+        self.rebuildflag = is_rebuild;
+    }
+
     fn file_path(&self, file: &String) -> Result<String, String> {
         Ok(format!("{}/{}", self.builddir, file))
     }
@@ -406,19 +411,25 @@ impl BuildState for DefaultBuilder {
         self.comp_file_path(&c, &self.comp_obj_file(&c, &s), &s)
     }
 
+    fn comp_init_header_file(&self, header_file_path: &String) {
+        // Initialize the header content with include guards
+        let header_content = String::from(
+            "#ifndef COMPONENT_CONSTANTS_H\n#define COMPONENT_CONSTANTS_H\n\n#endif /* COMPONENT_CONSTANTS_H */\n",
+        );
+    
+        emit_file(&header_file_path, header_content.as_bytes()).unwrap();
+    }
+
     fn comp_const_header_file(
         &self,
         header_file_path: &String,
+        inter_constants: Option<Vec<ConstantVal>>,
         id: &ComponentId,
         s: &SystemState,
     ) -> Result<(), String> {
         let c = component(&s, id);
 
-        if std::path::Path::new(header_file_path).exists() {
-            std::fs::remove_file(header_file_path).unwrap();
-        }
-
-        let mut header_content =
+        let mut header_content = 
             String::from("#ifndef COMPONENT_CONSTANTS_H\n#define COMPONENT_CONSTANTS_H\n\n");
 
         for constant in &c.constants {
@@ -426,6 +437,15 @@ impl BuildState for DefaultBuilder {
                 "#define {} {}\n",
                 constant.variable, constant.value
             ));
+        }
+
+        if let Some(constants) = inter_constants {
+            for constant in constants {
+                header_content.push_str(&format!(
+                    "#define {} {}\n",
+                    constant.variable, constant.value
+                ));
+            }
         }
 
         header_content.push_str("\n#endif /* COMPONENT_CONSTANTS_H */\n");
@@ -446,7 +466,7 @@ impl BuildState for DefaultBuilder {
         let header_file_path =
             self.comp_file_path(&id, &"component_constants.h".to_string(), &state)?;
 
-        self.comp_const_header_file(&header_file_path, &id, &state)?;
+        //self.comp_const_header_file(&header_file_path, None, &id, &state)?;
         println!("Rebuild process starts for component at: {}", &output_path);
         //rebuild process starts
         if self.rebuildflag {

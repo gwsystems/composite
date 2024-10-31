@@ -170,6 +170,7 @@ pub trait BuildState {
         is_rebuild: bool,
         s: &SystemState,
     ) -> Result<(), String>; // must be called *before* the following functions
+    fn set_rebuild_flag(&mut self, is_rebuild: bool);
     fn file_path(&self, file: &String) -> Result<String, String>; // create a path in the build directory for a file
     fn comp_dir_path(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // the component's object
     fn comp_file_path(
@@ -183,10 +184,12 @@ pub trait BuildState {
     fn comp_const_header_file(
         &self,
         header_file_path: &String,
+        inter_constants: Option<Vec<ConstantVal>>,
         id: &ComponentId,
         s: &SystemState,
     ) -> Result<(), String>; // path of header file of component constants value
 
+    fn comp_init_header_file(&self, header_file_path: &String);
     fn comp_build(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // build the component, and return the path to the resulting object
     fn constructor_build(&self, c: &ComponentId, state: &SystemState) -> Result<String, String>; // build a constructor, including all components it is responsible for booting
     fn kernel_build(
