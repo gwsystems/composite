@@ -155,6 +155,7 @@ comps_init(void)
 	struct initargs_iter i;
 	int cont, ret, j;
 	int comp_idx = 0;
+	unsigned long start, end; 
 	struct protdom_ns_asid *ns_asid;
 
 	/*
@@ -208,7 +209,10 @@ comps_init(void)
 			assert(parent_vas);
 
 			printc("Creating virtual address space %s (%d) split from VAS %d:\n", args_get_from("name", &curr), as_id, parent_id);
+			start = ps_tsc();
 			if (protdom_ns_vas_split(ns_vas, parent_vas, ns_asid) != 0) BUG();
+			end = ps_tsc();
+			printc("\t=>split in %llu cycles\n", end-start);
 		}
 		ss_ns_vas_activate(ns_vas);
 

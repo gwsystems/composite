@@ -25,16 +25,21 @@ constructor = "booter"
 [[components]]
 name = "client"
 img  = "tests.bench_syncipc_cli"
-deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "sched", interface = "syncipc"}, {srv = "capmgr", interface = "capmgr_create"}]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "sched", interface = "syncipc"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "pong", interface = "pong"}]
 constructor = "booter"
-baseaddr = "0x1600000"
 
 [[components]]
 name = "server"
 img  = "tests.bench_syncipc_srv"
-deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "sched", interface = "syncipc"}, {srv = "capmgr", interface = "capmgr_create"}]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "sched", interface = "syncipc"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "pong", interface = "pong"}]
 constructor = "booter"
 
+[[components]]
+name = "pong"
+img  = "pong.pingpong"
+deps = [{srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}]
+implements = [{interface = "pong"}]
+constructor = "booter"
 
 [[address_spaces]]
 name = "system"
@@ -44,4 +49,8 @@ components = ["capmgr", "sched"]
 name = "bench"
 components = ["client", "server"]
 parent = "system"
- 
+
+[[address_spaces]]
+name = "pong"
+components = ["pong"]
+parent = "system"

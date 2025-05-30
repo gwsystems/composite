@@ -42,12 +42,20 @@ void print_payload(const unsigned char *data, int size) {
     printf("\n");
 }
 
+typedef struct udphdr_s {
+	uint16_t rqid;
+	uint16_t partno;
+	uint16_t nparts;
+	uint16_t reserved;
+} udphdr_t;
+
 u16_t
 mc_process_command(int fd, shm_bm_objid_t objid, u16_t data_offset, u16_t data_len)
 {
 	shm_bm_t shm = netshmem_get_shm();
 	struct netshmem_pkt_buf *pkt_buf = shm_bm_borrow_net_pkt_buf(shm, objid);
 	char *r_buf = (char *)pkt_buf + data_offset;
+	//printc("%s\n", r_buf+sizeof(udphdr_t));
 	char *w_buf = netshmem_get_data_buf(pkt_buf);
 	//print_payload(r_buf, data_len);
 

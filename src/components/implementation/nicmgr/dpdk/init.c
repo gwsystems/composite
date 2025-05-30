@@ -122,7 +122,7 @@ debug_print_stats(void)
 	printc("tx enqueued miss:%lu\n", tx_enqueued_miss.cnt);
 	printc("total receive %llu, enqueue:%lu, txqneueue:%lu\n", rx_tot_rcv, enqueued_rx, dequeued_tx);
 	for (int i = 0; i< 16; i++)
-		printc("lock_time[%d] : %lu\n", i, per_core_locktm[i]);
+		printc(".lock_time[%d] : %lu\n", i, per_core_locktm[i]);
 	//struct client_session	*session1, *session2;
 	//session1 = cos_hash_lookup(ntohs(6));
 	//session2 = cos_hash_lookup(ntohs(7));

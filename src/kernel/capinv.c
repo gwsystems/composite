@@ -510,7 +510,11 @@ cap_thd_switch(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 		chal_protdom_write(next_protdom);
 	}
 #else
-	chal_protdom_write(next_protdom);
+	if (next->dcbinfo && next->dcbinfo->sp) {
+		chal_protdom_write(next_ci->pgtblinfo.protdom);
+	} else {
+		chal_protdom_write(next_protdom);
+	}
 #endif
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */

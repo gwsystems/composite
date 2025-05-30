@@ -52,6 +52,7 @@ sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, va
 	struct cap_comp *compc;
 	int              ret;
 
+	printk("now: %x\n", chal_protdom_read());
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
 
@@ -302,7 +303,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	}
 
 	pgtbl_update(&sinvc->comp_info.pgtblinfo);
-	//chal_protdom_write(sinvc->comp_info.pgtblinfo.protdom);
+	chal_protdom_write(sinvc->comp_info.pgtblinfo.protdom);
 
 	/* TODO: test this before pgtbl update...pre- vs. post-serialization */
 	__userregs_sinvupdate(regs);
@@ -334,7 +335,7 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 	}
 
 	pgtbl_update(&ci->pgtblinfo);
-	//chal_protdom_write(protdom);
+	chal_protdom_write(protdom);
 
 	/* Set return sp and ip and function return value in eax */
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);

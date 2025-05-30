@@ -5,6 +5,7 @@
 #include <cos_time.h>
 #include <perfdata.h>
 #include <syncipc.h>
+#include <pong.h>
 
 #define ITERATION 256
 struct perfdata perf;
@@ -18,6 +19,8 @@ main(void)
 	sched_param_t sp = SCHED_PARAM_CONS(SCHEDP_PRIO, 4);
 	word_t arg0 = 0, arg1 = 1;
 	cycles_t start, end;
+	cycles_t s, e, tot = 0;
+	int cnt = 0;
 	int i;
 
 	perfdata_init(&perf, "Synchronous IPC round trip latency", results, ITERATION);
@@ -37,12 +40,13 @@ main(void)
 		 * that the delay above is not sufficient.
 		 */
 		assert(ret == 0);
-
+		
 		arg0++;
 		arg1++;
 
 		perfdata_add(&perf, end - start);
 	}
+//	perfdata_raw(&perf);
 	perfdata_calc(&perf);
 	perfdata_print(&perf);
 

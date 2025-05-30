@@ -33,12 +33,12 @@
 #define __SVFSGS__
 #endif
 
-//#ifndef __SLITE__
-//#define __SLITE__
+#ifndef __SLITE__
+#define __SLITE__
 //#ifndef __PROTECTED_DISPATCH__
 //#define __PROTECTED_DISPATCH__
 //#endif
-//#endif
+#endif
 
 #define MAX_SERVICE_DEPTH 31
 //#define MAX_NUM_THREADS (25 * NUM_CPU)

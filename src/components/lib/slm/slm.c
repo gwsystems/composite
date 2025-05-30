@@ -159,7 +159,6 @@ slm_cs_enter_contention(struct slm_cs *cs, slm_cs_cached_t cached, struct slm_th
 	 */
 
 	/* Switch to the owner of the critical section, with inheritance using our tcap/priority */
-	//if (cos_cpuid() == 1 && owner->tid == 16 || owner->tid == 17) printc("=");
 	ret = cos_defswitch(owner->thd, curr->priority, TCAP_TIME_NIL, tok);
 	if (ret) return ret;
 	/* if we have an outdated token, then we want to use the same repeat loop, so return to that */
@@ -190,7 +189,6 @@ slm_cs_exit_contention(struct slm_cs *cs, struct slm_thd *curr, slm_cs_cached_t 
 	 * thread to let it resolve the situation. Use our priority
 	 * for its execution to avoid inversion.
 	 */
-	//if (cos_cpuid() == 1) printc("b:%d\n", tok);
 	ret = cos_defswitch(s->thd, curr->priority, TCAP_TIME_NIL, tok);
 	assert(ret != -EINVAL);
 
@@ -250,17 +248,6 @@ slm_thd_block(struct slm_thd *t)
 		return 1;
 	}
 	if (t->state != SLM_THD_RUNNABLE) {
-		printc("\n\ntid: %d, %d\n", t->tid, t->state);
-		printc("%d, now: %d\n", cos_thdid(), slm_sched_schedule());
-		printc("res: %d, last_sched: %d\n", res_cnt, last_sched);
-		printc("token: %d, last_cnt: %d\n", cos_sched_sync(ci), last_cnt);
-		printc("cont_evt: %d\n", cont_evt);
-		
-		for (int i = 0; i < 10; i++) {
-			printc("stack: %d\n", test_stack.stack[i]);
-			if (i == test_stack.head) printc("^^^^^^^^^^^^^^^^^\n");
-		}
-
 		assert(0);
 	}
 	assert(t->state == SLM_THD_RUNNABLE);
@@ -272,7 +259,6 @@ slm_thd_block(struct slm_thd *t)
 	if (t->properties & SLM_THD_PROPERTY_SUSPENDED) {
 		t->properties &= ~SLM_THD_PROPERTY_SUSPENDED;
 		if (t->state == SLM_THD_BLOCKED) {
-			//printc("L");
 			slm_thd_wakeup_blked(t);
 		}
 	}
@@ -419,7 +405,6 @@ slm_thd_wakeup_cs(struct slm_thd *curr, struct slm_thd *t)
 
 	slm_cs_enter(curr, SLM_CS_NONE);
 	/* Only reschedule if we wake up a thread */
-	//printc("b");
 	if (slm_thd_wakeup(t, 0)) {
 		slm_cs_exit(curr, SLM_CS_NONE);
 	} else {
@@ -557,7 +542,6 @@ slm_sched_loop_intern(int non_block)
 			 * holder releases the CS (thus allowing the
 			 * events to be processed at that point.
 			 */
-			//printc("event enqueue: %d\n", tid);
 			slm_thd_event_enqueue(t, blocked, cycles, thd_timeout);
 
 pending_events:
@@ -666,7 +650,6 @@ slm_init(thdcap_t thd, thdid_t tid, struct cos_dcb_info *initdcb, struct cos_dcb
 	ps_list_head_init(&g->graveyard_head);
 
 	g->cyc_per_usec = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-	printc("!!!cyc_per_usec: %d\n", g->cyc_per_usec);
 	g->lock.owner_contention = 0;
 
 	assert(sizeof(struct cos_scb_info) * NUM_CPU <= COS_SCB_SIZE && COS_SCB_SIZE == PAGE_SIZE);

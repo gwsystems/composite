@@ -7,11 +7,12 @@
 #include <netshmem.h>
 #include <sched.h>
 
-#define MULTI_GET 4
+#define MULTI_GET 2
 
 static int fd;
 static volatile thdid_t init_thd = 0;
 static volatile int dst_core = -1;
+int checker[NUM_CPU] = {0};
 
 void
 cos_init(void)
@@ -23,7 +24,7 @@ cos_init(void)
 	assert(!ret);
 	for (ret = args_iter(&params, &i, &curr); ret; ret = args_iter_next(&i, &curr)) {
 		dst_core = atoi(args_value(&curr));
-		assert(dst_core > 0 && dst_core < NUM_CPU);
+		//assert(dst_core > 0 && dst_core < NUM_CPU);
 	}
 
 	shm_bm_objid_t objid;
@@ -47,6 +48,7 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	assert(fd);
 
 	printc("mc server init done, got a fd: %d, %d\n", fd, dst_core);
+	printc("MULTI_GET: %d\n", MULTI_GET);
 }
 
 
@@ -70,6 +72,8 @@ parallel_main(coreid_t cid)
 
 	assert(dst_core >= 0);
 	if (cos_cpuid() != dst_core) return 0;
+	int c = ps_faa(&checker[cos_cpuid()], 1);
+	assert(c == 0);
 
 	ret = 0;
 	ip = inet_addr("10.10.1.2");
@@ -87,7 +91,7 @@ parallel_main(coreid_t cid)
 	remote_addr = inet_addr("10.10.1.1");
 	remote_port = 6;
 	unsigned long s, e = 0;
-	
+
 	while (1)
 	{
 		objid  = udp_stack_shmem_read(&data_offset, &data_len, &remote_addr, &remote_port);
@@ -100,11 +104,14 @@ parallel_main(coreid_t cid)
 			continue;
 		}
 		if (MULTI_GET > 1) memcpy(temp_data, rx_obj, data_len);
+		cycles_t start = ps_tsc();
 		for (int i = 0; i < MULTI_GET; i++) {
 			rdysend_len = mc_process_command(fd, objid, data_offset, data_len);
 			assert(rdysend_len);
 			if (i < MULTI_GET-1) memcpy(rx_obj, temp_data, data_len);
 		}
+		cycles_t end = ps_tsc();
+		//if (cos_cpuid() == 1) printc("%llu\n", end-start);
 
 		udp_stack_shmem_write(objid, netshmem_get_data_offset(), rdysend_len, remote_addr, remote_port);
 		/*if (cos_cpuid() == 1) {

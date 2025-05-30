@@ -82,12 +82,18 @@ sync_lock_teardown(struct sync_lock *l)
  *
  * - @l - the lock
  */
+
+extern unsigned long per_core_locktm[16];
+
 static inline void
 sync_lock_take(struct sync_lock *l)
 {
 #if defined CK_SPINLOCK
 	//printc("spin_take: %lx, %d\n", &l->lock, cos_thdid());
+	cycles_t start = ps_tsc();
 	ck_spinlock_lock(&l->lock);
+	cycles_t end = ps_tsc();
+	per_core_locktm[cos_cpuid()] += (end-start);
 	return;
 #else
 #if 1
@@ -124,11 +130,17 @@ sync_lock_take(struct sync_lock *l)
  * - @return - `0` on successful lock acquisition,
  *             '1' if it is already taken.
  */
+
+extern unsigned long per_core_locktm[16];
+
 static inline int
 sync_lock_try_take(struct sync_lock *l)
 {
 #if defined CK_SPINLOCK
+	unsigned long start = ps_tsc();
 	int ret = ck_spinlock_trylock(&l->lock);
+	unsigned long end = ps_tsc();
+	per_core_locktm[cos_cpuid()] += (end-start);
 	//printc("spin_try: %lx, %d\n", &l->lock, cos_thdid());
 	return !ret;
 #else
