@@ -46,6 +46,13 @@
 #include <nic_netio_shmem.h>
 #include <arpa/inet.h>
 
+/* Weak usage of nicmgr interface */
+void __attribute__((weak)) nic_netio_shmem_map(cbuf_t shm_id);
+int __attribute__((weak)) nic_netio_shmem_bind_port(u32_t ip_addr, u16_t port);
+int __attribute__((weak)) nic_netio_tx_packet(shm_bm_objid_t pktid, u16_t pkt_len, u16_t len);
+shm_bm_objid_t __attribute__((weak)) nic_netio_rx_packet(u16_t *pkt_len);
+
+
 /* TODO: remove this warning flag when virtio-net is done */
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 
@@ -625,15 +632,21 @@ virtio_tx_task(void *data)
 	int ret;
 	cbuf_t shm_id;
 
+	if (!nic_netio_shmem_map || !nic_netio_tx_packet)
+	{
+		printc("VMM TX: nicmgr interface not linked in, exiting TX task\n");
+		assert(0);
+	}
+
 	printc("VMM TX: Task starting (tid=%lu)...\n", cos_thdid());
 	
-	/* Get the shared memory that was already allocated and set up by parent thread */
+	netshmem_create(cos_thdid());
+
 	shm_id = netshmem_get_shm_id();
 	assert(shm_id != 0);
-	
+
 	tx_shmemd = netshmem_get_shm();
 	assert(tx_shmemd);
-	
 	/* 
 	 * Tell nicmgr about the shared memory.
 	 * Note: nic_netio_shmem_map must be called BEFORE nic_netio_shmem_bind_port
@@ -707,9 +720,15 @@ virtio_rx_task(void *data)
 	int ret;
 	cbuf_t shm_id;
 
+	if (!nic_netio_shmem_map || !nic_netio_shmem_bind_port || !nic_netio_rx_packet)
+	{
+		printc("VMM RX: nicmgr interface not linked in, exiting RX task\n");
+		assert(0);
+	}
 	printc("VMM RX: Task starting (tid=%lu)...\n", cos_thdid());
 	
-	/* Get the shared memory that was already allocated and set up by parent thread */
+	netshmem_create(cos_thdid());
+
 	shm_id = netshmem_get_shm_id();
 	assert(shm_id != 0);
 	

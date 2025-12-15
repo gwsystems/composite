@@ -56,6 +56,7 @@ struct vmrt_vm_comp {
 	struct vmrt_vm_vcpu vcpus[VMRT_VM_MAX_VCPU];
 
 	thdid_t tx_thd;
+	thdid_t rx_thd;
 
 	int wire_mode;
 	u16_t vm_mac_id;

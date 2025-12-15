@@ -152,27 +152,26 @@ vm_comp_create(void)
 	return vm;
 }
 
+/* Weak usage of nicmgr interface */
+void __attribute__((weak)) nic_netio_shmem_map(cbuf_t shm_id);
+
 void
 cos_init(void)
 {
 	struct vmrt_vm_vcpu *vcpu;
-	thdid_t tx_tid, rx_tid;
 	g_vm = vm_comp_create();
 	printc("VMM: Created VM with %d vCPUs: comp_id=%d, %p\n", g_num_vcpus, g_vm->comp_id, g_vm);
-	g_vm->vm_mac_id = 0;
 
-	/* Create TX thread for transmitting packets to NIC */
-	tx_tid = sched_thd_create(virtio_tx_task, NULL);
-	netshmem_create(tx_tid);
-	printc("VMM: Created TX thread, tid=%lu\n", tx_tid);
-
-	/* Create RX thread for receiving packets from NIC */
-	rx_tid = sched_thd_create(virtio_rx_task, NULL);
-	netshmem_create(rx_tid);
-	printc("VMM: Created RX thread, tid=%lu\n", rx_tid);
-
-	g_vm->tx_thd = tx_tid;
-	g_vm->rx_thd = rx_tid;
+	if (nic_netio_shmem_map) {
+		/* Create TX thread for transmitting packets to NIC */
+		g_vm->tx_thd = sched_thd_create(virtio_tx_task, NULL);
+		printc("VMM: Created TX thread, tid=%lu\n", g_vm->tx_thd);
+		/* Create RX thread for receiving packets from NIC */
+		g_vm->rx_thd = sched_thd_create(virtio_rx_task, NULL);
+		printc("VMM: Created RX thread, tid=%lu\n", g_vm->rx_thd);
+	} else {
+		printc("VMM: Networking disabled: nicmgr interface not found\n");
+	}
 }
 
 void
@@ -198,12 +197,15 @@ void
 parallel_main(coreid_t cid)
 {
 	struct vmrt_vm_vcpu *vcpu;
+	if (cid == 0 && nic_netio_shmem_map) {
+		sched_thd_param_set(g_vm->rx_thd, sched_param_pack(SCHEDP_PRIO, 31));
+		sched_thd_param_set(g_vm->tx_thd, sched_param_pack(SCHEDP_PRIO, 31));
+	}
+
 	if (cid == 0) {
 		printc("VMM: Starting vCPU 0 on core %d\n", cid);
 		vcpu = vmrt_get_vcpu(g_vm, 0);
 		printc("VMM: Core %d started vCPU %d (tid=%lu)\n", cid, cid, vcpu->tid);
-		sched_thd_param_set(g_vm->rx_thd, sched_param_pack(SCHEDP_PRIO, 31));
-		sched_thd_param_set(g_vm->tx_thd, sched_param_pack(SCHEDP_PRIO, 31));
 		vmrt_vm_vcpu_start(vcpu);
 	}
 	sched_thd_block(0);
