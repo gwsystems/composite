@@ -28,17 +28,23 @@
 #include <assert.h>
 #include <cos_types.h>
 #include <sched.h>
+#include <res_spec.h>
 #include "virtio_net_io.h"
 #include "vpci.h"
 #include "virtio_ring.h"
 #include <sync_lock.h>
-#include <nf_session.h>
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <netinet/tcp.h>
 #include <sync_sem.h>
 #include <fast_memcpy.h>
+#include <shm_bm.h>
+#include <netshmem.h>
+#include <nic_netio_tx.h>
+#include <nic_netio_rx.h>
+#include <nic_netio_shmem.h>
+#include <arpa/inet.h>
 
 /* TODO: remove this warning flag when virtio-net is done */
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
@@ -615,48 +621,41 @@ virtio_tx_task(void *data)
 	char *pkt;
 	struct netshmem_pkt_buf *tx_obj;
 	shm_bm_objid_t tx_pktid;
-	struct nf_pkt_meta_data buf;
-
-	struct nf_session *session = NULL;
 	shm_bm_t tx_shmemd = 0;
-	u16_t svc_id = 0;
+	int ret;
+	cbuf_t shm_id;
 
-	struct iphdr *iphdr = NULL;
-	struct tcp_udp_port	*port;
+	printc("VMM TX: Task starting (tid=%lu)...\n", cos_thdid());
+	
+	/* Get the shared memory that was already allocated and set up by parent thread */
+	shm_id = netshmem_get_shm_id();
+	assert(shm_id != 0);
+	
+	tx_shmemd = netshmem_get_shm();
+	assert(tx_shmemd);
+	
+	/* 
+	 * Tell nicmgr about the shared memory.
+	 * Note: nic_netio_shmem_map must be called BEFORE nic_netio_shmem_bind_port
+	 * because bind_port expects the shmem to already be mapped in nicmgr's address space.
+	 */
+	nic_netio_shmem_map(shm_id);
+	
+	/* 
+	 * Bind with IP=0 means this is a TX-only binding.
+	 * The nicmgr will use the mapped shared memory from the previous call.
+	 */
+	ret = nic_netio_shmem_bind_port(0, 1);
+	if (ret < 0) {
+		printc("VMM TX: Failed to bind port, ret=%d\n", ret);
+		assert(0);
+	}
+	
+	printc("VMM TX: Shared memory initialized, shmem_id=%lu, bound to port 1\n", shm_id);
 
 	vq = &virtio_net_vqs[VIRTIO_NET_TXQ];
 	while (1) {
 		while (!vq_has_descs(vq)) {
-			shm_bm_objid_t             first_objid;
-			struct netshmem_pkt_buf   *first_obj;
-			struct netshmem_pkt_pri   *first_obj_pri;
-			struct netshmem_meta_tuple *pkt_arr;
-			u8_t batch_ct;
-
-			session = get_nf_session(0);
-			tx_shmemd = session->tx_shmemd;
-
-			while (nf_tx_ring_buf_dequeue(&session->nf_tx_ring_buf, &buf)) {
-				batch_ct = 0;
-				first_obj = buf.obj;
-				first_objid = buf.objid;
-				first_obj_pri = netshmem_get_pri(first_obj);
-				pkt_arr = (struct netshmem_meta_tuple *)&first_obj_pri->pkt_arr;
-				first_obj_pri->batch_len = 0;
-
-				pkt_arr[batch_ct].obj_id = buf.objid;
-				pkt_arr[batch_ct].pkt_len = buf.pkt_len;
-				batch_ct++;
-				while (batch_ct < 32 && nf_tx_ring_buf_dequeue(&session->nf_tx_ring_buf, &buf)) {
-					pkt_arr[batch_ct].obj_id = buf.objid;
-					pkt_arr[batch_ct].pkt_len = buf.pkt_len;
-					batch_ct++;
-				}
-				first_obj_pri->batch_len = batch_ct;
-				// printc("nic send in tx:%d, %u\n", batch_ct, cos_thdid());
-				nic_netio_tx_packet_batch(first_objid);
-			}
-
 			sched_thd_yield();
 		}
 
@@ -679,43 +678,81 @@ virtio_tx_task(void *data)
 
 		pkt = iov[1].iov_base;
 
-		iphdr = (struct iphdr *) (pkt + ETH_HLEN);
-		port	= (struct tcp_udp_port *)((char *)pkt + ETH_HLEN + iphdr->ihl * 4);
-		u16_t svc_id = ntohs(port->src_port);
-		
-		session = get_nf_session(svc_id);
-		
-		tx_shmemd = session->tx_shmemd;
-		if (unlikely(!tx_shmemd)) {
-			svc_id = 0;
-			session = get_nf_session(svc_id);
-			tx_shmemd = session->tx_shmemd;
-		}
-
-		// printc("tx shmemd:%p, %d\n", tx_shmemd, svc_id);
+		/* Allocate packet buffer from shared memory */
 		tx_obj = shm_bm_alloc_net_pkt_buf(tx_shmemd, &tx_pktid);
-		// printc("tx shmemd:%p, tx_obj:%p\n", tx_shmemd, tx_obj);
 
 		if (likely(tx_obj != NULL)){
-			buf.objid = tx_pktid;
-			buf.pkt_len = plen;
-			buf.obj = tx_obj;
-
-			// memcpy(netshmem_get_data_buf(tx_obj), pkt, plen);
+			/* Copy packet data to shared memory buffer */
 			memcpy_fast(netshmem_get_data_buf(tx_obj), pkt, plen);
-
-			if ((unlikely(!nf_tx_ring_buf_enqueue(&(session->nf_tx_ring_buf), &buf)))){
-				shm_bm_free_net_pkt_buf(tx_obj);
-			} else {
-				// sched_thd_wakeup(session->tx_thd);
-				// sync_sem_give(&session->tx_sem);
-			}
+			
+			/* Transmit to NIC */
+			nic_netio_tx_packet(tx_pktid, netshmem_get_data_offset(), plen);
 		} else {
-			printc("cannot allocate objects\n");
+			printc("cannot allocate tx objects\n");
 			assert(0);
 		}
 
 		vq_relchain(vq, idx, tlen);
 		vq_endchains(vcpu, vq, 1);
+	}
+}
+
+void
+virtio_rx_task(void *data)
+{
+	shm_bm_objid_t rx_pktid;
+	u16_t pkt_len;
+	struct netshmem_pkt_buf *rx_obj;
+	shm_bm_t rx_shmemd = 0;
+	int ret;
+	cbuf_t shm_id;
+
+	printc("VMM RX: Task starting (tid=%lu)...\n", cos_thdid());
+	
+	/* Get the shared memory that was already allocated and set up by parent thread */
+	shm_id = netshmem_get_shm_id();
+	assert(shm_id != 0);
+	
+	rx_shmemd = netshmem_get_shm();
+	assert(rx_shmemd);
+	
+	/* 
+	 * Tell nicmgr about the shared memory.
+	 * This maps the shmem into nicmgr's address space for this thread.
+	 */
+	nic_netio_shmem_map(shm_id);
+	
+	/* Bind this RX thread to IP address so nicmgr can route packets here */
+	u32_t vm_ip = inet_addr("161.253.78.154");
+	printc("VMM RX: Binding to IP 161.253.78.154 (0x%x), port 0\n", vm_ip);
+	ret = nic_netio_shmem_bind_port(vm_ip, 0);
+	if (ret < 0) {
+		printc("VMM RX: Failed to bind to IP address, ret=%d\n", ret);
+		assert(0);
+	}
+	printc("VMM RX: Successfully bound to IP 161.253.78.154, entering RX loop\n");
+	assert(rx_shmemd);
+
+	while (1) {
+		/* Receive packet from NIC */
+		rx_pktid = nic_netio_rx_packet(&pkt_len);
+		
+		if (rx_pktid == 0) {
+			sched_thd_yield();
+			continue;
+		}
+
+		/* Transfer ownership from NIC shared memory */
+		rx_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, rx_pktid);
+		if (unlikely(!rx_obj)) {
+			printc("VMM RX: failed to transfer packet\n");
+			continue;
+		}
+
+		/* Forward packet to guest VM */
+		virtio_net_rcv_one_pkt(netshmem_get_data_buf(rx_obj), pkt_len);
+		
+		/* Free the packet buffer */
+		shm_bm_free_net_pkt_buf(rx_obj);
 	}
 }
