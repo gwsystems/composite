@@ -192,10 +192,33 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 		pkt = cos_get_packet(rx_pkts[i], &len);
 		eth = (struct eth_hdr *)pkt;
 
-		iph	= (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
-		port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
-		ip = iph->dst_addr;
-		svc_id = ntohs(port->dst_port);
+		u16_t eth_type = ntohs(eth->ether_type);
+
+		// Handle ARP packets (EtherType 0x0806)
+		if (eth_type == 0x0806) {
+			arp_hdr = (struct arp_hdr *)((char *)eth + sizeof(struct eth_hdr));
+			ip = arp_hdr->arp_data.arp_tip;
+			svc_id = 0;  // ARP doesn't have ports
+		}
+		// Handle IPv4 packets (EtherType 0x0800)
+		else if (eth_type == 0x0800) {
+			iph = (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
+			ip = iph->dst_addr;
+			
+			// Check if it's ICMP (protocol 1)
+			if (iph->proto == 1) {
+				svc_id = 0;  // ICMP doesn't have ports
+			} else {
+				// TCP/UDP - parse ports
+				port = (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
+				svc_id = ntohs(port->dst_port);
+			}
+		}
+		// Unknown EtherType - drop packet
+		else {
+			cos_free_packet(rx_pkts[i]);
+			continue;
+		}
 
 		default_session = simple_hash_find(ip, 0);
 		if (unlikely(default_session == NULL)) {
@@ -216,7 +239,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 			continue;
 		}
 
-		// sync_sem_give(&session->sem);
+		sync_sem_give(&session->sem);
 	}
 }
 
@@ -273,7 +296,7 @@ cos_nic_start(){
 
 	char *rx_packets[MAX_PKT_BURST];
 	int count = 0;
-	__ip = inet_addr("10.10.1.2");
+	__ip = inet_addr("161.253.78.154");
 
 	while (1) {
 #if USE_CK_RING_FREE_MBUF
