@@ -26,6 +26,39 @@ typedef unsigned long cos_vaddr_t; /* virtual address */
 extern cos_paddr_t cos_map_virt_to_phys(cos_vaddr_t addr);
 extern char *g_tx_mp[NIC_TX_QUEUE_NUM];
 
+
+#define INVALID_QUEUE_ID -1
+
+/*
+ * Explicit Mapping from Core ID to TX Queue Index.
+ * 
+ * Policy:
+ * - Core 0 (RX Core): Share Queue 0 (Contention with Core 1)
+ * - Core 1: Exclusive owner of Queue 0 (except for Core 0 interference)
+ * - Core N (N > 1): Exclusive owner of Queue N-1
+ * 
+ * This mapping ensures that the primary worker cores have dedicated queues
+ * where possible, while the RX core (which transmits infrequently) shares
+ * the first queue.
+ */
+static inline unsigned int
+nicmgr_get_tx_queue(coreid_t core_id)
+{
+	/* Explicitly handle the shared queue case */
+	if (core_id == 0) return 0;
+	if (core_id == 1) return 0;
+	
+	/* Map remaining cores to queues shifted by 1 */
+	unsigned int queue_idx = core_id - 1;
+	
+	/* Clamp to available queues to prevent out-of-bounds access */
+	if (queue_idx >= NIC_TX_QUEUE_NUM) {
+		queue_idx = NIC_TX_QUEUE_NUM - 1;
+	}
+	
+	return queue_idx;
+}
+
 /* indexed by thread id */
 struct client_session client_sessions[NIC_MAX_SESSION];
 
@@ -56,7 +89,7 @@ inline int
 pkt_ring_buf_enqueue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf)
 {
 	assert(pkt_ring_buf->ring && pkt_ring_buf->ringbuf);
-
+	
 	return CK_RING_ENQUEUE_SPSC(pkt_ring_buf, pkt_ring_buf->ring, pkt_ring_buf->ringbuf, buf);
 }
 
@@ -64,7 +97,7 @@ inline int
 pkt_ring_buf_dequeue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf)
 {
 	assert(pkt_ring_buf->ring && pkt_ring_buf->ringbuf);
-
+	
 	return CK_RING_DEQUEUE_SPSC(pkt_ring_buf, pkt_ring_buf->ring, pkt_ring_buf->ringbuf, buf);
 }
 
@@ -106,7 +139,9 @@ nic_netio_rx_packet(u16_t *pkt_len)
 	obj = shm_bm_alloc_net_pkt_buf(session->shemem_info.shm, &objid);
 	assert(obj);
 
-	memcpy(obj->data, pkt, len);
+	/* Get the data buffer pointer (adds NETSHMEM_HEADROOM offset) */
+	char *data_buf = (char *)netshmem_get_data_buf(obj);
+	memcpy(data_buf, pkt, len);
 
 #if USE_CK_RING_FREE_MBUF
 	while (!pkt_ring_buf_enqueue(&g_free_ring, &buf));
@@ -232,19 +267,22 @@ nic_netio_tx_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	char *tx_packets[256];
 
 	coreid_t core_id = cos_cpuid();
-#if E810_NIC == 0
-	core_id = 1;
-#endif
-	mbuf = cos_allocate_mbuf(g_tx_mp[core_id - 1]);
+	unsigned int queue_idx = nicmgr_get_tx_queue(core_id);
+	
+	mbuf = cos_allocate_mbuf(g_tx_mp[queue_idx]);
 	assert(mbuf);
 	ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)buf.obj);
 	cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
 	cos_set_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len, 1);
 	tx_packets[0] = mbuf;
 
-	sync_lock_take(&tx_lock[core_id - 1]);
-	cos_dev_port_tx_burst(0, core_id - 1, tx_packets, 1);
-	sync_lock_release(&tx_lock[core_id - 1]);
+	sync_lock_take(&tx_lock[queue_idx]);
+	int tx_sent = cos_dev_port_tx_burst(0, queue_idx, tx_packets, 1);
+	sync_lock_release(&tx_lock[queue_idx]);
+	
+	if (tx_sent != 1) {
+		printc("nicmgr TX: cos_dev_port_tx_burst failed, sent %d/%d packets\n", tx_sent, 1);
+	} 
 #endif
 
 	return 0;
@@ -316,11 +354,9 @@ nic_netio_tx_packet_batch(shm_bm_objid_t pktid)
 	char *tx_packets[256];
 
 	coreid_t core_id = cos_cpuid();
-#if E810_NIC == 0
-	core_id = 1;
-#endif
+	unsigned int queue_idx = nicmgr_get_tx_queue(core_id);
 
-	mbuf = cos_allocate_mbuf(g_tx_mp[core_id]);
+	mbuf = cos_allocate_mbuf(g_tx_mp[queue_idx]);
 	assert(mbuf);
 	ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)obj);
 	cos_attach_external_mbuf(mbuf, obj, data_paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
@@ -334,7 +370,7 @@ nic_netio_tx_packet_batch(shm_bm_objid_t pktid)
 		obj = shm_bm_transfer_net_pkt_buf(shm, pktid);
 		data_paddr = paddr + (u64_t)obj - (u64_t)shm;
 
-		mbuf = cos_allocate_mbuf(g_tx_mp[core_id]);
+		mbuf = cos_allocate_mbuf(g_tx_mp[queue_idx]);
 		assert(mbuf);
 		ext_shinfo = netshmem_get_tailroom((struct netshmem_pkt_buf *)obj);
 		cos_attach_external_mbuf(mbuf, obj, data_paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
@@ -342,9 +378,9 @@ nic_netio_tx_packet_batch(shm_bm_objid_t pktid)
 		tx_packets[i] = mbuf;
 	}
 
-	sync_lock_take(&tx_lock[core_id]);
-	cos_dev_port_tx_burst(0, core_id, tx_packets, batch_tc);
-	sync_lock_release(&tx_lock[core_id]);
+	sync_lock_take(&tx_lock[queue_idx]);
+	cos_dev_port_tx_burst(0, queue_idx, tx_packets, batch_tc);
+	sync_lock_release(&tx_lock[queue_idx]);
 
 	return 0;
 }
@@ -373,18 +409,19 @@ nic_netio_shmem_bind_port(u32_t ip_addr, u16_t port)
 	client_sessions[thd].port    = port;
 	client_sessions[thd].thd     = thd;
 
+	/* 
+	 * Get the shared memory that was mapped via nic_netio_shmem_map().
+	 * This must have been called before bind_port.
+	 */
 	shm   = netshmem_get_shm();
-	assert(shm);
 	shmid = netshmem_get_shm_id();
 	paddr = cos_map_virt_to_phys((cos_vaddr_t)shm);
-	assert(paddr);
 
 	client_sessions[thd].shemem_info.shmid = shmid;
 	client_sessions[thd].shemem_info.shm   = shm;
 	client_sessions[thd].shemem_info.paddr = paddr;
 	// cos_hash_add(client_sessions[thd].port, &client_sessions[thd]);
 	simple_hash_add(client_sessions[thd].ip_addr, client_sessions[thd].port, &client_sessions[thd]);
-
 	sync_sem_init(&client_sessions[thd].sem, 0);
 
 	pkt_ring_buf_init(&client_sessions[thd].pkt_ring_buf, RX_PKT_RBUF_NUM, RX_PKT_RING_SZ);

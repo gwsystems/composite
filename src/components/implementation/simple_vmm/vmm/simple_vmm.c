@@ -13,49 +13,24 @@
 #include <vmrt.h>
 #include <instr_emul.h>
 #include <acrn_common.h>
-#include <netshmem.h>
-#include <vmm_netio_rx.h>
-#include <vmm_netio_tx.h>
-#include <vmm_netio_shmem.h>
-#include <nic_netio_rx.h>
-#include <nic_netio_tx.h>
-#include <nic_netio_shmem.h>
 
 #include <vlapic.h>
 #include <vioapic.h>
 #include <sync_lock.h>
 #include <cos_time.h>
-#include <nf_session.h>
 #include <sync_sem.h>
 #include <arpa/inet.h>
-
-#define NF_THD_PRIORITY 31
-
-#define NO_NF_TEST 1
-
-#define RX_BATCH 1
-#define TX_BATCH 1
-
-#define RX_PROCESSING 0
-#define TX_PROCESSING 0
-
-thdid_t rx_tid = 0;
-thdid_t tx_tid = 0;
-
-thdid_t virtio_tx_tid = 0;
-
-char tx_nf_buffer[4096];
-char rx_nf_buffer[4096];
+#include <netshmem.h>
+#include <nic_netio_shmem.h>
+#include <devices/vpci/virtio_net_io.h>
 
 
 INCBIN(vmlinux, "guest/vmlinux.img")
 INCBIN(bios, "guest/guest.img")
 
-/* Currently only have one VM component globally managed by this VMM */
+/* Only one VM component globally managed by this VMM */
 static struct vmrt_vm_comp *g_vm;
-static struct vmrt_vm_comp *g_vm1;
-
-struct vmrt_vm_comp *vm_list[2] = {0};
+static u8_t g_num_vcpus = 1;  
 
 #define VM_MAX_COMPS (2)
 #define GUEST_MEM_SZ (310*1024*1024)
@@ -134,7 +109,7 @@ struct vmrt_vm_comp *
 vm_comp_create(void)
 {
 	u64_t guest_mem_sz = GUEST_MEM_SZ;
-	u64_t num_vcpu = 1;
+	u64_t num_vcpu = g_num_vcpus;
 	void *start;
 	void *end;
 	cbuf_t shm_id;
@@ -177,159 +152,26 @@ vm_comp_create(void)
 	return vm;
 }
 
-#if 0
-static void
-tx_task(void)
-{
-	u16_t pkt_len;
-	shm_bm_objid_t objid;
-
-	// vmm_netio_shmem_map(netshmem_get_shm_id());
-	nic_netio_shmem_map(netshmem_get_shm_id());
-
-	shm_bm_objid_t           first_objid;
-	struct netshmem_pkt_buf   *first_obj;
-	struct netshmem_pkt_pri   *first_obj_pri;
-	struct netshmem_meta_tuple *pkt_arr;
-	u8_t tx_batch_ct = 0;
-	struct netshmem_pkt_buf *tx_obj;
-
-	nic_netio_shmem_bind_port(0, 1);
-
-	shm_bm_t tx_shmemd = 0;
-	tx_shmemd = netshmem_get_shm();
-
-	while(1) {
-#if !TX_BATCH
-		objid = vmm_netio_rx_packet(&pkt_len);
-		nic_netio_tx_packet(objid, 0, pkt_len);
-
-#else
-		u8_t batch_ct = 32;
-
-		first_objid = objid = vmm_netio_rx_packet_batch(batch_ct);
-		first_obj = shm_bm_transfer_net_pkt_buf(tx_shmemd, objid);
-		first_obj_pri = netshmem_get_pri(first_obj);
-		pkt_arr = (struct netshmem_meta_tuple *)&(first_obj_pri->pkt_arr);
-		tx_batch_ct = first_obj_pri->batch_len;
-
-#if TX_PROCESSING
-		for (u8_t i = 0; i < tx_batch_ct; i++) {
-			pkt_len = pkt_arr[i].pkt_len;
-			objid = pkt_arr[i].obj_id;
-			tx_obj = shm_bm_transfer_net_pkt_buf(tx_shmemd, objid);
-			memcpy(tx_nf_buffer, netshmem_get_data_buf(tx_obj), pkt_len);
-		}
-#endif
-		nic_netio_tx_packet_batch(first_objid);
-#endif
-	}
-}
-#endif
-
-static void
-rx_task(void)
-{
-	/* TODO: port NF applications here   */
-	shm_bm_objid_t           objid;
-	struct netshmem_pkt_buf *rx_obj;
-	shm_bm_objid_t           first_objid;
-	struct netshmem_pkt_buf   *first_obj;
-	struct netshmem_pkt_pri   *first_obj_pri;
-	struct netshmem_meta_tuple *pkt_arr;
-	u16_t pkt_len;
-	u32_t ip;
-
-	u8_t batch_ct = 50;
-
-	// vmm_netio_shmem_map(netshmem_get_shm_id());
-	nic_netio_shmem_map(netshmem_get_shm_id());
-	ip = inet_addr("10.10.1.1");
-
-	nic_netio_shmem_bind_port(ip, 0);
-
-	int i = 0;
-	u64_t times = 0;
-	u64_t overhead = 0;
-
-	shm_bm_t rx_shmemd = 0;
-
-	rx_shmemd = netshmem_get_shm();
-	while(1)
-	{
-		u8_t rx_batch_ct = 0;
-#if !RX_BATCH
-		objid = nic_netio_rx_packet(&pkt_len);
-		vmm_netio_tx_packet(objid, pkt_len);
-#else
-		first_objid = nic_netio_rx_packet_batch(batch_ct);
-
-		first_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, first_objid);
-		first_obj_pri = netshmem_get_pri(first_obj);
-		pkt_arr = (struct netshmem_meta_tuple *)&(first_obj_pri->pkt_arr);
-		rx_batch_ct = first_obj_pri->batch_len;
-#if RX_PROCESSING
-		for (u8_t i = 0; i < rx_batch_ct; i++) {
-			pkt_len = pkt_arr[i].pkt_len;
-			objid = pkt_arr[i].obj_id;
-			rx_obj = shm_bm_transfer_net_pkt_buf(rx_shmemd, objid);
-			memcpy(rx_nf_buffer, netshmem_get_data_buf(rx_obj), pkt_len);
-		}
-#endif
-
-		vmm_netio_tx_packet_batch(first_objid);
-#endif
-	}
-}
-
-static void
-tx_task(void)
-{
-	u16_t pkt_len;
-	shm_bm_objid_t objid;
-
-	nic_netio_shmem_map(netshmem_get_shm_id());
-
-	shm_bm_objid_t           first_objid;
-	struct netshmem_pkt_buf   *first_obj;
-	struct netshmem_pkt_pri   *first_obj_pri;
-	struct netshmem_meta_tuple *pkt_arr;
-	u8_t tx_batch_ct = 0;
-	struct netshmem_pkt_buf *tx_obj;
-	u32_t ip;
-
-	shm_bm_t tx_shmemd = 0;
-	tx_shmemd = netshmem_get_shm();
-	ip = inet_addr("10.10.1.1");
-
-	nic_netio_shmem_bind_port(ip, 1);
-	int svc_id = 0;
-
-	nf_svc_update(cos_compid(), cos_thdid(), svc_id, g_vm);
-
-	struct nf_session *session;
-	session = get_nf_session(svc_id);
-	nf_session_tx_update(session, tx_shmemd, cos_thdid());
-	sync_sem_init(&session->tx_sem, 0);
-
-	nf_tx_ring_buf_init(&session->nf_tx_ring_buf, NF_TX_PKT_RBUF_NUM, NF_TX_PKT_RING_SZ);
-
-	virtio_tx_task(0);
-}
+/* Weak usage of nicmgr interface */
+void __attribute__((weak)) nic_netio_shmem_map(cbuf_t shm_id);
 
 void
 cos_init(void)
 {
+	struct vmrt_vm_vcpu *vcpu;
+	g_vm = vm_comp_create();
+	printc("VMM: Created VM with %d vCPUs: comp_id=%d, %p\n", g_num_vcpus, g_vm->comp_id, g_vm);
 
-		nf_svc_init();
-		nf_sessions_init();
-
-		struct vmrt_vm_vcpu *vcpu;
-		g_vm = vm_comp_create();
-		printc("created vm done:%d, %p\n", g_vm->comp_id, g_vm);
-		g_vm->vm_mac_id = 0;
-
-		vm_list[0] = g_vm;
+	if (nic_netio_shmem_map) {
+		/* Create TX thread for transmitting packets to NIC */
+		g_vm->tx_thd = sched_thd_create(virtio_tx_task, NULL);
+		printc("VMM: Created TX thread, tid=%lu\n", g_vm->tx_thd);
+		/* Create RX thread for receiving packets from NIC */
+		g_vm->rx_thd = sched_thd_create(virtio_rx_task, NULL);
+		printc("VMM: Created RX thread, tid=%lu\n", g_vm->rx_thd);
+	} else {
+		printc("VMM: Networking disabled: nicmgr interface not found\n");
+	}
 }
 
 void
@@ -338,19 +180,14 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	struct vmrt_vm_vcpu *vcpu;
 
 	if (cid == 0) {
-		rx_tid = sched_thd_create((void *)rx_task, NULL);
-		netshmem_create(rx_tid);
-		tx_tid = sched_thd_create((void *)tx_task, NULL);
-		netshmem_create(tx_tid);
-		printc("NF rx tid:%ld, tx tid:%ld\n", rx_tid, tx_tid);
-
+		printc("VMM: Initializing vCPU 0 on core %d\n", cid);
 		vmrt_vm_vcpu_init(g_vm, 0);
 		vcpu = vmrt_get_vcpu(g_vm, 0);
-
+		printc("VMM: vCPU 0 initialized (tid=%lu)\n", vcpu->tid);
 		lapic_init(vcpu);
 		iinst_ctxt_init(vcpu);
 		mmio_init(vcpu);
-
+		printc("VMM: vCPU 0 lapic, inst_ctxt, mmio initialized\n");
 	}
 
 	return;
@@ -360,23 +197,18 @@ void
 parallel_main(coreid_t cid)
 {
 	struct vmrt_vm_vcpu *vcpu;
-	
-	if (cid == 0) {
-		sched_thd_block_timeout(0, time_now() + time_usec2cyc(10000000));
-		vcpu = vmrt_get_vcpu(g_vm, 0);
-		vmrt_vm_vcpu_start(vcpu);
-
-		sched_thd_param_set(rx_tid, sched_param_pack(SCHEDP_PRIO, NF_THD_PRIORITY));
-		sched_thd_param_set(tx_tid, sched_param_pack(SCHEDP_PRIO, NF_THD_PRIORITY));
-
-	} 
-
-	while (1)
-	{
-		sched_thd_block(0);
-		/* Should not be here, or there is a bug in the scheduler! */
-		assert(0);
+	if (cid == 0 && nic_netio_shmem_map) {
+		sched_thd_param_set(g_vm->rx_thd, sched_param_pack(SCHEDP_PRIO, 31));
+		sched_thd_param_set(g_vm->tx_thd, sched_param_pack(SCHEDP_PRIO, 31));
 	}
-	
 
+	if (cid == 0) {
+		printc("VMM: Starting vCPU 0 on core %d\n", cid);
+		vcpu = vmrt_get_vcpu(g_vm, 0);
+		printc("VMM: Core %d started vCPU %d (tid=%lu)\n", cid, cid, vcpu->tid);
+		vmrt_vm_vcpu_start(vcpu);
+	}
+	sched_thd_block(0);
+	/* Should not be here, or there is a bug in the scheduler! */
+	assert(0);
 }

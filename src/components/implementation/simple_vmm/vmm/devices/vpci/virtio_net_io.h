@@ -142,3 +142,5 @@ struct virtio_net_rxhdr {
 void virtio_net_handler(u16_t port, int dir, int sz, struct vmrt_vm_vcpu *vcpu);
 void virtio_net_rcv_one_pkt(void *data, int pkt_len);
 void virtio_net_send_one_pkt(void *data, u16_t *pkt_len);
+void virtio_tx_task(void *data);
+void virtio_rx_task(void *data);

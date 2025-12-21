@@ -397,7 +397,7 @@ vmx_thd_start_or_resume(struct thread *thd)
 	VMX_DEBUG("Starting or resuming VM thread: 0x%p, tid: %u, coreid:%u\n", thd, thd->tid, thd->cpuid);
 
 	vmx_resume(thd);
-	assert(thd->vcpu_ctx.state = VM_THD_STATE_STOPPED);
+	assert(thd->vcpu_ctx.state == VM_THD_STATE_STOPPED);
 
 	vmx_host_state_init();
 	vmx_guest_state_init(thd);
