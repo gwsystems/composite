@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2018-2022 Intel Corporation.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 #include <cos_types.h>
 #include <cos_debug.h>
 #include <stddef.h>
@@ -9,12 +15,6 @@
 #include "vcpuid.h"
 #include "cpu_caps.h"
 #include "apicreg.h"
-
-/*
- * Copyright (C) 2018-2022 Intel Corporation.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
 
 static struct cpuinfo_x86 boot_cpu_data;
 static struct vcpuid_entry vcpuid_entries[MAX_VM_VCPUID_ENTRIES];
