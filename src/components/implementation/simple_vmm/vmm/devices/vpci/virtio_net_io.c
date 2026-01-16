@@ -664,7 +664,7 @@ virtio_tx_task(void *data)
 		assert(0);
 	}
 	
-	printc("VMM TX: Shared memory initialized, shmem_id=%lu, bound to port 1\n", shm_id);
+	printc("VMM TX: Shared memory initialized, shmem_id=%u, bound to port 1\n", shm_id);
 
 	vq = &virtio_net_vqs[VIRTIO_NET_TXQ];
 	while (1) {

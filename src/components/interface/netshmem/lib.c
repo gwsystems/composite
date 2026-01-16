@@ -57,7 +57,7 @@ netshmem_map_shmem(cbuf_t shm_id)
 
 	npages	= memmgr_shared_page_map_aligned(shm_id, SHM_BM_ALIGN, (vaddr_t *)&mem);
 	printc("---test mem accessibility---\n");
-	for (int i = 0; i < npages; i++) {
+	for (unsigned long i = 0; i < npages; i++) {
 		memcpy(testbuffer, mem + i * PAGE_SIZE, PAGE_SIZE);
 	}
 	printc("---mem accessibility ok---\n");

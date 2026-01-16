@@ -1,5 +1,3 @@
-#pragma once
-
 #include <simple_hash.h>
 #include <llprint.h>
 
