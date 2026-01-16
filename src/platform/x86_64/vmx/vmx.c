@@ -79,7 +79,7 @@ vmx_host_state_init(void)
 }
 
 void
-vmx_guest_state_init(struct thread *thd)
+vmx_guest_state_init(void)
 {
 	/* Initializing guest state, this will set guest into real mode */
 	u64_t tmp64;
@@ -400,7 +400,7 @@ vmx_thd_start_or_resume(struct thread *thd)
 	assert(thd->vcpu_ctx.state == VM_THD_STATE_STOPPED);
 
 	vmx_host_state_init();
-	vmx_guest_state_init(thd);
+	vmx_guest_state_init();
 	vmx_pinbased_ctl_init();
 	vmx_procbased_ctl_init();
 	vmx_vm_exit_ctl_init();
