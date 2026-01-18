@@ -408,7 +408,6 @@ void
 cos_init(void)
 {
 	printc("nicmgr init...\n");
-#if 1
 	cos_nic_init();
 	cos_hash_init();
 #ifdef USE_CK_RING_FREE_MBUF
@@ -418,7 +417,6 @@ cos_init(void)
 		sync_lock_init(&tx_lock[i]);
 	}
 
-#endif
 	printc("dpdk init end\n");
 }
 
