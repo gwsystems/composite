@@ -549,7 +549,7 @@ static void guest_cpuid_01h(struct vmrt_vm_vcpu *vcpu, uint32_t *eax, uint32_t *
 	/*
 	 * Hide MONITOR/MWAIT.
 	 */
-	// *ecx &= ~CPUID_ECX_MONITOR;
+	*ecx &= ~CPUID_ECX_MONITOR;
 
 	/* Warning: should we support CPUID_ECX_OSXSAVE in VM? Let's begin with not setting it first */
 	*ecx &= ~CPUID_ECX_OSXSAVE;

@@ -119,12 +119,6 @@ struct virtio_net_io_reg {
 	struct virtio_net_config config_reg;
 } __attribute__((packed));
 
-// struct iovec
-// {
-//     void *iov_base;	/* Pointer to data.  */
-//     size_t iov_len;	/* Length of data.  */
-// };
-
 struct virtio_vq_info {
 	u16_t qsize;		/* size of this queue (a power of 2) */
 	void (*notify)(void *, struct virtio_vq_info *);
