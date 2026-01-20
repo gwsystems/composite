@@ -160,7 +160,7 @@ cos_init(void)
 {
 	struct vmrt_vm_vcpu *vcpu;
 	g_vm = vm_comp_create();
-	printc("VMM: Created VM with %d vCPUs: comp_id=%d, %p\n", g_num_vcpus, g_vm->comp_id, g_vm);
+	printc("VMM: Created VM with %d vCPUs: comp_id=%lu, %p\n", g_num_vcpus, g_vm->comp_id, g_vm);
 
 	if (nic_netio_shmem_map) {
 		/* Create TX thread for transmitting packets to NIC */

@@ -89,7 +89,7 @@ inline int
 pkt_ring_buf_enqueue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf)
 {
 	assert(pkt_ring_buf->ring && pkt_ring_buf->ringbuf);
-	
+
 	return CK_RING_ENQUEUE_SPSC(pkt_ring_buf, pkt_ring_buf->ring, pkt_ring_buf->ringbuf, buf);
 }
 
@@ -97,7 +97,7 @@ inline int
 pkt_ring_buf_dequeue(struct pkt_ring_buf *pkt_ring_buf, struct pkt_buf *buf)
 {
 	assert(pkt_ring_buf->ring && pkt_ring_buf->ringbuf);
-	
+
 	return CK_RING_DEQUEUE_SPSC(pkt_ring_buf, pkt_ring_buf->ring, pkt_ring_buf->ringbuf, buf);
 }
 
@@ -122,7 +122,7 @@ nic_netio_rx_packet(u16_t *pkt_len)
 	thd = cos_thdid();
 	assert(thd < NIC_MAX_SESSION);
 
-	session = &client_sessions[thd];	
+	session = &client_sessions[thd];
 
 	session->blocked_loops_begin++;
 	sync_sem_take(&session->sem);
@@ -414,13 +414,14 @@ nic_netio_shmem_bind_port(u32_t ip_addr, u16_t port)
 	 * This must have been called before bind_port.
 	 */
 	shm   = netshmem_get_shm();
+	assert(shm);
 	shmid = netshmem_get_shm_id();
 	paddr = cos_map_virt_to_phys((cos_vaddr_t)shm);
+	assert(paddr);
 
 	client_sessions[thd].shemem_info.shmid = shmid;
 	client_sessions[thd].shemem_info.shm   = shm;
 	client_sessions[thd].shemem_info.paddr = paddr;
-	// cos_hash_add(client_sessions[thd].port, &client_sessions[thd]);
 	simple_hash_add(client_sessions[thd].ip_addr, client_sessions[thd].port, &client_sessions[thd]);
 	sync_sem_init(&client_sessions[thd].sem, 0);
 

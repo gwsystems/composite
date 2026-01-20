@@ -3,8 +3,6 @@
 #include <cos_kernel_api.h>
 #include <consts.h>
 
-#define VMRT_MAX_VM (10)
-
 #define VMRT_VM_NAME_SIZE (32)
 #define VMRT_VM_MAX_VCPU (16)
 

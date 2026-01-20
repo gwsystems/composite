@@ -343,16 +343,16 @@ virtio_net_rcv_one_pkt(void *data, int pkt_len)
 
 	n = vq_getchain(vcpu, vq, &idx, iov, VIRTIO_NET_MAXSEGS, NULL);
 
-	// if (unlikely (n < 1 || n >= VIRTIO_NET_MAXSEGS )) {
-	// 	printc("vtnet: virtio_net_tap_rx: vq_getchain = %d\n", n);
-	// 	assert(0);
-	// }
+	if (unlikely (n < 1 || n >= VIRTIO_NET_MAXSEGS )) {
+		printc("vtnet: virtio_net_tap_rx: vq_getchain = %d\n", n);
+	 	assert(0);
+	}
 
 	vrx = iov[0].iov_base;
 	/* every packet needs to be proceeded by a virtio_net_rxhdr header space */
 	riov = rx_iov_trim(iov, &n, sizeof(struct virtio_net_rxhdr));
 
-	// assert(iov[0].iov_len >= (size_t)pkt_len);
+	assert(iov[0].iov_len >= (size_t)pkt_len);
 
 	// memcpy(iov[0].iov_base, data, pkt_len);
 	memcpy_fast(iov[0].iov_base, data, pkt_len);
@@ -378,7 +378,7 @@ virtio_net_send_one_pkt(void *data, u16_t *pkt_len)
 	while (!vq_has_descs(vq)) {
 		*pkt_len = 0;
 		return;
-		// sched_thd_block(0);
+		sched_thd_block(0);
 	}
 	vcpu = vq->vcpu;
 
@@ -504,10 +504,6 @@ virtio_net_outw(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 		virtio_net_regs.header.queue_select = val;
 		break;
 	case VIRTIO_NET_QUEUE_NOTIFY:
-	        if (val == VIRTIO_NET_TXQ) {
-			// sched_thd_yield();
-			// sched_thd_wakeup(11);
-		}
 		virtio_net_regs.header.queue_notify = val;
 		break;
 	default:
@@ -664,7 +660,7 @@ virtio_tx_task(void *data)
 		assert(0);
 	}
 	
-	printc("VMM TX: Shared memory initialized, shmem_id=%lu, bound to port 1\n", shm_id);
+	printc("VMM TX: Shared memory initialized, shmem_id=%u, bound to port 1\n", shm_id);
 
 	vq = &virtio_net_vqs[VIRTIO_NET_TXQ];
 	while (1) {
