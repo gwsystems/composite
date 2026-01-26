@@ -25,6 +25,6 @@ simple_hash_init(void)
 
 void *
 simple_hash_find(u32_t ip, u16_t port) {
-	if (unlikely(port > MAX_PORT)) return NULL;
+	if (unlikely(port >= MAX_PORT)) return NULL;
 	return g_hash_tbl[ip % MAX_IP][port];
 }
