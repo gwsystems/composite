@@ -555,19 +555,19 @@ virtio_net_inl(u32_t port_id, struct vmrt_vm_vcpu *vcpu)
 }
 
 void
-virtio_net_handler(u16_t port, int dir, int sz, struct vmrt_vm_vcpu *vcpu)
+virtio_net_handler(u16_t io_port_addr, int dir, int sz, struct vmrt_vm_vcpu *vcpu)
 {
 	if (dir == IO_IN) {
 		switch (sz)
 		{
 		case IO_BYTE:
-			virtio_net_inb(port, vcpu);
+			virtio_net_inb(io_port_addr, vcpu);
 			break;
 		case IO_WORD:
-			virtio_net_inw(port, vcpu);
+			virtio_net_inw(io_port_addr, vcpu);
 			break;
 		case IO_LONG:
-			virtio_net_inl(port, vcpu);
+			virtio_net_inl(io_port_addr, vcpu);
 			break;
 		default:
 			VM_PANIC(vcpu);
@@ -576,13 +576,13 @@ virtio_net_handler(u16_t port, int dir, int sz, struct vmrt_vm_vcpu *vcpu)
 		switch (sz)
 		{
 		case IO_BYTE:
-			virtio_net_outb(port, vcpu);
+			virtio_net_outb(io_port_addr, vcpu);
 			break;
 		case IO_WORD:
-			virtio_net_outw(port, vcpu);
+			virtio_net_outw(io_port_addr, vcpu);
 			break;
 		case IO_LONG:
-			virtio_net_outl(port, vcpu);
+			virtio_net_outl(io_port_addr, vcpu);
 			break;
 		default:
 			VM_PANIC(vcpu);
@@ -652,6 +652,7 @@ virtio_tx_task(void *data)
 	
 	/* 
 	 * Bind with IP=0 means this is a TX-only binding.
+	 * service_port=1 is the network TCP/UDP port for packet routing.
 	 * The nicmgr will use the mapped shared memory from the previous call.
 	 */
 	ret = nic_netio_shmem_bind_port(0, 1);
@@ -660,7 +661,7 @@ virtio_tx_task(void *data)
 		assert(0);
 	}
 	
-	printc("VMM TX: Shared memory initialized, shmem_id=%u, bound to port 1\n", shm_id);
+	printc("VMM TX: Shared memory initialized, shmem_id=%u, bound to network service port 1\n", shm_id);
 
 	vq = &virtio_net_vqs[VIRTIO_NET_TXQ];
 	while (1) {
@@ -737,15 +738,16 @@ virtio_rx_task(void *data)
 	 */
 	nic_netio_shmem_map(shm_id);
 	
-	/* Bind this RX thread to IP address so nicmgr can route packets here */
-	u32_t vm_ip = inet_addr("161.253.78.154");
-	printc("VMM RX: Binding to IP 161.253.78.154 (0x%x), port 0\n", vm_ip);
+	/* Bind this RX thread to IP address so nicmgr can route packets here.
+	 * service_port=0 is the network TCP/UDP port for packet routing. */
+	u32_t vm_ip = inet_addr("15.15.15.14");
+	printc("VMM RX: Binding to IP 15.15.15.14 (0x%x), network service port 0\n", vm_ip);
 	ret = nic_netio_shmem_bind_port(vm_ip, 0);
 	if (ret < 0) {
 		printc("VMM RX: Failed to bind to IP address, ret=%d\n", ret);
 		assert(0);
 	}
-	printc("VMM RX: Successfully bound to IP 161.253.78.154, entering RX loop\n");
+	printc("VMM RX: Successfully bound to IP 15.15.15.14, entering RX loop\n");
 	assert(rx_shmemd);
 
 	while (1) {

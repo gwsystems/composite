@@ -2,6 +2,9 @@
 description = "Simple VMM Ping Test"
 # VM <---[virtio]---> VMM <---[shared mem]---> nicmgr
 # enable-nic flag must be given using QEMU. (./cos run [binary name] enable-nic)
+# 
+# vmlinux.img: Includes the program that sets ip to eth0 interface and ping to some known ip.
+# tap0 could be configured and used as a receiving interface.
 
 [[components]]
 name = "booter"

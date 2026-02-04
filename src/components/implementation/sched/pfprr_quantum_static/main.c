@@ -599,9 +599,6 @@ slm_ipi_process(void *d)
 	struct slm_thd         *current  = slm_thd_current();
 	struct slm_thd         *thd;
 
-	/* block the IPI thd for test purpose */
-	sched_thd_block(0);
-
 	while (1) {
 		cos_rcv(r->rcv, RCV_ALL_PENDING, &rcvd);
 

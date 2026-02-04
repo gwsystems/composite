@@ -98,7 +98,7 @@ cos_hash_lookup(uint16_t tenant_id)
 static void
 debug_print_stats(void)
 {
-	cos_get_port_stats(0);
+	cos_get_port_stats(DPDK_NIC_PORT_RX);
 
 	printc("rx mempool in use:%u\n", cos_mempool_in_use_count(g_rx_mp[0]));
 	printc("rx enqueued miss:%llu\n", rx_enqueued_miss);
@@ -144,7 +144,7 @@ process_tx_packets(void)
 	char *tx_packets[MAX_PKT_BURST];
 	struct pkt_ring_buf *per_thd_tx_ring;
 	int i = 0, j = 0;
-	// cycles_t    before, after;
+
 	for (j = 0; j < NIC_MAX_SESSION; j++) {
 		if (client_sessions[j].tx_init_done == 0) continue;
 
@@ -162,17 +162,18 @@ process_tx_packets(void)
 			cos_attach_external_mbuf(mbuf, buf.obj, buf.paddr, PKT_BUF_SIZE, ext_buf_free_callback_fn, ext_shinfo);
 			cos_set_external_packet(mbuf, (buf.pkt - buf.obj), buf.pkt_len, ENABLE_OFFLOAD);
 			tx_packets[i++] = mbuf;
-			// rdtscll(before);
-			cos_dev_port_tx_burst(0, 0, tx_packets, i);
-			// rdtscll(after);
+			cos_dev_port_tx_burst(DPDK_NIC_PORT_TX, 0, tx_packets, i);
 		}
 
 	}
 }
 
-static u32_t __ip;
+/*
+ * Process received packets and route them to appropriate client sessions.
+ * Packet routing is based on destination IP and service port extracted from headers.
+ */
 static void
-process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
+process_rx_packets(char** rx_pkts, uint16_t nb_pkts)
 {
 	int i, ret;
 	int len = 0;
@@ -186,7 +187,7 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 	char                    *pkt;
 	struct pkt_buf           buf;
 	u32_t ip = 0;
-	u16_t svc_id = 0;
+	u16_t svc_id = 0;  /* Network service port from packet header */
 
 	for (i = 0; i < nb_pkts; i++) {
 		pkt = cos_get_packet(rx_pkts[i], &len);
@@ -258,45 +259,12 @@ cos_free_rx_buf()
 }
 
 static void
-swap_mac(struct eth_hdr *eth) {
-	char tmp[6];
-	memcpy(tmp, &eth->dst_addr.addr_bytes[0], 6);
-	memcpy(&eth->dst_addr.addr_bytes[0], &eth->src_addr.addr_bytes[0], 6);
-	memcpy(&eth->src_addr.addr_bytes[0], tmp, 6);
-}
-
-static void
-transmit_back(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
-{
-	int i, ret;
-	int len = 0;
-
-	struct eth_hdr		*eth;
-	struct ip_hdr		*iph;
-	struct arp_hdr		*arp_hdr;
-	struct tcp_udp_port	*port;
-	struct client_session	*session;
-	char                    *pkt;
-	struct pkt_buf           buf;
-
-	for (i = 0; i < nb_pkts; i++) {
-		pkt = cos_get_packet(rx_pkts[i], &len);
-		eth = (struct eth_hdr *)pkt;
-		swap_mac(eth);
-	}
-	// printc("tx :%d\n", nb_pkts);
-	ret = cos_dev_port_tx_burst(0, 0, rx_pkts, nb_pkts);
-	assert(ret == nb_pkts);
-}
-
-static void
 cos_nic_start(){
 	int i, j, recv_round;
 	uint16_t nb_pkts = 0;
 
 	char *rx_packets[MAX_PKT_BURST];
 	int count = 0;
-	__ip = inet_addr("161.253.78.154");
 
 	while (1) {
 #if USE_CK_RING_FREE_MBUF
@@ -306,12 +274,23 @@ cos_nic_start(){
 		debug_dump_info();
 #endif
 
-		nb_pkts = cos_dev_port_rx_burst(0, 0, rx_packets, MAX_PKT_BURST);
+		/* Receive from configured DPDK RX port */
+		nb_pkts = cos_dev_port_rx_burst(DPDK_NIC_PORT_RX, 0, rx_packets, MAX_PKT_BURST);
 
 		/* This is the real processing logic for applications */
 		if (nb_pkts != 0) {
-			process_rx_packets(0, rx_packets, nb_pkts);
+			process_rx_packets(rx_packets, nb_pkts);
 		} else {
+			/* 
+			 * Here a trade-off could be made between busy waiting and yielding CPU.
+			 * Different strategies could be applied: 
+			 * 	1) pure busy waiting (best for latency, worst for CPU utilization)
+			 * 	2) pure yielding (worst for latency, best for CPU utilization)
+			 * 	3) hybrid approach (medium for both latency and CPU utilization)
+			 * Here we implement a simple hybrid approach: after certain number of
+			 * consecutive empty RX polls, we yield the CPU to let other threads run.
+			 */
+
 			// sched_thd_block_timeout(0, ps_tsc() + 2000*2);
 			count++;
 			if (count > 5) {
@@ -358,15 +337,41 @@ cos_nic_init(void)
 
 	argc = ARRAY_SIZE(argv);
 
-	/* 1. do initialization of dpdk */
+	/* 
+	 * 1. Initialize DPDK EAL (Environment Abstraction Layer)
+	 * This discovers all available NICs and builds the logical port mapping.
+	 */
 	ret = cos_dpdk_init(argc, argv);
 
 	assert(ret == argc - 1); /* program name is excluded */
 
-	/* 2. init all Ether ports */
+	/* 
+	 * 2. Initialize all discovered Ethernet ports
+	 * This discovers all available DPDK ports and stores their actual port IDs.
+	 */
 	nic_ports = cos_eth_ports_init();
 
 	assert(nic_ports > 0);
+	
+	/* Validate configured RX/TX ports exist */
+	if (!cos_port_is_valid(DPDK_NIC_PORT_RX)) {
+		printc("ERROR: Configured RX port(DPDK_NIC_PORT_RX) %d not found! Available ports: ", DPDK_NIC_PORT_RX);
+		for (int i = 0; i < nic_ports; i++) {
+			printc("%d%s", cos_get_discovered_port(i), (i < nic_ports - 1) ? ", " : "\n");
+		}
+		assert(0);
+	}
+	
+	if (!cos_port_is_valid(DPDK_NIC_PORT_TX)) {
+		printc("ERROR: Configured TX port(DPDK_NIC_PORT_TX) %d not found! Available ports: ", DPDK_NIC_PORT_TX);
+		for (int i = 0; i < nic_ports; i++) {
+			printc("%d%s", cos_get_discovered_port(i), (i < nic_ports - 1) ? ", " : "\n");
+		}
+		assert(0);
+	}
+	
+	printc("nicmgr: Found %d ports. Using port %d for RX, port %d for TX\n", 
+	       nic_ports, DPDK_NIC_PORT_RX, DPDK_NIC_PORT_TX);
 
 	/* 3. create mbuf pool where packets will be stored, user can create multiple pools */
 	for (i = 0; i < NIC_RX_QUEUE_NUM; i++) {
@@ -384,22 +389,32 @@ cos_nic_init(void)
 	}
 
 
-	/* 4. config each port */
+	/* 
+	 * 4. Configure all discovered ports
+	 * Note: We configure all discovered ports, but only DPDK_NIC_PORT_RX and 
+	 *       DPDK_NIC_PORT_TX will be actively used for packet processing.
+	 */
 	for (i = 0; i < nic_ports; i++) {
-		cos_config_dev_port_queue(i, NIC_RX_QUEUE_NUM, NIC_TX_QUEUE_NUM);
-		cos_dev_port_adjust_rx_tx_desc(i, &nb_rx_desc, &nb_tx_desc);
+		cos_portid_t actual_port = cos_get_discovered_port(i);
+		printc("nicmgr: Configuring DPDK port %d...\n", actual_port);
+		cos_config_dev_port_queue(actual_port, NIC_RX_QUEUE_NUM, NIC_TX_QUEUE_NUM);
+		cos_dev_port_adjust_rx_tx_desc(actual_port, &nb_rx_desc, &nb_tx_desc);
 		for (int j = 0; j < NIC_RX_QUEUE_NUM; j++) {
-			cos_dev_port_rx_queue_setup(i, j, nb_rx_desc, g_rx_mp[j]);
+			cos_dev_port_rx_queue_setup(actual_port, j, nb_rx_desc, g_rx_mp[j]);
 		}
 		for (int j = 0; j < NIC_TX_QUEUE_NUM; j++) {
-			cos_dev_port_tx_queue_setup(i, j, nb_tx_desc);
+			cos_dev_port_tx_queue_setup(actual_port, j, nb_tx_desc);
 		}
 	}
 
-	/* 5. start each port, this will enable rx/tx */
+	/* 
+	 * 5. Start all discovered ports to enable RX/TX operations
+	 */
 	for (i = 0; i < nic_ports; i++) {
-		cos_dev_port_start(i);
-		cos_dev_port_set_promiscuous_mode(i, COS_DPDK_SWITCH_ON);
+		cos_portid_t actual_port = cos_get_discovered_port(i);
+		cos_dev_port_start(actual_port);
+		cos_dev_port_set_promiscuous_mode(actual_port, COS_DPDK_SWITCH_ON);
+		printc("nicmgr: Started DPDK port %d\n", actual_port);
 	}
 }
 
@@ -444,20 +459,19 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 int
 parallel_main(coreid_t cid)
 {
-	/* DPDK rx and tx will only run on core 0 */
+	/* 
+	 * DPDK rx and tx will only run on core 0 
+	 * 
+	 * NOTE: This can be extended to support multi-queue TX (one queue per core)
+	 * while keeping single RX queue:
+	 * 1. Set NIC_TX_QUEUE_NUM to NUM_CPU in cos_dpdk.h
+	 * 2. Each core would use its own TX queue: cos_dev_port_tx_burst(port, cid, ...)
+	 * 3. Benefits: Lock-free parallel transmission, better multi-core scaling
+	 * 4. Requires: NIC hardware support for multiple TX queues (e.g., Intel E810)
+	 */
 	if(cid == 0) {
 		sched_thd_param_set(recv_tid, sched_param_pack(SCHEDP_PRIO, RECV_THD_PRIORITY));
 		sched_thd_block(0);
-	} else {
-#if 0
-#if E810_NIC == 0
-		sync_lock_take(&tx_lock[0]);
-		cos_test_send(0, g_tx_mp[0]);
-		sync_lock_release(&tx_lock[0]);
-#else
-		cos_test_send(cid - 1, g_tx_mp[cid - 1]);
-#endif
-#endif
 	}
 
 	return 0;
