@@ -277,11 +277,11 @@ nic_netio_tx_packet(shm_bm_objid_t pktid, u16_t pkt_offset, u16_t pkt_len)
 	tx_packets[0] = mbuf;
 
 	sync_lock_take(&tx_lock[queue_idx]);
-	int tx_sent = cos_dev_port_tx_burst(0, queue_idx, tx_packets, 1);
+	int tx_sent = cos_dev_port_tx_burst(DPDK_NIC_PORT_TX, queue_idx, tx_packets, 1);
 	sync_lock_release(&tx_lock[queue_idx]);
 	
 	if (tx_sent != 1) {
-		printc("nicmgr TX: cos_dev_port_tx_burst failed, sent %d/%d packets\n", tx_sent, 1);
+		printc("nicmgr TX: cos_dev_port_tx_burst failed, sent %d/%d packets (port %d link may be down!)\n", tx_sent, 1, DPDK_NIC_PORT_TX);
 	} 
 #endif
 
@@ -379,7 +379,7 @@ nic_netio_tx_packet_batch(shm_bm_objid_t pktid)
 	}
 
 	sync_lock_take(&tx_lock[queue_idx]);
-	cos_dev_port_tx_burst(0, queue_idx, tx_packets, batch_tc);
+	cos_dev_port_tx_burst(DPDK_NIC_PORT_TX, queue_idx, tx_packets, batch_tc);
 	sync_lock_release(&tx_lock[queue_idx]);
 
 	return 0;
@@ -392,7 +392,7 @@ nic_netio_shmem_map(cbuf_t shm_id)
 }
 
 int
-nic_netio_shmem_bind_port(u32_t ip_addr, u16_t port)
+nic_netio_shmem_bind_port(u32_t ip_addr, u16_t service_port)
 {
 	unsigned long npages;
 	void         *mem;
@@ -405,8 +405,8 @@ nic_netio_shmem_bind_port(u32_t ip_addr, u16_t port)
 	thd = cos_thdid();
 	assert(thd < NIC_MAX_SESSION);
 
-	client_sessions[thd].ip_addr = ip_addr;
-	client_sessions[thd].port    = port;
+	client_sessions[thd].ip_addr = ip_addr; 
+	client_sessions[thd].port    = service_port;  /* Network TCP/UDP port for routing */
 	client_sessions[thd].thd     = thd;
 
 	/* 
@@ -436,7 +436,8 @@ nic_netio_shmem_bind_port(u32_t ip_addr, u16_t port)
 }
 
 u64_t
-nic_netio_shmem_get_port_mac_address(u16_t port)
+nic_netio_shmem_get_port_mac_address(u16_t dpdk_port_id)
 {
-	return cos_get_port_mac_address(port);
+	/* Get MAC address from DPDK NIC port (physical network interface) */
+	return cos_get_port_mac_address(dpdk_port_id);
 }
