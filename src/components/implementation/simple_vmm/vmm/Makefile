@@ -9,7 +9,7 @@ INTERFACE_EXPORTS = vmm_netio_rx vmm_netio_tx vmm_netio_shmem
 INTERFACE_DEPENDENCIES = contigmem netshmem nic_netio_rx nic_netio_tx nic_netio_shmem sched
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
-LIBRARY_DEPENDENCIES = ubench component kernel initargs vmrt shm_bm sync time ck
+LIBRARY_DEPENDENCIES = ubench component kernel initargs vmrt shm_bm sync time ck fastmem
 # Note: Both the interface and library dependencies should be
 # *minimal*. That is to say that removing a dependency should cause
 # the build to fail. The build system does not validate this
