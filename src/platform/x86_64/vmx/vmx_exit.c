@@ -230,12 +230,42 @@ vmx_exit_handler(struct vm_vcpu_shared_region *regs)
 	/* Save fs for vcpu, this will be restoed later in the thread switch path, thus safe */
 	thd_curr->tls = msr_get(IA32_FS_BASE);
 
-	/* TODO: different external interrupts should be handled by different host interrrut handlers, currently it only has timer interrupt */
 	if (reason_nr == VM_EXIT_REASON_EXTERNAL_INTERRUPT) {
+		u64_t intr_info;
+		u8_t vector;
+
+		/* Read the interrupt vector that caused the VM exit */
+		intr_info = vmread(EXIT_INTERRUPTION_INFO);
+		vector = intr_info & 0xFF; /* Bits 7:0 contain the vector */
+
 		lapic_ack();
-		/*FIXME: might need a xsave/xrestore for sse/avx for current vcpu thd because current thd is set to be exception handler */
-		copy_gp_regs(&thd_exception_handler->regs, &tmp_regs[cpuid]);
-		ret = timer_process(&tmp_regs[cpuid], thd_exception_handler);
+
+		/* Dispatch based on the actual interrupt vector */
+		switch (vector) {
+		case HW_LAPIC_TIMER:
+			/*FIXME: might need a xsave/xrestore for sse/avx for current vcpu thd because current thd is set to be exception handler */
+			copy_gp_regs(&thd_exception_handler->regs, &tmp_regs[cpuid]);
+			ret = timer_process(&tmp_regs[cpuid], thd_exception_handler);
+			break;
+
+		case HW_LAPIC_IPI_ASND:
+			/* TODO: IPI handling during VM execution - not yet implemented/tested */
+			VMX_DEBUG("IPI interrupt (vector %d) during VM execution - not yet supported\n", vector);
+			vmx_assert(0);
+			break;
+
+		case HW_LAPIC_POSTED_INTR:
+			/* TODO: Posted interrupt handling - not yet implemented/tested */
+			VMX_DEBUG("Posted interrupt (vector %d) during VM execution - not yet supported\n", vector);
+			vmx_assert(0);
+			break;
+
+		default:
+			/* Unexpected interrupt vector during VM execution */
+			VMX_DEBUG("Unexpected interrupt vector %d during VM execution\n", vector);
+			vmx_assert(0);
+			break;
+		}
 	} else {
 		next = thd_exception_handler;
 		ret = cap_thd_switch(&tmp_regs[cpuid], thd_curr, next, NULL, cos_info);
