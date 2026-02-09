@@ -221,6 +221,7 @@ process_rx_packets(char** rx_pkts, uint16_t nb_pkts)
 			continue;
 		}
 
+		/* TODO: simple_hash_find could be replaced with ck_hs for lock-free concurrent lookups */
 		default_session = simple_hash_find(ip, 0);
 		if (unlikely(default_session == NULL)) {
 			cos_free_packet(rx_pkts[i]);
