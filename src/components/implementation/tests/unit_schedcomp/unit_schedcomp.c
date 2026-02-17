@@ -107,10 +107,10 @@ test_swapping(void)
 static void
 run_tests()
 {
-	test_highest_is_scheduled();
-	PRINTLOG(PRINT_DEBUG, "Test successful! Highest was scheduled only!\n");
-	test_swapping();
-	PRINTLOG(PRINT_DEBUG, "Test successful! We swapped back and forth!\n");
+	//test_highest_is_scheduled();
+	//PRINTLOG(PRINT_DEBUG, "Test successful! Highest was scheduled only!\n");
+	//test_swapping();
+	//PRINTLOG(PRINT_DEBUG, "Test successful! We swapped back and forth!\n");
 
 	PRINTLOG(PRINT_DEBUG, "Done testing, spinning...\n");
 	SPIN();

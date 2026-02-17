@@ -304,3 +304,46 @@ timer_init(void)
 
 	timer_set(TIMER_PERIODIC, hpetcyc_per_tick);
 }
+
+void
+hpet_speed_test(void)
+{
+	printk("Starting HPET Speed test...\n");
+
+	/* Enable timer interrupts */
+    *hpet_config |= HPET_ENABLE_CNF;
+
+    u64_t tsc_start, tsc_end; //tsc - time stamp counter
+    u64_t hpet_start, hpet_end;
+
+	u64_t pico_per_hpetcyc = hpet_capabilities[1] / FEMPTO_PER_PICO; //Convert femtoseconds to picoseconds
+
+	u64_t hpet_freq = 1000000000000 / pico_per_hpetcyc; //ticks per second = picoseconds per second / picoseconds per tick
+
+    rdtscll(tsc_start);
+
+    hpet_start = HPET_COUNTER;
+
+    /* wait 1 second using HPET */
+    u64_t target = hpet_start + hpet_freq;
+
+    while (HPET_COUNTER < target) {
+        printk("HPET_COUNTER: %llu\n", HPET_COUNTER); //Removing this print breaks the test, ask why???
+    }
+
+    rdtscll(tsc_end);
+    hpet_end = HPET_COUNTER;
+
+    u64_t tsc_delta  = tsc_end - tsc_start;
+    u64_t hpet_delta = hpet_end - hpet_start;
+
+	u64_t cpu_hz = (tsc_delta * hpet_freq) / hpet_delta;
+    
+    printk("HPET frequency: %llu Hz\n", hpet_freq);
+    printk("CPU frequency:  %llu MHz\n", cpu_hz / 1000000);
+
+	/* Disable timer interrupts */
+	*hpet_config &= ~HPET_ENABLE_CNF;
+
+    printk("HPET Speed test complete.\n");
+}
