@@ -34,7 +34,6 @@ rdmsr_handler(struct vmrt_vm_vcpu *vcpu)
 	{
 		/* TODO: need to handle tsc adjustment in VM */
 		u32_t ax, dx;
-		printc("MSR_IA32_TSC_ADJUST:%llx, %llx\n", regs->ax, regs->dx);
 		regs->ax = 0;
 		regs->dx = 0;
 		goto done;
@@ -129,7 +128,14 @@ rdmsr_handler(struct vmrt_vm_vcpu *vcpu)
 		regs->ax = 0;
 		regs->dx = 0;
 		goto done;
-	}	
+	}
+	case MSR_IA32_TME_ACTIVATE:
+	{
+		/* TME not supported in VM */
+		regs->ax = 0;
+		regs->dx = 0;
+		goto done;
+	}
 	default:
 		VM_PANIC(vcpu);
 	}
@@ -160,15 +166,7 @@ wrmsr_handler(struct vmrt_vm_vcpu *vcpu)
 	}
 	case MSR_IA32_XSS:
 	{
-		u64_t guest_xss;
-		guest_xss = regs->ax & 0XFFFFFFFF;
-		guest_xss |= ((regs->dx & 0XFFFFFFFF) << 32);
-		if ((guest_xss & ~(MSR_IA32_XSS_PT | MSR_IA32_XSS_HDC)) != 0UL) {
-				/* Assuming other features are not supported */
-				VM_PANIC(vcpu);
-		} else {
-			/* TODO: only enable the xss pt and hdx, but currently just ignore them */
-		}
+		/* Just ignore writes to this MSR, since we don't support any of the XSAVE features represented by this MSR */
 		goto done;
 	}		
 	case MSR_IA32_MTRR_CAP:
@@ -233,6 +231,11 @@ wrmsr_handler(struct vmrt_vm_vcpu *vcpu)
 	case MSR_IA32_SPEC_CTRL:
 	{
 		/* This MSR has a value of 0 after reset, thus just keep it ad default, don't modify */
+		goto done;
+	}
+	case MSR_IA32_APIC_BASE:
+	{
+		VM_PANIC(vcpu);
 		goto done;
 	}
 	default:

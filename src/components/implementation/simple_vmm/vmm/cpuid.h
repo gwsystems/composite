@@ -74,6 +74,9 @@
 #define CPUID_EDX_TM1           (1U<<29U)
 #define CPUID_EDX_IA64          (1U<<30U)
 #define CPUID_EDX_PBE           (1U<<31U)
+
+/* CPUID.06H:EAX.DTHERM */
+#define CPUID_EAX_DTHERM        (1U<<0U)
 /* CPUID.06H:EAX.HWP */
 #define CPUID_EAX_HWP           (1U<<7U)
 /* CPUID.06H:EAX.HWP_Notification */
@@ -98,6 +101,9 @@
 #define CPUID_EBX_MPX           (1U<<14U)
 /* CPUID.07H:EBX.SMAP*/
 #define CPUID_EBX_SMAP          (1U<<20U)
+
+#define CPUID_EBX_AVX512        (1U<<16U)
+
 /* CPUID.07H:ECX.UMIP */
 #define CPUID_ECX_UMIP		(1U<<2U)
 /* CPUID.07H:ECX.PKE */

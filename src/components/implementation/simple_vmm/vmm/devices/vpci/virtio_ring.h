@@ -1,5 +1,3 @@
-#ifndef _LINUX_VIRTIO_RING_H
-#define _LINUX_VIRTIO_RING_H
 /* An interface for efficient virtio implementation, currently for use by KVM,
  * but hopefully others soon.  Do NOT change this since it will
  * break existing servers and clients.
@@ -31,6 +29,9 @@
  * SUCH DAMAGE.
  *
  * Copyright Rusty Russell IBM Corporation 2007. */
+
+#ifndef _LINUX_VIRTIO_RING_H
+#define _LINUX_VIRTIO_RING_H
 
 typedef unsigned short int  __virtio16;
 typedef unsigned int        __virtio32;

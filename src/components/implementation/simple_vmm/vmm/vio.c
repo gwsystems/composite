@@ -79,6 +79,8 @@ io_handler(struct vmrt_vm_vcpu *vcpu)
 	case PIC_MASTER_DATA_PORT:
 	case PIC_SLAVE_CMD_PORT:
 	case PIC_SLAVE_DATA_PORT:
+	case PIC_ELCR1:
+	case PIC_ELCR2:
 		vpic_handler(port_id, access_dir, access_sz, vcpu);
 		goto done;
 	case PS2_CONTROL_PORT_A:

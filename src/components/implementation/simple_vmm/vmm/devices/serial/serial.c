@@ -19,10 +19,15 @@ serial_handler(u16_t port, int dir, int sz, struct vmrt_vm_vcpu *vcpu)
 		case SERIAL_PORT1:
 			printc("%c", (u8_t)vcpu->shared_region->ax);
 			if (send_intr_enable) {
-				/* TODO: correctly handle serial output(eg: multiple vcpu case) and inject serial interrupt */
-
-				/* 52 is the fixed serial interrupt in Linux */
-				lapic_intr_inject(vcpu, 52, 1);
+				/*
+				 * TODO: correctly handle serial output(eg: multiple vcpu case) and inject serial interrupt,
+				 * with io apic, 34 is serial8250_interrupt vector.
+				 */
+#if VMX_SUPPORT_POSTED_INTR
+				vlapic_set_intr(vcpu, 34, 0);
+#else
+				lapic_intr_inject(vcpu, 34, 1);
+#endif
 				serial_data[SERIAL_IIR - SERIAL_PORT_MIN] = 0x2;
 				serial_data[MODEM_STATUS_REGISTER - SERIAL_PORT_MIN] = 0x20;
 				serial_data[SERIAL_LSR - SERIAL_PORT_MIN] = 0x60;

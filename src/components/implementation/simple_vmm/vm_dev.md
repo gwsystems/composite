@@ -1,13 +1,9 @@
 # VM Development Guide
-## Branches
-
-### Composite Hypervisor branch
-Use this branch to develop hypervisor features:
-https://github.com/betahxy/composite/tree/cos_vmx
 
 ### Linux VM branch
 This is the stock Linux 5.15 used as the VM within Composite hypervisor
 https://github.com/betahxy/vmx-linux-5.15.107
+TODO: We need to move this branch under gwsystems organization.
 
 ## How to build the system
 
@@ -40,6 +36,8 @@ This Linux kernel source code is hacked a little bit at the booting stage becaus
 	mkdir dev
 	sudo mknod dev/console c 5 1
 	sudo mknod dev/null c 1 3
+	sudo mknod dev/random c 1 8
+	sudo mknod dev/urandom c 1 9
 	```
 
 	That's it. Just leave this initramfs here and go to build the Linux kernel. You will then need to tell the Linux build system this directory and it will automatically include this initramfs. See the `CONFIG_INITRAMFS_SOURCE` keyword in the config file. You will finally see the output above in your terminal.
@@ -99,9 +97,10 @@ This Linux kernel source code is hacked a little bit at the booting stage becaus
 	```shell
 	./cos init x86_64
 	./cos build
-	./cos compose composition_scripts/simple_vmm.toml vm
+	./cos compose composition_scripts/vmm_simple_test.toml vm
 	```
 - **How to run the system?**
+	To run the system on Qemu:
 	```shell
 	./cos run vm
 	```

@@ -38,6 +38,7 @@
 #define CPU_H
 #include <stdint.h>
 #include <stdbool.h>
+#include <acrn_types.h>
 #include <asm/msr.h>
 
 /* Define CPU stack alignment */

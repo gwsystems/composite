@@ -22,8 +22,9 @@ static int cos_dpdk_log_type;
 #define COS_DPDK_APP_LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, cos_dpdk_log_type, "COD_DPDK_APP: " fmt, ## args)
 
-static cos_portid_t ports_ids[RTE_MAX_ETHPORTS];
-static uint16_t nb_ports = 0;
+/* Store discovered DPDK port IDs for validation and iteration */
+static cos_portid_t discovered_ports[RTE_MAX_ETHPORTS];
+static uint16_t nb_discovered_ports = 0;
 
 #define IP_PROTOCOL_TCP 6
 #define IP_PROTOCOL_UDP 17
@@ -101,25 +102,22 @@ cos_eth_ports_init(void)
 {
 	cos_portid_t port_id;
 	uint16_t i;
-
-	memset(ports_ids, 0, sizeof(ports_ids));
+	/* This old version should have been replaced */
+	memset(discovered_ports, 0, sizeof(discovered_ports));
+	nb_discovered_ports = 0;
 
 	RTE_ETH_FOREACH_DEV(port_id) {
-		ports_ids[nb_ports] = port_id;
-		nb_ports++;
+		discovered_ports[nb_discovered_ports] = port_id;
+		nb_discovered_ports++;
 	}
 
-	COS_DPDK_APP_LOG(NOTICE, "cos_eth_ports_init success, find %d ports\n", nb_ports);
+	COS_DPDK_APP_LOG(NOTICE, "cos_eth_ports_init success, discovered %d ports\n", nb_discovered_ports);
 
-	for (i = 0; i < nb_ports; i++) {
-		cos_eth_info_print(ports_ids[i]);
+	for (i = 0; i < nb_discovered_ports; i++) {
+		printf("cos_eth_ports_init: printing info for port ID: %d\n", discovered_ports[i]);
+		cos_eth_info_print(discovered_ports[i]);
 	}
-#if E810_NIC
-	ports_ids[0] = 1;
-	nb_ports = 1;
-#endif
-
-	return nb_ports;
+	return nb_discovered_ports;
 }
 
 static struct rte_mempool * cos_dpdk_pktmbuf_pool = NULL;
@@ -174,14 +172,13 @@ cos_free_packet(char* packet)
 /*
  * cos_config_dev_port_queue: wrapper function for rte_eth_dev_configure
  *
- * @port_id: eth port id, from user's perspective, the maximum id is get
- *           from cos_eth_ports_init
+ * @port_id: actual DPDK port ID (not a logical index)
  * @nb_rx_q: number of rx queues used with this port
  * @nb_tx_q: number of tx queues used with this port
  * 
  * return: 0 on success, others will cause panic
  * 
- * note: this function gives users ability to config a port's rx/tx queues
+ * note: port_id must be a valid DPDK port ID discovered by cos_eth_ports_init()
  */
 int
 cos_config_dev_port_queue(cos_portid_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q)
@@ -189,14 +186,14 @@ cos_config_dev_port_queue(cos_portid_t port_id, uint16_t nb_rx_q, uint16_t nb_tx
 	int ret;
 	struct rte_eth_conf local_port_conf = default_port_conf;
 
-	ret = rte_eth_dev_configure(ports_ids[port_id], nb_rx_q, nb_tx_q, &local_port_conf);
+	ret = rte_eth_dev_configure(port_id, nb_rx_q, nb_tx_q, &local_port_conf);
 	if (ret < 0) {
 		rte_exit(EXIT_FAILURE, "Cannot configure device: err=%d, port=%u\n",
 			ret, port_id);
 	}
 	
-	COS_DPDK_APP_LOG(NOTICE, "cos_config_dev_port_queue success, with "
-			"%d rx_queue, %d tx_queues\n", nb_tx_q, nb_tx_q);
+	COS_DPDK_APP_LOG(NOTICE, "cos_config_dev_port_queue success on port %d, with "
+			"%d rx_queue, %d tx_queues\n", port_id, nb_rx_q, nb_tx_q);
 
 	return ret;
 }
@@ -204,8 +201,7 @@ cos_config_dev_port_queue(cos_portid_t port_id, uint16_t nb_rx_q, uint16_t nb_tx
 /*
  * cos_dev_port_adjust_rx_tx_desc: wrapper function for rte_eth_dev_adjust_nb_rx_tx_desc
  *
- * @port_id: eth port id, from user's perspective, the maximum id is get
- *           from cos_eth_ports_init
+ * @port_id: actual DPDK port ID
  * @nb_rx_desc: number of rx descriptors used by this port
  * @nb_tx_desc: number of tx descriptors used with this port
  * 
@@ -219,15 +215,15 @@ cos_dev_port_adjust_rx_tx_desc(cos_portid_t port_id, uint16_t *nb_rx_desc, uint1
 {
 	int ret;
 
-	ret = rte_eth_dev_adjust_nb_rx_tx_desc(ports_ids[port_id], nb_rx_desc, nb_tx_desc);
+	ret = rte_eth_dev_adjust_nb_rx_tx_desc(port_id, nb_rx_desc, nb_tx_desc);
 	if (ret < 0) {
 		rte_exit(EXIT_FAILURE,
 				"Cannot adjust number of descriptors: err=%d, port=%u\n",
 				ret, port_id);
 	}
 	
-	COS_DPDK_APP_LOG(NOTICE, "cos_dev_port_adjust_rx_tx_desc success, with "
-			"%d rx_desc, %d tx_desc\n", *nb_rx_desc, *nb_tx_desc);
+	COS_DPDK_APP_LOG(NOTICE, "cos_dev_port_adjust_rx_tx_desc success on port %d, with "
+			"%d rx_desc, %d tx_desc\n", port_id, *nb_rx_desc, *nb_tx_desc);
 
 	return ret;
 }
@@ -249,15 +245,14 @@ cos_dev_port_rx_queue_setup(cos_portid_t port_id, uint16_t rx_queue_id,
 			uint16_t nb_rx_desc, char* mp)
 {
 	int ret;
-	cos_portid_t real_port_id = ports_ids[port_id];
 	struct rte_eth_dev_info dev_info;
 	struct rte_eth_rxconf rxq_conf;
 
-	ret = rte_eth_dev_info_get(real_port_id, &dev_info);
+	ret = rte_eth_dev_info_get(port_id, &dev_info);
 	rxq_conf = dev_info.default_rxconf;
 
-	ret = rte_eth_rx_queue_setup(real_port_id, rx_queue_id, nb_rx_desc,
-					rte_eth_dev_socket_id(real_port_id),
+	ret = rte_eth_rx_queue_setup(port_id, rx_queue_id, nb_rx_desc,
+					rte_eth_dev_socket_id(port_id),
 					&rxq_conf,
 					(struct rte_mempool *)mp);
 	if (ret < 0) {
@@ -288,27 +283,21 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 			uint16_t nb_tx_desc)
 {
 	int ret;
-	cos_portid_t real_port_id = ports_ids[port_id];
-
 	struct rte_eth_dev_info dev_info;
 	struct rte_eth_txconf txq_conf;
 
-	ret = rte_eth_dev_info_get(real_port_id, &dev_info);
+	ret = rte_eth_dev_info_get(port_id, &dev_info);
 	txq_conf = dev_info.default_txconf;
-	/* We assume the NIC provides both IP & UDP offload capability */
-	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IPV4_CKSUM);
-	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM);
 
-	// txq_conf.tx_free_thresh = 4096;
-	txq_conf.tx_free_thresh = 1024 - 32;
+	txq_conf.tx_free_thresh = nb_tx_desc - 32;
 	/* set the txq to enable IP and UDP offload */
 	if (ENABLE_OFFLOAD) {
 		txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
 		txq_conf.offloads |= DEV_TX_OFFLOAD_UDP_CKSUM;
 	}
 
-	ret = rte_eth_tx_queue_setup(real_port_id, tx_queue_id, nb_tx_desc,
-				rte_eth_dev_socket_id(real_port_id),
+	ret = rte_eth_tx_queue_setup(port_id, tx_queue_id, nb_tx_desc,
+				rte_eth_dev_socket_id(port_id),
 				&txq_conf);
 	if (ret < 0) {
 		rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup:err=%d, port=%u\n",
@@ -335,7 +324,7 @@ cos_dev_port_start(cos_portid_t port_id)
 {
 	int ret;
 
-	ret = rte_eth_dev_start(ports_ids[port_id]);
+	ret = rte_eth_dev_start(port_id);
 	if (ret < 0) {
 		rte_exit(EXIT_FAILURE, "rte_eth_dev_start:err=%d, port=%u\n",
 				ret, port_id);
@@ -359,7 +348,7 @@ int
 cos_dev_port_stop(cos_portid_t port_id)
 {
 	int ret;
-	ret = rte_eth_dev_stop(ports_ids[port_id]);
+	ret = rte_eth_dev_stop(port_id);
 	if (ret != 0)
 		printf("rte_eth_dev_stop: err=%d, port=%d\n",
 			ret, port_id);
@@ -383,16 +372,16 @@ int
 cos_dev_port_set_promiscuous_mode(cos_portid_t port_id, bool mode)
 {
 	int ret;
-	cos_portid_t real_port_id = ports_ids[port_id];
+
 	if (mode == COS_DPDK_SWITCH_ON) {
-		ret = rte_eth_promiscuous_enable(real_port_id);
+		ret = rte_eth_promiscuous_enable(port_id);
 		if (ret != 0) {
 			rte_exit(EXIT_FAILURE,
 				"rte_eth_promiscuous_enable:err=%s, port=%u\n",
 				rte_strerror(-ret), port_id);
 		}
 	} else if (mode == COS_DPDK_SWITCH_OFF){
-		ret = rte_eth_promiscuous_disable(real_port_id);
+		ret = rte_eth_promiscuous_disable(port_id);
 		if (ret != 0) {
 			rte_exit(EXIT_FAILURE,
 				"rte_eth_promiscuous_disable:err=%s, port=%u\n",
@@ -424,7 +413,7 @@ uint16_t
 cos_dev_port_rx_burst(cos_portid_t port_id, uint16_t queue_id,
 		 char**rx_pkts, const uint16_t nb_pkts)
 {
-	return rte_eth_rx_burst(ports_ids[port_id], queue_id, (struct rte_mbuf **)rx_pkts, nb_pkts);
+	return rte_eth_rx_burst(port_id, queue_id, (struct rte_mbuf **)rx_pkts, nb_pkts);
 }
 
 /*
@@ -442,7 +431,7 @@ uint16_t
 cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
 		 char**tx_pkts, const uint16_t nb_pkts)
 {
-	return rte_eth_tx_burst(ports_ids[port_id], queue_id, (struct rte_mbuf **)tx_pkts, nb_pkts);
+	return rte_eth_tx_burst(port_id, queue_id, (struct rte_mbuf **)tx_pkts, nb_pkts);
 }
 
 /*
@@ -451,6 +440,7 @@ cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
 char*
 cos_get_packet(char* mbuf, int *len)
 {
+	rte_prefetch0((char *)rte_pktmbuf_mtod((struct rte_mbuf*)mbuf, void *) + 16);
 	*len = ((struct rte_mbuf*)mbuf)->pkt_len;
 	return (char *)rte_pktmbuf_mtod((struct rte_mbuf*)mbuf, struct rte_ether_hdr *);
 }
@@ -466,7 +456,7 @@ cos_get_port_stats(cos_portid_t port_id)
 {
 	struct rte_eth_stats stats;
 
-	rte_eth_stats_get(ports_ids[port_id], &stats);
+	rte_eth_stats_get(port_id, &stats);
 
 	COS_DPDK_APP_LOG(NOTICE, 
 		"PORT STATS(%d):\n"
@@ -478,7 +468,7 @@ cos_get_port_stats(cos_portid_t port_id)
 		"\t\t ierrors: %lu\n"
 		"\t\t oerrors: %lu\n"
 		"\t\t no_buf: %lu\n",
-		ports_ids[port_id],
+		port_id,
 		stats.ibytes,
 		stats.ipackets,
 		stats.obytes,
@@ -507,7 +497,7 @@ cos_dpdk_init(int argc, char **argv)
 		rte_exit(EXIT_FAILURE, "Cannot register log type");
 	}
 
-	rte_log_set_level(cos_dpdk_log_type, RTE_LOG_INFO);
+	rte_log_set_level(cos_dpdk_log_type, RTE_LOG_DEBUG);
 
 	ret = rte_eal_init(argc, argv);
 
@@ -519,17 +509,16 @@ cos_dpdk_init(int argc, char **argv)
 }
 
 /* A simple transmiting test function */
+/* Test MAC addresses - configure per deployment */
+#define TEST_SRC_MAC {0x66,0x66,0x66,0x66,0x66,0x66}
+#define TEST_DST_MAC {0x10,0x10,0x10,0x10,0x10,0x11}
+
 void
 cos_test_send(int queue, char* mp) {
 	struct rte_mbuf * mbuf;
 	struct rte_ether_hdr *eth_hdr;
-#if E810_NIC
-	struct rte_ether_addr s_addr = {{0x6c,0xfe,0x54,0x40,0x41,0x01}};
-	struct rte_ether_addr d_addr = {{0x6c,0xfe,0x54,0x40,0x46,0x09}};
-#else 
-	struct rte_ether_addr s_addr = {{0x66,0x66,0x66,0x66,0x66,0x66}};
-	struct rte_ether_addr d_addr = {{0x10,0x10,0x10,0x10,0x10,0x11}};
-#endif
+	struct rte_ether_addr s_addr = {TEST_SRC_MAC};
+	struct rte_ether_addr d_addr = {TEST_DST_MAC};
 	char *tx_packets[4096];
 	#define BURST_NB 1024 
 	#define PKT_SZ 100
@@ -588,8 +577,8 @@ uint16_t cos_send_a_packet(char * pkt, uint32_t pkt_size, char* mp)
 {
 	struct rte_mbuf * mbuf;
 	struct rte_ether_hdr *eth_hdr;
-	struct rte_ether_addr s_addr = {{0x66,0x66,0x66,0x66,0x66,0x66}};
-	struct rte_ether_addr d_addr = {{0x11,0x11,0x11,0x11,0x11,0x11}};
+	struct rte_ether_addr s_addr = {TEST_SRC_MAC};
+	struct rte_ether_addr d_addr = {TEST_DST_MAC};
 
 	mbuf = rte_pktmbuf_alloc((struct rte_mempool *)mp);
 	eth_hdr = rte_pktmbuf_mtod(mbuf,struct rte_ether_hdr*);
@@ -714,7 +703,7 @@ cos_get_port_mac_address(uint16_t port_id)
 	uint64_t mac_addr_ret = 0;
 	struct rte_ether_addr mac_addr;
 
-	rte_eth_macaddr_get(ports_ids[port_id], &mac_addr);
+	rte_eth_macaddr_get(port_id, &mac_addr);
 	rte_ether_addr_copy(&mac_addr, (struct rte_ether_addr *)&mac_addr_ret);
 
 	return mac_addr_ret;
@@ -771,4 +760,34 @@ void cos_rte_flow(void)
 	cos_printf("flow :%p\n", flow);
 	// return flow;
 
+}
+
+/* Port discovery and validation helper functions */
+
+uint16_t
+cos_get_num_discovered_ports(void)
+{
+	return nb_discovered_ports;
+}
+
+cos_portid_t
+cos_get_discovered_port(uint16_t index)
+{
+	if (index >= nb_discovered_ports) {
+		COS_DPDK_APP_LOG(ERR, "Invalid port index %d (max %d)\n", 
+				 index, nb_discovered_ports - 1);
+		return 0xFFFF;
+	}
+	return discovered_ports[index];
+}
+
+bool
+cos_port_is_valid(cos_portid_t port_id)
+{
+	for (uint16_t i = 0; i < nb_discovered_ports; i++) {
+		if (discovered_ports[i] == port_id) {
+			return true;
+		}
+	}
+	return false;
 }

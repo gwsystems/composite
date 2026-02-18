@@ -9,6 +9,7 @@
 
 cos_asm_stub(sched_get_cpu_freq);
 cos_asm_stub(sched_thd_yield_to);
+cos_asm_stub(sched_thd_yield);
 cos_asm_stub(sched_thd_wakeup);
 cos_asm_stub(sched_debug_thd_state);
 cos_asm_stub(sched_thd_block);

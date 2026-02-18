@@ -119,7 +119,7 @@ void vlapic_set_apicv_ops(void);
  * @{
  */
 
-void vlapic_inject_intr(struct acrn_vlapic *vlapic, bool guest_irq_enabled, bool injected);
+void vlapic_inject_intr(struct vmrt_vm_vcpu *vcpu);
 bool vlapic_has_pending_delivery_intr(struct vmrt_vm_vcpu *vcpu);
 bool vlapic_has_pending_intr(struct vmrt_vm_vcpu *vcpu);
 
@@ -205,7 +205,7 @@ void vlapic_create(struct vmrt_vm_vcpu *vcpu, uint16_t pcpu_id);
  */
 void vlapic_free(struct vmrt_vm_vcpu *vcpu);
 
-void vlapic_reset(struct acrn_vlapic *vlapic, const struct acrn_apicv_ops *ops, enum reset_mode mode);
+void vlapic_reset(struct acrn_vlapic *vlapic);
 void vlapic_restore(struct acrn_vlapic *vlapic, const struct lapic_regs *regs);
 uint64_t vlapic_apicv_get_apic_access_addr(void);
 uint64_t vlapic_apicv_get_apic_page_addr(struct acrn_vlapic *vlapic);

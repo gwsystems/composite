@@ -8,7 +8,8 @@
 
 #define COS_ETH_NAME_SZ 16
 
-#define	COS_MBUF_DEFAULT_DATAROOM	1500
+/* vmxnet3 needs at least 1700 */
+#define	COS_MBUF_DEFAULT_DATAROOM	1700
 #define COS_PKTMBUF_HEADROOM 128
 
 /* 
@@ -47,7 +48,8 @@
 #define NMACHEX_FMT "%02x:%02x:%02x:%02x:%02x:%02x"
 
 typedef uint8_t  cos_coreid_t;
-typedef uint16_t cos_portid_t;
+/* DPDK physical/virtual NIC port identifier (which network interface card) */
+typedef uint16_t cos_portid_t;        /* e.g., 0, 1, 2, 3 for different NICs */
 typedef uint16_t cos_queueid_t;
 
 /* use opeaque pointer to hide details from DPDK to Composite app */
@@ -115,15 +117,37 @@ unsigned int cos_mempool_in_use_count(const char *mp);
 int cos_eth_tx_done_cleanup(uint16_t port_id, uint16_t queue_id, uint32_t free_cnt);
 uint64_t cos_get_port_mac_address(uint16_t port_id);
 
+/* Port discovery and validation */
+uint16_t cos_get_num_discovered_ports(void);
+cos_portid_t cos_get_discovered_port(uint16_t index);
+bool cos_port_is_valid(cos_portid_t port_id);
+
 void cos_test_send(int queue, char *mp);
 
-#define E810_NIC 0
-#define NIC_RX_QUEUE_NUM 1
+/* 
+ * DPDK NIC Port Configuration
+ * ===========================
+ * These are the ACTUAL DPDK port IDs (not logical indices) for RX/TX operations.
+ * 
+ * How to find the correct port IDs:
+ * 1. Run your application once and check the initialization logs from cos_eth_ports_init()
+ * 2. Look for "DEV_INFO" sections showing port_id and dev_name for each NIC
+ * 3. Use the port_id values shown in those logs
+ * 4. If you cannot find the desired NIC, see COS_DPDK_DECLARE_NIC_MODULE
+ * 
+ * Common scenarios:
+ * - Physical NICs: Check DPDK enumeration logs
+ * - Virtual NICs (e.g., vmxnet3): Check DPDK logs for assigned port IDs
+ * - To use same NIC for RX/TX: Set both to the same port ID
+ * 
+ * NOTE: The configured port IDs must exist in the system, otherwise
+ *       initialization will fail with an assertion error.
+ */
+#define DPDK_NIC_PORT_RX  0   /* Actual DPDK port ID for receiving packets */
+#define DPDK_NIC_PORT_TX  0   /* Actual DPDK port ID for transmitting packets */
 
-#if E810_NIC
-#define NIC_TX_QUEUE_NUM (NUM_CPU - 1)
-#else
+/* NIC Queue Configuration per port */
+#define NIC_RX_QUEUE_NUM 1
 #define NIC_TX_QUEUE_NUM 1
-#endif
 
 #endif /* COS_DPDK_H */

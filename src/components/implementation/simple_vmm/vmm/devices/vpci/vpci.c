@@ -83,10 +83,12 @@ set_vpci_comm_hdr(u8_t* raw_data, u8_t reg, u32_t val)
 void
 set_vpci_bar(u8_t* raw_data, u8_t reg, u32_t val)
 {
+	u32_t bar0;
+
 	switch (reg)
 	{
 	case OFFSET_BAR0:
-		u32_t bar0 = *(u32_t *)raw_data;
+		bar0 = *(u32_t *)raw_data;
 		if (bar0 & 0x1) { /* IO bar */
 			/* mask all bits that should not be writable */
 			val = val & 0xFFFFC000; 
@@ -94,6 +96,7 @@ set_vpci_bar(u8_t* raw_data, u8_t reg, u32_t val)
 			*(u32_t *)raw_data = val;
 		} else { /* Mem bar */
 			/* Currently don't support IO bar */
+			printc("no vpci bar\n");
 			assert(0);
 		}
 
