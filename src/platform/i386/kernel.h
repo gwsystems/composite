@@ -78,6 +78,15 @@ void  lapic_timer_calibration(u32_t ratio);
 int   lapic_timer_calibrated(void);
 void  lapic_asnd_ipi_send(const cpuid_t cpu_id);
 
+struct ioapic_cntl;
+struct intsrcovrride_cntl;
+void ioapic_init(void);
+void ioapic_iter(struct ioapic_cntl *);
+void ioapic_int_disable(int irq);
+void ioapic_int_enable(int irq, cpuid_t cpu_id);
+void ioapic_int_override(struct intsrcovrride_cntl *);
+
+
 void smp_init(volatile int *cores_ready);
 
 void tls_update(u32_t addr);

@@ -175,6 +175,7 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	acpi_init();
 	lapic_init();
 	timer_init();
+	ioapic_init();
 	boot_state_transition(INIT_UT_MEM, INIT_KMEM);
 
 	kern_boot_comp(INIT_CORE);
@@ -182,7 +183,7 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
 
-	hpet_speed_test();
+	//hpet_speed_test();
 
 	kern_boot_upcall();
 
