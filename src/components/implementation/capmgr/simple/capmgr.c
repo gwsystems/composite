@@ -77,9 +77,10 @@ SS_STATIC_SLAB(asnd, struct cm_asnd, MAX_NUM_THREADS);
 SS_STATIC_SLAB(page, struct mm_page, MM_NPAGES);
 SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 
+/* CONTIG_PHY_PAGES: Total size (in pages) of the contiguous physical memory region */
 #define CONTIG_PHY_PAGES 300000
-static u8_t *contig_phy_pages = 0;
-static u8_t *max_contig_phy_pages = 0;
+static u8_t *contig_phy_pages = 0;        /* Current allocation pointer, advances as pages are allocated */
+static u8_t *contig_phy_pages_base = 0;   /* Base address of the contiguous region */
 
 static struct cm_comp *
 cm_self(void)
@@ -317,7 +318,7 @@ contigmem_alloc(unsigned long npages)
 
 	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
 	contig_phy_pages += npages * PAGE_SIZE;
-	assert((word_t)contig_phy_pages < (word_t)max_contig_phy_pages + CONTIG_PHY_PAGES * PAGE_SIZE);
+	assert((word_t)contig_phy_pages < (word_t)contig_phy_pages_base + CONTIG_PHY_PAGES * PAGE_SIZE);
 	return vaddr;
 }
 
@@ -376,7 +377,7 @@ contigmem_ro_shared_alloc_aligned(unsigned long npages, unsigned long align, vad
 
 	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
 	contig_phy_pages += npages * PAGE_SIZE;
-	assert((word_t)contig_phy_pages < (word_t)max_contig_phy_pages + CONTIG_PHY_PAGES * PAGE_SIZE);
+	assert((word_t)contig_phy_pages < (word_t)contig_phy_pages_base + CONTIG_PHY_PAGES * PAGE_SIZE);
 	return ret;
 }
 
@@ -435,7 +436,7 @@ contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_
 
 	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
 	contig_phy_pages += npages * PAGE_SIZE;
-	assert((word_t)contig_phy_pages < (word_t)max_contig_phy_pages + CONTIG_PHY_PAGES * PAGE_SIZE);
+	assert((word_t)contig_phy_pages < (word_t)contig_phy_pages_base + CONTIG_PHY_PAGES * PAGE_SIZE);
 	return ret;
 }
 
@@ -571,7 +572,12 @@ memmgr_shared_page_map_aligned_in_vm(cbuf_t id, unsigned long align, vaddr_t *pg
 	return s->n_pages;
 }
 
-struct ps_lock map_lock = {.o = 0};
+/*
+ * WARNING: This is a spinlock. If the scheduler uses any of the memmgr APIs
+ * that take this lock, deadlocks and other serious issues can occur.
+ * TODO: Requires a redesign to use a different synchronization mechanism.
+ */
+struct ps_lock map_lock = PS_LOCK_INITIALIZER;
 
 unsigned long
 memmgr_shared_page_map_aligned(cbuf_t id, unsigned long align, vaddr_t *pgaddr)
@@ -1085,7 +1091,7 @@ cos_init(void)
 
 	/* Reserve some continuous pages */
 	contig_phy_pages = crt_page_allocn(&cm_self()->comp, CONTIG_PHY_PAGES);
-	max_contig_phy_pages = contig_phy_pages;
+	contig_phy_pages_base = contig_phy_pages;
 	contigmem_check(cos_compid(), (vaddr_t)contig_phy_pages, CONTIG_PHY_PAGES);
 
 	return;

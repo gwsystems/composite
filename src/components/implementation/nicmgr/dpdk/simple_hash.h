@@ -1,5 +1,7 @@
 #include <cos_types.h>
 
+/* TODO: Consider using ck_hs (ConcurrencyKit hash set) for a more robust and concurrent hash implementation */
+
 #define MAX_IP 100
 #define MAX_PORT 1000
 

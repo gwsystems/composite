@@ -1,13 +1,9 @@
 # VM Development Guide
-## Branches
-
-### Composite Hypervisor branch
-Use this branch to develop hypervisor features:
-https://github.com/betahxy/composite/tree/cos_vmx
 
 ### Linux VM branch
 This is the stock Linux 5.15 used as the VM within Composite hypervisor
 https://github.com/betahxy/vmx-linux-5.15.107
+TODO: We need to move this branch under gwsystems organization.
 
 ## How to build the system
 
@@ -101,9 +97,10 @@ This Linux kernel source code is hacked a little bit at the booting stage becaus
 	```shell
 	./cos init x86_64
 	./cos build
-	./cos compose composition_scripts/simple_vmm.toml vm
+	./cos compose composition_scripts/vmm_simple_test.toml vm
 	```
 - **How to run the system?**
+	To run the system on Qemu:
 	```shell
 	./cos run vm
 	```
