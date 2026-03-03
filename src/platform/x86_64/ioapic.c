@@ -110,9 +110,13 @@ static union ioapic_int_redir_entry ioapic_int_pci_tmpl = {
 void
 ioapic_set_page(struct ioapic_info *io, u64_t page)
 {
-        io->io_vaddr = (volatile u32_t *)(page * (1 << 22) | ((u32_t)io->io_vaddr & ((1 << 22) - 1)));
+	//Map each ioapic to a specific page
+	u64_t aligned_page = page & PAGE_MASK; 
 
-        printk("\tSet IOAPIC %d @ %p\n", io->ioapicid, io->io_vaddr);
+	//Align the IOAPIC's VA to the start of the page by clearing the page offset
+	io->io_vaddr = (volatile u32_t *)(aligned_page | ((u32_t)io->io_vaddr & ~PAGE_MASK));
+
+	printk("\tSet IOAPIC %d @ %p\n", io->ioapicid, io->io_vaddr);
 }
 
 static void
@@ -300,8 +304,12 @@ ioapic_iter(struct ioapic_cntl *io)
 	ioapic_count ++;
 	ioapicinfo[tmp_count].io_vaddr = (volatile void *)(io->ioapic_phys_addr);
 	ioapicinfo[tmp_count].ioapicid = io->ioapic_id;
-	//printk() stuff here, check meeting notes/slack
+	printk("io->ioapic_phys_addr: %lx, for io->ioapic_id %d\n", io->ioapic_phys_addr, io->ioapic_id); //stuff here, check meeting notes/slack
 	//ioapic_set_page(&(ioapicinfo[tmp_count]), vm_map_superpage((u32_t)(ioapicinfo[tmp_count].io_vaddr), 0));
+
+	void *vaddr = device_map_mem(io->ioapic_phys_addr, 0);
+	ioapicinfo[tmp_count].io_vaddr = (volatile u32_t *)vaddr;
+	ioapic_set_page(&(ioapicinfo[tmp_count]), (u64_t)vaddr);
 
 	ver   = ioapic_reg_read(&ioapicinfo[tmp_count], IOAPIC_IOAPICVER);
 	ioent = ((ver >> 16) & 0xFF) + 1;
@@ -378,8 +386,12 @@ chal_irq_disable(int irq, cpuid_t cpu_id)
 void
 ioapic_init(void)
 {
-	assert(ioapic_count);
+	//assert(ioapic_count);
 	//pic_disable(); Pic no longer in system
+
+	//ioapic_iter(); //call this for now to try and get PA print needed
+
+
 
 	printk("Setting up IOAPIC (disabling PIC)\n");
 

@@ -188,6 +188,9 @@ kern_paging_map_init(void *pa)
 	for (i = kern_pa_start; i < (unsigned long)round_up_to_pgt1_page(kern_pa_end); i += PGT1_RANGE) {
 		boot_comp_pgt1[i / PGT1_RANGE] = i | X86_PGTBL_PRESENT | X86_PGTBL_WRITABLE | X86_PGTBL_SUPER | X86_PGTBL_GLOBAL;
 	}
+
+	
+	printk("kern_pa_end: %lx\n round_up_to_pgt1_page(kern_pa_end): %lx\n PGT1_RANGE: %lx\n", kern_pa_end, round_up_to_pgt1_page(kern_pa_end), PGT1_RANGE);
 }
 
 
