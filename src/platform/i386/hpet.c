@@ -201,6 +201,7 @@ oneshot_handler(struct pt_regs *regs)
 {
 	int preempt = 1;
 
+	printk("hpet Oneshot in core %d\n", get_cpuid());
 	ack_irq(HW_ONESHOT);
 	preempt = timer_process(regs);
 	HPET_INT_ENABLE(TIMER_ONESHOT);
@@ -346,4 +347,21 @@ hpet_speed_test(void)
 	*hpet_config &= ~HPET_ENABLE_CNF;
 
     printk("HPET Speed test complete.\n");
+}
+
+void
+hpet_oneshot_test(void)
+{
+
+    /* Enable HPET */
+    //*hpet_config |= HPET_ENABLE_CNF;
+
+    u64_t pico_per_hpetcyc = hpet_capabilities[1] / FEMPTO_PER_PICO;
+    u64_t hpet_freq = 1000000000000ULL / pico_per_hpetcyc;
+
+    printk("Programming oneshot for 1 second (%llu HPET cycles)\n", hpet_freq);
+
+    timer_set(TIMER_ONESHOT, hpet_freq);
+
+	return;
 }
