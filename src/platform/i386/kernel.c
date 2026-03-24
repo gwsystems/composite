@@ -183,6 +183,7 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
 
+	chal_irq_enable(40, 2);
 	hpet_oneshot_test();
 
 	kern_boot_upcall();

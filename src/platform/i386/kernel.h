@@ -43,6 +43,8 @@ typedef enum {
 	TIMER_ONESHOT  = 1,
 } timer_type_t;
 
+extern volatile int apicids[NUM_CPU];
+
 #define TIMER_DEFAULT_US_INTERARRIVAL 1000 /* US = microseconds */
 
 void *device_pa2va(paddr_t dev_addr);

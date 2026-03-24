@@ -196,12 +196,20 @@ periodic_handler(struct pt_regs *regs)
 
 extern int timer_process(struct pt_regs *regs);
 
+volatile int print_lock = 0;
+
 int
 oneshot_handler(struct pt_regs *regs)
 {
 	int preempt = 1;
 
-	printk("hpet Oneshot in core %d\n", get_cpuid());
+	// simple lock for printing
+    while (__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)); // busy wait
+
+    printk("hpet Oneshot in core %d\n", get_cpuid()); //Made for old pic? may need to mask this IOapic to prevent doubles, but would require irq
+
+    __atomic_clear(&print_lock, __ATOMIC_RELEASE);
+
 	ack_irq(HW_ONESHOT);
 	preempt = timer_process(regs);
 	HPET_INT_ENABLE(TIMER_ONESHOT);
@@ -212,7 +220,7 @@ oneshot_handler(struct pt_regs *regs)
 void
 timer_set(timer_type_t timer_type, u64_t cycles)
 {
-	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF;
+	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF; 
 
 	/* Disable timer interrupts */
 	*hpet_config &= ~HPET_ENABLE_CNF;
@@ -359,9 +367,9 @@ hpet_oneshot_test(void)
     u64_t pico_per_hpetcyc = hpet_capabilities[1] / FEMPTO_PER_PICO;
     u64_t hpet_freq = 1000000000000ULL / pico_per_hpetcyc;
 
-    printk("Programming oneshot for 1 second (%llu HPET cycles)\n", hpet_freq);
+    printk("Programming oneshot for 10 seconds (%llu HPET cycles)\n", hpet_freq);
 
-    timer_set(TIMER_ONESHOT, hpet_freq);
+    timer_set(TIMER_ONESHOT, hpet_freq * 10);
 
 	return;
 }
