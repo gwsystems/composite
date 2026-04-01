@@ -50,9 +50,9 @@ extern void simd_float_pt_except_fault_irq(struct pt_regs *);
 extern void virtualization_except_fault_irq(struct pt_regs *);
 extern void security_except_fault_irq(struct pt_regs *);
 
-extern void periodic_irq(struct pt_regs *);
+extern void handler_hw_32(struct pt_regs *);
 extern void handler_hw_33(struct pt_regs *);
-extern void handler_hw_34(struct pt_regs *);
+extern void periodic_irq(struct pt_regs *);
 extern void handler_hw_35(struct pt_regs *);
 extern void serial_irq(struct pt_regs *);
 extern void handler_hw_37(struct pt_regs *);

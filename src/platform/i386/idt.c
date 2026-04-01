@@ -141,9 +141,9 @@ idt_init(const cpuid_t cpu_id)
 	idt_set_gate(IRQ_VIRTUALIZATION_EXCEPT_FAULT, (unsigned long)virtualization_except_fault_irq, 0x08, 0x8E);
 	idt_set_gate(IRQ_SECURITY_EXCEPT_FAULT, (unsigned long)security_except_fault_irq, 0x08, 0x8E);
 
-	idt_set_gate(HW_PERIODIC, (unsigned long)periodic_irq, 0x08, 0x8E);
+	idt_set_gate(HW_ID1, (unsigned long)handler_hw_32, 0x08, 0x8E);
 	idt_set_gate(HW_ID2, (unsigned long)handler_hw_33, 0x08, 0x8E);
-	idt_set_gate(HW_ID3, (unsigned long)handler_hw_34, 0x08, 0x8E);
+	idt_set_gate(HW_PERIODIC, (unsigned long)periodic_irq, 0x08, 0x8E);
 	idt_set_gate(HW_ID4, (unsigned long)handler_hw_35, 0x08, 0x8E);
 	idt_set_gate(HW_SERIAL, (unsigned long)serial_irq, 0x08, 0x8E);
 	idt_set_gate(HW_ID6, (unsigned long)handler_hw_37, 0x08, 0x8E);

@@ -186,6 +186,7 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 
 	
 	chal_irq_enable(40, 3); //route hpet oneshot to core 3
+	chal_irq_enable(34, 0);
 	hpet_oneshot_test();
 
 	kern_boot_upcall();

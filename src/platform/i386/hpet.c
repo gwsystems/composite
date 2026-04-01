@@ -227,7 +227,7 @@ periodic_handler(struct pt_regs *regs)
 
 	if (unlikely(timer_calibration_init)) timer_calibration();
 
-	//printk("in hpet periodic handler in core %d\n", get_cpuid());
+	printk("in hpet periodic handler in core %d\n", get_cpuid());
 
 	ack_irq(HW_PERIODIC);
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);

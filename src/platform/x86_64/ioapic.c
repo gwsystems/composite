@@ -423,7 +423,7 @@ ioapic_init(void)
 	//assert(ioapic_count);
 	//pic_disable();
 	pic_dump_state();
-	outb(0x21, 0xFE); // Mask Master PIC (except irq0)
+	outb(0x21, 0xFF); // Mask Master PIC (except irq0)
 	outb(0xA1, 0xFF); // Mask Slave PIC
 	pic_dump_state();
 
