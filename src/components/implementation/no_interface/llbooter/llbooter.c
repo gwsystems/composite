@@ -639,7 +639,9 @@ cos_parallel_init(coreid_t cid, int is_init_core, int ncores)
 void
 cos_init(void)
 {
+	printc("Got Step 1\n");
 	booter_init();
+	printc("Got Step 2\n");
 	cos_defcompinfo_sched_init();
 	comps_init();
 	/*

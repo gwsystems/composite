@@ -180,6 +180,46 @@ chal_cyc_usec(void)
 	return cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL;
 }
 
+
+void print_hpet_timer_info(timer_type_t timer_type)
+{
+    if (!hpet_timers || !hpet_config || !hpet_capabilities) {
+        printk("HPET not initialized!\n");
+        return;
+    }
+
+    u64_t cfg = hpet_timers[timer_type].config;
+    u64_t cmp = hpet_timers[timer_type].compare;
+    u64_t irq = (cfg >> 9) & 0x1F;
+
+    printk("=== HPET Timer Info ===\n");
+    printk("Core: %d\n", get_cpuid());
+
+    printk("HPET Global Configuration: 0x%016llx\n", *hpet_config);
+    printk("  - Enable CNF (bit 0): %llu\n", (*hpet_config & HPET_ENABLE_CNF) != 0);
+    printk("  - Legacy Routing (bit 1): %llu\n", (*hpet_config & HPET_LEG_RT_CNF) != 0);
+
+    printk("Timer config register: 0x%016llx\n", cfg);
+    printk("  - Interrupt Type (TN_INT_TYPE_CNF, bit 1): %llu\n", (cfg & TN_INT_TYPE_CNF) != 0);
+    printk("  - Interrupt Enable (TN_INT_ENB_CNF, bit 2): %llu\n", (cfg & TN_INT_ENB_CNF) != 0);
+    printk("  - Timer Type (TN_TYPE_CNF, bit 3): %s\n", (cfg & TN_TYPE_CNF) ? "Periodic" : "One-shot");
+    printk("  - Periodic Capable (TN_PER_INT_CAP, bit 4): %llu\n", (cfg & TN_PER_INT_CAP) != 0);
+    printk("  - Value Set Allowed (TN_VAL_SET_CNF, bit 6): %llu\n", (cfg & TN_VAL_SET_CNF) != 0);
+    printk("  - FSB delivery enabled (bit 14): %llu\n", (cfg & TN_FSB_EN_CNF) != 0);
+    printk("  - FSB delivery capable (bit 15): %llu\n", (cfg & TN_FSB_INT_DEL_CAP) != 0);
+    printk("  - Interrupt Routing CNF (bits 9-13): %llu\n", irq);
+
+    printk("Timer compare register: 0x%016llx (%llu)\n", cmp, cmp);
+    printk("HPET main counter: 0x%016llx (%llu)\n", HPET_COUNTER, HPET_COUNTER);
+
+    printk("HPET Capabilities register: 0x%08x\n", *hpet_capabilities);
+    u64_t pico_per_tick = hpet_capabilities[1] / FEMPTO_PER_PICO;
+    printk("HPET Tick granularity: %llu picoseconds\n", pico_per_tick);
+
+    printk("=== End of HPET Timer Info ===\n");
+}
+
+//volatile int counter = 0;
 int
 periodic_handler(struct pt_regs *regs)
 {
@@ -187,9 +227,18 @@ periodic_handler(struct pt_regs *regs)
 
 	if (unlikely(timer_calibration_init)) timer_calibration();
 
+	//printk("in hpet periodic handler in core %d\n", get_cpuid());
+
 	ack_irq(HW_PERIODIC);
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
 	HPET_INT_ENABLE(TIMER_PERIODIC);
+
+	// if(counter >= 255){
+	// 	outb(0x21, 0xFF); // Mask Master PIC
+	// 	outb(0xA1, 0xFF); // Mask Slave PIC
+	// } else{
+	// 	counter++;
+	// }
 
 	return preempt;
 }
@@ -203,7 +252,7 @@ oneshot_handler(struct pt_regs *regs)
 {
 	int preempt = 1;
 
-	// simple lock for printing
+	// simple lock for print debug
     while (__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)); // busy wait
 
     printk("hpet Oneshot in core %d\n", get_cpuid()); //Made for old pic? may need to mask this IOapic to prevent doubles, but would require irq
@@ -237,11 +286,17 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 		hpet_timers[timer_type].config = outconfig | TN_TYPE_CNF | TN_VAL_SET_CNF;
 		/* Reset main counter */
 		HPET_COUNTER = 0x00;
+
+		u64_t config = hpet_timers[TIMER_PERIODIC].config;
+		u8_t irq = (config >> 9) & 0x1F; // bits 9-13 are the IRQ
+		printk("HPET periodic timer IRQ = %d\n", irq);
 	}
 	hpet_timers[timer_type].compare = cycles;
 
 	/* Enable timer interrupts */
 	*hpet_config |= HPET_ENABLE_CNF;
+
+	printk("Timer set of type %d\n", timer_type);
 }
 
 void *
@@ -370,6 +425,8 @@ hpet_oneshot_test(void)
     printk("Programming oneshot for 10 seconds (%llu HPET cycles)\n", hpet_freq);
 
     timer_set(TIMER_ONESHOT, hpet_freq * 10);
+
+	print_hpet_timer_info(TIMER_ONESHOT);
 
 	return;
 }

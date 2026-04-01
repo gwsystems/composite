@@ -172,6 +172,7 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	paging_init();
 	boot_state_transition(INIT_DATA_STRUCT, INIT_UT_MEM);
 
+	
 	acpi_init();
 	lapic_init();
 	timer_init();
@@ -183,7 +184,8 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	smp_init(cores_ready);
 	cores_ready[INIT_CORE] = 1;
 
-	chal_irq_enable(40, 2);
+	
+	chal_irq_enable(40, 3); //route hpet oneshot to core 3
 	hpet_oneshot_test();
 
 	kern_boot_upcall();

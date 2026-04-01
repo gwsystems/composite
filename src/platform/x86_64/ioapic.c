@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "ioapic.h"
+#include "chal/shared/cos_io.h"
 
 #define HW_IRQ_START 32 //from old src/platform/i386/chal/chal_config.h
 u32_t logical_apicids[NUM_CPU]; //from old lapic.c, not used anymore might add back later? using apicids[NUM_CPU] now
@@ -328,6 +329,8 @@ ioapic_iter(struct ioapic_cntl *io)
 
 		ioapic_int_entry_write(&ioapicinfo[tmp_count], j, entry);
 	}
+
+	printk("ioapic_iter complete\n");
 }
 
 int
@@ -395,11 +398,34 @@ chal_irq_disable(int irq, cpuid_t cpu_id)
 	return 0;
 }
 
+void pic_dump_state(void)
+{
+    u8_t imr_m = inb(0x21);
+    u8_t imr_s = inb(0xA1);
+
+    outb(0x20, 0x0A); outb(0xA0, 0x0A);
+    u8_t irr_m = inb(0x20);
+    u8_t irr_s = inb(0xA0);
+
+    outb(0x20, 0x0B); outb(0xA0, 0x0B);
+    u8_t isr_m = inb(0x20);
+    u8_t isr_s = inb(0xA0);
+
+    printk("PIC STATE:\n");
+    printk(" IMR: master=0x%02x slave=0x%02x\n", imr_m, imr_s);
+    printk(" IRR: master=0x%02x slave=0x%02x\n", irr_m, irr_s);
+    printk(" ISR: master=0x%02x slave=0x%02x\n", isr_m, isr_s);
+}
+
 void
 ioapic_init(void)
 {
 	//assert(ioapic_count);
-	//pic_disable(); Pic no longer in system
+	//pic_disable();
+	pic_dump_state();
+	outb(0x21, 0xFE); // Mask Master PIC (except irq0)
+	outb(0xA1, 0xFF); // Mask Slave PIC
+	pic_dump_state();
 
 	//ioapic_iter(); //call this for now to try and get PA print needed
 
