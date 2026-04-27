@@ -230,6 +230,7 @@ periodic_handler(struct pt_regs *regs)
 	printk("in hpet periodic handler in core %d\n", get_cpuid());
 
 	ack_irq(HW_PERIODIC);
+	lapic_ack();
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
 	HPET_INT_ENABLE(TIMER_PERIODIC);
 
@@ -260,8 +261,12 @@ oneshot_handler(struct pt_regs *regs)
     __atomic_clear(&print_lock, __ATOMIC_RELEASE);
 
 	ack_irq(HW_ONESHOT);
+	//printk("Ack'ack the lapic\n");
+	lapic_ack();
 	preempt = timer_process(regs);
 	HPET_INT_ENABLE(TIMER_ONESHOT);
+
+	//hpet_oneshot_test();
 
 	return preempt;
 }
@@ -286,10 +291,6 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 		hpet_timers[timer_type].config = outconfig | TN_TYPE_CNF | TN_VAL_SET_CNF;
 		/* Reset main counter */
 		HPET_COUNTER = 0x00;
-
-		u64_t config = hpet_timers[TIMER_PERIODIC].config;
-		u8_t irq = (config >> 9) & 0x1F; // bits 9-13 are the IRQ
-		printk("HPET periodic timer IRQ = %d\n", irq);
 	}
 	hpet_timers[timer_type].compare = cycles;
 

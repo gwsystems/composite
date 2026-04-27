@@ -1,0 +1,709 @@
+c[?7l[2J[0mSeaBIOS (version 1.16.3-debian-1.16.3-2)
+Booting from Hard Disk...
+Boot failed: could not read the boot disk
+
+Booting from Floppy...
+Boot failed: could not read the boot disk
+
+Booting from DVD/CD...
+kern_pa_end: 31b16a10
+ round_up_to_pgt1_page(kern_pa_end): 40000000
+ PGT1_RANGE: 40000000
+Initial component found:
+kenrel mem layout:
+	- [ffff800030c5a000, ffff8000319ed298, ffff8000319ee000)
+Memory regions:
+	- 0 (Available): [00000000, 0009fc00) sz = 0MB + 639KB
+	- 1 (Reserved ): [0009fc00, 000a0000) sz = 0MB + 1KB
+	- 2 (Reserved ): [000f0000, 00100000) sz = 0MB + 64KB
+	- 3 (Available): [00100000, bffe0000) sz = 3070MB + 896KB
+	  memory usable at boot time: 8e5f2d68 (2277 MB + 971 KB)
+	- 4 (Reserved ): [bffe0000, c0000000) sz = 0MB + 128KB
+	- 5 (Reserved ): [feffc000, ff000000) sz = 0MB + 16KB
+	- 6 (Reserved ): [fffc0000, 100000000) sz = 0MB + 256KB
+	- 7 (Available): [100000000, 140000000) sz = 1024MB + 0KB
+	Amount of wasted memory due to layout is 0 MB + 0xd68 B
+Processor information:
+	Vendor: GenuineIntel
+	Brand string 11th Gen Intel(R) Core(TM) i7-11700KF @ 3.60GHz
+	Features [rdtsc fpu superpages sysenter/exit clflush apic x2apic tsc-deadline rdtscp ]
+Initializing virtual memory
+	Setting up initial page directory.
+The CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE
+The CPU supports XSAVEOPT, XSAVEC and XSAVES instructions
+The CPU maximum XSAVE area is: 2696
+The AVX area offset is: 576
+ACPI initialization
+	Found good RSDP @ ffff8000000f5270
+	RDST paddr is @ 00000000bffe21cc
+	RSDP lenth is :0
+	XSDT paddr is @ 0000000000000000
+	RSDT vaddr is @ ffff8000fffe21cc
+Supported System Description Tables
+	FACP
+	APIC
+	HPET
+	WAET
+Initializing HPET @ ffff8000fffe216c
+	Checksum is OK
+	Addr: 00000000fed00000
+	hpet: ffff80013ed00000
+	Set HPET @ ffff80013ed00000
+Initializing LAPIC @ ffff8000fffe207c
+	MADT length 240 (base struct 44)
+	LAPIC found: coreid 0, apicid 0 flags 1
+	LAPIC found: coreid 1, apicid 1 flags 1
+	LAPIC found: coreid 2, apicid 2 flags 1
+	LAPIC found: coreid 3, apicid 3 flags 1
+	LAPIC found: coreid 4, apicid 4 flags 1
+	LAPIC found: coreid 5, apicid 5 flags 1
+	LAPIC found: coreid 6, apicid 6 flags 1
+	LAPIC found: coreid 7, apicid 7 flags 1
+	LAPIC found: coreid 8, apicid 8 flags 1
+	LAPIC found: coreid 9, apicid 9 flags 1
+	LAPIC found: coreid 10, apicid 10 flags 1
+	LAPIC found: coreid 11, apicid 11 flags 1
+	LAPIC found: coreid 12, apicid 12 flags 1
+	LAPIC found: coreid 13, apicid 13 flags 1
+	LAPIC found: coreid 14, apicid 14 flags 1
+	LAPIC found: coreid 15, apicid 15 flags 1
+	I/O APIC found: ioapicid 0, addr fec00000, int offset 0
+io->ioapic_phys_addr: fec00000, for io->ioapic_id 0
+	Set IOAPIC 0 @ ffff80013ec00000
+	IOAPIC 0 (counter:0): Number of entries = 24
+ioapic_iter complete
+	Interrupt controller type 2: ignoring
+	Interrupt controller type 2: ignoring
+	Interrupt controller type 2: ignoring
+	Interrupt controller type 2: ignoring
+	Interrupt controller type 2: ignoring
+	Interrupt controller type 4: ignoring
+	APICs processed, 8 cores
+	Checksum is OK
+	lapic: ffff80013ee00000
+	Found ACPI FACP and DSDT
+	FACP and DSDT parsed and will be used for shutdown
+	LAPIC:  processor supports x2APIC, IGNORED.
+	LAPIC: Configuring TSC-Deadline Mode!
+Enabling timer @ ffff80013ed00000 with tick granularity 10000 picoseconds
+HPET periodic timer IRQ = 0
+Timer set of type 0
+PIC STATE:
+ IMR: master=0x00 slave=0x00
+ IRR: master=0x01 slave=0x00
+ ISR: master=0x00 slave=0x00
+PIC STATE:
+ IMR: master=0xfe slave=0xff
+ IRR: master=0x01 slave=0x00
+ ISR: master=0x00 slave=0x00
+Setting up IOAPIC (disabling PIC)
+Setting up the booter component.
+	Creating 1 1-lvl booter VM pages from [ffff800031b75000,ffff800031b76000) for v_addr [0000000000400000,0000000001259788).
+	Creating 1 2-lvl booter VM pages from [ffff800031b76000,ffff800031b77000) for v_addr [0000000000400000,0000000001259788).
+	Creating 8 3-lvl booter VM pages from [ffff800031b77000,ffff800031b7f000) for v_addr [0000000000400000,0000000001259788).
+	Mapping in booter VM (@ [0x0000000000400000, 0x00000000004229f4))
+	Mapping in booter VM (@ [0x0000000000423000, 0x00000000010e5000))
+	Mapping in booter VM (@ [0x00000000010e5000, 0x0000000001259ee8))
+	Booter elf object: RO - [400000, 4229f4), RW - [423000, 1259788)
+	Creating 1 1-lvl untyped memory pages from [ffff800031b7f000,ffff800031b80000) for v_addr [0000008000000000,000000808e461000).
+	Creating 3 2-lvl untyped memory pages from [ffff800031b80000,ffff800031b83000) for v_addr [0000008000000000,000000808e461000).
+	Creating 1139 3-lvl untyped memory pages from [ffff800031b83000,ffff800031ff6000) for v_addr [0000008000000000,000000808e461000).
+	Mapping in untyped memory (@ [0x0000008000000000, 0x000000808dfea000))
+	Capability table and page-table created.
+	Created boot component structure from page-table and capability-table.
+	Creating initial threads, tcaps, and rcv end-points in boot-component.
+	Boot component initialization complete.
+
+Booting AP 1 with apic_id 1
+Initializing CPU 1
+The CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE
+The CPU supports XSAVEOPT, XSAVEC and XSAVES instructions
+The CPU maximum XSAVE area is: 2696
+The AVX area offset is: 576
+	Creating initial threads, tcaps, and rcv end-points in boot-component.
+	LAPIC:  processor supports x2APIC, IGNORED.
+	LAPIC: Configuring TSC-Deadline Mode!
+New CPU 1 Booted
+
+Booting AP 2 with apic_id 2
+Initializing CPU 2
+The CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE
+The CPU supports XSAVEOPT, XSAVEC and XSAVES instructions
+The CPU maximum XSAVE area is: 2696
+The AVX area offset is: 576
+	Creating initial threads, tcaps, and rcv end-points in boot-component.
+	LAPIC:  processor supports x2APIC, IGNORED.
+	LAPIC: Configuring TSC-Deadline Mode!
+New CPU 2 Booted
+
+Booting AP 3 with apic_id 3
+Initializing CPU 3
+The CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE
+The CPU supports XSAVEOPT, XSAVEC and XSAVES instructions
+The CPU maximum XSAVE area is: 2696
+The AVX area offset is: 576
+	Creating initial threads, tcaps, and rcv end-points in boot-component.
+	LAPIC:  processor supports x2APIC, IGNORED.
+	LAPIC: Configuring TSC-Deadline Mode!
+New CPU 3 Booted
+
+Booting AP 4 with apic_id 4
+Initializing CPU 4
+The CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE
+The CPU supports XSAVEOPT, XSAVEC and XSAVES instructions
+The CPU maximum XSAVE area is: 2696
+The AVX area offset is: 576
+	Creating initial threads, tcaps, and rcv end-points in boot-component.
+	LAPIC:  processor supports x2APIC, IGNORED.
+	LAPIC: Configuring TSC-Deadline Mode!
+New CPU 4 Booted
+
+Booting AP 5 with apic_id 5
+Initializing CPU 5
+The CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE
+The CPU supports XSAVEOPT, XSAVEC and XSAVES instructions
+The CPU maximum XSAVE area is: 2696
+The AVX area offset is: 576
+	Creating initial threads, tcaps, and rcv end-points in boot-component.
+	LAPIC:  processor supports x2APIC, IGNORED.
+	LAPIC: Configuring TSC-Deadline Mode!
+New CPU 5 Booted
+
+Booting AP 6 with apic_id 6
+Initializing CPU 6
+The CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE
+The CPU supports XSAVEOPT, XSAVEC and XSAVES instructions
+The CPU maximum XSAVE area is: 2696
+The AVX area offset is: 576
+	Creating initial threads, tcaps, and rcv end-points in boot-component.
+	LAPIC:  processor supports x2APIC, IGNORED.
+	LAPIC: Configuring TSC-Deadline Mode!
+New CPU 6 Booted
+
+Booting AP 7 with apic_id 7
+Initializing CPU 7
+The CPU supports SSE3, SSE4, AVX, AVX2 and XSAVE
+The CPU supports XSAVEOPT, XSAVEC and XSAVES instructions
+The CPU maximum XSAVE area is: 2696
+The AVX area offset is: 576
+	Creating initial threads, tcaps, and rcv end-points in boot-component.
+	LAPIC:  processor supports x2APIC, IGNORED.
+	LAPIC: Configuring TSC-Deadline Mode!
+New CPU 7 Booted
+ got  cpu 3  befoe    apicidrbe   = 0x3
+irq ebefo40
+rre co  fbefor ose ebe:  r_fobheedbc rwe ofoecosesfc
+s rto=e __occ0sohho_rs_whwx3es_
+ whhwd 
+w
+
+cos_he
+w
+stmod=0 delivmod=0 mask=0
+Programming oneshot for 10 seconds (100000000 HPET cycles)
+Timer set of type 1
+=== HPET Timer Info ===
+Core: 0
+HPET Global Configuration: 0x0000000000000003
+  - Enable CNF (bit 0): 1
+  - Legacy Routing (bit 1): 1
+Timer config register: 0x0000000400000036
+  - Interrupt Type (TN_INT_TYPE_CNF, bit 1): 1
+  - Interrupt Enable (TN_INT_ENB_CNF, bit 2): 1
+  - Timer Type (TN_TYPE_CNF, bit 3): One-shot
+  - Periodic Capable (TN_PER_INT_CAP, bit 4): 1
+  - Value Set Allowed (TN_VAL_SET_CNF, bit 6): 0
+  - FSB delivery enabled (bit 14): 0
+  - FSB delivery capable (bit 15): 0
+  - Interrupt Routing CNF (bits 9-13): 0
+Timer compare register: 0x000000003c366dd2 (1010200018)
+HPET main counter: 0x0000000000a14381 (10568577)
+HPET Capabilities register: 0x8086a201
+HPET Tick granularity: 10000 picoseconds
+=== End of HPET Timer Info ===
+Upcall into boot component at ip 0x0000000000403d10 for cpu: 0 with tid: 0
+------------------[ Kernel boot complete ]------------------
+in hpet periodic handler in core 0
+got Here
+before cos_hw
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+in hpet periodic handler in core 0
+w
+waftewww
+r cos_hw
+
+
+
+
+
+G
+o
+
+t Step 1
+wG
+
+ot Step 2
+Creian tihpnegt  apderdirodeiscs  hsapnadcleers i n& c ocroem p0o
+neafntters c:o
+sC_howm
+ponent tests.unit_pingpong.global.ping: 6 (in an exclusive address space)
+		 elf obj: ro [0x1600000, 0x16133bc), data [0x1614000, 0x17ad1c8), bss [0x17ad1c8, 0x17ae5a8).
+Component no_interface.llbooter.global.booter: 1 (in an exclusive address space)
+Component pong.pingpong.global.pong: 4 (in an exclusive address space)
+		 elf obj: ro [0x400000, 0x41251c), data [0x413000, 0x5ab0f8), bss [0x5ab0f8, 0x5ac4a8).
+Component capmgr.simple.global.capmgr: 2 (in an exclusive address space)
+		 elf obj: ro [0x400000, 0x424f90), data [0x425000, 0x5bd158), bss [0x5bd158, 0x13ead48).
+Component tests.unit_schedcomp.global.schedtest: 5 (in an exclusive address space)
+		 elf obj: ro [0x400000, 0x414078), data [0x415000, 0x5ad278), bss [0x5ad278, 0x5ae628).
+Component sched.pfprr_quantum_static.global.sched: 3 (in an exclusive address space)
+		 elf obj: ro [0x400000, 0x425a34), data [0x426000, 0x5bf428), bss [0x5bf428, 0x719208).
+Capability table delegations (1 capability managers):
+	Capmgr 2:
+		Capability #132: comp for component 6
+		Capability #128: pgtbl for component 6
+		Capability #124: captbl for component 6
+		Capability #120: comp for component 5
+		Capability #116: pgtbl for component 5
+		Capability #112: captbl for component 5
+		Capability #108: comp for component 4
+		Capability #104: pgtbl for component 4
+		Capability #100: captbl for component 4
+		Capability #96: comp for component 3
+		Capability #92: pgtbl for component 3
+		Capability #88: captbl for component 3
+Synchronous invocations (69):
+	init_done (6->3):	client_fn @ 0x1601750, client_ucap @ 0x17ac124, server_fn @ 0x4075c0
+	pong_wideargs (6->4):	client_fn @ 0x1600520, client_ucap @ 0x17ac0ac, server_fn @ 0x400620
+	init_exit (6->3):	client_fn @ 0x16026a0, client_ucap @ 0x17ac13c, server_fn @ 0x407630
+	pong_widerets (6->4):	client_fn @ 0x1600650, client_ucap @ 0x17ac0dc, server_fn @ 0x400740
+	pong_args (6->4):	client_fn @ 0x16026a0, client_ucap @ 0x17ac094, server_fn @ 0x4005b0
+	pong_argsrets (6->4):	client_fn @ 0x16005b0, client_ucap @ 0x17ac0c4, server_fn @ 0x4006b0
+	pong_ids (6->4):	client_fn @ 0x16007b0, client_ucap @ 0x17ac10c, server_fn @ 0x400860
+	pong_ret (6->4):	client_fn @ 0x16026a0, client_ucap @ 0x17ac064, server_fn @ 0x4004d0
+	pong_subset (6->4):	client_fn @ 0x1600710, client_ucap @ 0x17ac0f4, server_fn @ 0x4007d0
+	pong_arg (6->4):	client_fn @ 0x16026a0, client_ucap @ 0x17ac07c, server_fn @ 0x400540
+	pong_call (6->4):	client_fn @ 0x16026a0, client_ucap @ 0x17ac04c, server_fn @ 0x400460
+	capmgr_create_noop (6->2):	client_fn @ 0x16026a0, client_ucap @ 0x17ac154, server_fn @ 0x4066c0
+	init_done (5->3):	client_fn @ 0x4005a0, client_ucap @ 0x5ac04c, server_fn @ 0x4075c0
+	sched_thd_exit (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac1b4, server_fn @ 0x4073d0
+	sched_blkpt_alloc (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac0f4, server_fn @ 0x407010
+	sched_aep_create_closure (5->3):	client_fn @ 0x400a40, client_ucap @ 0x5ac184, server_fn @ 0x4072d0
+	sched_blkpt_free (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac10c, server_fn @ 0x407080
+	sched_thd_param_set (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac19c, server_fn @ 0x407360
+	sched_thd_wakeup (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac0ac, server_fn @ 0x406ec0
+	sched_blkpt_trigger (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac124, server_fn @ 0x4070f0
+	capmgr_create_noop (5->2):	client_fn @ 0x403280, client_ucap @ 0x5ac1fc, server_fn @ 0x4066c0
+	sched_thd_yield_to (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac094, server_fn @ 0x406e50
+	sched_thd_block_timeout (5->3):	client_fn @ 0x400990, client_ucap @ 0x5ac154, server_fn @ 0x4071d0
+	sched_set_tls (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac1e4, server_fn @ 0x4074b0
+	sched_thd_block (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac0dc, server_fn @ 0x406fa0
+	sched_get_cpu_freq (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac07c, server_fn @ 0x406de0
+	sched_thd_create_closure (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac16c, server_fn @ 0x407260
+	init_exit (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac064, server_fn @ 0x407630
+	sched_blkpt_block (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac13c, server_fn @ 0x407160
+	sched_debug_thd_state (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac0c4, server_fn @ 0x406f30
+	sched_thd_delete (5->3):	client_fn @ 0x403280, client_ucap @ 0x5ac1cc, server_fn @ 0x407440
+	init_done (4->3):	client_fn @ 0x400990, client_ucap @ 0x5aa04c, server_fn @ 0x4075c0
+	capmgr_create_noop (4->2):	client_fn @ 0x4018e0, client_ucap @ 0x5aa07c, server_fn @ 0x4066c0
+	init_exit (4->3):	client_fn @ 0x4018e0, client_ucap @ 0x5aa064, server_fn @ 0x407630
+	memmgr_shared_page_map_aligned (3->2):	client_fn @ 0x40a8a0, client_ucap @ 0x5be39c, server_fn @ 0x406500
+	capmgr_vm_lapic_create (3->2):	client_fn @ 0x407c00, client_ucap @ 0x5be294, server_fn @ 0x405ab0
+	capmgr_asnd_key_create (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be1ec, server_fn @ 0x405780
+	capmgr_vm_vmcb_create (3->2):	client_fn @ 0x4081e0, client_ucap @ 0x5be2c4, server_fn @ 0x405bd0
+	memmgr_map_phys_to_virt (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be33c, server_fn @ 0x4062e0
+	memmgr_virt_to_phys (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be324, server_fn @ 0x406270
+	memmgr_heap_page_allocn (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be2f4, server_fn @ 0x406190
+	capmgr_vm_lapic_access_create (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be264, server_fn @ 0x4059b0
+	capmgr_thd_create_ext (3->2):	client_fn @ 0x407f20, client_ucap @ 0x5be12c, server_fn @ 0x405360
+	capmgr_asnd_create (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be1bc, server_fn @ 0x4056a0
+	memmgr_shared_page_allocn_aligned (3->2):	client_fn @ 0x40a800, client_ucap @ 0x5be36c, server_fn @ 0x4063e0
+	init_done (3->2):	client_fn @ 0x4076a0, client_ucap @ 0x5be0cc, server_fn @ 0x4060b0
+	capmgr_vm_vmcs_create (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be234, server_fn @ 0x4058d0
+	capmgr_aep_create_thunk (3->2):	client_fn @ 0x407fc0, client_ucap @ 0x5be15c, server_fn @ 0x405480
+	capmgr_vm_comp_create (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be204, server_fn @ 0x4057f0
+	capmgr_initaep_create (3->2):	client_fn @ 0x4082d0, client_ucap @ 0x5be144, server_fn @ 0x4053f0
+	capmgr_vm_vcpu_create (3->2):	client_fn @ 0x407d40, client_ucap @ 0x5be2dc, server_fn @ 0x405c60
+	init_exit (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be0e4, server_fn @ 0x406120
+	memmgr_heap_page_allocn_aligned (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be30c, server_fn @ 0x406200
+	capmgr_vm_shared_kernel_page_create_at (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be21c, server_fn @ 0x405860
+	capmgr_shared_kernel_page_create (3->2):	client_fn @ 0x407b60, client_ucap @ 0x5be27c, server_fn @ 0x405a20
+	capmgr_thd_create_thunk (3->2):	client_fn @ 0x407e80, client_ucap @ 0x5be114, server_fn @ 0x4052d0
+	memmgr_shared_page_map_aligned_in_vm (3->2):	client_fn @ 0x40a940, client_ucap @ 0x5be3b4, server_fn @ 0x406590
+	capmgr_vm_shared_region_create (3->2):	client_fn @ 0x407ca0, client_ucap @ 0x5be2ac, server_fn @ 0x405b40
+	capmgr_set_tls (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be1a4, server_fn @ 0x405630
+	capmgr_rcv_create (3->2):	client_fn @ 0x407a90, client_ucap @ 0x5be18c, server_fn @ 0x4055a0
+	capmgr_asnd_rcv_create (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be1d4, server_fn @ 0x405710
+	memmgr_shared_page_map (3->2):	client_fn @ 0x40a760, client_ucap @ 0x5be384, server_fn @ 0x406470
+	capmgr_aep_create_ext (3->2):	client_fn @ 0x4080c0, client_ucap @ 0x5be174, server_fn @ 0x405510
+	memmgr_shared_page_allocn (3->2):	client_fn @ 0x40a6c0, client_ucap @ 0x5be354, server_fn @ 0x406350
+	capmgr_initthd_create (3->2):	client_fn @ 0x407de0, client_ucap @ 0x5be0fc, server_fn @ 0x405240
+	capmgr_vm_msr_bitmap_create (3->2):	client_fn @ 0x40c580, client_ucap @ 0x5be24c, server_fn @ 0x405940
+	init_done (2->1):	client_fn @ 0x406730, client_ucap @ 0x5bc0b8, server_fn @ 0x402f10
+	init_exit (2->1):	client_fn @ 0x407680, client_ucap @ 0x5bc0d0, server_fn @ 0x402f80
+	addr_get (2->1):	client_fn @ 0x407680, client_ucap @ 0x5bc0e8, server_fn @ 0x402ff0
+Capability manager memory delegation (1 capmgrs): 536870912 bytes.
+Kernel resources created, booting components!
+Execution schedule:
+	Created scheduling execution for 2
+Initializing component 2 (executing cos_init).
+got Here
+Starting the capability manager.
+Components in shared address spaces: none
+Capmgr: processing 12 capabilities for components that have already been booted
+	Creating component tests.unit_pingpong.global.ping: id 6
+		captbl:124, pgtbl:128, comp:132, captbl/pgtbl frontiers 136 & 17af000, sched 3
+	Creating component tests.unit_schedcomp.global.schedtest: id 5
+		captbl:112, pgtbl:116, comp:120, captbl/pgtbl frontiers 164 & 5af000, sched 3
+	Creating component pong.pingpong.global.pong: id 4
+		captbl:100, pgtbl:104, comp:108, captbl/pgtbl frontiers 100 & 5ad000, sched 3
+	Creating component sched.pfprr_quantum_static.global.sched: id 3
+		captbl:88, pgtbl:92, comp:96, captbl/pgtbl frontiers 216 & 71a000, sched 2
+Cgo
+ggo
+a
+gogHHett 
+r eHeHere
+
+rep
+mgr: 1 components that need execution
+	Created scheduling execution for 3
+Component 2 initialization complete, awaiting main execution.
+Switching to main in component 2.
+Executing main in component 2.
+Initializing component 3 (executing cos_init).
+got Here
+	Sched 3: 3 components that need execution
+	Sched 3: 4 is the 0th component to initialize
+	Sched 3: 5 is the 1th component to initialize
+	Sched 3: 6 is the 2th component to initialize
+ggo
+oggtogg Here
+ggtot Ho gergHH tHeeere
+ere
+
+re
+Cgggg
+got Here
+gogogmotooggtoo o ptttHto HHH ne e HeHeHHerrrneeeeerrrert
+e
+
+ e
+ePg
+gego3o
+s
+o t nHg_ggioto  ht noterieHct gHeetH
+ogeor mrerHiotep
+a te
+ero gego
+
+HnolHteStere
+egch r eneoiHt
+duHzge tleat Heoi4errr:eteor 
+  enc3
+
+ Hero:cose 
+m_Rpliuennite,t n
+aiwnagi tiinnigt miaailni zeaxteicount itohnr.ea
+dSw.i
+tcghiontg  tHoe rmaei
+n in component 3.
+Executing main in component 3.
+Starting scheduler loop...
+got Here
+got Here
+got Here
+Pong component 4: cos_parallel_init on core 4 (of 8)
+	ggggSgogoogocoot ttothtHtt   H eH H eeHeerrHedrHe
+ereruee
+lrreee
+ee
+
+
+r
+ 3: initializing component 4 with thread 62.
+got Here
+	ggogSgggoocoogohottt tt  t teH   HHdeHHeHeueHerrerlreeeree
+rPe
+
+
+
+re
+einerg 
+ 3c:o miponnietnita l6i:z icnogs_ icnoimtp oenxeecnutt io5n
+ with thread 71.
+got Here
+	Scheduler 3: initializing component 6 with thread 79.
+Scheduler 3, initialization completed.
+P	S(Pic5o,nhn6gg8e d ,ucc5)olomm eDpprB oGone3n:U:netn n tiEt6 x-i:t4t: e mistnpaig asn rca htlheerxldueeellc auingmdtia  moi6an2nn
+ a
+gFfaersor t-cpmoatmh p iocnonvomencaptti
+oongn:eo 10tn9t 7 Hc e4yrecl
+
+ge	os
+StThc Hrehee rreedetu
+ulrne rv a3l:u eE xiintvioncga titohnr:e a1d0 8781  cfyrcolme sc
+omponent 5
+	Scheduler 3: Exiting thread 79 from component 6
+hpet Oneshot in core 3
+got Here
+(5,80,5) DBG:Test successful! Highest was scheduled only!
+got Here
+got Here
+got Here
+(5,80,5) DBG:Test successful! We swapped back and forth!
+(5,80,5) DBG:Done testing, spinning...
+QEMU: Terminated
+

@@ -88,4 +88,8 @@ capid_t COS_STUB_DECL(capmgr_vm_vmcb_create)(vm_vmcscap_t vmcs_cap, vm_msrbitmap
 thdcap_t capmgr_vm_vcpu_create(compid_t vm_comp, vm_vmcb_t vmcb_cap, thdid_t *tid);
 thdcap_t COS_STUB_DECL(capmgr_vm_vcpu_create)(compid_t vm_comp, vm_vmcb_t vmcb_cap, thdid_t *tid);
 
+// int capmgr_hw_attach(hwid_t hwid, thdid_t tid);
+// int capmgr_hw_periodic_attach(hwid_t hwid, thdid_t tid, unsigned int period_us);
+// int capmgr_hw_detach(hwid_t hwid);
+
 #endif /* CAPMGR_H */

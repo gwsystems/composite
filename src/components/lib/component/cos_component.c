@@ -298,7 +298,6 @@ cos_inv_cap_set(struct usr_inv_cap *uc)
 CWEAKSYMB void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-	printc("got Here\n");
 	static int first = 1;
 	static	struct ps_lock _lock = {0};
 
@@ -343,9 +342,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	 * NOTE: for "fork"ing components and not updating "spdid"s, this call will just fail and should be fine.
 	 */
 	if (cos_compid_uninitialized()) { /* we must be in the initial booter! */
-		printc("before cos_hw\n");
 		cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-		printc("after cos_hw\n");
 		perfcntr_init();
 	}
 
