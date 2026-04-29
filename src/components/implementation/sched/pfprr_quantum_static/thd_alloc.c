@@ -131,3 +131,82 @@ free:
 	ret = NULL;
 	goto done;
 }
+
+struct slm_thd_container *
+slm_aep_alloc_in(compid_t cid, thdclosure_index_t idx, int owntc,
+                 cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax,
+                 thdcap_t *thd, thdid_t *tid, arcvcap_t *rcv)
+{
+       struct cos_aep_info aep = { 0 };
+       arcvcap_t extrcv = 0;
+       thdcap_t _cap;
+	   u32_t spdid_thdidx = ((u32_t)cid << 16) | ((u32_t)idx    & 0xFFFF);
+       u32_t key_ipimax   = ((u32_t)key << 16) | ((u32_t)ipimax & 0xFFFF);
+
+	   printc("DEBUG AEP - Args: cid %ld, idx %d, owntc %d, key %d, ipiwin %lu, ipimax %u\n", cid, idx, owntc, key, ipiwin, ipimax);
+       //_cap = capmgr_aep_create_ext(cid, &aep, idx, owntc, key, ipiwin, ipimax, &extrcv);
+	        _cap = capmgr_aep_create_ext(spdid_thdidx, &aep, owntc, key_ipimax, ipiwin, &extrcv);  
+	   printc("DEBUG AEP - Sched created AEP with cap %d, tid %d, rcv %d\n", _cap, aep.tid, extrcv);
+       if (_cap <= 0) return NULL;
+
+       *rcv = extrcv;
+       *thd = aep.thd;
+       *tid = aep.tid;
+
+       return slm_thd_mem_alloc(aep.thd, aep.tid, thd, tid);
+}
+
+struct slm_thd *
+aep_alloc_in(compid_t id, thdclosure_index_t idx, int owntc,
+             cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax,
+             sched_param_t *parameters, int reschedule, arcvcap_t *rcv)
+{
+       struct slm_thd_container *t;
+       struct slm_thd *ret     = NULL, *thd;
+       struct slm_thd *current = slm_thd_current_extern();
+       thdcap_t thdcap;
+       thdid_t tid;
+       arcvcap_t _rcv = 0;
+       int i;
+
+       if (!current) {
+               current = slm_thd_special();
+               assert(current);
+       }
+
+       t = slm_aep_alloc_in(id, idx, owntc, key, ipiwin, ipimax, &thdcap, &tid, &_rcv);
+       if (!t) ERR_THROW(NULL, done);
+       thd = slm_thd_from_container(t);
+
+       slm_cs_enter(current, SLM_CS_NONE);
+       if (slm_thd_init(thd, thdcap, tid)) ERR_THROW(NULL, free);
+
+       thd->rcv = _rcv;
+       if (owntc) thd->properties |= SLM_THD_PROPERTY_OWN_TCAP;
+       thd->thd = thdcap;
+       thd->tc  = 0;
+
+       for (i = 0; parameters[i] != 0; i++) {
+               sched_param_type_t type;
+               unsigned int value;
+
+               sched_param_get(parameters[i], &type, &value);
+               if (slm_sched_thd_update(thd, type, value)) ERR_THROW(NULL, free);
+       }
+       slm_thd_mem_activate(t);
+
+       if (reschedule) {
+               if (slm_cs_exit_reschedule(current, SLM_CS_NONE)) ERR_THROW(NULL, done);
+       } else {
+               slm_cs_exit(NULL, SLM_CS_NONE);
+       }
+
+       *rcv = _rcv;
+       ret = thd;
+done:
+       return ret;
+free:
+       slm_thd_mem_free(t);
+       ret = NULL;
+       goto done;
+}

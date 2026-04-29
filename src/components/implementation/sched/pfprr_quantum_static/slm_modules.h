@@ -17,4 +17,13 @@ struct slm_thd *thd_alloc(thd_fn_t fn, void *data, sched_param_t *parameters, in
 struct slm_thd *thd_alloc_in(compid_t id, thdclosure_index_t idx, sched_param_t *parameters, int reschedule);
 
 
+
+struct slm_thd_container *slm_aep_alloc_in(compid_t cid, thdclosure_index_t idx, int owntc,
+                                           cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax,
+                                           thdcap_t *thd, thdid_t *tid, arcvcap_t *rcv);
+
+struct slm_thd *aep_alloc_in(compid_t id, thdclosure_index_t idx, int owntc,
+                             cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax,
+                             sched_param_t *parameters, int reschedule, arcvcap_t *rcv);
+
 #endif	/* SLM_MODULES_H */

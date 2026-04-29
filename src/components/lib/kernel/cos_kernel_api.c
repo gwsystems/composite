@@ -1692,13 +1692,15 @@ cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t arcv)
 	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, hwid, arcv, 0, 0);
 }
 
-// int
-// cos_hw_periodic_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t arcv, unsigned int period)
-// {
-// 	assert(hwid == HW_PERIODIC);
+int
+cos_hw_periodic_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t arcv, unsigned int period)
+{
+	assert(hwid == HW_PERIODIC);
 
-// 	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, hwid, arcv, period, 0);
-// }
+	printc("### 3 ### Creating HW attach with hwc: %d, hwid %d, arcv %d, period %lu\n", hwc, hwid, arcv, period);
+
+	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, hwid, arcv, period, 0);
+}
 
 int
 cos_hw_detach(hwcap_t hwc, hwid_t hwid)

@@ -531,7 +531,17 @@ syncipc_reply_wait(int ipc_ep, word_t arg0, word_t arg1, word_t *ret0, word_t *r
 thdid_t
 sched_aep_create_closure(thdclosure_index_t id, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *rcv)
 {
-	return -1;
+        id = id & 0xFFFF; owntc = owntc & 0xFFFF; struct slm_thd *thd = NULL;
+        sched_param_t params[] = { 0 };
+
+        id = id & 0xFFFF;
+		owntc = owntc & 0xFFFF;
+
+		printc("DEBUG AEP - SCHED: aep_alloc_in\n");
+		thd = aep_alloc_in(cos_inv_token(), id, owntc, key, ipiwin, ipimax, params, 0, rcv);
+        if (!thd) return 0;
+        
+        return thd->tid;
 }
 
 unsigned long

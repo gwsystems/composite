@@ -6,7 +6,7 @@
 INTERFACE_EXPORTS =
 # The interfaces this component is dependent on for compilation (this
 # is a list of directory names in interface/)
-INTERFACE_DEPENDENCIES = init sched
+INTERFACE_DEPENDENCIES = init sched capmgr
 # The library dependencies this component is reliant on for
 # compilation/linking (this is a list of directory names in lib/)
 LIBRARY_DEPENDENCIES = component time

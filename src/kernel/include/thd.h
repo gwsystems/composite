@@ -150,12 +150,14 @@ thdid_alloc(void)
 static void
 thd_rcvcap_take(struct thread *t)
 {
+	printk("### THD ### thd_rcvcap_take tid=%u refcnt %d->%d\n", t->tid, t->rcvcap.refcnt, t->rcvcap.refcnt+1);
 	t->rcvcap.refcnt++;
 }
 
 static void
 thd_rcvcap_release(struct thread *t)
 {
+	printk("### THD ### thd_rcvcap_release tid=%u refcnt %d->%d\n", t->tid, t->rcvcap.refcnt, t->rcvcap.refcnt-1);
 	t->rcvcap.refcnt--;
 }
 
@@ -222,6 +224,8 @@ thd_rcvcap_init(struct thread *t)
 static inline void
 thd_rcvcap_evt_enqueue(struct thread *head, struct thread *t)
 {
+	printk("### THD ### thd_rcvcap_evt_enqueue head_tid=%u evt_tid=%u list_empty=%d same=%d\n",
+	       head->tid, t->tid, list_empty(&t->event_list), head == t);
 	if (list_empty(&t->event_list) && head != t) list_enqueue(&head->event_head, &t->event_list);
 }
 
@@ -234,7 +238,10 @@ thd_list_rem(struct thread *head, struct thread *t)
 static inline struct thread *
 thd_rcvcap_evt_dequeue(struct thread *head)
 {
-	return list_dequeue(&head->event_head);
+	struct thread *e = list_dequeue(&head->event_head);
+	printk("### THD ### thd_rcvcap_evt_dequeue head_tid=%u evt_tid=%u\n",
+	       head->tid, e ? e->tid : 0);
+	return e;
 }
 
 /*
@@ -295,6 +302,8 @@ thd_rcvcap_set_counter(struct thread *t, sched_tok_t cntr)
 static void
 thd_rcvcap_pending_inc(struct thread *arcvt)
 {
+	printk("### THD ### thd_rcvcap_pending_inc tid=%u pending %d->%d\n",
+	       arcvt->tid, arcvt->rcvcap.pending, arcvt->rcvcap.pending+1);
 	arcvt->rcvcap.pending++;
 }
 
@@ -303,6 +312,7 @@ thd_rcvcap_pending_dec(struct thread *arcvt)
 {
 	int pending = arcvt->rcvcap.pending;
 
+	printk("### THD ### thd_rcvcap_pending_dec tid=%u pending=%d\n", arcvt->tid, pending);
 	if (pending == 0) return 0;
 	arcvt->rcvcap.pending--;
 
@@ -314,6 +324,7 @@ thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long 
 {
 	struct thread *e = thd_rcvcap_evt_dequeue(t);
 
+	printk("### THD ### thd_state_evt_deliver receiver_tid=%u evt=%s\n", t->tid, e ? "present" : "none");
 	assert(thd_bound2rcvcap(t));
 	if (!e) return 0;
 
@@ -660,6 +671,8 @@ thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs)
 	unsigned long thd_state = 0, cycles = 0, timeout = 0, pending = 0;
 	int           all_pending = thd_rcvcap_all_pending_get(thd);
 
+	printk("### THD ### thd_rcvcap_pending_deliver tid=%u all_pending=%d pending=%d\n",
+	       thd->tid, all_pending, thd->rcvcap.pending);
 	thd_state_evt_deliver(thd, &thd_state, &cycles, &timeout);
 	if (all_pending) {
 		pending = thd_rcvcap_all_pending(thd);
@@ -667,6 +680,8 @@ thd_rcvcap_pending_deliver(struct thread *thd, struct pt_regs *regs)
 		thd_rcvcap_pending_dec(thd);
 		pending = thd_rcvcap_pending(thd);
 	}
+	printk("### THD ### thd_rcvcap_pending_deliver done tid=%u pending=%lu thd_state=%lu\n",
+	       thd->tid, pending, thd_state);
 	__userregs_setretvals(regs, pending, thd_state, cycles, timeout);
 }
 

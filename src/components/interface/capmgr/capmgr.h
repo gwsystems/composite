@@ -43,8 +43,11 @@ thdcap_t  COS_STUB_DECL(capmgr_aep_create_thunk)(struct cos_aep_info *a, thdclos
 thdcap_t  capmgr_thd_create_ext(spdid_t child, thdclosure_index_t idx, thdid_t *tid);
 thdcap_t  COS_STUB_DECL(capmgr_thd_create_ext)(spdid_t child, thdclosure_index_t idx, thdid_t *tid);
 
-thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv);
-thdcap_t  COS_STUB_DECL(capmgr_aep_create_ext)(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv);
+//thdcap_t  capmgr_aep_create_ext(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv);
+//thdcap_t  COS_STUB_DECL(capmgr_aep_create_ext)(spdid_t child, struct cos_aep_info *a, thdclosure_index_t idx, int owntc, cos_channelkey_t key, microsec_t ipiwin, u32_t ipimax, arcvcap_t *extrcv);
+
+thdcap_t  capmgr_aep_create_ext(u32_t spdid_thdidx, struct cos_aep_info *a, int owntc, u32_t key_ipimax, microsec_t ipiwin, arcvcap_t *extrcv);
+thdcap_t  COS_STUB_DECL(capmgr_aep_create_ext)(u32_t spdid_thdidx, struct cos_aep_info *a, int owntc, u32_t key_ipimax, microsec_t ipiwin, arcvcap_t *extrcv);
 
 arcvcap_t capmgr_rcv_create(thdclosure_index_t idx, int flags, asndcap_t *asnd, thdcap_t *thdcap, thdid_t *tid);
 arcvcap_t COS_STUB_DECL(capmgr_rcv_create)(thdclosure_index_t idx, int flags, asndcap_t *asnd, thdcap_t *thdcap, thdid_t *tid);
@@ -88,8 +91,14 @@ capid_t COS_STUB_DECL(capmgr_vm_vmcb_create)(vm_vmcscap_t vmcs_cap, vm_msrbitmap
 thdcap_t capmgr_vm_vcpu_create(compid_t vm_comp, vm_vmcb_t vmcb_cap, thdid_t *tid);
 thdcap_t COS_STUB_DECL(capmgr_vm_vcpu_create)(compid_t vm_comp, vm_vmcb_t vmcb_cap, thdid_t *tid);
 
-// int capmgr_hw_attach(hwid_t hwid, thdid_t tid);
-// int capmgr_hw_periodic_attach(hwid_t hwid, thdid_t tid, unsigned int period_us);
-// int capmgr_hw_detach(hwid_t hwid);
+int capmgr_hw_attach(hwid_t hwid, arcvcap_t rcv);
+int COS_STUB_DECL(capmgr_hw_attach)(hwid_t hwid, arcvcap_t rcv);
+
+int capmgr_hw_periodic_attach(hwid_t hwid, arcvcap_t rcv, unsigned int period_us);
+int COS_STUB_DECL(capmgr_hw_periodic_attach)(hwid_t hwid, arcvcap_t rcv, unsigned int period_us);
+
+int capmgr_hw_detach(hwid_t hwid);
+int COS_STUB_DECL(capmgr_hw_detach)(hwid_t hwid);
+
 
 #endif /* CAPMGR_H */

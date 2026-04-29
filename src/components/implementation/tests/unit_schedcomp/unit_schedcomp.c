@@ -104,66 +104,67 @@ test_swapping(void)
 	sched_thd_block_timeout(0, wakeup);
 }
 
-// //Cathal's new mess
-// //#include <capmgr.h>
+// Cathal's new mess
+#include <capmgr.h>
 
-// volatile unsigned long *rdy = NULL;
-// #define MAX_USE_PIPE_SZ 1
-// #define SND_DATA 0x4321
-// #define HPET_PERIOD_TEST_US 20000
+volatile unsigned long *rdy = NULL;
+#define MAX_USE_PIPE_SZ 1
+#define SND_DATA 0x4321
+#define HPET_PERIOD_TEST_US 20000
 
-// int iters = 0;
-// #define ITERS 100000
-// cycles_t vals[ITERS] = { 0 };
-// static cycles_t *sttsc = NULL;
+int iters = 0;
+#define ITERS 100000
+cycles_t vals[ITERS] = { 0 };
+static cycles_t *sttsc = NULL;
 
 
-// static void
-// _test_hw_attach(arcvcap_t rcv, void *data)
-// {
-// 	ps_faa(rdy, 1);
+static void
+_test_hw_attach(arcvcap_t* rcv)
+{
+	printc("### 2 ### IN _test_hw_attach rcv: %d\n", *rcv);
+	int a = capmgr_hw_periodic_attach(HW_PERIODIC, *rcv, HPET_PERIOD_TEST_US);
+	if(a != 0); printc("### 2.5 ### ret: %d\n", a);
 
-// 	while (ps_load(rdy) <= MAX_USE_PIPE_SZ) sched_thd_block_timeout(0, time_now() + time_usec2cyc(HPET_PERIOD_TEST_US));
-// 	int a = capmgr_hw_periodic_attach(HW_PERIODIC, cos_thdid(), HPET_PERIOD_TEST_US);
-// 	assert(a == 0);
+	printc("### 4 ### IN _test_hw_attach\n");
+	/* TODO: register to HPET */
+	while (1) {
+		int ret = cos_rcv(*rcv, 0, 0); //added 0 for no flangs, should 
+		printc("### 5 ### RET: %d\n", ret);
+		iters++;
+		rdtscll(*sttsc);
+		//chan_out(SND_DATA)
+		if (iters == ITERS) capmgr_hw_detach(HW_PERIODIC);
+	}
 
-// 	/* TODO: register to HPET */
-// 	while (1) {
-// 		cos_rcv(rcv, 0, 0); //added 0 for no flangs, should check
-// 		iters++;
-// 		rdtscll(*sttsc);
-// 		chan_out(SND_DATA);
+	return;
+}
 
-// 		if (iters == ITERS) capmgr_hw_detach(HW_PERIODIC);
-// 	}
+struct cos_aep_info intaep;
+#define SPDID_INT 5
 
-// 	return;
-// }
+static void
+test_aeps(void)
+{
+	thdid_t tid;
+	int ret;
+	int i = 0;
 
-// struct cos_aep_info intaep;
-// #define SPDID_INT 5
+	if (cos_spd_id() == SPDID_INT) {
+		tid = sched_aep_create(&intaep, _test_hw_attach, &intaep.rcv, 0, 0, 0, 0);
+		printc("### 1 #### AEP thd created thdid: %lu, rcv:%d \n", tid, intaep.rcv);
+		sched_thd_param_set(tid, sched_param_pack(SCHEDP_PRIO, 1));
+	} else {
+		//removed, as want to try force the hw attach to be tried
+		// tid = sched_thd_create(__test_wrk_fn, 
+		// 	((cos_spd_id() == SPDID_W3 && MAX_USE_PIPE_SZ == 4) 
+		// 	|| (cos_spd_id() == SPDID_W1 && MAX_USE_PIPE_SZ == 2)) 
+		// 	? (void *)1: (void *)0);
+		printc("periodic timer hw attach not run \n");
+	}
+	assert(tid);
+}
 
-// static void
-// test_aeps(void)
-// {
-// 	thdid_t tid;
-// 	int ret;
-// 	int i = 0;
-
-// 	if (cos_spd_id() == SPDID_INT) {
-// 		tid = sched_aep_create(&intaep, _test_hw_attach, (void *)0, 0, 0, 0, 0);
-// 	} else {
-// 		//removed, as want to try force the hw attach to be tried
-// 		// tid = sched_thd_create(__test_wrk_fn, 
-// 		// 	((cos_spd_id() == SPDID_W3 && MAX_USE_PIPE_SZ == 4) 
-// 		// 	|| (cos_spd_id() == SPDID_W1 && MAX_USE_PIPE_SZ == 2)) 
-// 		// 	? (void *)1: (void *)0);
-// 		printc("periodic timer hw attach not run \n");
-// 	}
-// 	assert(tid);
-// }
-
-// // end cathal's new mess
+// end cathal's new mess
 
 static void
 run_tests()
@@ -172,8 +173,7 @@ run_tests()
 	PRINTLOG(PRINT_DEBUG, "Test successful! Highest was scheduled only!\n");
 	test_swapping();
 	PRINTLOG(PRINT_DEBUG, "Test successful! We swapped back and forth!\n");
-	//test_aeps();
-
+	test_aeps();
 	PRINTLOG(PRINT_DEBUG, "Done testing, spinning...\n");
 	SPIN();
 }
