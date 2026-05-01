@@ -836,6 +836,8 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
 
+	printk("cap_hw_asnd: curr thd %d, rcv_thd %d\n", thd->tid, rcv_thd->tid);
+
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0, cos_info);
 	if (next == thd) return 1;
 	thd->state |= THD_STATE_PREEMPTED;
@@ -954,6 +956,8 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 		thd->timeout = timeout;
 	}
 
+	printk("cap_thd_op thdid %d, cpuid %d, next thdid %d, next tcap %p, timeout %lu\n", thd->tid, get_cpuid(),
+	       next ? next->tid : -1, tc_next, timeout);
 	return cap_switch(regs, thd, next, tc_next, swtimeout, ci, cos_info);
 }
 

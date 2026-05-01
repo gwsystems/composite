@@ -106,6 +106,9 @@ asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, capid_t rcv_cap)
 	asndc->cpuid          = get_cpuid();
 	asndc->arcv_capid     = rcv_cap;
 
+	printk("asnd_construct: asndc %p, arcv_cpuid %d, arcv_epoch %d, rcv_cap %d\n",
+	       asndc, asndc->arcv_cpuid, asndc->arcv_epoch, asndc->arcv_capid);
+
 	return 0;
 }
 
