@@ -185,7 +185,6 @@ kmain(unsigned long mboot_addr, unsigned long mboot_magic)
 	cores_ready[INIT_CORE] = 1;
 
 	
-	chal_irq_enable(40, 3); //route hpet oneshot to core 3
 	chal_irq_enable(34, 0);
 	hpet_oneshot_test();
 

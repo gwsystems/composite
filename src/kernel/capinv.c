@@ -822,7 +822,8 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	}
 
 	arcv = __cap_asnd_to_arcv(asnd);
-	if (unlikely(!arcv)) return 1;
+	printk("after asnd_to_arcv: arcv=%p\n", arcv); 
+	if (unlikely(!arcv)) return 1; //Fails here and never accends, arcv = 0
 
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);

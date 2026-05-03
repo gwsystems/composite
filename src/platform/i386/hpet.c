@@ -232,14 +232,21 @@ periodic_handler(struct pt_regs *regs)
 	ack_irq(HW_PERIODIC);
 	lapic_ack();
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
-	HPET_INT_ENABLE(TIMER_PERIODIC);
+	printk("cap_hw_asnd returned %d\n", preempt);
+	struct cap_asnd *asndc = &hw_asnd_caps[HW_PERIODIC];
 
-	// if(counter >= 255){
-	// 	outb(0x21, 0xFF); // Mask Master PIC
-	// 	outb(0xA1, 0xFF); // Mask Slave PIC
-	// } else{
-	// 	counter++;
-	// }
+	// printk("HPET IRQ cpu=%d asndc=%p type=%d cpuid=%d arcv_cap=%d\n",
+	// 	get_cpuid(),
+	// 	asndc,
+	// 	asndc->h.type,
+	// 	asndc->cpuid,
+	// 	asndc->arcv_capid);
+
+	// preempt = cap_hw_asnd(asndc, regs);
+
+	printk("cap_hw_asnd returned %d\n", preempt);
+
+	HPET_INT_ENABLE(TIMER_PERIODIC);
 
 	return preempt;
 }

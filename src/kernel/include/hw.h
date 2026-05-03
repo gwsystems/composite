@@ -65,6 +65,12 @@ hw_attach_rcvcap(struct cap_hw *hwc, hwid_t hwid, struct cap_arcv *rcvc, capid_t
 	if (!(hwc->hw_bitmap & (1 << (hwid - HW_IRQ_EXTERNAL_MIN)))) return -EINVAL;
 	if (hw_asnd_caps[hwid].h.type == CAP_ASND) return -EEXIST;
 
+	printk("In hw_attach_rcvcap\n");
+	if (hwid == HW_PERIODIC) {
+		printk("Setting periodic timer with dummy value\n");
+		timer_set(0, 20000);
+	}
+
 	return asnd_construct(&hw_asnd_caps[hwid], rcvc, rcv_cap);
 }
 
