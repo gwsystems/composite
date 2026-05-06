@@ -1505,7 +1505,7 @@ cos_sched_rcv(arcvcap_t rcv, rcv_flags_t flags, tcap_time_t timeout,
 	int           ret;
 
 	ret = call_cap_retvals_asm(rcv, 0, flags, timeout, 0, 0, &thd_state, &cyc, thd_timeout);
-
+	printc("cos_sched_rcv: thdid %u, thd_state %lu, cyc %lu, thd_timeout %lu, ret %d\n", (unsigned int)(thd_state & ((1 << (sizeof(unsigned short int) * 8)) - 1)), thd_state, cyc, *thd_timeout, ret);
 	*blocked = (int)(thd_state >> (sizeof(thd_state) * 8 - 1));
 	*thdid   = (thdid_t)(thd_state & ((1 << (sizeof(unsigned short int) * 8)) - 1));
 	*cycles  = cyc;
@@ -1687,19 +1687,19 @@ cos_tcap_merge(tcap_t dst, tcap_t rm)
 }
 
 int
-cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t arcv)
+cos_hw_attach(hwcap_t hwc, hwid_t hwid, captblcap_t rcv_ctcap, arcvcap_t arcv)
 {
-	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, hwid, arcv, 0, 0);
+	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, (rcv_ctcap << 16) | (hwid & 0xffff), arcv, 0, 0);
 }
 
 int
-cos_hw_periodic_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t arcv, unsigned int period)
+cos_hw_periodic_attach(hwcap_t hwc, hwid_t hwid, captblcap_t rcv_ctcap, arcvcap_t arcv, unsigned int period)
 {
 	assert(hwid == HW_PERIODIC);
 
-	printc("### 3 ### Creating HW attach with hwc: %d, hwid %d, arcv %d, period %lu\n", hwc, hwid, arcv, period);
+	printc("### 3 ### Creating HW attach with hwc: %d, hwid %d, rcv_ct %d, arcv %d, period %lu\n", hwc, hwid, rcv_ctcap, arcv, period);
 
-	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, hwid, arcv, period, 0);
+	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, (rcv_ctcap << 16) | (hwid & 0xffff), arcv, period, 0);
 }
 
 int

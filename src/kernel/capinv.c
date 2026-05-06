@@ -822,7 +822,6 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	}
 
 	arcv = __cap_asnd_to_arcv(asnd);
-	printk("after asnd_to_arcv: arcv=%p\n", arcv); 
 	if (unlikely(!arcv)) return 1; //Fails here and never accends, arcv = 0
 
 	cos_info = cos_cpu_local_info();
@@ -957,8 +956,6 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs, str
 		thd->timeout = timeout;
 	}
 
-	printk("cap_thd_op thdid %d, cpuid %d, next thdid %d, next tcap %p, timeout %lu\n", thd->tid, get_cpuid(),
-	       next ? next->tid : -1, tc_next, timeout);
 	return cap_switch(regs, thd, next, tc_next, swtimeout, ci, cos_info);
 }
 
@@ -1775,16 +1772,20 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 	case CAP_HW: {
 		switch (op) {
 		case CAPTBL_OP_HW_ATTACH: {
-			struct cap_arcv *rcvc;
-			hwid_t           hwid   = __userregs_get1(regs);
-			capid_t          rcvcap = __userregs_get2(regs);
+			struct cap_arcv   *rcvc;
+			struct cap_captbl *rcv_ct;
+			unsigned long      arg1      = __userregs_get1(regs);
+			hwid_t             hwid      = arg1 & 0xffff;
+			capid_t            rcv_ctcap = arg1 >> 16;
+			capid_t            rcvcap    = __userregs_get2(regs);
 
-			printk("### 3.5 ###\n");
+			rcv_ct = (struct cap_captbl *)captbl_lkup(ci->captbl, rcv_ctcap);
+			if (!CAP_TYPECHK(rcv_ct, CAP_CAPTBL)) cos_throw(err, -EINVAL);
 
-			rcvc = (struct cap_arcv *)captbl_lkup(ci->captbl, rcvcap);
+			rcvc = (struct cap_arcv *)captbl_lkup(rcv_ct->captbl, rcvcap);
 			if (!CAP_TYPECHK(rcvc, CAP_ARCV)) cos_throw(err, -EINVAL);
 
-			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcvcap);
+			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcv_ct->captbl, rcvcap);
 			printk("### 4 ### CAPTBL_OP_HW_ATTACH hwid: %d, rcvcap: %d, ret: %d\n", hwid, rcvcap, ret);
 			break;
 		}

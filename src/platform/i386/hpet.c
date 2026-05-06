@@ -97,6 +97,7 @@ static unsigned long cycles_per_tick;
 static unsigned long hpetcyc_per_tick;
 #define ULONG_MAX 4294967295UL
 extern u32_t chal_msr_mhz;
+static unsigned long pico_per_hpetcyc;
 
 static inline u64_t
 timer_cpu2hpet_cycles(u64_t cycles)
@@ -227,24 +228,18 @@ periodic_handler(struct pt_regs *regs)
 
 	if (unlikely(timer_calibration_init)) timer_calibration();
 
-	printk("in hpet periodic handler in core %d\n", get_cpuid());
-
 	ack_irq(HW_PERIODIC);
 	lapic_ack();
-	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
-	printk("cap_hw_asnd returned %d\n", preempt);
 	struct cap_asnd *asndc = &hw_asnd_caps[HW_PERIODIC];
 
-	// printk("HPET IRQ cpu=%d asndc=%p type=%d cpuid=%d arcv_cap=%d\n",
-	// 	get_cpuid(),
-	// 	asndc,
-	// 	asndc->h.type,
-	// 	asndc->cpuid,
-	// 	asndc->arcv_capid);
+	printk("HPET IRQ cpu=%d asndc=%p type=%d cpuid=%d arcv_cap=%d\n",
+	 	get_cpuid(),
+	 	asndc,
+	 	asndc->h.type,
+	 	asndc->cpuid,
+		asndc->arcv_capid);
 
-	// preempt = cap_hw_asnd(asndc, regs);
-
-	printk("cap_hw_asnd returned %d\n", preempt);
+	preempt = cap_hw_asnd(asndc, regs);
 
 	HPET_INT_ENABLE(TIMER_PERIODIC);
 
@@ -346,11 +341,22 @@ timer_initialize_hpet(void *timer)
 	return hpet;
 }
 
+u64_t
+timer_us2hpet_cycles(unsigned int us)
+{
+	assert(pico_per_hpetcyc > 0);
+	return ((u64_t)us * PICO_PER_MICRO) / pico_per_hpetcyc;
+}
+
+void
+timer_set_periodic_us(unsigned int period_us)
+{
+	timer_set(TIMER_PERIODIC, timer_us2hpet_cycles(period_us));
+}
+
 void
 timer_init(void)
 {
-	unsigned long pico_per_hpetcyc;
-
 	assert(hpet_capabilities);
 	pico_per_hpetcyc = hpet_capabilities[1]
 	                   / FEMPTO_PER_PICO; /* bits 32-63 are # of femptoseconds per HPET clock tick */

@@ -1154,7 +1154,7 @@ capmgr_hw_attach(hwid_t hwid, arcvcap_t rcv)
 	r = capmgr_get_rcv_aliased(caller, rcv);
 	if (!r) return -EINVAL;
 
-	return cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, hwid, r->rcv.local_aep.rcv);
+	return cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, hwid, BOOT_CAPTBL_SELF_CT, r->rcv.local_aep.rcv);
 }
 
 int
@@ -1169,7 +1169,7 @@ capmgr_hw_periodic_attach(hwid_t hwid, arcvcap_t rcv, unsigned int period_us)
 	r = capmgr_get_rcv_aliased(caller, rcv);
 	if (!r) return -EINVAL;
 
-	return cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, hwid, r->rcv.local_aep.rcv, period_us);
+	return cos_hw_periodic_attach(BOOT_CAPTBL_SELF_INITHW_BASE, hwid, BOOT_CAPTBL_SELF_CT, r->rcv.local_aep.rcv, period_us);
 }
 
 int

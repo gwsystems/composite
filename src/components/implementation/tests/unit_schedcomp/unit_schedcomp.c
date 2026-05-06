@@ -115,17 +115,13 @@ volatile unsigned long *rdy = NULL;
 int iters = 0;
 #define ITERS 100000
 cycles_t vals[ITERS] = { 0 };
-static cycles_t *sttsc = NULL;
+static cycles_t *sttsc = vals;
 
 
 static void
 _test_hw_attach(arcvcap_t* rcv)
 {
-	printc("### 2 ### IN _test_hw_attach rcv: %d\n", *rcv);
 	int a = capmgr_hw_periodic_attach(HW_PERIODIC, *rcv, HPET_PERIOD_TEST_US);
-	if(a != 0); printc("### 2.5 ### ret: %d\n", a);
-
-	printc("### 4 ### IN _test_hw_attach\n");
 	/* TODO: register to HPET */
 	while (1) {
 		int ret = cos_rcv(*rcv, 0, 0); //added 0 for no flangs, should 
@@ -133,7 +129,7 @@ _test_hw_attach(arcvcap_t* rcv)
 		iters++;
 		rdtscll(*sttsc);
 		//chan_out(SND_DATA)
-		if (iters == ITERS) capmgr_hw_detach(HW_PERIODIC);
+		if (iters == 10) capmgr_hw_detach(HW_PERIODIC);
 	}
 
 	return;

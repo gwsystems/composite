@@ -51,6 +51,8 @@ void *device_pa2va(paddr_t dev_addr);
 void *device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags);
 
 void  timer_set(timer_type_t timer_type, u64_t cycles);
+void  timer_set_periodic_us(unsigned int period_us);
+u64_t timer_us2hpet_cycles(unsigned int us);
 void  timer_init(void);
 u64_t timer_find_hpet(void *timer);
 void  timer_thd_init(struct thread *t);
