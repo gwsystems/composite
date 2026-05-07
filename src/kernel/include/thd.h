@@ -234,7 +234,8 @@ thd_list_rem(struct thread *head, struct thread *t)
 static inline struct thread *
 thd_rcvcap_evt_dequeue(struct thread *head)
 {
-	return list_dequeue(&head->event_head);
+	struct thread *e = list_dequeue(&head->event_head);
+	return e;
 }
 
 /*

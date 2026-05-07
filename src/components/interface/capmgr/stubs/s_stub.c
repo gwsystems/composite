@@ -95,9 +95,9 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_initthd_create)
 COS_SERVER_3RET_STUB(thdcap_t, capmgr_initaep_create)
 {
 	spdid_t                 child  =  p0 >> 16;
-	int                     owntc  = (p0 << 16) >> 16;
+	int                     owntc  = (p0 & 0xFFFF);
 	cos_channelkey_t        key    =  p1 >> 16;
-	u32_t                   ipimax = (p1 << 16) >> 16;
+	u32_t                   ipimax = (p1 & 0xFFFF);
 	u32_t                ipiwin32b = (u32_t)p2;
 	struct cos_aep_info     aep;
 	asndcap_t               snd = 0;
@@ -112,10 +112,10 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_initaep_create)
 
 COS_SERVER_3RET_STUB(thdcap_t, capmgr_aep_create_thunk)
 {
-	thdclosure_index_t      thunk  = (p0 << 16) >> 16;
+	thdclosure_index_t      thunk  = (p0 & 0xFFFF);
 	int                     owntc  =  p0 >> 16;
 	cos_channelkey_t        key    =  p1 >> 16;
-	u32_t                   ipimax = (p1 << 16) >> 16;
+	u32_t                   ipimax = (p1 & 0xFFFF);
 	u32_t                ipiwin32b = (u32_t)p2;
 	struct cos_aep_info     aep;
 	asndcap_t               snd;
@@ -131,16 +131,23 @@ COS_SERVER_3RET_STUB(thdcap_t, capmgr_aep_create_thunk)
 COS_SERVER_3RET_STUB(thdcap_t, capmgr_aep_create_ext)
 {
 	struct cos_aep_info aep;
-	spdid_t child = p0 >> 16;
-	thdclosure_index_t idx = ((p0 << 16) >> 16);
-	int owntc = p1;
-	cos_channelkey_t key = p2 >> 16;
-	microsec_t ipiwin = p3;
-	u32_t ipimax = ((p2 << 16) >> 16);
+	// spdid_t child = p0 >> 16;
+	// thdclosure_index_t idx = ((p0 & 0xFFFF));
+	// int owntc = p1;
+	// cos_channelkey_t key = p2 >> 16;
+	// microsec_t ipiwin = p3;
+	// u32_t ipimax = ((p2 & 0xFFFF));
+
+	u32_t spdid_thdidx = (u32_t)p0;
+	int owntc = (int)p1;
+	u32_t key_ipimax = (u32_t)p2;
+	microsec_t ipiwin = (microsec_t)p3;
+
 	arcvcap_t extrcv = 0;
 	thdcap_t ret;
 
-	ret = capmgr_aep_create_ext(child, &aep, idx, owntc, key, ipiwin, ipimax, &extrcv);
+	//ret = capmgr_aep_create_ext(child, &aep, idx, owntc, key, ipiwin, ipimax, &extrcv);
+		ret = capmgr_aep_create_ext(spdid_thdidx, &aep, owntc, key_ipimax, ipiwin, &extrcv);
 	*r1 = aep.tid | (extrcv << 16);
 	*r2 = (aep.rcv << 16) | aep.tc;
 

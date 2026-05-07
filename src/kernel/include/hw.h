@@ -59,13 +59,30 @@ hw_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 }
 
 static int
-hw_attach_rcvcap(struct cap_hw *hwc, hwid_t hwid, struct cap_arcv *rcvc, capid_t rcv_cap)
+hw_attach_rcvcap(struct cap_hw *hwc, hwid_t hwid, struct cap_arcv *rcvc, struct captbl *rcv_ct, capid_t rcv_cap, unsigned int period_us)
 {
 	if (hwid < HW_IRQ_EXTERNAL_MIN || hwid > HW_IRQ_EXTERNAL_MAX) return -EINVAL;
 	if (!(hwc->hw_bitmap & (1 << (hwid - HW_IRQ_EXTERNAL_MIN)))) return -EINVAL;
 	if (hw_asnd_caps[hwid].h.type == CAP_ASND) return -EEXIST;
+	if (unlikely(!rcvc || rcvc->h.type != CAP_ARCV)) return -EINVAL;
 
-	return asnd_construct(&hw_asnd_caps[hwid], rcvc, rcv_cap);
+	if (hwid == HW_PERIODIC) {
+		if (period_us == 0) return -EINVAL;
+		printk("Setting periodic timer for %u us\n", period_us);
+		chal_irq_enable(HW_PERIODIC, get_cpuid());
+		timer_set_periodic_us(period_us);
+	} else if (hwid = HW_ONESHOT) {
+		if (period_us == 0) return -EINVAL;
+		printk("Setting oneshot timer for %u us\n", period_us);
+		chal_irq_enable(HW_ONESHOT, get_cpuid());
+		timer_set_oneshot_us(period_us);
+	} else {
+		if (period_us != 0) return -EINVAL;
+		/* What should the HPET do with this? */
+	}
+
+	printk("### 5 ### hw_attach_rcvcap hwid: %d, rcvc: %p, rcv_cap: %d, comp info: %p\n", hwid, rcvc, rcv_cap, rcvc->comp_info);
+	return asnd_construct(&hw_asnd_caps[hwid], rcvc, rcv_ct, rcv_cap);
 }
 
 static int
@@ -79,6 +96,10 @@ hw_detach_rcvcap(struct cap_hw *hwc, hwid_t hwid)
 	 *        __xx_post perhaps in asnd_deconstruct()
 	 */
 	memset(&hw_asnd_caps[hwid], 0, sizeof(struct cap_asnd));
+
+	/* If this is a periodic timer, also disable the timer. */
+	if (hwid == HW_PERIODIC) timer_set_periodic_us(0);
+	else if (hwid == HW_ONESHOT) timer_set_oneshot_us(0);
 
 	return 0;
 }

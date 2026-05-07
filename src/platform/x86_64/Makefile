@@ -43,6 +43,7 @@ KERNEL_CFILES += tss.c
 KERNEL_CFILES += user.c
 KERNEL_CFILES += serial.c
 KERNEL_CFILES += hpet.c
+KERNEL_CFILES += ioapic.c
 KERNEL_CFILES += chal.c
 KERNEL_CFILES += boot_comp.c
 KERNEL_CFILES += miniacpi.c

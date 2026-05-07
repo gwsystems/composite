@@ -97,6 +97,7 @@ static unsigned long cycles_per_tick;
 static unsigned long hpetcyc_per_tick;
 #define ULONG_MAX 4294967295UL
 extern u32_t chal_msr_mhz;
+static unsigned long pico_per_hpetcyc;
 
 static inline u64_t
 timer_cpu2hpet_cycles(u64_t cycles)
@@ -123,6 +124,8 @@ timer_disable(timer_type_t timer_type)
 	/* Disable timer interrupt of timer_type */
 	hpet_timers[timer_type].config  = 0;
 	hpet_timers[timer_type].compare = 0;
+
+	printk("Timer %d disabled\n", timer_type);
 
 	/* Enable timer interrupts */
 	*hpet_config |= HPET_ENABLE_CNF;
@@ -180,6 +183,46 @@ chal_cyc_usec(void)
 	return cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL;
 }
 
+
+void print_hpet_timer_info(timer_type_t timer_type)
+{
+    if (!hpet_timers || !hpet_config || !hpet_capabilities) {
+        printk("HPET not initialized!\n");
+        return;
+    }
+
+    u64_t cfg = hpet_timers[timer_type].config;
+    u64_t cmp = hpet_timers[timer_type].compare;
+    u64_t irq = (cfg >> 9) & 0x1F;
+
+    printk("=== HPET Timer Info ===\n");
+    printk("Core: %d\n", get_cpuid());
+
+    printk("HPET Global Configuration: 0x%016llx\n", *hpet_config);
+    printk("  - Enable CNF (bit 0): %llu\n", (*hpet_config & HPET_ENABLE_CNF) != 0);
+    printk("  - Legacy Routing (bit 1): %llu\n", (*hpet_config & HPET_LEG_RT_CNF) != 0);
+
+    printk("Timer config register: 0x%016llx\n", cfg);
+    printk("  - Interrupt Type (TN_INT_TYPE_CNF, bit 1): %llu\n", (cfg & TN_INT_TYPE_CNF) != 0);
+    printk("  - Interrupt Enable (TN_INT_ENB_CNF, bit 2): %llu\n", (cfg & TN_INT_ENB_CNF) != 0);
+    printk("  - Timer Type (TN_TYPE_CNF, bit 3): %s\n", (cfg & TN_TYPE_CNF) ? "Periodic" : "One-shot");
+    printk("  - Periodic Capable (TN_PER_INT_CAP, bit 4): %llu\n", (cfg & TN_PER_INT_CAP) != 0);
+    printk("  - Value Set Allowed (TN_VAL_SET_CNF, bit 6): %llu\n", (cfg & TN_VAL_SET_CNF) != 0);
+    printk("  - FSB delivery enabled (bit 14): %llu\n", (cfg & TN_FSB_EN_CNF) != 0);
+    printk("  - FSB delivery capable (bit 15): %llu\n", (cfg & TN_FSB_INT_DEL_CAP) != 0);
+    printk("  - Interrupt Routing CNF (bits 9-13): %llu\n", irq);
+
+    printk("Timer compare register: 0x%016llx (%llu)\n", cmp, cmp);
+    printk("HPET main counter: 0x%016llx (%llu)\n", HPET_COUNTER, HPET_COUNTER);
+
+    printk("HPET Capabilities register: 0x%08x\n", *hpet_capabilities);
+    u64_t pico_per_tick = hpet_capabilities[1] / FEMPTO_PER_PICO;
+    printk("HPET Tick granularity: %llu picoseconds\n", pico_per_tick);
+
+    printk("=== End of HPET Timer Info ===\n");
+}
+
+//volatile int counter = 0;
 int
 periodic_handler(struct pt_regs *regs)
 {
@@ -188,7 +231,18 @@ periodic_handler(struct pt_regs *regs)
 	if (unlikely(timer_calibration_init)) timer_calibration();
 
 	ack_irq(HW_PERIODIC);
-	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
+	lapic_ack();
+	struct cap_asnd *asndc = &hw_asnd_caps[HW_PERIODIC];
+
+	printk("HPET IRQ cpu=%d asndc=%p type=%d cpuid=%d arcv_cap=%d\n",
+	 	get_cpuid(),
+	 	asndc,
+	 	asndc->h.type,
+	 	asndc->cpuid,
+		asndc->arcv_capid);
+
+	preempt = cap_hw_asnd(asndc, regs);
+
 	HPET_INT_ENABLE(TIMER_PERIODIC);
 
 	return preempt;
@@ -196,14 +250,27 @@ periodic_handler(struct pt_regs *regs)
 
 extern int timer_process(struct pt_regs *regs);
 
+volatile int print_lock = 0;
+
 int
 oneshot_handler(struct pt_regs *regs)
 {
 	int preempt = 1;
 
+	// simple lock for print debug
+    while (__atomic_test_and_set(&print_lock, __ATOMIC_ACQUIRE)); // busy wait
+
+    printk("hpet Oneshot in core %d\n", get_cpuid()); //Made for old pic? may need to mask this IOapic to prevent doubles, but would require irq
+
+    __atomic_clear(&print_lock, __ATOMIC_RELEASE);
+
 	ack_irq(HW_ONESHOT);
+	//printk("Ack'ack the lapic\n");
+	lapic_ack();
 	preempt = timer_process(regs);
 	HPET_INT_ENABLE(TIMER_ONESHOT);
+
+	//hpet_oneshot_test();
 
 	return preempt;
 }
@@ -211,7 +278,7 @@ oneshot_handler(struct pt_regs *regs)
 void
 timer_set(timer_type_t timer_type, u64_t cycles)
 {
-	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF;
+	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF; 
 
 	/* Disable timer interrupts */
 	*hpet_config &= ~HPET_ENABLE_CNF;
@@ -233,6 +300,8 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 
 	/* Enable timer interrupts */
 	*hpet_config |= HPET_ENABLE_CNF;
+
+	printk("Timer set of type %d\n", timer_type);
 }
 
 void *
@@ -274,11 +343,39 @@ timer_initialize_hpet(void *timer)
 	return hpet;
 }
 
+u64_t
+timer_us2hpet_cycles(unsigned int us)
+{
+	assert(pico_per_hpetcyc > 0);
+	return ((u64_t)us * PICO_PER_MICRO) / pico_per_hpetcyc;
+}
+
+void
+timer_set_periodic_us(unsigned int period_us)
+{
+	if(period_us == 0){
+		timer_disable(TIMER_PERIODIC);
+	} 
+	else{
+		timer_set(TIMER_PERIODIC, timer_us2hpet_cycles(period_us));
+	}
+	
+}
+
+void
+timer_set_oneshot_us(unsigned int period_us)
+{
+	if(period_us == 0){
+		timer_disable(TIMER_ONESHOT);
+	} 
+	else{
+		timer_set(TIMER_ONESHOT, timer_us2hpet_cycles(period_us));
+	}
+}
+
 void
 timer_init(void)
 {
-	unsigned long pico_per_hpetcyc;
-
 	assert(hpet_capabilities);
 	pico_per_hpetcyc = hpet_capabilities[1]
 	                   / FEMPTO_PER_PICO; /* bits 32-63 are # of femptoseconds per HPET clock tick */
@@ -303,4 +400,66 @@ timer_init(void)
 	}
 
 	timer_set(TIMER_PERIODIC, hpetcyc_per_tick);
+}
+
+void
+hpet_speed_test(void)
+{
+	printk("Starting HPET Speed test...\n");
+
+	/* Enable timer interrupts */
+    *hpet_config |= HPET_ENABLE_CNF;
+
+    u64_t tsc_start, tsc_end; //tsc - time stamp counter
+    u64_t hpet_start, hpet_end;
+
+	u64_t pico_per_hpetcyc = hpet_capabilities[1] / FEMPTO_PER_PICO; //Convert femtoseconds to picoseconds
+
+	u64_t hpet_freq = 1000000000000 / pico_per_hpetcyc; //ticks per second = picoseconds per second / picoseconds per tick
+
+    rdtscll(tsc_start);
+
+    hpet_start = HPET_COUNTER;
+
+    /* wait 1 second using HPET */
+    u64_t target = hpet_start + hpet_freq;
+
+    while (HPET_COUNTER < target) {
+        printk("HPET_COUNTER: %llu\n", HPET_COUNTER); //Removing this print breaks the test, ask why???
+    }
+
+    rdtscll(tsc_end);
+    hpet_end = HPET_COUNTER;
+
+    u64_t tsc_delta  = tsc_end - tsc_start;
+    u64_t hpet_delta = hpet_end - hpet_start;
+
+	u64_t cpu_hz = (tsc_delta * hpet_freq) / hpet_delta;
+    
+    printk("HPET frequency: %llu Hz\n", hpet_freq);
+    printk("CPU frequency:  %llu MHz\n", cpu_hz / 1000000);
+
+	/* Disable timer interrupts */
+	*hpet_config &= ~HPET_ENABLE_CNF;
+
+    printk("HPET Speed test complete.\n");
+}
+
+void
+hpet_oneshot_test(void)
+{
+
+    /* Enable HPET */
+    //*hpet_config |= HPET_ENABLE_CNF;
+
+    u64_t pico_per_hpetcyc = hpet_capabilities[1] / FEMPTO_PER_PICO;
+    u64_t hpet_freq = 1000000000000ULL / pico_per_hpetcyc;
+
+    printk("Programming oneshot for 10 seconds (%llu HPET cycles)\n", hpet_freq);
+
+    timer_set(TIMER_ONESHOT, hpet_freq * 10);
+
+	print_hpet_timer_info(TIMER_ONESHOT);
+
+	return;
 }

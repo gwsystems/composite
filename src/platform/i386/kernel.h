@@ -43,12 +43,16 @@ typedef enum {
 	TIMER_ONESHOT  = 1,
 } timer_type_t;
 
+extern volatile int apicids[NUM_CPU];
+
 #define TIMER_DEFAULT_US_INTERARRIVAL 1000 /* US = microseconds */
 
 void *device_pa2va(paddr_t dev_addr);
 void *device_map_mem(paddr_t dev_addr, unsigned int pt_extra_flags);
 
 void  timer_set(timer_type_t timer_type, u64_t cycles);
+void  timer_set_periodic_us(unsigned int period_us);
+u64_t timer_us2hpet_cycles(unsigned int us);
 void  timer_init(void);
 u64_t timer_find_hpet(void *timer);
 void  timer_thd_init(struct thread *t);
@@ -78,6 +82,15 @@ void  lapic_timer_calibration(u32_t ratio);
 int   lapic_timer_calibrated(void);
 void  lapic_asnd_ipi_send(const cpuid_t cpu_id);
 void  lapic_selfipi(u8_t vector);
+
+struct ioapic_cntl;
+struct intsrcovrride_cntl;
+void ioapic_init(void);
+void ioapic_iter(struct ioapic_cntl *);
+void ioapic_int_disable(int irq);
+void ioapic_int_enable(int irq, cpuid_t cpu_id);
+void ioapic_int_override(struct intsrcovrride_cntl *);
+
 
 void smp_init(volatile int *cores_ready);
 

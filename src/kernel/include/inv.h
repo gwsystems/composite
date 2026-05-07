@@ -92,13 +92,21 @@ sret_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 	return cap_capdeactivate(t, capin, CAP_SRET, lid);
 }
 
+/*
+ * `lookup_ct` is the captbl in which `rcv_cap` resolves to `arcvc`.
+ * When the asnd is later used (sync-send or hw IRQ), `__cap_asnd_to_arcv`
+ * does `captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid)`, so the
+ * captbl recorded in comp_info must be the one where rcv_cap is valid,
+ * not the arcv's owner captbl. Liveness still tracks the arcv's owner.
+ */
 static int
-asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, capid_t rcv_cap)
+asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, struct captbl *lookup_ct, capid_t rcv_cap)
 {
 	/* FIXME: Add synchronization with __xx_pre and __xx_post */
 
 	/* copy data from the arcv capability */
 	memcpy(&asndc->comp_info, &arcvc->comp_info, sizeof(struct comp_info));
+	asndc->comp_info.captbl = lookup_ct;
 	asndc->h.type     = CAP_ASND;
 	asndc->arcv_epoch = arcvc->epoch;
 	asndc->arcv_cpuid = arcvc->cpuid;
@@ -126,7 +134,7 @@ asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, 
 	asndc = (struct cap_asnd *)__cap_capactivate_pre(t, cap, capin, CAP_ASND, &ret);
 	if (!asndc) return ret;
 
-	ret = asnd_construct(asndc, arcvc, rcv_cap);
+	ret = asnd_construct(asndc, arcvc, rcv_ct->captbl, rcv_cap);
 	__cap_capactivate_post(&asndc->h, CAP_ASND);
 
 	return ret;

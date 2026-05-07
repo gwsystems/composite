@@ -17,10 +17,10 @@ COS_SERVER_3RET_STUB(int, sched_thd_block_timeout)
 COS_SERVER_3RET_STUB(thdid_t, sched_aep_create_closure)
 {
 	struct cos_defcompinfo *dci;
-	int                 owntc  = (p0 << 16) >> 16;
+	int                 owntc  = (p0 & 0xFFFF);
 	thdclosure_index_t  idx    = (p0 >> 16);
 	microsec_t          ipiwin = (microsec_t)p2;
-	u32_t               ipimax = (p1 << 16) >> 16;
+	u32_t               ipimax = (p1 & 0xFFFF);
 	cos_channelkey_t    key    = (p1 >> 16);
 	arcvcap_t rcv;
 	thdid_t ret;
