@@ -17,7 +17,7 @@
 
 #include "cpu_ghz.h"
 
-#define NUM_CPU_KERNEL 1
+#define NUM_CPU_KERNEL 8
 
 #ifndef NUM_CPU
 #define NUM_CPU NUM_CPU_KERNEL
