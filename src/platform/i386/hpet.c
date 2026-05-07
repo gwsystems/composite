@@ -125,6 +125,8 @@ timer_disable(timer_type_t timer_type)
 	hpet_timers[timer_type].config  = 0;
 	hpet_timers[timer_type].compare = 0;
 
+	printk("Timer %d disabled\n", timer_type);
+
 	/* Enable timer interrupts */
 	*hpet_config |= HPET_ENABLE_CNF;
 }
@@ -351,7 +353,24 @@ timer_us2hpet_cycles(unsigned int us)
 void
 timer_set_periodic_us(unsigned int period_us)
 {
-	timer_set(TIMER_PERIODIC, timer_us2hpet_cycles(period_us));
+	if(period_us == 0){
+		timer_disable(TIMER_PERIODIC);
+	} 
+	else{
+		timer_set(TIMER_PERIODIC, timer_us2hpet_cycles(period_us));
+	}
+	
+}
+
+void
+timer_set_oneshot_us(unsigned int period_us)
+{
+	if(period_us == 0){
+		timer_disable(TIMER_ONESHOT);
+	} 
+	else{
+		timer_set(TIMER_ONESHOT, timer_us2hpet_cycles(period_us));
+	}
 }
 
 void

@@ -1173,8 +1173,23 @@ capmgr_hw_periodic_attach(hwid_t hwid, arcvcap_t rcv, unsigned int period_us)
 }
 
 int
+capmgr_hw_oneshot_attach(hwid_t hwid, arcvcap_t rcv, unsigned int period_us)
+{
+	struct cm_rcv *r;
+	compid_t       caller = (compid_t)cos_inv_token();
+
+	if (period_us == 0) return -EINVAL;
+	if (!rcv) return -EINVAL;
+
+	r = capmgr_get_rcv_aliased(caller, rcv);
+	if (!r) return -EINVAL;
+
+	return cos_hw_oneshot_attach(BOOT_CAPTBL_SELF_INITHW_BASE, hwid, BOOT_CAPTBL_SELF_CT, r->rcv.local_aep.rcv, period_us);
+}
+
+int
 capmgr_hw_detach(hwid_t hwid)
 {
-	printc("### DETACH ###");
+	printc("### DETACH ###\n");
 	return cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, hwid);
 }

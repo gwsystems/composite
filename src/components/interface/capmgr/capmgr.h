@@ -97,6 +97,9 @@ int COS_STUB_DECL(capmgr_hw_attach)(hwid_t hwid, arcvcap_t rcv);
 int capmgr_hw_periodic_attach(hwid_t hwid, arcvcap_t rcv, unsigned int period_us);
 int COS_STUB_DECL(capmgr_hw_periodic_attach)(hwid_t hwid, arcvcap_t rcv, unsigned int period_us);
 
+int capmgr_hw_oneshot_attach(hwid_t hwid, arcvcap_t rcv, unsigned int period_us);
+int COS_STUB_DECL(capmgr_hw_oneshot_attach)(hwid_t hwid, arcvcap_t rcv, unsigned int period_us);
+
 int capmgr_hw_detach(hwid_t hwid);
 int COS_STUB_DECL(capmgr_hw_detach)(hwid_t hwid);
 

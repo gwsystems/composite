@@ -1045,12 +1045,12 @@ composite_syscall_handler(struct pt_regs *regs)
 		return ret;
 	case CAP_ASND:
 		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, ci, cos_info);
-		printk("cap_asnd_op thdid %d, cpuid %d, ret %d\n", thd->tid, get_cpuid(), ret);
+		//printk("cap_asnd_op thdid %d, cpuid %d, ret %d\n", thd->tid, get_cpuid(), ret);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	case CAP_ARCV:
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
-		printk("cap_arcv_op thdid %d, cpuid %d, ret %d\n", thd->tid, get_cpuid(), ret);
+		//printk("cap_arcv_op thdid %d, cpuid %d, ret %d\n", thd->tid, get_cpuid(), ret);
 		if (ret < 0) cos_throw(done, ret);
 
 		return ret;
@@ -1778,6 +1778,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			hwid_t             hwid      = arg1 & 0xffff;
 			capid_t            rcv_ctcap = arg1 >> 16;
 			capid_t            rcvcap    = __userregs_get2(regs);
+			int				   period	 = __userregs_get3(regs);
 
 			rcv_ct = (struct cap_captbl *)captbl_lkup(ci->captbl, rcv_ctcap);
 			if (!CAP_TYPECHK(rcv_ct, CAP_CAPTBL)) cos_throw(err, -EINVAL);
@@ -1785,7 +1786,7 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			rcvc = (struct cap_arcv *)captbl_lkup(rcv_ct->captbl, rcvcap);
 			if (!CAP_TYPECHK(rcvc, CAP_ARCV)) cos_throw(err, -EINVAL);
 
-			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcv_ct->captbl, rcvcap);
+			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcv_ct->captbl, rcvcap, period);
 			printk("### 4 ### CAPTBL_OP_HW_ATTACH hwid: %d, rcvcap: %d, ret: %d\n", hwid, rcvcap, ret);
 			break;
 		}

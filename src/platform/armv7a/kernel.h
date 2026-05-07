@@ -29,6 +29,8 @@ typedef enum
 #define TIMER_DEFAULT_US_INTERARRIVAL 1000 /* US = microseconds */
 
 void  timer_set(timer_type_t timer_type, u64_t cycles);
+void  timer_set_periodic_us(unsigned int period_us);
+void  timer_set_oneshot_us(unsigned int period_us);
 void  timer_init(void);
 u64_t timer_find_hpet(void *timer);
 void  timer_set_hpet_page(u32_t page);
