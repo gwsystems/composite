@@ -1111,12 +1111,12 @@ capmgr_aep_create_ext(u32_t spdid_thdidx, struct cos_aep_info *a, int owntc, u32
         s = ss_comp_get(schedid);
         if (!c || !s) return 0;
 
-		printc("DEBUG AEP - creating rcv for child %ld in sched %ld\n", child, schedid);
+		//printc("DEBUG AEP - creating rcv for child %ld in sched %ld\n", child, schedid);
 
         r = cm_rcv_alloc_in(&c->comp, &s->sched_rcv[cos_cpuid()]->rcv, idx, flags, &thdcap, &tid);
         if (!r) return 0;
 
-		printc("DEBUG AEP - created rcv %d for child %ld\n", r->aliased_cap, child);
+		//printc("DEBUG AEP - created rcv %d for child %ld\n", r->aliased_cap, child);
 
         if (crt_rcv_alias_in(&r->rcv, &s->comp, &res, CRT_RCV_ALIAS_THD | CRT_RCV_ALIAS_TCAP | CRT_RCV_ALIAS_ALL)) {
                 return 0;
@@ -1131,7 +1131,7 @@ capmgr_aep_create_ext(u32_t spdid_thdidx, struct cos_aep_info *a, int owntc, u32
 
         *extrcv = r->aliased_cap;
 
-		printc("DEBUG AEP - created AEP for child %ld in sched %ld with cap %d, tid %d, rcv %d, extrcv %d\n", child, schedid, res.thd, tid, res.rcv, *extrcv);
+		//printc("DEBUG AEP - created AEP for child %ld in sched %ld with cap %d, tid %d, rcv %d, extrcv %d\n", child, schedid, res.thd, tid, res.rcv, *extrcv);
 
         return res.thd;
 }

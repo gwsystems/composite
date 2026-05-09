@@ -143,10 +143,10 @@ slm_aep_alloc_in(compid_t cid, thdclosure_index_t idx, int owntc,
 	   u32_t spdid_thdidx = ((u32_t)cid << 16) | ((u32_t)idx    & 0xFFFF);
        u32_t key_ipimax   = ((u32_t)key << 16) | ((u32_t)ipimax & 0xFFFF);
 
-	   printc("DEBUG AEP - Args: cid %ld, idx %d, owntc %d, key %d, ipiwin %lu, ipimax %u\n", cid, idx, owntc, key, ipiwin, ipimax);
+	   //printc("DEBUG AEP - Args: cid %ld, idx %d, owntc %d, key %d, ipiwin %lu, ipimax %u\n", cid, idx, owntc, key, ipiwin, ipimax);
        //_cap = capmgr_aep_create_ext(cid, &aep, idx, owntc, key, ipiwin, ipimax, &extrcv);
 	        _cap = capmgr_aep_create_ext(spdid_thdidx, &aep, owntc, key_ipimax, ipiwin, &extrcv);  
-	   printc("DEBUG AEP - Sched created AEP with cap %d, tid %d, rcv %d\n", _cap, aep.tid, extrcv);
+	   //printc("DEBUG AEP - Sched created AEP with cap %d, tid %d, rcv %d\n", _cap, aep.tid, extrcv);
        if (_cap <= 0) return NULL;
 
        *rcv = extrcv;

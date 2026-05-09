@@ -234,12 +234,12 @@ periodic_handler(struct pt_regs *regs)
 	lapic_ack();
 	struct cap_asnd *asndc = &hw_asnd_caps[HW_PERIODIC];
 
-	printk("HPET IRQ cpu=%d asndc=%p type=%d cpuid=%d arcv_cap=%d\n",
-	 	get_cpuid(),
-	 	asndc,
-	 	asndc->h.type,
-	 	asndc->cpuid,
-		asndc->arcv_capid);
+	// printk("HPET IRQ cpu=%d asndc=%p type=%d cpuid=%d arcv_cap=%d\n",
+	//  	get_cpuid(),
+	//  	asndc,
+	//  	asndc->h.type,
+	//  	asndc->cpuid,
+	// 	asndc->arcv_capid);
 
 	preempt = cap_hw_asnd(asndc, regs);
 

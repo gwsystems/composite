@@ -81,7 +81,7 @@ hw_attach_rcvcap(struct cap_hw *hwc, hwid_t hwid, struct cap_arcv *rcvc, struct 
 		/* What should the HPET do with this? */
 	}
 
-	printk("### 5 ### hw_attach_rcvcap hwid: %d, rcvc: %p, rcv_cap: %d, comp info: %p\n", hwid, rcvc, rcv_cap, rcvc->comp_info);
+	printk("hw_attach_rcvcap hwid: %d, rcvc: %p, rcv_cap: %d, comp info: %p\n", hwid, rcvc, rcv_cap, rcvc->comp_info);
 	return asnd_construct(&hw_asnd_caps[hwid], rcvc, rcv_ct, rcv_cap);
 }
 

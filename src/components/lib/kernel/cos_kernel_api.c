@@ -1697,7 +1697,7 @@ cos_hw_periodic_attach(hwcap_t hwc, hwid_t hwid, captblcap_t rcv_ctcap, arcvcap_
 {
 	assert(hwid == HW_PERIODIC);
 
-	printc("### 3 ### Creating HW attach with hwc: %d, hwid %d, rcv_ct %d, arcv %d, period %lu\n", hwc, hwid, rcv_ctcap, arcv, period);
+	//printc("### 3 ### Creating HW attach with hwc: %d, hwid %d, rcv_ct %d, arcv %d, period %lu\n", hwc, hwid, rcv_ctcap, arcv, period);
 
 	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, (rcv_ctcap << 16) | (hwid & 0xffff), arcv, period, 0);
 }
@@ -1707,7 +1707,7 @@ cos_hw_oneshot_attach(hwcap_t hwc, hwid_t hwid, captblcap_t rcv_ctcap, arcvcap_t
 {
 	assert(hwid == HW_ONESHOT);
 
-	printc("### 6 ### Creating HW attach with hwc: %d, hwid %d, rcv_ct %d, arcv %d, period %lu\n", hwc, hwid, rcv_ctcap, arcv, period);
+	//printc("### 6 ### Creating HW attach with hwc: %d, hwid %d, rcv_ct %d, arcv %d, period %lu\n", hwc, hwid, rcv_ctcap, arcv, period);
 
 	return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, (rcv_ctcap << 16) | (hwid & 0xffff), arcv, period, 0);
 }

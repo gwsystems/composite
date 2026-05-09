@@ -836,7 +836,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
 
-	printk("cap_hw_asnd: curr thd %d, rcv_thd %d\n", thd->tid, rcv_thd->tid);
+	//printk("cap_hw_asnd: curr thd %d, rcv_thd %d\n", thd->tid, rcv_thd->tid);
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0, cos_info);
 	if (next == thd) return 1;
@@ -1798,7 +1798,7 @@ static sword_t __attribute__((noinline)) composite_syscall_slowpath(struct pt_re
 			if (!CAP_TYPECHK(rcvc, CAP_ARCV)) cos_throw(err, -EINVAL);
 
 			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcv_ct->captbl, rcvcap, period);
-			printk("### 4 ### CAPTBL_OP_HW_ATTACH hwid: %d, rcvcap: %d, ret: %d\n", hwid, rcvcap, ret);
+			printk("CAPTBL_OP_HW_ATTACH hwid: %d, rcvcap: %d, ret: %d\n", hwid, rcvcap, ret);
 			break;
 		}
 		case CAPTBL_OP_HW_DETACH: {
