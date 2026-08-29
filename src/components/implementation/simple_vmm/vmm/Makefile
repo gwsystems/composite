@@ -26,7 +26,31 @@ CFILES+=devices/vps2/vps2.c
 
 C_OBJS+=$(CFILES:%.c=%.o)
 COMP_FLAGS= -mavx -mavx2 -mfma -I$(LIBDIR)/dpdk/dpdk/build/install/include
-private:
-	cd guest && make && cd ..
+# --- guest images -------------------------------------------------------------
+# The Linux guest image is built by the vmimg submodule. VM_IMAGE selects a
+# recipe (see vmimg/recipes/); the kernel version comes from whichever vmimg
+# commit the submodule is pinned to, so it is not overridden here.
+VM_IMAGE  ?= shell
+VMIMG_DIR := $(CURDIR)/../vmimg
+GUEST_DIR := $(CURDIR)/guest
+
+# simple_vmm.c INCBINs both blobs, so they must exist before it is compiled.
+# Makefile.subsubdir lists `all: ... $(COMPOBJ) private`, and make builds
+# prerequisites left to right, so relying on `private` to populate guest/ would
+# compile simple_vmm.c against whatever image a previous build happened to leave
+# behind -- or nothing at all in a fresh checkout.
+simple_vmm.o: $(GUEST_DIR)/vmlinux.img $(GUEST_DIR)/guest.img
+
+$(GUEST_DIR)/guest.img:
+	$(MAKE) -C $(GUEST_DIR)
+
+$(GUEST_DIR)/vmlinux.img:
+	@test -f $(VMIMG_DIR)/Makefile || { \
+		echo "ERROR: $(VMIMG_DIR) is empty."; \
+		echo "       Run: git submodule update --init --recursive"; exit 1; }
+	$(MAKE) -C $(VMIMG_DIR) image RECIPE=$(VM_IMAGE)
+	$(MAKE) -C $(VMIMG_DIR) install RECIPE=$(VM_IMAGE) DESTDIR=$(GUEST_DIR)
+
+private: $(GUEST_DIR)/guest.img $(GUEST_DIR)/vmlinux.img
 
 include Makefile.subsubdir

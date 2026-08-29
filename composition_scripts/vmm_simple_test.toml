@@ -1,8 +1,8 @@
 [system]
 description = "Simple VMM"
 # Simple test to see linux VM to boot and execute init.
-# created vmlinux.img should be putted under simple_vmm/vmm/guest/
-# see simple_vmm/vm_dev.md
+# The guest image is built by the vmimg submodule as part of `./cos build`;
+# select a variant with VM_IMAGE. See simple_vmm/vm_dev.md.
 
 [[components]]
 name = "booter"

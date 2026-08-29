@@ -1,2 +1,8 @@
 *.elf
 *.map
+
+# Build outputs: guest.img is built here, vmlinux.img comes from the vmimg
+# submodule via `make install`.
+guest.img
+vmlinux.img
+vmlinux.manifest

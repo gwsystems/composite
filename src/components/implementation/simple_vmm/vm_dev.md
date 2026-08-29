@@ -1,73 +1,56 @@
 # VM Development Guide
 
-### Linux VM branch
-This is the stock Linux 5.15 used as the VM within Composite hypervisor
-https://github.com/betahxy/vmx-linux-5.15.107
-TODO: We need to move this branch under gwsystems organization.
+### The guest Linux image
+
+The guest is an **unmodified upstream Linux kernel**. It is built by the
+[cos-vmimg](https://github.com/esmakokten/cos-vmimg) submodule at
+`src/components/implementation/simple_vmm/vmimg`, which downloads a stock kernel
+tarball, verifies its checksum, and builds it with a BusyBox initramfs linked in.
+
+This used to require a patched kernel fork and a series of manual steps. Neither
+is needed now: there are no kernel patches, and nothing is copied by hand.
 
 ## How to build the system
 
-### Build guest Linux VM
+### Build the guest Linux VM
 
-This Linux kernel source code is hacked a little bit at the booting stage because we would like to use our simplified guest bootloader to load the Linux image. We simpily added another booter in the code base under `arch/x86/vmxbooter/`. We also removed all other archtectural code except x86 to keep simplicity. Note that this new simple booter can also be booted by any multiboot2 compatible boot loader and then boot the Linux image. Thus, you can also directly use Qemu to boot this code base to test the Linux kernel code. 
+```shell
+git submodule update --init --recursive
+./cos build
+```
 
-- **Prepare the initramfs directory**
+That is the whole procedure. `simple_vmm/vmm/Makefile` builds the image from the
+submodule and installs it as `guest/vmlinux.img`.
 
-	The initfamfs directory is a ram disk used by the kernel to load the `init` user space process (the first process in the disk). We just need to create the directory and a `init.c` file within it and compile it.
+Select which image to build with `VM_IMAGE`:
 
-	```c 
-	// init.c
-	#include <stdio.h>
-	int main()
-	{
-		printf("Hello Initramfs in special bootloader!\n");
+```shell
+./cos build                        # shell:        BusyBox prompt
+VM_IMAGE=ping ./cos build          # ping:         network test
+VM_IMAGE=vmexit-bench ./cos build  # vmexit-bench: microbenchmark + modules
+```
 
-		sleep(10);
+Each is a recipe in `vmimg/recipes/` — a small TOML naming the programs, kernel
+modules and init script to include. Adding an image means adding a recipe and a
+program; see `vmimg/README.md`.
 
-		return 0;
-	}
-	```
-	```shell
-	# Note that this needs to be statically compiled as it cannot include your host system's dependencies
-	gcc -o init -static -s init.c
-	```
-	Within the directory we also need to create a virtual console device to enable the user space print something via console.
-	```shell
-	mkdir dev
-	sudo mknod dev/console c 5 1
-	sudo mknod dev/null c 1 3
-	sudo mknod dev/random c 1 8
-	sudo mknod dev/urandom c 1 9
-	```
+A `guest/vmlinux.manifest` is installed beside the image recording the kernel
+version, the config and initramfs hashes, and the program list, so an image in a
+build tree can always be identified.
 
-	That's it. Just leave this initramfs here and go to build the Linux kernel. You will then need to tell the Linux build system this directory and it will automatically include this initramfs. See the `CONFIG_INITRAMFS_SOURCE` keyword in the config file. You will finally see the output above in your terminal.
-- **Build the stock Linux kernel**
+**Kernel version.** It comes from whichever cos-vmimg commit the submodule is
+pinned to — currently the `kernel-5.15.107` tag. cos-vmimg's `main` tracks the
+current kernel and older lines are frozen as tags, so moving the guest forward
+is a deliberate submodule bump rather than something that changes underneath
+this tree.
 
-	We need to build the Linux kernel as normal. We will disable a lot unused features and keep the kernel as simple as possible. Here we will use this `.config` file as it contains only the necessary features of the Linux kernel (just copy this file into the root directory of the code base once downloaded it). You can expand it as the hypervisor becomes more powerful. 
+**Testing the guest without Composite.** The same image boots under plain QEMU,
+which is much faster to iterate on:
 
-	In case that you would like to custimize the config file, here are the simple steps to config it.
-	```shell
-	# Use this first to generate a config file that disable all unused features
-	make allnoconfig 
-	# This will enable you to select features you want, note that we will want to enable serial output driver for debugging usage
-	# We also enable the initramfs to be contained into the kernel so that the kernel can find the init process to go into user space
-	make menuconfig
-	```
-
-	Then we would simply like to generate a Linux kernel image with the configuration above:
-	```shell
-	make
-	```
-	This will finally generate an ELF file called `vmlinux` in the root directory of the code base. We will then need to process it to make it a pure binary and put it into our customized boot loader.
-	```shell
-	cd arch/x86/vmxbooter/
-	# This will generate a file called kernel.img 
-	make
-	```
-	To test it in the Qemu, just do this in the `vmxbooter` directory :
-	```shell
-	make run
-	```
+```shell
+cd src/components/implementation/simple_vmm/vmimg
+make run RECIPE=shell
+```
 
 ### Build the Composite
 
@@ -83,7 +66,9 @@ This Linux kernel source code is hacked a little bit at the booting stage becaus
 
 	The guest image consists of two parts: the guest bootloader and the guest Linux. Thus the hypervisor needs to load both of them and let the guest bootloader to find guest Linux and load it.
 
-	Suppose we already compiled the vmlinux image, and it should be put here: `src/components/implementation/simple_vmm/vmm/guest/vmlinux.img`
+	The guest Linux image is built by the `vmimg` submodule and installed to
+	`src/components/implementation/simple_vmm/vmm/guest/vmlinux.img` as part of
+	`./cos build`. It is a build output and is not tracked in git.
 
 	The guest bootloader is here: `src/components/implementation/simple_vmm/vmm/guest/guest_realmode.S`. It will then be compiled to this binary file: `src/components/implementation/simple_vmm/vmm/guest/guest.img`.
 
@@ -95,10 +80,13 @@ This Linux kernel source code is hacked a little bit at the booting stage becaus
 
 - **How to build the Composite hypervisor?**
 	```shell
+	git submodule update --init --recursive
 	./cos init x86_64
 	./cos build
 	./cos compose composition_scripts/vmm_simple_test.toml vm
 	```
+	Note that `./cos build` exits 0 even when a component fails to compile, so
+	check its output for `error:` rather than relying on the exit status.
 - **How to run the system?**
 	To run the system on Qemu:
 	```shell
