@@ -3,7 +3,7 @@ description = "Simple VMM Ping Test"
 # VM <---[virtio]---> VMM <---[shared mem]---> nicmgr
 # enable-nic flag must be given using QEMU. (./cos run [binary name] enable-nic)
 # 
-# vmlinux.img: Includes the program that sets ip to eth0 interface and ping to some known ip.
+# The guest is the "ping" recipe: it brings up eth0 and pings a known address.
 # tap0 could be configured and used as a receiving interface.
 
 [[components]]
@@ -40,6 +40,7 @@ baseaddr = "0x6000000"
 [[components]]
 name = "vmm"
 img  = "simple_vmm.vmm"
+constants = [{variable = "VM_GUEST_IMAGE", value = "\"guest/vmlinux-ping-5.15.107.img\""}]
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}]
 implements = []
 constructor = "booter"

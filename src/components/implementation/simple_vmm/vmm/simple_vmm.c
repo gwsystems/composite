@@ -25,7 +25,28 @@
 #include <devices/vpci/virtio_net_io.h>
 
 
-INCBIN(vmlinux, "guest/vmlinux.img")
+/*
+ * The guest Linux image is named by the composition script, so a single built
+ * component can be composed against different guests:
+ *
+ *     [[components]]
+ *     name = "vmm"
+ *     img  = "simple_vmm.vmm"
+ *     constants = [{variable = "VM_GUEST_IMAGE",
+ *                   value = "\"guest/vmlinux-shell-5.15.107.img\""}]
+ *
+ * The composer turns that into a -include'd #define at compose time, and
+ * recompiles this component, so changing guest is a ./cos compose rather than a
+ * rebuild.
+ *
+ * There is deliberately no default: a composition must say which guest it boots.
+ */
+#ifndef VM_GUEST_IMAGE
+#error "VM_GUEST_IMAGE is not set. Name the guest image in your composition script, e.g. constants = [{variable = \"VM_GUEST_IMAGE\", value = \"\\\"guest/vmlinux-shell-5.15.107.img\\\"\"}] -- see simple_vmm/vm_dev.md"
+#endif
+
+INCBIN(vmlinux, VM_GUEST_IMAGE)
+/* The realmode stub is built here and is not selectable. */
 INCBIN(bios, "guest/guest.img")
 
 /* Only one VM component globally managed by this VMM */

@@ -7,9 +7,6 @@ The guest is an **unmodified upstream Linux kernel**. It is built by the
 `src/components/implementation/simple_vmm/vmimg`, which downloads a stock kernel
 tarball, verifies its checksum, and builds it with a BusyBox initramfs linked in.
 
-This used to require a patched kernel fork and a series of manual steps. Neither
-is needed now: there are no kernel patches, and nothing is copied by hand.
-
 ## How to build the system
 
 ### Build the guest Linux VM
@@ -22,17 +19,32 @@ git submodule update --init --recursive
 That is the whole procedure. `simple_vmm/vmm/Makefile` builds the image from the
 submodule and installs it as `guest/vmlinux.img`.
 
-Select which image to build with `VM_IMAGE`:
+### Choosing which guest to boot
 
-```shell
-./cos build                        # shell:        BusyBox prompt
-VM_IMAGE=ping ./cos build          # ping:         network test
-VM_IMAGE=vmexit-bench ./cos build  # vmexit-bench: microbenchmark + modules
+The composition script names the image, so switching guests is a `./cos compose`
+rather than a rebuild:
+
+```toml
+[[components]]
+name = "vmm"
+img  = "simple_vmm.vmm"
+constants = [{variable = "VM_GUEST_IMAGE",
+              value = "\"guest/vmlinux-vmexit-bench-5.15.107.img\""}]
 ```
 
-Each is a recipe in `vmimg/recipes/` — a small TOML naming the programs, kernel
-modules and init script to include. Adding an image means adding a recipe and a
-program; see `vmimg/README.md`.
+The escaped quotes matter: the composer substitutes the value verbatim into a
+`#define`, so without them it is not a string literal and the component will not
+compile. If the named image is not in `guest/` yet, it is built on demand — and
+only it, not the other recipes.
+
+The available images are the recipes in `vmimg/recipes/`, each a small TOML
+naming the programs, kernel modules and init script to include. Adding one means
+adding a recipe and a program; see `vmimg/README.md`.
+
+`./cos build` on its own does not build a guest kernel — there is no composition
+at that point, so it embeds a placeholder. `./cos compose` recompiles the
+component against the image its script names, building that image if needed. So
+a Composite build for a system with no VM in it costs nothing extra.
 
 A `guest/vmlinux.manifest` is installed beside the image recording the kernel
 version, the config and initramfs hashes, and the program list, so an image in a
