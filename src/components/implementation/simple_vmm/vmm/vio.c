@@ -6,6 +6,64 @@
 #include "devices/vps2/vps2.h"
 #include "devices/vpci/virtio_net_io.h"
 
+
+/*
+ * Unemulated devices.
+ *
+ * On real x86 a read from an I/O port no device answers floats the bus high --
+ * all ones -- and a write goes nowhere. Drivers rely on this to probe for
+ * absent hardware; arch/x86/kernel/i8237.c is a plain example:
+ *
+ *     if (dma_inb(DMA_PAGE_0) == 0xFF)
+ *             return -ENODEV;
+ *
+ * This VMM used to VM_PANIC instead, so any probe of a device we do not
+ * emulate killed the guest, and guest kernels had to be patched not to probe.
+ * Behaving like hardware removes that whole class of problem.
+ *
+ * Build with -DVMM_STRICT_IO to get the panic back when you want an unexpected
+ * access to be loud rather than absorbed.
+ */
+static u8_t port_reported[8192];  /* one bit per port, 65536 ports */
+
+static int
+port_first_report(u16_t port)
+{
+	u8_t mask = 1 << (port & 7);
+	u16_t idx = port >> 3;
+
+	if (port_reported[idx] & mask) return 0;
+	port_reported[idx] |= mask;
+
+	return 1;
+}
+
+static void
+unhandled_port(u16_t port_id, int dir, int sz, struct vmrt_vm_vcpu *vcpu)
+{
+#ifdef VMM_STRICT_IO
+	printc("port id:%x, sz:%d, dir:%d\n", port_id, sz, dir);
+	VM_PANIC(vcpu);
+#else
+	if (port_first_report(port_id)) {
+		printc("vmm: no device at port %x (%s); reads return all-ones\n",
+		       port_id, dir == IO_IN ? "read" : "write");
+	}
+
+	if (dir == IO_IN) {
+		u64_t ax = vcpu->shared_region->ax;
+
+		/* Only the accessed width is written; the rest of RAX is preserved. */
+		if (sz == IO_BYTE)      ax = (ax & ~0xFFULL)   | 0xFFULL;
+		else if (sz == IO_WORD) ax = (ax & ~0xFFFFULL) | 0xFFFFULL;
+		else                    ax = 0xFFFFFFFFULL;
+
+		vcpu->shared_region->ax = ax;
+	}
+	/* Writes to nothing are discarded. */
+#endif
+}
+
 void 
 io_handler(struct vmrt_vm_vcpu *vcpu)
 {
@@ -33,11 +91,6 @@ io_handler(struct vmrt_vm_vcpu *vcpu)
 	default:
 		VM_PANIC(vcpu);
 		
-	}
-	if (port_id == 0x3ff || port_id == 0x2f9 || port_id == 0x2fc || port_id == 0x2fb || port_id == 0x2fa || port_id == 0x2ff || port_id == 0x2f8 || port_id == 0x3e9 || port_id == 0x3ec || port_id == 0x3eb || port_id == 0x3ea || port_id == 0x3ef || port_id == 0x3e8
-		 || port_id == 0x2e9 || port_id == 0x2ec || port_id == 0x2eb || port_id == 0x2ee) {
-			/* TODO: fix these io ports emulcation */
-			goto done;
 	}
 	if (port_id <= SERIAL_PORT_MAX && port_id >= SERIAL_PORT_MIN) {
 		serial_handler(port_id, access_dir, access_sz, vcpu);
@@ -97,8 +150,7 @@ io_handler(struct vmrt_vm_vcpu *vcpu)
 		goto done;
 	}
 
-	printc("port id:%x, sz:%d, dir:%d\n", port_id, access_sz, access_dir);
-	VM_PANIC(vcpu);
+	unhandled_port(port_id, access_dir, access_sz, vcpu);
 done:
 	GOTO_NEXT_INST(regs);
 	
