@@ -142,9 +142,18 @@ void cos_test_send(int queue, char *mp);
  * 
  * NOTE: The configured port IDs must exist in the system, otherwise
  *       initialization will fail with an assertion error.
+ * These can be set per-composition rather than edited here, which matters when
+ * one build runs on machines with different NICs:
+ *
+ *     constants = [{variable = "DPDK_NIC_PORT_RX", value = "1"},
+ *                  {variable = "DPDK_NIC_PORT_TX", value = "1"}]
  */
+#ifndef DPDK_NIC_PORT_RX
 #define DPDK_NIC_PORT_RX  0   /* Actual DPDK port ID for receiving packets */
+#endif
+#ifndef DPDK_NIC_PORT_TX
 #define DPDK_NIC_PORT_TX  0   /* Actual DPDK port ID for transmitting packets */
+#endif
 
 /* NIC Queue Configuration per port */
 #define NIC_RX_QUEUE_NUM 1

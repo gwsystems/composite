@@ -32,6 +32,10 @@ baseaddr = "0x1600000"
 [[components]]
 name = "nicmgr"
 img  = "nicmgr.dpdk"
+# DPDK port to use. Machines enumerate NICs differently, so this is set per
+# composition rather than compiled in; check the DEV_INFO lines in the boot log
+# for the port_id of the NIC you want (see lib/dpdk/cos_dpdk.h).
+constants = [{variable = "DPDK_NIC_PORT_RX", value = "0"}, {variable = "DPDK_NIC_PORT_TX", value = "0"}]
 deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}]
 implements = [{interface = "nic_netio_rx"}, {interface = "nic_netio_tx"}, {interface = "nic_netio_shmem"}]
 constructor = "booter"
