@@ -25,7 +25,28 @@
 #include <devices/vpci/virtio_net_io.h>
 
 
-INCBIN(vmlinux, "guest/vmlinux.img")
+/*
+ * The guest Linux image is named by the composition script, so a single built
+ * component can be composed against different guests:
+ *
+ *     [[components]]
+ *     name = "vmm"
+ *     img  = "simple_vmm.vmm"
+ *     constants = [{variable = "VM_GUEST_IMAGE",
+ *                   value = "\"guest/vmlinux-shell-5.15.107.img\""}]
+ *
+ * The composer turns that into a -include'd #define at compose time, and
+ * recompiles this component, so changing guest is a ./cos compose rather than a
+ * rebuild.
+ *
+ * There is deliberately no default: a composition must say which guest it boots.
+ */
+#ifndef VM_GUEST_IMAGE
+#error "VM_GUEST_IMAGE is not set. Name the guest image in your composition script, e.g. constants = [{variable = \"VM_GUEST_IMAGE\", value = \"\\\"guest/vmlinux-shell-5.15.107.img\\\"\"}] -- see simple_vmm/vm_dev.md"
+#endif
+
+INCBIN(vmlinux, VM_GUEST_IMAGE)
+/* The realmode stub is built here and is not selectable. */
 INCBIN(bios, "guest/guest.img")
 
 /* Only one VM component globally managed by this VMM */
@@ -162,14 +183,7 @@ cos_init(void)
 	g_vm = vm_comp_create();
 	printc("VMM: Created VM with %d vCPUs: comp_id=%lu, %p\n", g_num_vcpus, g_vm->comp_id, g_vm);
 
-	if (nic_netio_shmem_map) {
-		/* Create TX thread for transmitting packets to NIC */
-		g_vm->tx_thd = sched_thd_create(virtio_tx_task, NULL);
-		printc("VMM: Created TX thread, tid=%lu\n", g_vm->tx_thd);
-		/* Create RX thread for receiving packets from NIC */
-		g_vm->rx_thd = sched_thd_create(virtio_rx_task, NULL);
-		printc("VMM: Created RX thread, tid=%lu\n", g_vm->rx_thd);
-	} else {
+	if (!nic_netio_shmem_map) {
 		printc("VMM: Networking disabled: nicmgr interface not found\n");
 	}
 }
@@ -180,6 +194,25 @@ cos_parallel_init(coreid_t cid, int init_core, int ncores)
 	struct vmrt_vm_vcpu *vcpu;
 
 	if (cid == 0) {
+		/*
+		 * The TX/RX threads are created here rather than in cos_init()
+		 * because a thread can only be switched to by the scheduler on the
+		 * core it was created on -- cap_switch rejects a cross-core switch
+		 * with -EINVAL. cos_init() runs on whichever core happens to
+		 * initialise the component, while parallel_main() sets these
+		 * threads' scheduling parameters from core 0, which put core-N
+		 * threads on core 0's runqueue and tripped the assert in
+		 * slm_private.h when the scheduler picked one.
+		 */
+		if (nic_netio_shmem_map) {
+			/* Create TX thread for transmitting packets to NIC */
+			g_vm->tx_thd = sched_thd_create(virtio_tx_task, NULL);
+			printc("VMM: Created TX thread, tid=%lu\n", g_vm->tx_thd);
+			/* Create RX thread for receiving packets from NIC */
+			g_vm->rx_thd = sched_thd_create(virtio_rx_task, NULL);
+			printc("VMM: Created RX thread, tid=%lu\n", g_vm->rx_thd);
+		}
+
 		printc("VMM: Initializing vCPU 0 on core %d\n", cid);
 		vmrt_vm_vcpu_init(g_vm, 0);
 		vcpu = vmrt_get_vcpu(g_vm, 0);

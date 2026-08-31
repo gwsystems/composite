@@ -18,3 +18,10 @@
 	path = src/components/lib/memcached/memcached
 	url = https://github.com/gwsystems/memcached
 	branch = cos_memcached
+[submodule "src/components/implementation/simple_vmm/vmimg"]
+	path = src/components/implementation/simple_vmm/vmimg
+	url = https://github.com/esmakokten/cos-vmimg.git
+	# Pinned to the kernel-5.15.107-3 tag, not a branch. cos-vmimg's main tracks
+	# the current kernel; older kernel lines live on maintenance branches and are
+	# tagged. Moving to a newer kernel is a deliberate submodule bump, not
+	# something that happens underneath this branch.

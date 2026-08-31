@@ -6,7 +6,7 @@ For EPT, having a EPT cap or having a separate operation for PGTBL_CAP for EPT w
 However, that's not what the current code is. The current code uses a VM flag bit when creating EPT page tables within the `level` argument in order to reduce workload based on the current kernel and user level codebase.
 
 ## Linux image
-The ideal choice would be to just use the compressed linux kernel and load it with Composite's ELF loader. But, currently we don't use that for simplicity. Instead, we add a simple booter(which doesn't modeif the kernel itself) in Linux to boot Linux.
+The ideal choice would be to just use the compressed linux kernel and load it with Composite's ELF loader. But, currently we don't use that for simplicity. Instead, a simple booter loads the Linux image; it lives in the `vmimg` submodule (`vmimg/vmxbooter/`) rather than in the kernel tree, and the kernel itself is unmodified upstream.
 
 ## VM Logging System
 The vmx log level in the kernel can be controled by `COS_VM_LOG_GLOBAL_LEVEL` flag. Set it to `debug` level will print most verbose information.

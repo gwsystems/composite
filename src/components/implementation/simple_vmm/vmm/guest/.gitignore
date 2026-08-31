@@ -1,2 +1,9 @@
 *.elf
 *.map
+
+# Build outputs: guest.img is built here; the vmlinux-<recipe>-<kver>.img images
+# and their manifests are installed by the vmimg submodule.
+guest.img
+.placeholder.img
+vmlinux-*.img
+vmlinux-*.manifest
