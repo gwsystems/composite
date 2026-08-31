@@ -10,8 +10,9 @@
  * for why absorbing these is correct rather than lenient.
  */
 #define MMIO_REPORT_SLOTS 64
-static u64_t mmio_reported[MMIO_REPORT_SLOTS];
+static u64_t   mmio_reported[MMIO_REPORT_SLOTS];
 static unsigned mmio_reported_n;
+static int     mmio_report_exhausted;
 
 static int
 mmio_first_report(u64_t gpa)
@@ -19,10 +20,25 @@ mmio_first_report(u64_t gpa)
 	u64_t page = gpa & ~(u64_t)(PAGE_SIZE_4K - 1);
 	unsigned i;
 
+	if (mmio_report_exhausted) return 0;
+
 	for (i = 0; i < mmio_reported_n; i++) {
 		if (mmio_reported[i] == page) return 0;
 	}
-	if (mmio_reported_n < MMIO_REPORT_SLOTS) mmio_reported[mmio_reported_n++] = page;
+
+	if (mmio_reported_n == MMIO_REPORT_SLOTS) {
+		/*
+		 * Out of slots. Report once more to say we are going quiet -- a
+		 * guest probing a large unbacked region would otherwise log on
+		 * every access, which is what this table exists to prevent.
+		 */
+		mmio_report_exhausted = 1;
+		printc("vmm: more than %d unbacked mmio pages; further ones not reported\n",
+		       MMIO_REPORT_SLOTS);
+		return 0;
+	}
+
+	mmio_reported[mmio_reported_n++] = page;
 
 	return 1;
 }

@@ -16,8 +16,9 @@ git submodule update --init --recursive
 ./cos build
 ```
 
-That is the whole procedure. `simple_vmm/vmm/Makefile` builds the image from the
-submodule and installs it as `guest/vmlinux.img`.
+That is the whole procedure. The guest image is built during `./cos compose` and
+installed into `guest/` as `vmlinux-<recipe>-<kver>.img`; see "Choosing which
+guest to boot" below.
 
 ### Choosing which guest to boot
 
@@ -46,15 +47,15 @@ at that point, so it embeds a placeholder. `./cos compose` recompiles the
 component against the image its script names, building that image if needed. So
 a Composite build for a system with no VM in it costs nothing extra.
 
-A `guest/vmlinux.manifest` is installed beside the image recording the kernel
-version, the config and initramfs hashes, and the program list, so an image in a
-build tree can always be identified.
+A `vmlinux-<recipe>-<kver>.manifest` is installed beside each image recording the
+kernel version, the config and initramfs hashes, and the program list, so an
+image in a build tree can always be identified.
 
 **Kernel version.** It comes from whichever cos-vmimg commit the submodule is
-pinned to — currently the `kernel-5.15.107` tag. cos-vmimg's `main` tracks the
-current kernel and older lines are frozen as tags, so moving the guest forward
-is a deliberate submodule bump rather than something that changes underneath
-this tree.
+pinned to; `.gitmodules` records the tag. cos-vmimg's `main` tracks the current
+kernel and older lines are frozen as tags, so moving the guest forward is a
+deliberate submodule bump rather than something that changes underneath this
+tree.
 
 **Testing the guest without Composite.** The same image boots under plain QEMU,
 which is much faster to iterate on:
@@ -78,13 +79,15 @@ make run RECIPE=shell
 
 	The guest image consists of two parts: the guest bootloader and the guest Linux. Thus the hypervisor needs to load both of them and let the guest bootloader to find guest Linux and load it.
 
-	The guest Linux image is built by the `vmimg` submodule and installed to
-	`src/components/implementation/simple_vmm/vmm/guest/vmlinux.img` as part of
-	`./cos build`. It is a build output and is not tracked in git.
+	The guest Linux image is built by the `vmimg` submodule during
+	`./cos compose` and installed into
+	`src/components/implementation/simple_vmm/vmm/guest/` as
+	`vmlinux-<recipe>-<kver>.img`. It is a build output and is not tracked in
+	git.
 
 	The guest bootloader is here: `src/components/implementation/simple_vmm/vmm/guest/guest_realmode.S`. It will then be compiled to this binary file: `src/components/implementation/simple_vmm/vmm/guest/guest.img`.
 
-	Now we have both the `guest.img` (the guest bootloader) and the `vmlinux.img` (the stock Linux kernel image).
+	Now we have both the `guest.img` (the guest bootloader) and the `vmlinux-<recipe>-<kver>.img` (the stock Linux kernel image).
 
 	The two guest images will then be included into the simple vmm component. 
 

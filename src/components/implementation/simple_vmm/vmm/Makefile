@@ -27,12 +27,8 @@ CFILES+=devices/vps2/vps2.c
 C_OBJS+=$(CFILES:%.c=%.o)
 COMP_FLAGS= -mavx -mavx2 -mfma -I$(LIBDIR)/dpdk/dpdk/build/install/include
 # --- guest images -------------------------------------------------------------
-# The Linux guest image is built by the vmimg submodule.
-#
-# VM_IMAGE is the recipe ./cos build produces, so a default guest exists in a
-# freshly built tree. Which image is actually embedded is chosen per-composition
-# -- see VM_GUEST_IMAGE below.
-VM_IMAGE  ?= shell
+# The Linux guest image is built by the vmimg submodule, and which one gets
+# embedded is chosen per-composition -- see VM_GUEST_IMAGE below.
 VMIMG_DIR := $(CURDIR)/../vmimg
 GUEST_DIR := $(CURDIR)/guest
 
@@ -108,11 +104,8 @@ $(GUEST)/vmlinux-%.img:
 	 $(MAKE) -C $(VMIMG_DIR) image   RECIPE="$$recipe" KVER="$$kver" && \
 	 $(MAKE) -C $(VMIMG_DIR) install RECIPE="$$recipe" KVER="$$kver" DESTDIR=$(GUEST_DIR)
 
-# At ./cos build time there is no composition yet, so COMP_CONST_H is unset and
-# VM_GUEST_IMAGE is empty. Build the VM_IMAGE recipe then, so a default guest
-# exists; the composition's constant governs what actually gets embedded.
-# The guest image is a prerequisite of simple_vmm.o, so it is already built by
-# the time this runs; private only needs the realmode stub.
+# The guest image is a prerequisite of simple_vmm.o, so it has already been built
+# by the time this runs; private only needs the realmode stub.
 private: $(GUEST)/guest.img
 
 include Makefile.subsubdir
