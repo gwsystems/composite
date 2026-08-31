@@ -822,7 +822,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	}
 
 	arcv = __cap_asnd_to_arcv(asnd);
-	if (unlikely(!arcv)) return 1;
+	if (unlikely(!arcv)) return 1; //Fails here and never accends, arcv = 0
 
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
@@ -835,6 +835,8 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	rcv_thd  = arcv->thd;
 	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
+
+	//printk("cap_hw_asnd: curr thd %d, rcv_thd %d\n", thd->tid, rcv_thd->tid);
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, &tcap_next, 0, cos_info);
 	if (next == thd) return 1;
@@ -1043,10 +1045,12 @@ composite_syscall_handler(struct pt_regs *regs)
 		return ret;
 	case CAP_ASND:
 		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, ci, cos_info);
+		//printk("cap_asnd_op thdid %d, cpuid %d, ret %d\n", thd->tid, get_cpuid(), ret);
 		if (ret < 0) cos_throw(done, ret);
 		return ret;
 	case CAP_ARCV:
 		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
+		//printk("cap_arcv_op thdid %d, cpuid %d, ret %d\n", thd->tid, get_cpuid(), ret);
 		if (ret < 0) cos_throw(done, ret);
 
 		return ret;
@@ -1779,14 +1783,22 @@ static sword_t __attribute__((noinline)) composite_syscall_slowpath(struct pt_re
 	case CAP_HW: {
 		switch (op) {
 		case CAPTBL_OP_HW_ATTACH: {
-			struct cap_arcv *rcvc;
-			hwid_t           hwid   = __userregs_get1(regs);
-			capid_t          rcvcap = __userregs_get2(regs);
+			struct cap_arcv   *rcvc;
+			struct cap_captbl *rcv_ct;
+			unsigned long      arg1      = __userregs_get1(regs);
+			hwid_t             hwid      = arg1 & 0xffff;
+			capid_t            rcv_ctcap = arg1 >> 16;
+			capid_t            rcvcap    = __userregs_get2(regs);
+			int				   period	 = __userregs_get3(regs);
 
-			rcvc = (struct cap_arcv *)captbl_lkup(ci->captbl, rcvcap);
+			rcv_ct = (struct cap_captbl *)captbl_lkup(ci->captbl, rcv_ctcap);
+			if (!CAP_TYPECHK(rcv_ct, CAP_CAPTBL)) cos_throw(err, -EINVAL);
+
+			rcvc = (struct cap_arcv *)captbl_lkup(rcv_ct->captbl, rcvcap);
 			if (!CAP_TYPECHK(rcvc, CAP_ARCV)) cos_throw(err, -EINVAL);
 
-			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcvcap);
+			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcv_ct->captbl, rcvcap, period);
+			printk("CAPTBL_OP_HW_ATTACH hwid: %d, rcvcap: %d, ret: %d\n", hwid, rcvcap, ret);
 			break;
 		}
 		case CAPTBL_OP_HW_DETACH: {

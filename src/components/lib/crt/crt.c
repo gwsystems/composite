@@ -1013,7 +1013,7 @@ crt_rcv_create_in(struct crt_rcv *r, struct crt_comp *c, struct crt_rcv *sched, 
 	res = (struct crt_rcv_resources) {
 		.tc   = tcap,
 		.thd  = thdcap,
-		.tid  = 0,
+		.tid  = cos_introspect(ci, thdcap, THD_GET_TID),
 		.rcv  = rcvcap,
 	};
 	if (crt_rcv_create_with(r, c, &res)) BUG();
