@@ -15,4 +15,9 @@ LIBRARY_DEPENDENCIES = component slm ps util crt initargs ck
 # the build to fail. The build system does not validate this
 # minimality; that's on you!
 
+CFILES+=../shared/init.c
+CFILES+=../shared/thd_alloc.c
+
+C_OBJS+=$(CFILES:%.c=%.o)
+
 include Makefile.subsubdir
